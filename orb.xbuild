@@ -9,6 +9,8 @@ package:
 # define global settings
 settings:
     distributionName: projex_orb
+    company: Projex Software
+    companyUrl: http://www.projexsoftware.com
 
 # define the path options
 paths:
