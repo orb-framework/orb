@@ -1,3 +1,6 @@
 /.build
 /src/orb/*.pyc
 *.pyc
+/src/build
+/src/dist
+/src/projex_orb.egg-info
