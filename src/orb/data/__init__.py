@@ -16,6 +16,7 @@ __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
 from .join import Join
+from .engines import ColumnEngine, SchemaEngine
 from .piperecordset import PipeRecordSet
 from .recordset import RecordSet
 from .valuemapper import ValueMapper

@@ -18,6 +18,5 @@ __email__           = 'team@projexsoftware.com'
 
 from .connection import Connection
 from .database import Database
-from .engines import ColumnEngine, SchemaEngine
 from .environment import Environment
 from .options import LookupOptions, DatabaseOptions
