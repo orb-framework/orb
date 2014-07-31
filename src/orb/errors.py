@@ -13,16 +13,12 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
-from projex.text import nativestring
+from projex.text import nativestring as nstr
 
 #------------------------------------------------------------------------------
 
 class OrbError(StandardError):
     """ Defines the base error class for the orb package """
-    pass
-
-class OrbWarning(Warning):
-    """ Defines the base warnning class for the orb package """
     pass
 
 # B
@@ -39,13 +35,13 @@ class CannotRemoveError(OrbError):
     def __init__( self, msg ):
         OrbError.__init__( self, msg )
 
-class ColumnNotFoundWarning(OrbError):
+class ColumnNotFoundError(OrbError):
     def __init__(self, column, table=''):
         try:
             table = column.schema().name()
             col = column.name()
         except AttributeError:
-            col = nativestring(column)
+            col = nstr(column)
         
         opts = (table, col)
         OrbError.__init__(self, '%s is a missing column from %s.' % opts)
@@ -55,7 +51,7 @@ class ColumnReadOnlyError(OrbError):
         try:
             text = column.name()
         except AttributeError:
-            text = nativestring(column)
+            text = nstr(column)
         
         OrbError.__init__(self, '%s is a read-only column.' % text)
 
@@ -64,7 +60,7 @@ class ColumnRequiredError(OrbError):
         try:
             text = column.name()
         except AttributeError:
-            text = nativestring(column)
+            text = nstr(column)
         
         OrbError.__init__(self, '%s is a required column.' % text)
 
@@ -116,6 +112,9 @@ class DatabaseNotFoundError(OrbError):
     def __init__(self):
         OrbError.__init__(self, 'No database was found.')
 
+class DependencyNotFoundError(OrbError):
+    pass
+
 class DuplicateColumnWarning(OrbError):
     """ Thrown when there is a duplicate column found within a single \
         hierarchy of a Table. """
@@ -133,7 +132,7 @@ class ForeignKeyMissingReferenceError(OrbError):
         try:
             text = column.name()
         except AttributeError:
-            text = nativestring(column)
+            text = nstr(column)
         
         text = '%s is a foreign key with no reference table.' % column
         OrbError.__init__( self, text )

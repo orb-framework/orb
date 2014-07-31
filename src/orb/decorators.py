@@ -12,32 +12,30 @@ __email__           = 'team@projexsoftware.com'
 
 import time
 
-from projex.decorators  import wraps
-from orb.caching        import RecordCache
-from orb.transaction    import Transaction
+from projex.lazymodule import LazyModule
+from projex.decorators import wraps
+
+orb = LazyModule('orb')
+
 
 # C
 #------------------------------------------------------------------------------
 
-def cachedmethod( *tables ):
+def cachedmethod(*tables):
     """
     Defines a decorator method to wrap a method with a caching mechanism.
     
     :param      *tables | [<orb.Table>, ..]
     """
     def decorated(func):
-        cache = RecordCache(*tables)
-        
         @wraps(func)
         def wrapped(*args, **kwds):
-            cache.begin()
-            results = func(*args, **kwds)
-            cache.end()
-            
+            with cache:
+                results = func(*args, **kwds)
             return results
         
         # expose access to the record cache
-        wrapped.__dict__['cache'] = cache
+        wrapped.__dict__['cache'] = orb.RecordCache(*tables)
         
         return wrapped
     return decorated
@@ -52,14 +50,10 @@ def transactedmethod():
     def decorated(func):
         @wraps(func)
         def wrapped(*args, **kwds):
-            # create a transaction
-            transaction = Transaction()
-            
             # run the function within a transaction
-            transaction.begin()
-            results = func(*args, **kwds)
-            transaction.end()
-            
+            with orb.Transaction() as transaction:
+                results = func(*args, **kwds)
             return results
         return wrapped
     return decorated
+

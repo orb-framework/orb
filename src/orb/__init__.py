@@ -19,10 +19,10 @@ __email__           = 'team@projexsoftware.com'
 #------------------------------------------------------------------------------
 
 # define version information (major,minor,maintanence)
-__depends__ = ['projex', 'pytz', 'tzlocal']
-__major__   = 4
-__minor__   = 0
-__revision__ = 0
+__depends__     = ['projex', 'pytz', 'tzlocal', 'babel', 'yaml']
+__major__       = 4
+__minor__       = 0
+__revision__    = 0
 
 __version_info__   = (__major__, __minor__, __revision__)
 __version__        = '%s.%s' % (__major__, __minor__)
@@ -30,35 +30,27 @@ __version__        = '%s.%s' % (__major__, __minor__)
 #------------------------------------------------------------------------------
 
 import logging
-
-from orb.common              import *            # pylint: disable-msg=W0401
-from orb.settings            import *
-
-from orb._orb                import Orb, OrbThesaurus
-from orb._orbgroup           import OrbGroup
-from orb.connection          import Connection,\
-                                    DatabaseOptions,\
-                                    LookupOptions,\
-                                    SchemaEngine,\
-                                    ColumnEngine
-from orb.database            import Database
-from orb.tableschema         import TableSchema
-from orb.column              import Column
-from orb.query               import Query,\
-                                    QueryCompound,\
-                                    QueryPattern,\
-                                    QueryAggregate
-from orb.join                import Join
-from orb.index               import Index
-from orb.pipe                import Pipe, PipeRecordSet
-from orb.table               import Table
-from orb.tableenum           import TableEnum
-from orb.environment         import Environment
-from orb.recordset           import RecordSet
-from orb.valuemapper         import ValueMapper
-from orb.caching             import DataCache, TableCache, RecordCache
-from orb.transaction         import Transaction
-from orb.search              import Search, SearchThesaurus
-from orb.aggregates          import *
-
 logger = logging.getLogger(__name__)
+
+# import global symbols
+from .common import *
+from .caching import *
+from .core import *
+from .data import *
+from .querying import *
+from .schema import *
+from .searching import *
+
+#----------------------------------------------------------------------
+
+# create the global manager instance
+from .manager import Manager
+system = Manager.instance()
+
+#----------------------------------------------------------------------
+# backwards compatibility support (pre: 4.0.0)
+
+OrbGroup = TableGroup
+OrbThesaurus = SearchThesaurus
+Orb = Manager
+
