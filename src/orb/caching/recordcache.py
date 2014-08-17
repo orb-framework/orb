@@ -15,9 +15,12 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
+import logging
+
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 
+log = logging.getLogger(__name__)
 orb = LazyModule('orb')
 
 class OrderCompare(object):
@@ -139,9 +142,10 @@ class RecordCache(object):
         
         :return     {<str> columnName: <list> value, ..}
         """
-        output = dict([(column, set()) for column in lookup.columns])
+        columns = list(lookup.columns)
+        output = dict([(column, set()) for column in columns])
         for record in self.select(backend, table, lookup, options):
-            for column in lookup.columns:
+            for column in columns:
                 output[column].add(record.get(column))
         
         for key, value in output.items():
@@ -335,11 +339,11 @@ class RecordCache(object):
             try:
                 records = backend.select(table, all_lookup, all_opts)
                 cache.setValue(preload_key, records)
-            except errors.OrbError, err:
+            except orb.errors.OrbError, err:
                 if options.throwErrors:
                     raise
                 else:
-                    logger.error('Backend error occurred.\n%s', err)
+                    log.error('Backend error occurred.\n%s', err)
                     return []
             
             records = self.preloadedRecords(table, lookup)
@@ -351,11 +355,11 @@ class RecordCache(object):
         else:
             try:
                 records = backend.select(table, lookup, options)
-            except errors.OrbError, err:
+            except orb.errors.OrbError, err:
                 if options.throwErrors:
                     raise
                 else:
-                    logger.error('Backend error occurred.\n%s', nstr(err))
+                    log.error('Backend error occurred.\n%s', nstr(err))
                     return []
             
             if cache:

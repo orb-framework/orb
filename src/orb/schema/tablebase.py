@@ -478,7 +478,7 @@ class TableBase(type):
                 
                 # ensure we're assigning it to the proper base module
                 while ref_model and \
-                      ref_model.__module__ != 'orb.dynamic' and \
+                      ref_model.__module__ != 'orb.schema.dynamic' and \
                       ref_model.__bases__:
                     ref_model = ref_model.__bases__[0]
                 

@@ -19,7 +19,7 @@ __email__           = 'team@projexsoftware.com'
 #------------------------------------------------------------------------------
 
 # define version information (major,minor,maintanence)
-__depends__     = ['projex', 'pytz', 'tzlocal', 'babel', 'yaml']
+__depends__     = ['projex', 'mako', 'yaml']
 __major__       = 4
 __minor__       = 0
 __revision__    = 0
@@ -51,6 +51,6 @@ system = Manager.instance()
 # backwards compatibility support (pre: 4.0.0)
 
 OrbGroup = TableGroup
-OrbThesaurus = SearchThesaurus
+#OrbThesaurus = SearchThesaurus
 Orb = Manager
 

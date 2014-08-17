@@ -13,8 +13,9 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
-from .aggregates import *
 from .column import Column
+from .columnaggregator import ColumnAggregator
+from .columnjoiner import ColumnJoiner
 from .index import Index
 from .pipe import Pipe
 from .table import Table

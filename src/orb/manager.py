@@ -16,7 +16,6 @@ __email__           = 'team@projexsoftware.com'
 
 #------------------------------------------------------------------------------
 
-import babel
 import datetime
 import glob
 import logging
@@ -49,6 +48,8 @@ class Manager(object):
         self._database = None       # current database
         self._tableclass = None     # base table class (default: orb.Table)
         self._namespace = ''        # current namespace
+        self._cacheExpired = datetime.datetime.now()
+        self._searchEngine = orb.SearchEngine()
         
         # orb file loading/merging
         self._filename = ''         # current filename (*.orb file)
@@ -59,7 +60,6 @@ class Manager(object):
         self._settings = Settings()
         
         # language options
-        self._languages = {'en_US'}
         self._language = os.environ.get('ORB_LANGUAGE', 'en_US')
         self._timezone = None
         
@@ -372,7 +372,7 @@ class Manager(object):
         
         :return     <bool>
         """
-        return self._cachingEnabled
+        return self.settings().isCachingEnabled()
     
     def language(self):
         """
@@ -382,23 +382,6 @@ class Manager(object):
         """
         return self._language
 
-    def languages(self):
-        """
-        Returns the languages associated with this manager.
-        
-        :return     {<str>, ..}
-        """
-        return self._languages
-    
-    def locale(self):
-        """
-        Returns the babel locale for this manager based on its language
-        settings.
-        
-        :return     <babel.Locale>
-        """
-        return babel.Locale.parse(self.language())
-    
     def load(self, filename = '', includeReferences=False):
         """
         Loads the settings for this orb manager from the inputed xml file.
@@ -836,6 +819,14 @@ class Manager(object):
         return [schema for key, schema in self._schemas.items() \
                 if key[0] == database]
     
+    def searchEngine(self):
+        """
+        Returns the search engine that will be used for this system.
+        
+        :return     <orb.SearchEngine>
+        """
+        return self._searchEngine
+    
     def searchThesaurus(self):
         """
         Returns the search thesaurus associated with this manager's instance.
@@ -845,7 +836,7 @@ class Manager(object):
         
         :return     <orb.SearchThesaurus>
         """
-        return self._searchThesaurus
+        return self._searchEngine.thesaurus()
     
     def settings(self):
         """
@@ -871,7 +862,7 @@ class Manager(object):
         
         :param      state | <bool>
         """
-        self._cachingEnabled = state
+        self.settings().setCachingEnabled(state)
     
     def setCustomEngine(self, databaseType, columnType, engineClass):
         """
@@ -904,17 +895,7 @@ class Manager(object):
         """
         if lang_code:
             self._language = lang_code
-    
-    def setLanguages(self, languages):
-        """
-        Sets the languages for this manager.  This is a list of language/locale
-        codes.  This will provide the abstraction for the language lookup
-        codes in the database when used with translation.
-        
-        :param      languages | [<str>, ..]
-        """
-        self._languages = set(languages)
-    
+
     def setEnvironment(self, environment):
         """
         Sets the active environment to the inputed environment.
@@ -974,7 +955,7 @@ class Manager(object):
                 continue
             
             # replace the sub-class models
-            if other_model and issubclass(other_model, old_model):\
+            if other_model and issubclass(other_model, old_model):
                 # retrieve the root class that inherits from our old one
                 other_model = find_model(other_model, old_model)
                 new_bases   = list(other_model.__bases__)
@@ -1006,6 +987,14 @@ class Manager(object):
         """
         self._properties[nstr(property)] = nstr(value)
     
+    def setSearchEngine(self, engine):
+        """
+        Sets the search engine that will be used for this system.
+        
+        :param      engine | <orb.SearchEngine>
+        """
+        self._searchEngine = engine
+    
     def setSearchThesaurus(self, thesaurus):
         """
         Returns the search thesaurus associated with this manager's instance.
@@ -1015,7 +1004,7 @@ class Manager(object):
         
         :param          thesaurus | <orb.SearchThesaurus>
         """
-        self._searchThesaurus = thesaurus
+        self._searchEngine.setThesaurus(thesaurus)
         self.markCacheExpired()
     
     def setTimezone(self, timezone):

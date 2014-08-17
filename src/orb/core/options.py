@@ -159,6 +159,10 @@ class LookupOptions(object):
         self.distinct = kwds.get('distinct', False)
         self.language = kwds.get('language', None)
         
+        # ensure that the list is not modified
+        if self.columns is not None:
+            self.columns = list(self.columns)
+        
         # make sure we have a valid query
         if self.where is not None and self.where.isNull():
             self.where = None

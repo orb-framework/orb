@@ -16,15 +16,38 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
+from projex.enum import enum
 from projex.lazymodule import LazyModule
 
 orb = LazyModule('orb')
 
 class QueryAggregate(object):
+    Type = enum(
+        'Count',
+        'Maximum',
+        'Minimum',
+        'Sum'
+    )
     def __init__(self, typ, table, **options):
         self._type = typ
         self._table = table
+        self._column = options.get('column', None)
         self._lookupOptions = orb.LookupOptions(**options)
+    
+    def columns(self):
+        """
+        Returns the column associated with this aggregate.
+        
+        :return     [<orb.Column>, ..]
+        """
+        if self._column:
+            if not isinstance(self._column, orb.Column):
+                col = self._table.schema().column(self._column)
+            else:
+                col = self._column
+            return (col,)
+        else:
+            return self._table.schema().primaryColumns()
     
     def lookupOptions(self):
         """
@@ -49,4 +72,4 @@ class QueryAggregate(object):
         :return     <str>
         """
         return self._type
-    
+

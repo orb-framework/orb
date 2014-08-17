@@ -99,6 +99,7 @@ class TableSchema(object):
         self._primaryColumns        = None
         self._model                 = None
         self._referenced            = referenced
+        self._searchEngine          = None
     
     def addColumn(self, column):
         """
@@ -497,7 +498,7 @@ class TableSchema(object):
             bases = [orb.system.baseTableType()]
         
         # generate the attributes
-        attrs   = {'__db_schema__': self, '__module__': 'orb.dynamic'}
+        attrs   = {'__db_schema__': self, '__module__': 'orb.schema.dynamic'}
         grp     = self.group()
         prefix  = ''
         if grp:
@@ -796,6 +797,17 @@ class TableSchema(object):
         if pipe in self._pipes:
             self._pipes.remove(pipe)
     
+    def searchEngine(self):
+        """
+        Returns the search engine that will be used for this system.
+        
+        :return     <orb.SearchEngine>
+        """
+        if self._searchEngine:
+            return self._searchEngine
+        else:
+            return orb.system.searchEngine()
+    
     def searchableColumns(self, recurse=True, includeProxies=True):
         """
         Returns a list of the searchable columns for this schema.
@@ -985,6 +997,14 @@ class TableSchema(object):
         :param      state | <bool>
         """
         self._preloadCache = state
+    
+    def setSearchEngine(self, engine):
+        """
+        Sets the search engine that will be used for this system.
+        
+        :param      engine | <orb.SearchEngine>
+        """
+        self._searchEngine = engine
     
     def setStringFormat(self, format):
         """

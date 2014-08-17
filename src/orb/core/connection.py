@@ -656,7 +656,7 @@ class Connection(AddonManager):
                 return ('errored', results)
             return ('updated', results)
     
-    def syncTable( self, schema, options):
+    def syncTable(self, schema, options):
         """
         Syncs the table to the current database, checking to see
         if the table exists, and if so - updates any new columns,
@@ -665,10 +665,9 @@ class Connection(AddonManager):
         :param      schema     | <orb.TableSchema>
                     options    | <orb.DatabaseOptions>
         
-        :return     ( <str> type, <bool> changed ) || None
+        :return     (<str> type, <bool> changed) || None
         """
-        
-        if ( self.tableExists(schema, options) ):
+        if self.tableExists(schema, options):
             results = self.updateTable(schema, options)
             return ('created', )
         else:

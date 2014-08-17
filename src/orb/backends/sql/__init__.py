@@ -16,7 +16,8 @@ __depends__        = []
 __version_info__   = (0, 0, 0)
 __version__        = '%i.%i.%i' % __version_info__
 
+
 # import the backend SQL implementations
-from .mysql import MySQL
-from .postgresql import PostgreSQL
-from .sqlite import SQLite
+from .mysql import *
+from .postgresql import *
+from .sqlite import *

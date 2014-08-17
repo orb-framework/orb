@@ -356,23 +356,10 @@ class Table(object):
         :param      values      { <str> key: <variant>, .. }
         """
         schema       = self.schema()
-        tableName    = schema.tableName()
+        tableName    = schema.name()
         dvalues      = {}
         
         for key, value in values.items():
-            if key == 'PRIMARY_KEY':
-                primary = self.schema().primaryColumns()
-                if not type(value) in (list, tuple):
-                    value = (value,)
-                if len(primary) != len(value):
-                    errors.InvalidPrimaryKeyError(primary, value)
-                    continue
-                
-                for i, col in enumerate(primary):
-                    dvalues[col.name()] = value[i]
-                    self.__record_dbloaded.add(col.name())
-                continue
-                
             try:
                 tname, colname = key.split('.')
             except ValueError:
@@ -548,9 +535,8 @@ class Table(object):
             if options.throwErrors:
                 raise
             else:
-                log.debug('Failed to commit record.\n%s', err)
+                log.error('Failed to commit record.\n%s', err)
                 results = ('errored', nstr(err))
-                print err
         
         if results and not 'errored' in results:
             # marks this table as expired
@@ -704,10 +690,7 @@ class Table(object):
             value = column.default(resolve=True)
             
             if column.isTranslatable():
-                i18n = {}
-                for lang in column.languages():
-                    i18n[lang] = value
-                value = i18n
+                value = {orb.system.language(): value}
             
             self.__record_defaults[key] = value
     
@@ -733,7 +716,7 @@ class Table(object):
             if db_opts.throwErrors:
                 raise
             else:
-                log.debug('Backend error occurred.\n%s', err)
+                log.error('Backend error occurred.\n%s', err)
                 return False
     
     def isModified(self):
@@ -940,7 +923,7 @@ class Table(object):
             elif type(language) == dict:
                 # return first in the set
                 if 'first' in language:
-                    langs = set(column.languages())
+                    langs = set(value.keys())
                     first = language['first']
                     remain = list(langs.difference(first))
                     
@@ -1157,7 +1140,7 @@ class Table(object):
             if opts.throwErrors:
                 raise
             else:
-                log.debug('Backend error occurred.\n%s', err)
+                log.error('Backend error occurred.\n%s', err)
         
         return 0
     
@@ -1243,7 +1226,7 @@ class Table(object):
         :return     <bool> changed
         """
         # convert the inputed value information
-        value = orb.ValueMapper.mappedValue(value)
+        value = orb.DataConverter.toPython(value)
         
         # validate the column
         column = self.schema().column(columnName)
@@ -1289,7 +1272,7 @@ class Table(object):
         
         if column.isTranslatable():
             if curr_value is None:
-                curr_value = {lang: '' for lang in column.languages()}
+                curr_value = {orb.system.language(): ''}
                 self.__record_values[column.name()] = curr_value
             
             if type(value) == dict:
@@ -1441,6 +1424,18 @@ class Table(object):
         setattr(cls, key, hooks)
 
     @classmethod
+    def all(cls, **options):
+        """
+        Returns a record set containing all records for this table class.  This
+        is a convenience method to the <orb.Table>.select method.
+        
+        :param      **options | <orb.LookupOptions> & <orb.DatabaseOptions>
+        
+        :return     <orb.RecordSet>
+        """
+        return cls.select(**options)
+
+    @classmethod
     def currentRecord(cls):
         """
         Returns the current record that was tagged for usage.
@@ -1503,63 +1498,7 @@ class Table(object):
             record.commit(db=db)
         
         return record
-        
-    @classmethod
-    def buildSearchQuery(cls, 
-                         terms, 
-                         mode=SearchMode.All, 
-                         additionalColumns=None,
-                         useThesaurus=True):
-        """
-        Generates a search query for the given set of terms based on the given
-        terms and join mode.  This method can be overloaded to define custom
-        searching values, and is used by the <orb.RecordSet> class to filter
-        records.
-        
-        :usage      |>>> from my_api import MyTable
-                    |>>> MyTable.select().search('keywords')
-        
-        :sa         orb.RecordSet.search
-        
-        :param      terms   | [<str>, ..]
-                    mode    | <orb.SearchMode>
-        
-        :return     <orb.Query>
-        """
-        query  = Q()
-        schema = cls.schema()
-        if not schema:
-            return query
-        
-        search_cols = schema.searchableColumns()
-        
-        if additionalColumns is not None:
-            search_cols += additionalColumns
-        
-        # include additional terms from the thesaurus
-        thesaurus = cls.searchThesaurus()
-        
-        for search_term in terms:
-            # lookup synonyms using the thesaurus option
-            if useThesaurus:
-                synonyms = thesaurus.synonyms(search_term)
-            else:
-                synonyms = (search_term,)
-            
-            term_query = Q()
-            for synonym in synonyms:
-                for search_col in search_cols:
-                    model = search_col.schema().model()
-                    q = Q(model, search_col.name()).asString()
-                    term_query |= q.contains(synonym)
-            
-            if mode == SearchMode.All:
-                query &= term_query
-            else:
-                query |= term_query
-        
-        return query
-    
+
     @classmethod
     def baseTableQuery(cls):
         """
@@ -1916,7 +1855,8 @@ class Table(object):
         
         :return     <cls> || None
         """
-        return cls.select(*args, **kwds).first()
+        rset = cls.select()
+        return rset.first(*args, **kwds)
         
     @classmethod
     def select(cls, *args, **kwds):
@@ -1948,9 +1888,9 @@ class Table(object):
         # support legacy code
         arg_headers = ['columns', 'where', 'order', 'limit']
         for i in range(len(args)):
-            if ( i == 0 and isinstance(args[i], orb.LookupOptions) ):
+            if i == 0 and isinstance(args[i], orb.LookupOptions):
                 kwds['lookup'] = args[i]
-            elif ( i == 1 and isinstance(args[i], orb.DatabaseOptions) ):
+            elif i == 1 and isinstance(args[i], orb.DatabaseOptions):
                 kwds['options'] = args[i]
             else:
                 kwds[arg_headers[i]] = args[i]
@@ -1974,7 +1914,10 @@ class Table(object):
         if db is not None:
             rset.setDatabase(db)
         
-        return rset
+        if options.inflateRecords:
+            return rset
+        else:
+            return list(rset)
     
     @classmethod
     def setBaseTableQuery(cls, query):

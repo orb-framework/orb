@@ -27,6 +27,7 @@ class Settings(object):
         self._maxCacheTimeout = int(env.get('ORB_MAX_CACHE_TIMEOUT', 60 * 24))
         self._editOnlyMode = env.get('ORB_EDIT_ONLY_MODE') == 'True'
         self._optimmizeDefaultEmpty = env.get('ORB_OPTIMIZE_DEFAULT_EMPTY') == 'True'
+        self._defaultPageSize = int(env.get('ORB_DEFAULT_PAGE_SIZE', '40'))
         
         # setup field options (version 1)
         if env.get('ORB_CONFIG_VERSION') == '1':
@@ -55,6 +56,15 @@ class Settings(object):
         :return     <bool>
         """
         return self._editOnlyMode
+
+    def defaultPageSize(self):
+        """
+        Returns the default page size that will be used within the paging system
+        on the <orb.RecordSet> class.
+        
+        :return     <int>
+        """
+        return self._defaultPageSize
 
     def defaultTimezone(self):
         """
@@ -145,6 +155,15 @@ class Settings(object):
         :param      state | <bool>
         """
         self._cachingEnabled = state
+
+    def setDefaultPageSize(self, pageSize):
+        """
+        Sets the default page size that will be used within the paging system
+        on the <orb.RecordSet> class.
+        
+        :param      pageSize | <int>
+        """
+        self._defaultPageSize = pageSize
 
     def setDefaultTimezone(self, timezone):
         """

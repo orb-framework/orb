@@ -14,5 +14,8 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
-from .search import Search
-from .searchthesaurus import SearchThesaurus
+from .engine import SearchEngine
+from .terms import SearchTerm, \
+                   SearchTermGroup
+from .spelling import SpellingEngine
+from .thesaurus import SearchThesaurus

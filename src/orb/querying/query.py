@@ -62,10 +62,16 @@ class Query(object):
         
         # list operators
         'IsIn',
-        'IsNotIn'
+        'IsNotIn',
+        
+        #----------------------------------------------------------------------
+        # added in 4.0
+        #----------------------------------------------------------------------
+        'DoesNotStartwith',
+        'DoesNotEndwith'
     )
     
-    OffsetType = enum(
+    Math = enum(
         'Add',
         'Subtract',
         'Multiply',
@@ -81,13 +87,13 @@ class Query(object):
         'AsString',
     )
     
-    OffsetSymbol = {
-        OffsetType.Add: '+',
-        OffsetType.Subtract: '-',
-        OffsetType.Multiply: '*',
-        OffsetType.Divide: '/',
-        OffsetType.And: '&',
-        OffsetType.Or: '|'
+    MathSymbol = {
+        Math.Add: '+',
+        Math.Subtract: '-',
+        Math.Multiply: '*',
+        Math.Divide: '/',
+        Math.And: '&',
+        Math.Or: '|'
     }
     
     SyntaxPatterns = [
@@ -209,6 +215,7 @@ class Query(object):
                     
                     #. None
                     #. <str> columnName
+                    #. <orb.Column>
                     #. <subclass of Table>
                     #. (<subclass of Table> table,<str> columnName)
                     
@@ -230,6 +237,12 @@ class Query(object):
             self._table      = args[0]
             self._columnName = None
         
+        # initialized with <orb.Column>
+        elif len(args) == 1 and isinstance(args[0], orb.Column):
+            column = args[0]
+            self._table = column.schema().model()
+            self._columnName = column.name()
+        
         # initialized with (column,)
         elif len(args) == 1:
             self._table      = None
@@ -246,21 +259,21 @@ class Query(object):
         self._caseSensitive = options.get('caseSensitive', False)
         self._negate        = options.get('negate', False)
         self._functions     = options.get('functions', [])
-        self._offsetType    = options.get('offsetType', 0)
-        self._offsetValue   = options.get('offsetValue', None)
         self._language      = options.get('language', orb.system.language())
+        self._math          = options.get('math', [])
     
     # operator methods
     def __add__(self, value):
         """
-        Sets the offset value for this query to the inputed query with
-        the And offset type.
+        Adds the inputed value to this query with arithmatic joiner.
         
         :param      value | <variant>
         
         :return     <Query> self
         """
-        return self.offset(Query.OffsetType.Add, value)
+        out = self.copy()
+        out._math.append((Query.Math.Add, value))
+        return out
     
     def __abs__(self):
         """
@@ -294,7 +307,9 @@ class Query(object):
         if Query.typecheck(other) or orb.QueryCompound.typecheck(other):
             return self.and_(other)
         else:
-            return self.offset(Query.OffsetType.And, other)
+            out = self.copy()
+            out._math.append((Query.Math.And, other))
+            return out
     
     def __cmp__(self, other):
         """
@@ -315,14 +330,15 @@ class Query(object):
         
     def __div__(self, value):
         """
-        Sets the offset value for this query to the inputed query with
-        the And offset type.
+        Divides the inputed value for this query to the inputed query.
         
         :param      value | <variant>
         
         :return     <Query> self
         """
-        return self.offset(Query.OffsetType.Divide, value)
+        out = self.copy()
+        out._math.append((Query.Math.Divide, value))
+        return out
     
     def __eq__(self, other):
         """
@@ -424,14 +440,15 @@ class Query(object):
         
     def __mul__(self, value):
         """
-        Sets the offset value for this query to the inputed query with
-        the And offset type.
+        Multiplies the value with this query to the inputed query.
         
         :param      value | <variant>
         
         :return     <Query> self
         """
-        return self.offset(Query.OffsetType.Multiply, value)
+        out = self.copy()
+        out._math.append((Query.Math.Multiply, value))
+        return out
     
     def __ne__(self, other):
         """
@@ -486,18 +503,21 @@ class Query(object):
         if Query.typecheck(other) or orb.QueryCompound.typecheck(other):
             return self.or_(other)
         else:
-            return self.offset(Query.OffsetType.Or, other)
+            out = self.copy()
+            out._math.append((Query.Math.Or, other))
+            return out
         
     def __sub__(self, value):
         """
-        Sets the offset value for this query to the inputed query with
-        the And offset type.
+        Subtracts the value from this query.
         
         :param      value | <variant>
         
         :return     <Query> self
         """
-        return self.offset(Query.OffsetType.Subtract, value)
+        out = self.copy()
+        out._math.append((Query.Math.Subtract, value))
+        return out
     
     # private methods
     def __valueFromDict(self, data):
@@ -995,8 +1015,7 @@ class Query(object):
         out._caseSensitive = self._caseSensitive
         out._negate = self._negate
         out._functions = self._functions[:]
-        out._offsetType = self._offsetType
-        out._offsetValue = self._offsetValue
+        out._math = self._math[:]
         out._language = self._language
         return out
     
@@ -1267,14 +1286,6 @@ class Query(object):
             return False
         return True
     
-    def isOffset(self):
-        """
-        Returns whether or not this query is offset.
-        
-        :return     <bool>
-        """
-        return self._offsetType != 0
-    
     def isUndefined(self):
         """
         Return whether or not this query contains undefined value data.
@@ -1312,6 +1323,15 @@ class Query(object):
         newq.setValue(value)
         
         return newq
+    
+    def math(self):
+        """
+        Returns the mathematical operations that are being performed for
+        this query object.
+        
+        :return     [(<Query.Math>, <variant>), ..]
+        """
+        return self._math
     
     def name(self):
         """
@@ -1443,36 +1463,6 @@ class Query(object):
         query.setValue(self.value())
         query._negate = not self._negate
         return query
-    
-    def offset(self, offsetType, value):
-        """
-        Assigns a query offset value for the given type.  The value can
-        be either static, or another query that will dynamically calculate
-        during the database query.
-        
-        :param      offsetType | <Query.OffsetType>
-                    value      | <variant>
-        """
-        self._offsetType = offsetType
-        self._offsetValue = value
-        
-        return self
-    
-    def offsetType(self):
-        """
-        Returns the offset type for this query.
-        
-        :return     <Query.OffsetType>
-        """
-        return self._offsetType
-    
-    def offsetValue(self):
-        """
-        Returns the offset value for this query.
-        
-        :return     <variant>
-        """
-        return self._offsetValue
     
     def operatorType(self):
         """
@@ -1665,6 +1655,25 @@ class Query(object):
         
         return list(output)
     
+    def tr(self, language):
+        """
+        Returns a copy of this query with the language set to the specific
+        language.
+        
+        :usage      |>>> from orb import Query as Q
+                    |>>> # lookup for a specific language
+                    |>>> Q('title').tr('fr_FR').contains('nais')
+                    |>>> # lookup for all languages
+                    |>>> Q('title').contains('nais')
+        
+        :param      language | <str>
+        
+        :return     <str>
+        """
+        out = self.copy()
+        out._language = language
+        return out
+    
     def toDict(self):
         """
         Creates a dictionary representation of this query.
@@ -1693,13 +1702,15 @@ class Query(object):
         value_dict = self.__valueToDict(self._value)
         output.update(value_dict)
         
-        # store the offset information
-        if self.isOffset():
-            offset = {}
-            offset['type'] = self.offsetType()
-            value_dict = self.__valueToDict(self.offsetValue())
-            offset.update(value_dict)
-            output['offset'] = offset
+        # store the math information
+        math = []
+        for op, val in self._math:
+            data = {'op': op}
+            data.update(self.__valueToDict(val))
+            math.append(data)
+        
+        if math:
+            output['math'] = math
         
         return output
     
@@ -1724,10 +1735,16 @@ class Query(object):
         if self.table():
             column = '%s.%s' % (self.table().__name__, column)
         
-        otype = self.offsetType()
-        symbol = Query.OffsetSymbol.get(otype)
-        if symbol:
-            column = '(' + column + symbol + nstr(self.offsetValue()) + ')'
+        if self._math:
+            data = [self.columnName()]
+            for op, value in self._math:
+                data.append(Query.MathSymbol.get(op))
+                if Query.typecheck(value) or orb.QueryCompound.typecheck(value):
+                    data.append(str(value))
+                else:
+                    data.append(repr(value))
+        
+            column = '({0})'.format(''.join(data))
         
         if val == Query.UNDEFINED:
             return column
@@ -1771,11 +1788,13 @@ class Query(object):
         # save the value
         self.__valueToXml(xquery, self._value)
         
-        # save the offset
-        if self.isOffset():
-            xoffset = ElementTree.SubElement(xquery, 'offset')
-            xoffset.set('type', nstr(self.offsetType()))
-            self.__valueToXml(xoffset, self.offsetValue())
+        # save the math
+        if self._math:
+            xmath = ElementTree.SubElement(xquery, 'math')
+            for op, value in self._math:
+                xentry = ElementTree.SubElement(xmath, 'entry')
+                xentry.set('operator', nstr(op))
+                self.__valueToXml(xentry, value)
         
         return xquery
     
@@ -1958,14 +1977,22 @@ class Query(object):
         if success:
             out._value = value
         
-        # restore the offset
+        # restore the old math system
         offset = data.get('offset')
         if offset is not None:
             typ = int(offset.get('type', 0))
             value, success = out.__valueFromDict(offset)
             if success:
-                out._offsetType = typ
-                out._offsetValue = value
+                out._math.append((typ, value))
+        
+        # restore the new math system
+        math = data.get('math')
+        if math is not None:
+            for entry in math:
+                op = entry['op']
+                value, success = out.__valueFromDict(entry)
+                if success:
+                    out._math.append((op, value))
         
         return out
     
@@ -2246,13 +2273,22 @@ class Query(object):
         if success:
             out._value = value
         
+        # support old math system
         xoffset = xquery.find('offset')
         if xoffset is not None:
             typ = int(xoffset.get('type', '0'))
             value, success = out.__valueFromXml(xoffset.find('object'))
             if success:
-                out._offsetType = typ
-                out._offsetValue = value
+                out._math.append((typ, value))
+        
+        # support new math system
+        xmath = xquery.find('math')
+        if xmath is not None:
+            for xentry in xmath:
+                op = int(xentry.get('operator'))
+                value, success = out.__valueFromXml(xentry.find('object'))
+                if success:
+                    out._math.append((op, value))
         
         return out
     
@@ -2310,7 +2346,9 @@ class Query(object):
         
         :return     <orb.QueryAggregate>
         """
-        return orb.QueryAggregate('count', table, **options)
+        return orb.QueryAggregate(orb.QueryAggregate.Type.Count,
+                                  table,
+                                  **options)
     
     @staticmethod
     def MAX(table, **options):
@@ -2321,7 +2359,9 @@ class Query(object):
         
         :return     <orb.QueryAggregate>
         """
-        return orb.QueryAggregate('max', **options)
+        return orb.QueryAggregate(orb.QueryAggregate.Type.Maximum,
+                                  table,
+                                  **options)
     
     @staticmethod
     def MIN(table, **options):
@@ -2332,7 +2372,9 @@ class Query(object):
         
         :return     <orb.QueryAggregate>
         """
-        return orb.QueryAggregate('min', table, **options)
+        return orb.QueryAggregate(orb.QueryAggregate.Type.Minimum,
+                                  table,
+                                  **options)
     
     @staticmethod
     def SUM(table, **options):
@@ -2343,4 +2385,7 @@ class Query(object):
         
         :return     <orb.QueryAggregate>
         """
-        return orb.QueryAggregate('sum', table, **options)
+        return orb.QueryAggregate(orb.QueryAggregate.Type.Sum,
+                                  table,
+                                  **options)
+

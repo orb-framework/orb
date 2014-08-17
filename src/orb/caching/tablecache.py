@@ -15,8 +15,10 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
-
+from projex.lazymodule import LazyModule
 from .datacache import DataCache
+
+orb = LazyModule('orb')
 
 
 class TableCache(DataCache):

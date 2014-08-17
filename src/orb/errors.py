@@ -112,6 +112,9 @@ class DatabaseNotFoundError(OrbError):
     def __init__(self):
         OrbError.__init__(self, 'No database was found.')
 
+class DataStoreError(OrbError):
+    pass
+
 class DependencyNotFoundError(OrbError):
     pass
 
@@ -123,6 +126,13 @@ class DuplicateColumnWarning(OrbError):
         opts = (schema, column)
         err = '%s: %s is already a column and cannot be duplicated.' % opts
         OrbError.__init__(self, err)
+
+# E
+#----------------------------------------------------------------------
+
+class EmptyQuery(OrbError):
+    def __init__(self):
+        super(EmptyQuery, self).__init__('This query will result in no items.')
 
 # F
 #------------------------------------------------------------------------------
@@ -181,6 +191,11 @@ class InvalidSchemaDefinitionError(OrbError):
 class MissingBackend(OrbError):
     pass
 
+class MissingRequirement(OrbError):
+    def __init__(self, package):
+        msg = 'Required package `{0}` is not installed.'.format(package)
+        super(MissingRequirement, self).__init__(msg)
+
 class MissingTableShortcut(OrbError):
     def __init__(self, query):
         err = '%s has no table reference for its shortcuts' % query
@@ -209,15 +224,15 @@ class PrimaryKeyNotFoundError(OrbError):
 #------------------------------------------------------------------------------
 
 class TableNotFoundError(OrbError):
-    def __init__( self, table ):
-        OrbError.__init__( self, 'Could not find "%s" table.' % table )
+    def __init__(self, table):
+        OrbError.__init__(self, 'Could not find "%s" table.' % table)
 
 # S
 #------------------------------------------------------------------------------
 
 class SchemaNotFoundError(OrbError):
-    def __init__( self ):
-        OrbError.__init__( self, 'No schema was found to sync.' )
+    def __init__(self):
+        OrbError.__init__(self, 'No schema was found to sync.')
 
 # U
 #----------------------------------------------------------------------

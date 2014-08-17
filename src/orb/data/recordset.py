@@ -48,6 +48,7 @@ class RecordSet(object):
         self._inflated          = None
         self._counts            = {}
         self._empty             = {}
+        self._pageSize          = 0
         
         # sorting options
         self._sort_cmp_callable = None
@@ -235,7 +236,7 @@ class RecordSet(object):
                     if db_opts.throwErrors:
                         raise
                     else:
-                        logger.debug('Backend error occurred.\n%s', err)
+                        log.error('Backend error occurred.\n%s', err)
                         results = []
             
             # return specific columns
@@ -319,7 +320,7 @@ class RecordSet(object):
             if db_options.throwErrors:
                 raise
             else:
-                log.debug('Backend error occurred.\n%s', err)
+                log.error('Backend error occurred.\n%s', err)
                 return False
         
         # update the caching table information
@@ -365,7 +366,7 @@ class RecordSet(object):
                 if options.throwErrors:
                     raise
                 else:
-                    log.debug('Backend error occurred.\n%s', err)
+                    log.error('Backend error occurred.\n%s', err)
                     return 0
         
         self._counts[key] = count
@@ -433,8 +434,17 @@ class RecordSet(object):
         self._start             = other._start
         self._limit             = other._limit
         self._database          = other._database
-        self._query             = other._query
-        self._columns           = other._columns
+        
+        if other._query is not None:
+            self._query = other._query.copy()
+        else:
+            self._query = None
+        
+        if self._columns is not None:
+            self._columns = list(other._columns)
+        else:
+            self._columns = []
+        
         self._groupBy           = other._groupBy
         self._order             = other._order
         self._namespace         = other._namespace
@@ -482,7 +492,7 @@ class RecordSet(object):
         lookup  = self.lookupOptions(**options)
         options = self.databaseOptions(**options)
         
-        lookup.columns = columns
+        lookup.columns = list(columns)
         
         if cache is not None and orb.system.isCachingEnabled():
             output = cache.distinct(backend, table, lookup, options)
@@ -493,7 +503,7 @@ class RecordSet(object):
                 if options.throwErrors:
                     raise
                 else:
-                    log.debug('Backend error occurred.\n%s', err)
+                    log.error('Backend error occurred.\n%s', err)
                     output = {}
         
         if options.inflateRecords:
@@ -550,7 +560,7 @@ class RecordSet(object):
                 if db_opts.throwErrors:
                     raise
                 else:
-                    log.debug('Backend error occurred.\n%s', err)
+                    log.error('Backend error occurred.\n%s', err)
                     records = []
         
         if records:
@@ -731,7 +741,7 @@ class RecordSet(object):
             if db_opts.throwErrors:
                 raise
             else:
-                log.debug('Backend error occurred.\n%s', err)
+                log.error('Backend error occurred.\n%s', err)
                 return False
 
     def ignoreAggregates(self):
@@ -914,7 +924,7 @@ class RecordSet(object):
         """
         return self._order
     
-    def pageCount(self, pageSize):
+    def pageCount(self, pageSize=None):
         """
         Returns the number of pages that this record set contains.  If no page
         size is specified, then the page size for this instance is used.
@@ -926,7 +936,11 @@ class RecordSet(object):
         :return     <int>
         """
         # if there is no page size, then there is only 1 page of data
-        pageSize = max(0, pageSize)
+        if pageSize is None:
+            pageSize = self.pageSize()
+        else:
+            pageSize = max(0, pageSize)
+        
         if not pageSize:
             return 1
         
@@ -941,7 +955,7 @@ class RecordSet(object):
         
         return pageCount
     
-    def page(self, pageno, pageSize):
+    def page(self, pageno, pageSize=None):
         """
         Returns the records for the current page, or the specified page number.
         If a page size is not specified, then this record sets page size will
@@ -952,7 +966,10 @@ class RecordSet(object):
         
         :return     <orb.RecordSet>
         """
-        pageSize = max(0, pageSize)
+        if pageSize is None:
+            pageSize = self.pageSize()
+        else:
+            pageSize = max(0, pageSize)
         
         # for only 1 page of information, return all information
         if not pageSize:
@@ -969,14 +986,19 @@ class RecordSet(object):
         
         return output
     
-    def paged(self, pageSize):
+    def paged(self, pageSize=None):
         """
         Returns a broken up set of this record set based on its paging
         information.
         
         :return     [<orb.RecordSet>, ..]
         """
-        if self.isEmpty():
+        if pageSize is None:
+            pageSize = self.pageSize()
+        else:
+            pageSize = max(0, pageSize)
+        
+        if not pageSize or self.isEmpty():
             return []
         
         count = self.pageCount(pageSize)
@@ -989,13 +1011,22 @@ class RecordSet(object):
         
         return pages
     
-    def pages(self, pageSize):
+    def pages(self, pageSize=None):
         """
         Returns a range for all the pages in this record set.
         
         :return     [<int>, ..]
         """
         return range(1, self.pageCount(pageSize) + 1)
+    
+    def pageSize(self):
+        """
+        Returns the default page size for this record set.  This can be used
+        with the paging mechanism as the default value.
+        
+        :return     <int>
+        """
+        return self._pageSize or orb.system.settings().defaultPageSize()
     
     def primaryKeys(self, **options):
         """
@@ -1081,7 +1112,7 @@ class RecordSet(object):
                     if db_opts.throwErrors:
                         raise
                     else:
-                        log.debug('Backend error occurred.\n%s', err)
+                        log.error('Backend error occurred.\n%s', err)
                         results = []
             
             if not results:
@@ -1154,7 +1185,7 @@ class RecordSet(object):
                 if dbopts.throwErrors:
                     raise
                 else:
-                    log.debug('Backend error ocurred.\n%s', err)
+                    log.error('Backend error ocurred.\n%s', err)
         
         return count
 
@@ -1180,30 +1211,9 @@ class RecordSet(object):
         if not search_terms:
             return RecordSet(self)
         
-        from orb import Query
-        
-        thesaurus = self.table().searchThesaurus()
-        if not type(search_terms) in (list, tuple):
-            terms, column_query = Query.fromSearch(nstr(search_terms),
-                                                   mode,
-                                                   thesaurus=thesaurus)
-        else:
-            terms = list(search_terms)
-            column_query = None
-        
-        terms_query  = self.table().buildSearchQuery(terms,
-                                                     mode=mode,
-                                                     useThesaurus=useThesaurus)
-        search_query = Query()
-        
-        if mode == SearchMode.All:
-            search_query &= terms_query
-            search_query &= column_query
-        else:
-            search_query |= terms_query
-            search_query |= column_query
-        
-        output = self.refine(search_query)
+        engine = self.table().schema().searchEngine()
+        terms = engine.parse(search_terms)
+        output = self.refine(terms.toQuery(self.table()))
         if limit is not None:
             output.setLimit(limit)
         return output
@@ -1332,6 +1342,14 @@ class RecordSet(object):
         """
         self._ordered = state
     
+    def setPageSize(self, pageSize):
+        """
+        Sets the page size for this record set to the inputed page size.
+        
+        :param      pageSize | <int>
+        """
+        self._pageSize = pageSize
+    
     def setQuery(self, query):
         """
         Sets the query that this record set will use.  This will also clear the
@@ -1410,7 +1428,7 @@ class RecordSet(object):
         if self.isNull():
             return []
         
-        key     = self.cacheKey(options)
+        key = self.cacheKey(options)
         options['columns'] = columns
         
         table = self.table()
@@ -1430,7 +1448,7 @@ class RecordSet(object):
                 if db_opts.throwErrors:
                     raise
                 else:
-                    log.debug('Backend error occurred.\n%s', err)
+                    log.error('Backend error occurred.\n%s', err)
                     records = []
         
         # parse the values from the cache
@@ -1445,11 +1463,14 @@ class RecordSet(object):
                 output.setdefault(colname, [])
                 
                 col = table.schema().column(colname)
-                if col:
-                    expand = col.isReference() and db_opts.inflateRecords
-                else:
-                    expand = False
+                if col is None:
+                    raise orb.errors.ColumnNotFoundError(table.schema().name(),
+                                                         colname)
                 
+                expand = bool(col.isReference() and \
+                              db_opts.inflateRecords)
+                
+                # retreive the value
                 if orb.Table.recordcheck(record):
                     value = record.recordValue(colname, autoInflate=expand)
                 else:
@@ -1467,6 +1488,8 @@ class RecordSet(object):
                         output[colname].append(None)
                     else:
                         output[colname].append(ref_model(value))
+                elif not expand and orb.Table.recordcheck(value):
+                    output[colname].append(value.id())
                 else:
                     output[colname].append(value)
         

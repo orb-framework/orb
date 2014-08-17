@@ -33,6 +33,7 @@ from ..common import ColumnType, RemovedAction
 
 log = logging.getLogger(__name__)
 orb = LazyModule('orb')
+pytz = LazyModule('pytz')
 errors = LazyModule('orb.errors')
 
 
@@ -92,7 +93,6 @@ class Column(object):
         self._engines    = {}
         self._customData = {}
         self._timezone   = None
-        self._languages  = None
         
         # set default values
         ref = options.get('reference', '')
@@ -141,7 +141,7 @@ class Column(object):
         self._default       = options.get('default', None)
         self._maxlength     = options.get('maxlength', 0)
         self._joiner        = options.get('joiner', None)
-        self._aggregate     = options.get('aggregate', None)
+        self._aggregator    = options.get('aggregator', None)
         
         # flags options
         flags = 0
@@ -176,12 +176,22 @@ class Column(object):
         """
         Returns the query aggregate that is associated with this column.
         
-        :return     <orb.QueryAggregate>
+        :return     <orb.QueryAggregate> || None
         """
-        if callable(self._aggregate):
-            return self._aggregate(self)
-        return self._aggregate
+        if self._aggregator:
+            return self._aggregator.generate(self)
+        return None
+
+    def aggregator(self):
+        """
+        Returns the aggregation instance associated with this column.  Unlike
+        the <aggregate> function, this method will return the class instance
+        versus the resulting <orb.QueryAggregate>.
         
+        :return     <orb.ColumnAggregator> || None
+        """
+        return self._aggregator
+
     def autoIncrement( self ):
         """
         Returns whether or not this column should 
@@ -406,17 +416,7 @@ class Column(object):
         
         :return     (<str> field_base, <str> language || None)
         """
-        if self.isTranslatable():
-            try:
-                base, lang = field.rsplit('__', 1)
-            except ValueError:
-                return field, None
-            
-            if lang in self.languages():
-                return base, lang
-            return field, None
-        else:
-            return field, None
+        return field, None
     
     def fieldName(self, language=None):
         """
@@ -426,10 +426,6 @@ class Column(object):
                     
         :return     <str>
         """
-        if self.isTranslatable():
-            if language is None:
-                language = orb.system.language()
-            return '{0}__{1}'.format(self._fieldName, language)
         return self._fieldName
     
     def fieldNames(self):
@@ -441,10 +437,7 @@ class Column(object):
         :return     [<str>, ..]
         """
         fn = self._fieldName
-        if self.isTranslatable():
-            return ['{0}__{1}'.format(fn, lang) for lang in self.languages()]
-        else:
-            return [fn]
+        return [fn]
     
     def firstMemberSchema(self, schemas):
         """
@@ -520,7 +513,7 @@ class Column(object):
         
         :return     <bool>
         """
-        return self._aggregate is not None
+        return self._aggregator is not None
     
     def isEncrypted( self ):
         """
@@ -707,22 +700,6 @@ class Column(object):
             return joiner(self)
         return joiner
     
-    def languages(self):
-        """
-        Returns the languages associated with this column.  If this 
-        column is not translatable, then only the default column will
-        be returned.
-        
-        :return     {<str> languageCode, ..}
-        """
-        if self._languages:
-            return self._languages
-        
-        if self.isTranslatable():
-            return orb.system.languages()
-        else:
-            return {orb.system.language()}
-    
     def maxlength(self):
         """
         Returns the max length for this column.  This property
@@ -872,7 +849,7 @@ class Column(object):
         elif self.columnType() == ColumnType.Query:
             typ = '<orb.query.Query>'
         elif self.columnType() == ColumnType.ForeignKey:
-            typ = '<orb.dynamic.{0}> || <variant> (primary key when not inflated)'.format(self.reference())
+            typ = '<orb.schema.dynamic.{0}> || <variant> (primary key when not inflated)'.format(self.reference())
         elif self.isString():
             typ = '<unicode>'
         
@@ -1063,11 +1040,10 @@ class Column(object):
         :param      flag  | <Column.Flags>
                     state | <bool>
         """
-        has_flag = self.testFlag(flag)
-        if has_flag and not state:
-            self.setFlags(self.flags() ^ flag)
-        elif not has_flag and state:
-            self.setFlags(self.flags() | flag)
+        if state:
+            self._flags |= flag
+        else:
+            self._flags &= ~flag
     
     def setFlags(self, flags):
         """
@@ -1139,15 +1115,6 @@ class Column(object):
         if joiner is not None:
             self.setFlag(Column.Flags.ReadOnly)
     
-    def setLanguages(self, languages):
-        """
-        Sets the language options for translation for this column.  If
-        None is provided, then the global languages will be used.
-        
-        :param      languages | {<str> code: <str> name, ..} || None
-        """
-        self._languages = languages
-    
     def setMaxlength(self, length):
         """
         Sets the maximum length for this column.  Used when defining string \
@@ -1189,14 +1156,17 @@ class Column(object):
         """
         self.setFlag(Column.Flags.Private, state)
     
-    def setAggregate(self, aggregate):
+    def setAggregator(self, aggregator):
         """
         Sets the query aggregate for this column to the inputed aggregate.
         
-        :param      aggregate | <orb.QueryAggregate> || None
+        :param      aggregator | <orb.ColumnAggregator> || None
         """
-        self._aggregate = aggregate
-        if aggregate is not None:
+        self._aggregator = aggregator
+        
+        # defines this column as an aggregation value
+        # (does not explicitly live on the Table class)
+        if aggregator is not None:
             self.setFlag(Column.Flags.ReadOnly)
     
     def setReadOnly(self, state):
