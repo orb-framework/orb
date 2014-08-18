@@ -46,7 +46,6 @@ class Connection(AddonManager):
         self._threadEnabled     = False
         self._internalsEnabled  = True
         self._commitEnabled     = True
-        self._objectOriented    = False
         self._engine            = None
         self._columnEngines     = {}
     
@@ -67,8 +66,7 @@ class Connection(AddonManager):
         db = self.database()
         data = {}
         for schema in self.database().schemas():
-            colnames = schema.columnNames(recurse=self.isObjectOriented(),
-                                          includeProxies=False,
+            colnames = schema.columnNames(includeProxies=False,
                                           includeJoined=False,
                                           includeAggregates=False)
             
@@ -111,8 +109,6 @@ class Connection(AddonManager):
         
         :return     {<orb.Table>: [<orb.Query>, ..], ..} | cascaded
         """
-        is_oo = self.isObjectOriented()
-        
         if collection is None:
             collection = {}
         
@@ -128,25 +124,6 @@ class Connection(AddonManager):
         def load_keys(table, query):
             return table.select(where=query).primaryKeys()
         root_keys = None
-        
-        # remove inheriting tables if the database is not object oriented
-        if not is_oo:
-            inherits = table.schema().inheritsModel()
-            while inherits:
-                if root_keys is None:
-                    root_keys = load_keys(table, query)
-                
-                inherit_query = orb.Query()
-                for min_key, max_key in projex.iters.group(root_keys):
-                    if min_key == max_key:
-                        inherit_query |= orb.Query(inherits) == min_key
-                    else:
-                        inherit_query |= orb.Query(inherits).between(min_key, max_key)
-                
-                collection.setdefault(inherits, [])
-                collection[inherits].append(inherit_query)
-                
-                inherits = inherits.schema().inheritsModel()
         
         # lookup related records
         flags = options.deleteFlags
@@ -419,14 +396,6 @@ class Connection(AddonManager):
         """
         return False
     
-    def isObjectOriented(self):
-        """
-        Returns whether or not this connection class is object oriented.
-        
-        :return     <bool>
-        """
-        return self._objectOriented
-    
     def isThreadEnabled( self ):
         """
         Returns whether or not this connection can be threaded.
@@ -609,14 +578,6 @@ class Connection(AddonManager):
         :param     engine | <orb.SchemaEngine>
         """
         self._engine = engine
-    
-    def setObjectOriented(self, state=True):
-        """
-        Sets whether or not this connection class is object oriented.
-        
-        :param     state | <bool>
-        """
-        self._objectOriented = state
     
     def setThreadEnabled(self, state):
         """

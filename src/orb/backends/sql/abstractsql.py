@@ -27,12 +27,13 @@ from projex.addon import AddonManager
 log = logging.getLogger(__name__)
 
 class SQL(AddonManager):
-    def __init__(self, sql):
+    def __init__(self, sql, baseSQL=None):
         super(SQL, self).__init__()
         
         # define custom properties
         self._template = mako.template.Template(sql)
         self._sql = sql
+        self._baseSQL = baseSQL or SQL
 
     def __call__(self, *args, **options):
         """
@@ -46,6 +47,14 @@ class SQL(AddonManager):
         :return     <str> sql, <dict> data
         """
         return self.render(*args, **options)
+
+    def baseSQL(self):
+        """
+        Returns the base SQL type to use for this instance.
+        
+        :return     subclass of <SQL>
+        """
+        return self._baseSQL
 
     def render(self, **scope):
         """
@@ -74,7 +83,7 @@ class SQL(AddonManager):
         scope.setdefault('__data__', {})
         scope.setdefault('__manager__', orb.system)
         scope.setdefault('__db__', scope['__manager__'].database())
-        scope.setdefault('__sql__', type(self))
+        scope.setdefault('__sql__', self.baseSQL())
         scope.setdefault('__namespace__', '')
         
         # module imports
@@ -128,10 +137,10 @@ class SQL(AddonManager):
             setattr(cls, key, store)
             return store
 
-    @staticmethod
-    def load(name):
+    @classmethod
+    def loadStatements(cls, module):
         """
-        Loads the mako definition for the inputed name.  This is the inputed
+        Loads the mako definitions for the inputed name.  This is the inputed
         module that will be attepmting to access the file.  When running
         with mako file support, this will read and load the mako file, when 
         built it will load a _mako.py module that defines the TEMPLATE variable
@@ -141,21 +150,318 @@ class SQL(AddonManager):
         
         :return     <str>
         """
-        mako_mod = name + '_mako'
-        try:
-            __import__(mako_mod)
-            return sys.modules[mako_mod].TEMPLATE
-        except StandardError:
-            try:
-                mod = sys.modules[name]
-                path = os.path.dirname(mod.__file__)
-                filename = os.path.join(path, name.split('.')[-1] + '.mako')
-                with open(filename, 'r') as f:
-                    return f.read()
-            except StandardError:
-                return ''
+        # load from the built table of contents
+        if hasattr(module, '__toc__'):
+            mako_mods = module.__toc__
+            for mako_mod in mako_mods:
+                try:
+                    __import__(mako_mod)
+                    templ = sys.modules[mako_mod].TEMPLATE
+                except StandardError:
+                    log.error('Failed to load mako file: {0}'.format(mako_mod))
+                    continue
+                else:
+                    name = mako_mod.split('.')[-1].replace('_mako', '').upper()
+                    typ = globals().get(name, SQL)
+                    cls.registerAddon(name, typ(templ, cls))
+        
+        # load from the directory
+        else:
+            base = os.path.dirname(module.__file__)
+            files = os.listdir(os.path.dirname(module.__file__))
+            for filename in files:
+                if not filename.endswith('.mako'):
+                    continue
+                
+                with open(os.path.join(base, filename), 'r') as f:
+                    templ = f.read()
+                
+                name = filename.split('.')[0].upper()
+                typ = globals().get(name, SQL)
+                cls.registerAddon(name, typ(templ, cls))
 
-# define base columnn types
+#----------------------------------------------------------------------
+#                       DEFINE BASE SQL COMMANDS
+#----------------------------------------------------------------------
+
+# A
+#----------------------------------------------------------------------
+
+class ADD_COLUMN(SQL):
+    def render(self, column, **scope):
+        """
+        Generates the ADD COLUMN sql for an <orb.Column> in Postgres.
+        
+        :param      column      | <orb.Column>
+                    **scope   | <keywords>
+        
+        :return     <str>
+        """
+        scope['column'] = column
+        
+        return super(ADD_COLUMN, self).render(**scope)
+
+class ALTER_TABLE(SQL):
+    def render(self, table, added=None, removed=None, **scope):
+        """
+        Generates the ALTER TABLE sql for an <orb.Table>.
+        
+        :param      table   | <orb.Table>
+                    added   | [<orb.Column>, ..] || None
+                    removed | [<orb.Column>, ..] || None
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        scope['table'] = table
+        scope['added'] = added if added is not None else []
+        scope['removed'] = removed if removed is not None else []
+        
+        return super(ALTER_TABLE, self).render(**scope)
+
+# C
+#----------------------------------------------------------------------
+
+class CREATE_TABLE(SQL):
+    def render(self, table, **scope):
+        """
+        Generates the CREATE TABLE sql for an <orb.Table>.
+        
+        :param      table   | <orb.Table>
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        scope['table'] = table
+        
+        return super(CREATE_TABLE, self).render(**scope)
+
+# D
+#----------------------------------------------------------------------
+
+class DELETE(SQL):
+    def render(self, table, where, **scope):
+        """
+        Generates the DELETE sql for an <orb.Table>.
+        
+        :param      table   | <orb.Table>
+                    where   | <orb.Query>
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        scope['table'] = table
+        scope['where'] = where
+        
+        return super(DELETE, self).render(**scope)
+
+# E
+#----------------------------------------------------------------------
+
+class ENABLE_INTERNALS(SQL):
+    def render(self, enabled, schema=None, **scope):
+        scope['enabled'] = enabled
+        scope['schema'] = database
+        
+        return super(ENABLE_INTERNALS, self).render(**scope)
+
+# I
+#----------------------------------------------------------------------
+
+class INSERT(SQL):
+    def render(self, schema, records, columns=None, **scope):
+        """
+        Generates the INSERT sql for an <orb.Table>.
+        
+        :param      schema  | <orb.Table> || <orb.TableSchema>
+                    records | [<orb.Table>, ..]
+                    columns | [<str>, ..]
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        if orb.Table.typecheck(schema):
+            schema = schema.schema()
+        
+        if columns is None:
+            columns = schema.columns(includeJoined=False,
+                                     includeAggregates=False,
+                                     includeProxies=False)
+        else:
+            columns = map(schema.column, columns)
+        
+        scope['schema'] = schema
+        scope['records'] = records
+        scope['columns'] = columns
+        
+        return super(INSERT, self).render(**scope)
+
+class INSERTED_KEYS(SQL):
+    def render(self, schema, count=1, **scope):
+        """
+        Generates the INSERTED KEYS sql for an <orb.Table> or <orb.TableSchema>.
+        
+        :param      schema  | <orb.Table> || <orb.TableSchema>
+                    count   | <int>
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        if orb.Table.typecheck(schema):
+            schema = schema.schema()
+        
+        scope['schema'] = schema
+        scope['count'] = count
+        
+        return super(INSERTED_KEYS, self).render(**scope)
+
+# S
+#----------------------------------------------------------------------
+
+class SELECT(SQL):
+    def render(self, table, **scope):
+        """
+        Generates the TABLE EXISTS sql for an <orb.Table>.
+        
+        :param      table   | <orb.Table>
+                    lookup  | <orb.LookupOptions>
+                    options | <orb.DatabaseOptions>
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        scope['table'] = table
+        scope['lookup'] = scope.get('lookup', orb.LookupOptions(**scope))
+        scope['options'] = scope.get('options', orb.DatabaseOptions(**scope))
+        
+        return super(SELECT, self).render(**scope)
+
+class SELECT_AGGREGATE(SQL):
+    def render(self, column, **scope):
+        """
+        Generates the SELECT AGGREGATE sql for an <orb.Table>.
+        
+        :param      column   | <orb.Column>
+                    **scope  | <dict>
+        
+        :return     <str>
+        """
+        scope['column'] = column
+        
+        return super(SELECT_AGGREGATE, self).render(**scope)
+
+class SELECT_COUNT(SQL):
+    def render(self, table, **scope):
+        """
+        Generates the SELECT COUNT sql for an <orb.Table>.
+        
+        :param      table   | <orb.Table>
+                    lookup  | <orb.LookupOptions>
+                    options | <orb.DatabaseOptions>
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        scope['table'] = table
+        scope['lookup'] = scope.get('lookup', orb.LookupOptions(**scope))
+        scope['options'] = scope.get('options', orb.DatabaseOptions(**scope))
+        
+        return super(SELECT_COUNT, self).render(**scope)
+
+class SELECT_JOINER(SQL):
+    def render(self, column, **scope):
+        """
+        Generates the SELECT JOINER sql for an <orb.Table>.
+        
+        :param      column   | <orb.Column>
+                    **scope  | <dict>
+        
+        :return     <str>
+        """
+        scope['column'] = column
+        
+        return super(SELECT_JOINER, self).render(**scope)
+
+# T
+#----------------------------------------------------------------------
+
+class TABLE_COLUMNS(SQL):
+    def render(self, schema, **scope):
+        """
+        Generates the TABLE COLUMNS sql for an <orb.Table>.
+        
+        :param      schema  | <orb.Table> || <orb.TableSchema>
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        if orb.Table.typecheck(schema):
+            schema = schema.schema()
+        
+        scope['schema'] = schema
+        
+        return super(TABLE_COLUMNS, self).render(**scope)
+
+class TABLE_EXISTS(SQL):
+    def render(self, schema, **scope):
+        """
+        Generates the TABLE EXISTS sql for an <orb.Table>.
+        
+        :param      schema  | <orb.TableSchema> || <orb.Table>
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        if orb.Table.typecheck(schema):
+            schema = schema.schema()
+        
+        scope['schema'] = schema
+        
+        return super(TABLE_EXISTS, self).render(**scope)
+
+# U
+#----------------------------------------------------------------------
+
+class UPDATE(SQL):
+    def render(self, schema, changes, **scope):
+        """
+        Generates the UPDATE sql for an <orb.Table>.
+        
+        :param      schema  | <orb.Table> || <orb.TableSchema>
+                    changes | [(<orb.Table>, [<orb.Column>, ..]) ..]
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        if orb.Table.typecheck(schema):
+            schema = schema.schema()
+        
+        scope['schema'] = schema
+        scope['changes'] = changes
+        
+        return super(UPDATE, self).render(**scope)
+
+# W
+#----------------------------------------------------------------------
+
+class WHERE(SQL):
+    def render(self, where, baseSchema=None, **scope):
+        """
+        Generates the WHERE sql for an <orb.Table>.
+        
+        :param      where   | <orb.Query> || <orb.QueryCompound>
+                    **scope | <dict>
+        
+        :return     <str>
+        """
+        scope['baseSchema'] = baseSchema
+        scope['where'] = where
+        
+        return super(WHERE, self).render(**scope)
+
+#----------------------------------------------------------------------
+
+# define base column types
 SQL.registerAddon('Type::BigInt',                   u'BIGINT')
 SQL.registerAddon('Type::Bool',                     u'BOOL')
 SQL.registerAddon('Type::ByteArray',                u'VARBINARY')

@@ -140,9 +140,9 @@ class SQLConnection(orb.Connection):
         :return     <int>
         """
         if orb.Table.typecheck(table_or_join):
-            SELECT_COUNT = self.sql('SELECT COUNT')
+            SELECT_COUNT = self.sql('SELECT_COUNT')
         else:
-            SELECT_COUNT = self.sql('SELECT JOIN COUNT')
+            SELECT_COUNT = self.sql('SELECT_COUNT_JOIN')
         
         try:
             cmd, data = SELECT_COUNT(table_or_join,
@@ -191,7 +191,7 @@ class SQLConnection(orb.Connection):
             log.debug('{0} is an abstract table, not creating'.format(name))
             return False
         
-        CREATE_TABLE = self.sql('CREATE TABLE')
+        CREATE_TABLE = self.sql('CREATE_TABLE')
         cmd, data = CREATE_TABLE(schema, options=options)
         
         if not options.dryRun:
@@ -214,8 +214,8 @@ class SQLConnection(orb.Connection):
         """
         super(SQLConnection, self).disableInternals()
         
-        DISABLE_INTERNALS = self.sql('DISABLE INTERNALS')
-        sql, data = DISABLE_INTERNALS()
+        ENABLE_INTERNALS = self.sql('ENABLE_INTERNALS')
+        sql, data = ENABLE_INTERNALS(False)
         
         self.execute(sql, data, autoCommit=False)
     
@@ -249,8 +249,8 @@ class SQLConnection(orb.Connection):
         
         :sa     disableInternals
         """
-        ENABLE_INTERNALS = self.sql('ENABLE INTERNALS')
-        sql, data = ENABLE_INTERNALS()
+        ENABLE_INTERNALS = self.sql('ENABLE_INTERNALS')
+        sql, data = ENABLE_INTERNALS(True)
         
         self.execute(sql, data, autoCommit=False)
         
@@ -266,9 +266,10 @@ class SQLConnection(orb.Connection):
         
         :return     [<str>, ..]
         """
-        TABLE_COLUMNS = self.sql('TABLE COLUMNS')
+        TABLE_COLUMNS = self.sql('TABLE_COLUMNS')
         sql, data = TABLE_COLUMNS(schema, options=options)
-        return self.execute(sql, data, autoCommit=False)[0]
+        result = self.execute(sql, data, autoCommit=False)[0]
+        return [x['column_name'] for x in result]
     
     def execute(self, 
                 command, 
@@ -309,12 +310,6 @@ class SQLConnection(orb.Connection):
             log.info(command)
             return [], rowcount
         
-        # make sure this is a valid query
-        elif u'__QUERY__UNDEFINED__' in command:
-            log.info('Query is undefined.')
-            log.debug(command)
-            return [], rowcount
-        
         results = []
         delta = None
         for i in range(retries):
@@ -351,7 +346,8 @@ class SQLConnection(orb.Connection):
             # handle any known a database errors with feedback information
             except errors.DatabaseError, err:
                 delta = datetime.datetime.now() - start
-                log.debug('Query took: %s' % delta)\
+                log.debug('Query took: %s' % delta)
+                log.error(command)
                 
                 if self.isConnected():
                     if orb.Transaction.current():
@@ -368,6 +364,7 @@ class SQLConnection(orb.Connection):
             
             # always raise any unknown issues for the developer
             except StandardError:
+                log.error(command)
                 delta = datetime.datetime.now() - start
                 log.debug('Query took: %s' % delta)
                 raise
@@ -418,10 +415,11 @@ class SQLConnection(orb.Connection):
         
         cmds = []
         data = {}
+        data['output'] = {}
         
         autoinc = options.autoIncrement
         INSERT = self.sql('INSERT')
-        INSERTED_KEYS = self.sql('INSERTED KEYS')
+        INSERTED_KEYS = self.sql('INSERTED_KEYS')
         
         engine = self.engine()
         for schema, schema_records in inserter.items():
@@ -451,16 +449,17 @@ class SQLConnection(orb.Connection):
             return {}
         
         cmd = u'\n'.join(cmds)
+        cmd_data = data['output']
         
         if options.dryRun:
-            print cmd % data
+            print cmd % cmd_data
             
             if len(changes) == 1:
                 return {}
             else:
                 return []
         else:
-            results, _ = self.execute(cmd, data, autoCommit=False)
+            results, _ = self.execute(cmd, cmd_data, autoCommit=False)
         
         if not self.commit():
             if len(changes) == 1:
@@ -487,7 +486,7 @@ class SQLConnection(orb.Connection):
         
         :return     <int>
         """
-        return self._insertBatchSize
+        return self.__insertBatchSize
     
     def interrupt(self, threadId=None):
         """
@@ -596,11 +595,10 @@ class SQLConnection(orb.Connection):
         
         # include various schema records to remove
         count = 0
-        REMOVE = self.sql('REMOVE')
+        DELETE = self.sql('DELETE')
         for table, queries in remove.items():
             for query in queries:
-                records = table.select(where=query)
-                sql, data = engine.removeCommand(table.schema(), records)
+                sql, data = DELETE(table, query)
                 if options.dryRun:
                     print sql % data
                 else:
@@ -633,7 +631,7 @@ class SQLConnection(orb.Connection):
         
         if orb.Table.typecheck(table_or_join):
             schemas = [table_or_join.schema()]
-            SELECT = self.sql().byName('SELECT')
+            SELECT = self.sql('SELECT')
             try:
                 sql, data = SELECT(table_or_join,
                                    lookup=lookup,
@@ -643,7 +641,7 @@ class SQLConnection(orb.Connection):
                 return []
         else:
             schemas = [table_or_join.schemas()]
-            SELECT_JOIN = self.sql().byName('SELECT JOIN')
+            SELECT_JOIN = self.sql('SELECT_JOIN')
             
             try:
                 sql, data = SELECT_JOIN(table_or_join,
@@ -698,7 +696,7 @@ class SQLConnection(orb.Connection):
         
         :param      size | <int>
         """
-        self._insertBatchSize = size
+        self.__insertBatchSize = size
     
     def setRecords(self, schema, records, **options):
         """
@@ -756,8 +754,8 @@ class SQLConnection(orb.Connection):
         
         :return     <bool> exists
         """
-        TABLE_EXISTS = self.sql('TABLE EXISTS')
-        sql, data = TABLE_EXISTS(table)
+        TABLE_EXISTS = self.sql('TABLE_EXISTS')
+        sql, data = TABLE_EXISTS(schema)
         return bool(self.execute(sql, data, autoCommit=False)[0])
     
     def update(self, records, lookup, options):
@@ -881,8 +879,8 @@ class SQLConnection(orb.Connection):
             return True
         
         columns = map(schema.column, missing)
-        ALTER = self.sql('ALTER TABLE')
-        sql, data = ALTER(schema, added=columns)
+        ALTER = self.sql('ALTER_TABLE')
+        sql, data = ALTER(schema.model(), added=columns)
         
         if options.dryRun:
             print sql % data

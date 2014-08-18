@@ -1,6 +1,6 @@
 <%
-ADD_COLUMN = __sql__.byName('ADD COLUMN')
-ADD_CONSTRAINT = __sql__.byName('ADD CONSTRAINT')
+ADD_COLUMN = __sql__.byName('ADD_COLUMN')
+ADD_CONSTRAINT = __sql__.byName('ADD_CONSTRAINT')
 
 schema = table.schema()
 table_name = schema.tableName()

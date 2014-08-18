@@ -1,5 +1,5 @@
 <%
-ADD_COLUMN = __sql__.byName('ADD COLUMN')
+ADD_COLUMN = __sql__.byName('ADD_COLUMN')
 
 schema = table.schema()
 table_name = schema.tableName()
@@ -17,18 +17,13 @@ for column in added:
     elif column.isProxy():
         continue
     elif column.isTranslatable():
-        translations.append(column)
+        translations.append(ADD_COLUMN(column)[0].strip())
     else:
-        columns.append(column)
+        columns.append(ADD_COLUMN(column)[0].strip())
 %>
 % if columns:
--- alter the table
-ALTER TABLE "${table_name}" (
-    -- define the columns
-    % for column in columns:
-    ${ADD_COLUMN(column)[0].strip()},
-    % endfor
-);
+ALTER TABLE "${table_name}"
+    ${',\n    '.join(columns)};
 % endif
 
 % if translations:
@@ -45,10 +40,6 @@ ALTER TABLE "${table_name}__translation" OWNER TO "${__db__.username()}";
 
 
 -- add the missing columns to the translation table
-ALTER TABLE "${table_name}__translation" (
-    -- define the columns
-    % for translation in translations:
-    ${ADD_COLUMN(translation)[0].strip()},
-    % endfor
-);
+ALTER TABLE "${table_name}__translation"
+    ${',\n    '.join(translations)};
 % endif

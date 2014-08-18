@@ -50,11 +50,6 @@ class PSQLConnection(SQLConnection):
     Creates a PostgreSQL backend connection type for handling database
     connections to PostgreSQL databases.
     """
-    def __init__(self, database):
-        super(PSQLConnection, self).__init__(database)
-        
-        # set standard properties
-        self.setObjectOriented(True)
 
     #----------------------------------------------------------------------
     #                       PROTECTED METHODS

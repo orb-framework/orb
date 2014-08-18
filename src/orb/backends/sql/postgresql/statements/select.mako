@@ -1,6 +1,6 @@
 <%
-SELECT_AGGREGATE = __sql__.byName('SELECT AGGREGATE')
-SELECT_JOINER = __sql__.byName('SELECT JOINER')
+SELECT_AGGREGATE = __sql__.byName('SELECT_AGGREGATE')
+SELECT_JOINER = __sql__.byName('SELECT_JOINER')
 WHERE = __sql__.byName('WHERE')
 
 __data__['traversal'] = []
@@ -68,15 +68,19 @@ for column in sorted(schema.columns(), cmpcol):
                                                      column.name()))
 
 if lookup.where:
-    where = WHERE(lookup.where, baseSchema=schema, __data__=__data__)[0].strip()
+    try:
+      where = WHERE(lookup.where, baseSchema=schema, __data__=__data__)[0].strip()
+    except orb.errors.EmptyQuery:
+      where = orb.errors.EmptyQuery
     select_tables.update(__data__.get('select_tables', set()))
 else:
     where = ''
 
-if lookup.order:
+order = lookup.order or table.schema().defaultOrder()
+if order:
     used = set()
     order_by = []
-    for col, dir in lookup.order:
+    for col, dir in order:
         col_obj = schema.column(col)
         if not col_obj:
           raise orb.errors.ColumnNotFoundError(schema.name(), col)
@@ -91,7 +95,7 @@ else:
 
 table_names = list({'"{0}"'.format(tbl.schema().tableName()) for tbl in select_tables})
 %>
-% if columns:
+% if columns and where != orb.errors.EmptyQuery:
 -- select from a single table
 % if lookup.distinct:
 SELECT DISTINCT

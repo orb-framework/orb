@@ -1143,11 +1143,8 @@ class RecordSet(object):
         
         :return     <RecordSet>
         """
-        if self._query:
-            query &= self._query
-        
         rset = RecordSet(self)
-        rset.setQuery(query)
+        rset.setQuery(query & self._query)
         return rset
     
     def remove(self, **options):

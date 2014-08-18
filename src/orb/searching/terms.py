@@ -14,7 +14,6 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
-import pyparsing
 import re
 
 from collections import defaultdict
@@ -22,6 +21,7 @@ from projex.enum import enum
 from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
+pyparsing = lazy_import('pyparsing')
 
 class SearchJoiner(object):
     def __init__(self, text):
@@ -130,9 +130,9 @@ class SearchTerm(object):
                 expr = u'.*'.join(parts)
             
             if negated:
-                return orb.Query(col).asString().doesNotMatch(expr)
+                return orb.Query(table, column).asString().doesNotMatch(expr)
             else:
-                return orb.Query(col).asString().matches(expr)
+                return orb.Query(table, column).asString().matches(expr)
 
     def toString(self):
         if self.column():

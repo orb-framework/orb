@@ -15,6 +15,7 @@ __email__           = 'team@projexsoftware.com'
 
 import orb
 from ..abstractsql import SQL
+from .statements import __plugins__
 
 class PSQL(SQL):
     @classmethod
@@ -26,6 +27,11 @@ class PSQL(SQL):
         """
         store_type = orb.DataStore.byName('Postgres', orb.DataStore)
         return store_type()
+
+# load the SQL plugins for PostgreSQL
+PSQL.loadStatements(__plugins__)
+
+#----------------------------------------------------------------------
 
 # define custom column types for PostgreSQL
 PSQL.registerAddon('Type::Bool',                    u'BOOLEAN')

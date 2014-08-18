@@ -198,35 +198,33 @@ class Table(object):
         """
         Defines the custom string format for this table.
         """
+        return projex.text.toBytes(unicode(self))
+        
+    def __unicode__(self):
+        """
+        Defines the custom string format for this table.
+        """
         schema = self.schema()
-        sform  = ''
         adv    = False
         
         # extract any inherited 
-        while not sform and schema:
+        while schema:
             sform  = schema.stringFormat()
             adv    = schema.useAdvancedFormatting()
             
-            if not sform:
-                schema = orb.system.schema(schema.inherits())
-            else:
+            if sform:
                 break
+            else:
+                schema = orb.system.schema(schema.inherits())
         
-        # use the advanced formatting
-        if adv and sform:
-            try:
-                return sform.format(self, self=self)
-            except:
-                pass
+        if not sform:
+            return unicode(super(Table, self).__str__())
         
-        # use the old-syntax formatting
-        elif sform:
-            try:
-                return sform % self.recordValues()
-            except KeyError:
-                pass
+        elif adv:
+            return unicode(sform).format(self, self=self)
         
-        return super(Table, self).__str__()
+        else:
+            return unicode(sform) % self.recordValues()
     
     def __eq__(self, other):
         """
