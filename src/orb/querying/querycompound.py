@@ -19,12 +19,14 @@ __email__           = 'team@projexsoftware.com'
 import logging
 import projex.text
 
+from projex.lazymodule import lazy_import
 from projex.enum import enum
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
 from xml.parsers.expat import ExpatError
 
 log = logging.getLogger(__name__)
+orb = lazy_import('orb')
 
 
 class QueryCompound(object):
@@ -529,7 +531,7 @@ class QueryCompound(object):
     @staticmethod
     def fromDict(data):
         if data.get('type') != 'compound':
-            return Query.fromDict(data)
+            return orb.Query.fromDict(data)
         
         compound = QueryCompound()
         compound.setName(data.get('name', ''))
@@ -538,7 +540,7 @@ class QueryCompound(object):
         
         queries = []
         for subdata in data.get('queries', []):
-            queries.append(Query.fromDict(subdata))
+            queries.append(orb.Query.fromDict(subdata))
         
         compound._queries = queries
         return compound
@@ -553,12 +555,12 @@ class QueryCompound(object):
         
         :return     <Query> || <QueryCompound> || None
         """
-        return Query.fromString(querystr)
+        return orb.Query.fromString(querystr)
     
     @staticmethod
     def fromXml(xquery):
         if xquery.tag == 'query':
-            return Query.fromXml(xquery)
+            return orb.Query.fromXml(xquery)
         
         compound = QueryCompound()
         compound.setName(xquery.get('name', ''))
@@ -567,7 +569,7 @@ class QueryCompound(object):
         
         queries = []
         for xsubquery in xquery:
-            queries.append(Query.fromXml(xsubquery))
+            queries.append(orb.Query.fromXml(xsubquery))
         
         compound._queries = queries
         return compound
@@ -586,7 +588,7 @@ class QueryCompound(object):
         except ExpatError:
             return Query()
         
-        return Query.fromXml(xml)
+        return orb.Query.fromXml(xml)
     
     @staticmethod
     def typecheck(obj):

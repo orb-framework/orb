@@ -17,6 +17,7 @@ __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
 import datetime
+import decimal
 import orb
 import orb.errors
 import projex.rest
@@ -71,6 +72,9 @@ class DataStore(AddonManager):
         
         elif column.isString():
             return projex.text.decoded(db_value)
+        
+        elif type(db_value) == decimal.Decimal:
+            return float(db_value)
         
         else:
             return db_value

@@ -151,7 +151,7 @@ class SQL(AddonManager):
         :return     <str>
         """
         # load from the built table of contents
-        if hasattr(module, '__toc__'):
+        if hasattr(module, '__toc__') and module.__toc__:
             mako_mods = module.__toc__
             for mako_mod in mako_mods:
                 try:

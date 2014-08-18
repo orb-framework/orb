@@ -491,7 +491,7 @@ class REST(orb.Connection):
                 
                 elif 'ids' in submit:
                     q = orb.Query(table).in_(submit['ids'])
-                    records += table.select(where = q).all()
+                    records += table.select(where=q).all()
         
         # extract value information from the call
         if 'values' in py_data:
@@ -505,13 +505,15 @@ class REST(orb.Connection):
         
         # get a count from the system
         if method == 'count':
-            response = {'count': len(table.select(lookup, options))}
+            rset = table.select(lookup)
+            rset.setDatabaseOptions(options)
+            response = {'count': len(rset)}
         
         # perform a distinct select
         elif method == 'distinct':
-            options.inflateRecords = False
-            rset = table.select(lookup, options)
-            records = rset.distinct(lookup.columns)
+            rset = table.select(lookup)
+            rset.setDatabaseOptions(options)
+            records = rset.distinct(lookup.columns, inflateRecords=False)
             response = {'records': records}
         
         # insert a record into the database
@@ -556,7 +558,8 @@ class REST(orb.Connection):
         
         # perform a select
         elif method == 'select':
-            rset = table.select(lookup=lookup, options=options)
+            rset = table.select(lookup)
+            rset.setDatabaseOptions(options)
             response = {'records': rset.all(inflated=False, ignoreColumns=True)}
         
         # perform an update
