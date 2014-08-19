@@ -34,32 +34,38 @@
     if traversal:
         traversal.append(column)
 
-    for i, curr in enumerate(traversal[1:]):
-        join_count += 1
-        join_table = 'join_{0}'.format(join_count)
-        
-        if not last_key:
-            last_key = '"{0}"."{1}"'.format(traversal[i].schema().tableName(),
-                                            traversal[i].fieldName())
-        
-        pcols = ['"{0}"."{1}"'.format(join_table, pcol.fieldName()) \
-                 for pcol in curr.schema().primaryColumns()]
-        if len(pcols) > 1:
-            curr_key = '({0})'.format(','.join(pcols))
-        else:
-            curr_key = pcols[0]
-        
-        cmd = u'LEFT JOIN "{0}" AS "{3}" ON {1}={2}'
-        
-        __data__['field_mapper'][curr] = '"{0}"."{1}"'.format(join_table,
-                                                              curr.fieldName())
-        __data__['traversal'].append(cmd.format(curr.schema().tableName(),
-                                                last_key,
-                                                curr_key,
-                                                join_table))
+        # join any traversal columns that we might find
+        for i, curr in enumerate(traversal[1:]):
+            join_count += 1
+            join_table = 'join_{0}'.format(join_count)
+            
+            if not last_key:
+                last_key = '"{0}"."{1}"'.format(traversal[i].schema().tableName(),
+                                                traversal[i].fieldName())
+            
+            pcols = ['"{0}"."{1}"'.format(join_table, pcol.fieldName()) \
+                     for pcol in curr.schema().primaryColumns()]
+            if len(pcols) > 1:
+                curr_key = '({0})'.format(','.join(pcols))
+            else:
+                curr_key = pcols[0]
+            
+            cmd = u'LEFT JOIN "{0}" AS "{3}" ON {1}={2}'
+            
+            __data__['field_mapper'][curr] = '"{0}"."{1}"'.format(join_table,
+                                                                  curr.fieldName())
+            __data__['traversal'].append(cmd.format(curr.schema().tableName(),
+                                                    last_key,
+                                                    curr_key,
+                                                    join_table))
 
-        last_key = curr_key
-
+            last_key = curr_key
+    
+    # if we're not mapping the column already, we'll need to add it into the
+    # selection 
+    elif where.table() and where.table().schema() != baseSchema:
+        __data__['select_tables'].add(column.schema().model())
+    
     __data__['join_count'] = join_count
 
     op = where.operatorType()
@@ -67,6 +73,8 @@
     if where.caseSensitive():
       case = __sql__.byName('Op::{0}::CaseSensitive'.format(orb.Query.Op(op)))
       op_sql = case or op_sql
+    if op_sql is None:
+        raise orb.errors.DatabaseQueryError('{0} is an unknown operator.'.format(orb.Query.Op(op)))
     
     value = where.value()
     if orb.Table.recordcheck(value):
@@ -142,7 +150,7 @@
               ${SELECT(value.table(),
                        lookup=value.lookupOptions(columns=value.table().schema().primaryColumns()),
                        options=value.databaseOptions(),
-                       __data__=__data__)[0]}
+                       output=__data__['output'])[0]}
           )
         % endif
     

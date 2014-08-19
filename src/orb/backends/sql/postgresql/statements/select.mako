@@ -4,10 +4,10 @@ SELECT_JOINER = __sql__.byName('SELECT_JOINER')
 WHERE = __sql__.byName('WHERE')
 
 __data__['traversal'] = []
-__data__.setdefault('field_mapper', {})
+__data__['field_mapper'] = {}
+__data__['select_tables'] = {table}
 
 schema = table.schema()
-select_tables = {table}
 table_name = schema.tableName()
 translations = []
 
@@ -73,7 +73,6 @@ if lookup.where:
       where = WHERE(lookup.where, baseSchema=schema, __data__=__data__)[0].strip()
     except orb.errors.EmptyQuery:
       where = orb.errors.EmptyQuery
-    select_tables.update(__data__.get('select_tables', set()))
 else:
     where = ''
 
@@ -99,6 +98,7 @@ if order:
 else:
     order_by = []
 
+select_tables = __data__['select_tables']
 table_names = list({'"{0}"'.format(tbl.schema().tableName()) for tbl in select_tables})
 %>
 % if columns and where != orb.errors.EmptyQuery:

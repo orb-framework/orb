@@ -89,7 +89,7 @@ class SQL(AddonManager):
         # module imports
         scope.setdefault('orb', orb)
         
-        scope['__data__'].setdefault('output', {})
+        scope['__data__'].setdefault('output', scope.get('output', {}))
         
         sql = self._template.render(**scope)
         return sql.strip(), scope['__data__']['output']

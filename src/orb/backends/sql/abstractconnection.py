@@ -344,10 +344,10 @@ class SQLConnection(orb.Connection):
                     raise
             
             # handle any known a database errors with feedback information
-            except errors.DatabaseError, err:
+            except errors.DatabaseError as err:
                 delta = datetime.datetime.now() - start
                 log.debug('Query took: %s' % delta)
-                log.error(command)
+                log.error(u'{0}: \n {1}'.format(err, command))
                 
                 if self.isConnected():
                     if orb.Transaction.current():
@@ -363,8 +363,8 @@ class SQLConnection(orb.Connection):
                     raise
             
             # always raise any unknown issues for the developer
-            except StandardError:
-                log.error(command)
+            except StandardError as err:
+                log.error(u'{0}: \n {1}'.format(err, command))
                 delta = datetime.datetime.now() - start
                 log.debug('Query took: %s' % delta)
                 raise
@@ -814,6 +814,7 @@ class SQLConnection(orb.Connection):
             cmds.append(icmd)
         
         cmd = u'\n'.join(cmds)
+        data = data['output']
         
         if options.dryRun:
             print cmd % data

@@ -11,7 +11,9 @@ query = aggr.where(column)
 traversals = __data__.get('traversal', [])
 __data__['traversal'] = []
 if query is not None:
-    where = WHERE(query, __data__=__data__)[0]
+    where = WHERE(query,
+                  baseSchema=ref_col.schema(),
+                  __data__=__data__)[0]
 else:
     where = None
 new_traversals = __data__.get('traversal', [])
