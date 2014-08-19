@@ -28,7 +28,7 @@ ALTER TABLE "${table_name}"
 
 % if translations:
 -- ensure the translation table exists (in case this is the first set of columns)
-CREATE TABLE "${table_name}__translation" IF NOT EXISTS (
+CREATE TABLE IF NOT EXISTS "${table_name}__translation" (
     -- define the pkey columns
     ADD COLUMN "tr_lang" CHARACTER VARYING(5),
     ADD COLUMN "${table_name}_id" REFERENCES "${table_name}" (${u','.join(pcols)}) ON DELETE CASCADE,

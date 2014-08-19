@@ -23,7 +23,7 @@ for column in sorted(schema.columns(recurse=False), key=lambda x: x.fieldName())
         columns.append(column)
 %>
 -- create the table
-CREATE TABLE "${table_name}" (
+CREATE TABLE IF NOT EXISTS "${table_name}" (
     -- define the columns
     % for column in columns:
     ${ADD_COLUMN(column)[0].strip()},
