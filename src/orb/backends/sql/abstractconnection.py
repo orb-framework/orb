@@ -441,7 +441,7 @@ class SQLConnection(orb.Connection):
             
             # for inherited schemas in non-OO tables, we'll define the
             # primary keys before insertion
-            if autoinc and (not schema.inherits() or self.isObjectOriented()):
+            if autoinc:
                 cmd, _ = INSERTED_KEYS(schema, count=len(batch), __data__=data)
                 cmds.append(cmd)
         
@@ -658,7 +658,6 @@ class SQLConnection(orb.Connection):
         
         # restore the records from the database
         output = []
-        is_oo = self.isObjectOriented()
         db = self.database()
         for db_record in db_records:
             records = {}
@@ -778,7 +777,6 @@ class SQLConnection(orb.Connection):
         elif orb.Table.recordcheck(records):
             records = [records]
         
-        is_oo = self.isObjectOriented()
         updater = defaultdict(list)
         changes = []
         for record in records:
@@ -794,10 +792,7 @@ class SQLConnection(orb.Connection):
             elif not rchanges:
                 continue
             
-            if not is_oo:
-                schemas = record.schema().ancestry() + [record.schema()]
-            else:
-                schemas = [record.schema()]
+            schemas = [record.schema()]
             
             for schema in schemas:
                 cols = map(schema.column, rchanges.keys())

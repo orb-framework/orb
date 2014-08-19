@@ -719,15 +719,6 @@ class TableSchema(object):
         
         :return     <tuple> (<orb.Column>,)
         """
-        if self.inherits() and db is not None:
-            try:
-                is_oo = db.backend().isObjectOriented()
-            except AttributeError:
-                is_oo = True
-
-            if not is_oo:
-                return (db.backend().defaultInheritColumn(self),)
-        
         if self._primaryColumns:
             return self._primaryColumns
         

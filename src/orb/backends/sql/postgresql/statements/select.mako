@@ -4,6 +4,7 @@ SELECT_JOINER = __sql__.byName('SELECT_JOINER')
 WHERE = __sql__.byName('WHERE')
 
 __data__['traversal'] = []
+__data__.setdefault('field_mapper', {})
 
 schema = table.schema()
 select_tables = {table}
@@ -83,13 +84,18 @@ if order:
     for col, dir in order:
         col_obj = schema.column(col)
         if not col_obj:
-          raise orb.errors.ColumnNotFoundError(schema.name(), col)
+          continue
+        
+        default = '"{0}"."{1}"'.format(table_name, col_obj.fieldName())
+        field = __data__['field_mapper'].get(col_obj, default)
+        
+        if field != default:
+          group_by.add(field)
         
         if lookup.columns and not col_obj.name() in lookup.columns:
-            columns.append('"{0}"."{1}"'.format(table_name, col_obj.fieldName()))
+            columns.append(field)
         
-        args = (table_name, col_obj.fieldName(), dir.upper())
-        order_by.append(u'"{0}"."{1}" {2}'.format(*args))
+        order_by.append('{0} {1}'.format(field, dir.upper()))
 else:
     order_by = []
 

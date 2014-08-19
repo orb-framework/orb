@@ -82,8 +82,7 @@ class ConnectionError(OrbError):
         
         msgs.append('')
         
-        Connection.init()
-        typs = ','.join(Connection.backends.keys())
+        typs = ','.join(Connection.addons().keys())
         
         msgs.append('valid types: %s' % typs)
         
