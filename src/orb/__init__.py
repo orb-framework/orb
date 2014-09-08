@@ -19,7 +19,7 @@ __email__           = 'team@projexsoftware.com'
 #------------------------------------------------------------------------------
 
 # define version information (major,minor,maintanence)
-__depends__     = ['projex', 'mako', 'yaml', 'pyparsing']
+__depends__     = ['projex', 'mako']
 __major__       = 4
 __minor__       = 0
 __revision__    = 0
