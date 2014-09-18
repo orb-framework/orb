@@ -258,7 +258,7 @@ class Connection(AddonManager):
         """
         settings = orb.system.settings()
         return orb.Column(orb.ColumnType.Integer,
-                          settings.primaryField(),
+                          settings.primaryName(),
                           primary=True,
                           autoIncrement=True,
                           fieldName=settings.primaryField(),
@@ -352,7 +352,7 @@ class Connection(AddonManager):
         :return     <variant> returns a native set of information
         """
         return None
-    
+
     @abstractmethod()
     def insert(self, records, lookup, options):
         """
@@ -541,7 +541,13 @@ class Connection(AddonManager):
         if ( results ):
             return results[0]
         return None
-    
+
+    def setupDatabase(self, options):
+        """
+        Initializes the database with any additional information that is required.
+        """
+        pass
+
     @abstractmethod()
     def setRecords(self, schema, records):
         """
@@ -600,22 +606,22 @@ class Connection(AddonManager):
         
         :return     (<str> type, <dict> changeet) || None
         """
-        db = self.database()
         changes = record.changeset()
         if not changes:
-            return ('', [])
+            return '', {}
         
         # create the new record in the database
         if not record.isRecord():
+            print record, record.recordValues()
             results = self.insert(record, lookup, options)
             if 'db_error' in results:
-                return ('errored', results )
-            return ('created', results)
+                return 'errored', results
+            return 'created', results
         else:
             results = self.update(record, lookup, options)
             if 'db_error' in results:
-                return ('errored', results)
-            return ('updated', results)
+                return 'errored', results
+            return 'updated', results
     
     def syncTable(self, schema, options):
         """

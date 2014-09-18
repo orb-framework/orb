@@ -192,7 +192,7 @@ class SQLConnection(orb.Connection):
             return False
         
         CREATE_TABLE = self.sql('CREATE_TABLE')
-        cmd, data = CREATE_TABLE(schema, options=options)
+        cmd, data = CREATE_TABLE(schema.model(), options=options)
         
         if not options.dryRun:
             self.execute(cmd, data)
@@ -215,7 +215,7 @@ class SQLConnection(orb.Connection):
         super(SQLConnection, self).disableInternals()
         
         ENABLE_INTERNALS = self.sql('ENABLE_INTERNALS')
-        sql, data = ENABLE_INTERNALS(False)
+        sql, data = ENABLE_INTERNALS(False, options=options)
         
         self.execute(sql, data, autoCommit=False)
     
@@ -250,7 +250,7 @@ class SQLConnection(orb.Connection):
         :sa     disableInternals
         """
         ENABLE_INTERNALS = self.sql('ENABLE_INTERNALS')
-        sql, data = ENABLE_INTERNALS(True)
+        sql, data = ENABLE_INTERNALS(True, options=options)
         
         self.execute(sql, data, autoCommit=False)
         
@@ -436,7 +436,8 @@ class SQLConnection(orb.Connection):
                                  batch,
                                  columns=lookup.columns,
                                  autoincrement=autoinc,
-                                 __data__=data)
+                                 __data__=data,
+                                 options=options)
                 cmds.append(icmd)
             
             # for inherited schemas in non-OO tables, we'll define the
@@ -598,7 +599,7 @@ class SQLConnection(orb.Connection):
         DELETE = self.sql('DELETE')
         for table, queries in remove.items():
             for query in queries:
-                sql, data = DELETE(table, query)
+                sql, data = DELETE(table, query, options=options)
                 if options.dryRun:
                     print sql % data
                 else:
@@ -646,7 +647,7 @@ class SQLConnection(orb.Connection):
             try:
                 sql, data = SELECT_JOIN(table_or_join,
                                         lookup=lookup,
-                                        toptions=options,
+                                        options=options,
                                         COLUMNS=COLUMNS)
             except errors.EmptyQuery:
                 return []
@@ -687,7 +688,22 @@ class SQLConnection(orb.Connection):
         if orb.Table.typecheck(table_or_join):
             return map(lambda x: x[0], output)
         return output
-    
+
+    def setupDatabase(self, options):
+        """
+        Initializes the database by defining any additional structures that are required during selection.
+        """
+        SETUP_DB = self.sql('SETUP_DB')
+        try:
+            sql, data = SETUP_DB()
+        except StandardError as err:
+            log.error(str(err))
+        else:
+            if options.dryRun:
+                print sql % data
+            else:
+                self.execute(sql, data)
+
     def setInsertBatchSize(self, size):
         """
         Sets the maximum number of records that can be inserted for a single
@@ -754,7 +770,7 @@ class SQLConnection(orb.Connection):
         :return     <bool> exists
         """
         TABLE_EXISTS = self.sql('TABLE_EXISTS')
-        sql, data = TABLE_EXISTS(schema)
+        sql, data = TABLE_EXISTS(schema, options=options)
         return bool(self.execute(sql, data, autoCommit=False)[0])
     
     def update(self, records, lookup, options):
@@ -810,7 +826,7 @@ class SQLConnection(orb.Connection):
         UPDATE = self.sql('UPDATE')
         
         for schema, changes in updater.items():
-            icmd, _ = UPDATE(schema, changes, __data__=data)
+            icmd, _ = UPDATE(schema, changes, __data__=data, options=options)
             cmds.append(icmd)
         
         cmd = u'\n'.join(cmds)
@@ -876,7 +892,7 @@ class SQLConnection(orb.Connection):
         
         columns = map(schema.column, missing)
         ALTER = self.sql('ALTER_TABLE')
-        sql, data = ALTER(schema.model(), added=columns)
+        sql, data = ALTER(schema.model(), added=columns, options=options)
         
         if options.dryRun:
             print sql % data

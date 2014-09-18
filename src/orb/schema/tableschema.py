@@ -459,13 +459,10 @@ class TableSchema(object):
         
         output = []
         for col in columns:
-            for fname in col.fieldNames():
-                if include is not None and not fname in include:
-                    continue
-                if ignore is not None and fname in ignore:
-                    continue
-                
-                output.append(fname)
+            if (include is not None and not col.fieldName() in include) or \
+               (ignore is not None and col.fieldName() in ignore):
+                continue
+            output.append(col.fieldName())
         return output
     
     def generateModel(self):

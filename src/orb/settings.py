@@ -31,6 +31,7 @@ class Settings(object):
         
         # setup field options (version 1)
         if env.get('ORB_CONFIG_VERSION') == '1':
+            self._primaryName = env.get('ORB_PRIMARY_NAME', '_id')
             self._primaryField = env.get('ORB_PRIMARY_FIELD', '_id')
             self._primaryGetter = env.get('ORB_PRIMARY_GETTER', '_id')
             self._primarySetter = env.get('ORB_PRIMARY_SETTER', '_setId')
@@ -41,6 +42,7 @@ class Settings(object):
         
         # use latest field options
         else:
+            self._primaryName = env.get('ORB_PRIMARY_NAME', 'id')
             self._primaryField = env.get('ORB_PRIMARY_FIELD', 'id')
             self._primaryGetter = env.get('ORB_PRIMARY_GETTER', 'id')
             self._primarySetter = env.get('ORB_PRIMARY_SETTER', 'setId')
@@ -118,7 +120,7 @@ class Settings(object):
 
     def primaryField(self):
         """
-        Returns the default name for the primary field.
+        Returns the default field name for the primary field.
         
         :return     <str>
         """
@@ -139,6 +141,14 @@ class Settings(object):
         :return     <str>
         """
         return self._primaryIndex
+
+    def primaryName(self):
+        """
+        Returns the default name for the primary field.
+
+        :return     <str>
+        """
+        return self._primaryName
 
     def primarySetter(self):
         """
@@ -200,7 +210,7 @@ class Settings(object):
 
     def setPrimaryField(self, text):
         """
-        Sets the default name for the primary field.
+        Sets the default field name for the primary field.
         
         :param      text | <str>
         """
@@ -221,6 +231,14 @@ class Settings(object):
         :param      text | <str>
         """
         self._primaryIndex = text
+
+    def setPrimaryName(self, text):
+        """
+        Sets the default name for the primary field.
+
+        :param      text | <str>
+        """
+        self._primaryName = text
 
     def setPrimarySetter(self, text):
         """

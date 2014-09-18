@@ -59,8 +59,8 @@ class Manager(object):
         # settings instance
         self._settings = Settings()
         
-        # language options
-        self._language = os.environ.get('ORB_LANGUAGE', 'en_US')
+        # i18n options
+        self._locale = os.environ.get('ORB_LOCALE', 'en_US')
         self._timezone = None
         
         # registry
@@ -374,13 +374,13 @@ class Manager(object):
         """
         return self.settings().isCachingEnabled()
     
-    def language(self):
+    def locale(self):
         """
-        Returns the current language that the system is going to be in.
+        Returns the current locale that the system is going to be in.
         
         :return     <str>
         """
-        return self._language
+        return self._locale
 
     def load(self, filename = '', includeReferences=False):
         """
@@ -887,14 +887,14 @@ class Manager(object):
             
         self._database = database
     
-    def setLanguage(self, lang_code):
+    def setLocale(self, locale):
         """
-        Sets the language that the orb file will be using.
+        Sets the locale that the orb file will be using.
         
-        :param      lang_code | <str>
+        :param      locale | <str>
         """
-        if lang_code:
-            self._language = lang_code
+        if locale:
+            self._locale = locale
 
     def setEnvironment(self, environment):
         """

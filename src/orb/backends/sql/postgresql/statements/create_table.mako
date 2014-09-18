@@ -19,6 +19,8 @@ for column in sorted(schema.columns(recurse=False), key=lambda x: x.fieldName())
         translations.append(column)
     elif column.primary() and schema.inherits():
         continue
+    elif column.isReference():
+        continue
     else:
         columns.append(column)
 %>
@@ -26,7 +28,7 @@ for column in sorted(schema.columns(recurse=False), key=lambda x: x.fieldName())
 CREATE TABLE IF NOT EXISTS "${table_name}" (
     -- define the columns
     % for column in columns:
-    ${ADD_COLUMN(column)[0].strip()},
+    ${ADD_COLUMN(column)[0].strip().replace('ADD COLUMN ', '')},
     % endfor
     -- define the constraints
     % if pcols:
@@ -41,17 +43,17 @@ ALTER TABLE "${table_name}" OWNER TO "${__db__.username()}";
 
 % if translations:
 -- create the translations table
-CREATE TABLE "${table_name}__translation" (
+CREATE TABLE "${table_name}_i18n" (
     -- define the columns
-    ADD COLUMN "tr_lang" CHARACTER VARYING(5),
-    ADD COLUMN "${table_name}_id" REFERENCES "${table_name}" (${u','.join(pcols)}) ON DELETE CASCADE,
+    "locale" CHARACTER VARYING(5),
+    "${table_name}_id" BIGINT REFERENCES "${table_name}" (${u','.join(pcols)}) ON DELETE CASCADE,
     % for translation in translations:
-    ${ADD_COLUMN(translation)[0].strip()},
+    ${ADD_COLUMN(translation)[0].strip().replace('ADD COLUMN ', '')},
     % endfor
     
     -- define the constraints
-    CONSTRAINT "${table_name}_translation_pkey" PRIMARY KEY ("${table_name}_id", "tr_lang")
+    CONSTRAINT "${table_name}_i18n_pkey" PRIMARY KEY ("${table_name}_id", "locale")
 )
 WITH (OIDS=FALSE);
-ALTER TABLE "${table_name}__translation" OWNER TO "${__db__.username()}";
+ALTER TABLE "${table_name}_i18n" OWNER TO "${__db__.username()}";
 % endif

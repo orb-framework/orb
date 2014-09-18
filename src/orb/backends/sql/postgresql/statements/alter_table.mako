@@ -28,18 +28,18 @@ ALTER TABLE "${table_name}"
 
 % if translations:
 -- ensure the translation table exists (in case this is the first set of columns)
-CREATE TABLE IF NOT EXISTS "${table_name}__translation" (
+CREATE TABLE IF NOT EXISTS "${table_name}_i18n" (
     -- define the pkey columns
-    ADD COLUMN "tr_lang" CHARACTER VARYING(5),
-    ADD COLUMN "${table_name}_id" REFERENCES "${table_name}" (${u','.join(pcols)}) ON DELETE CASCADE,
+    "locale" CHARACTER VARYING(5),
+    "${table_name}_id" BIGINT REFERENCES "${table_name}" (${u','.join(pcols)}) ON DELETE CASCADE,
     
     -- define the pkey constraints
-    CONSTRAINT "${table_name}_translation_pkey" PRIMARY KEY ("tr_lang", "${table_name}_id")
+    CONSTRAINT "${table_name}_i18n_pkey" PRIMARY KEY ("locale", "${table_name}_id")
 ) WITH (OIDS=FALSE);
-ALTER TABLE "${table_name}__translation" OWNER TO "${__db__.username()}";
+ALTER TABLE "${table_name}_i18n" OWNER TO "${__db__.username()}";
 
 
 -- add the missing columns to the translation table
-ALTER TABLE "${table_name}__translation"
+ALTER TABLE "${table_name}_i18n"
     ${',\n    '.join(translations)};
 % endif

@@ -407,18 +407,8 @@ class Column(object):
         :return     <callable> || None
         """
         return self._getter
-    
-    def fieldInfo(self, field):
-        """
-        Splits the field information based on its language.
-        
-        :param      field | <str>
-        
-        :return     (<str> field_base, <str> language || None)
-        """
-        return field, None
-    
-    def fieldName(self, language=None):
+
+    def fieldName(self):
         """
         Returns the field name that this column will have inside
         the database.  The Column.TEMPLATE_FIELD variable will be
@@ -427,18 +417,7 @@ class Column(object):
         :return     <str>
         """
         return self._fieldName
-    
-    def fieldNames(self):
-        """
-        Returns all the fields within the database based on additional mapping,
-        such as translation.  They will all be defined within the main
-        root definition of this column, and as such share the same properties.
-        
-        :return     [<str>, ..]
-        """
-        fn = self._fieldName
-        return [fn]
-    
+
     def firstMemberSchema(self, schemas):
         """
         Returns the first schema within the list that this column is a member
@@ -550,9 +529,10 @@ class Column(object):
         """
         opts = [self.name(),
                 self.name().strip('_'),
-                self.displayName()]
+                self.displayName(),
+                self.fieldName()]
         
-        return name in (opts + self.fieldNames())
+        return name in opts
     
     def isMemberOf(self, schemas):
         """

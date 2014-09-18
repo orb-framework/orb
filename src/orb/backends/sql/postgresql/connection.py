@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 
 try:
     import psycopg2 as pg
-    from psycopg2.extras import DictCursor
+    from psycopg2.extras import DictCursor, register_hstore
     from psycopg2.extensions import QueryCanceledError
     
 except ImportError:
@@ -82,6 +82,10 @@ class PSQLConnection(SQLConnection):
             raise errors.ConnectionLostError()
         
         cursor = db.cursor(cursor_factory=DictCursor)
+
+        # register the hstore option
+        cursor.execute('CREATE EXTENSION IF NOT EXISTS hstore;')
+        register_hstore(cursor, unicode=True)
         
         if log.getEffectiveLevel() == logging.DEBUG:
             log.debug('#-------------------------')
@@ -158,7 +162,7 @@ class PSQLConnection(SQLConnection):
         
         # create the python connection
         try:
-            return pg.connect(database=dbname, 
+            return pg.connect(database=dbname,
                               user=user, 
                               password=pword, 
                               host=host, 

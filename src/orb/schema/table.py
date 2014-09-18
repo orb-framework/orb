@@ -21,6 +21,7 @@ __email__           = 'team@projexsoftware.com'
 import copy
 import datetime
 import logging
+import json
 import projex.text
 import projex.rest
 import projex.security
@@ -104,7 +105,7 @@ class Table(object):
                       grouping, 
                       ref_cache, 
                       autoInflate=False,
-                      language=None):
+                      locale=None):
         """
         Looks up the grouping key for the inputed record.  If the cache
         value is specified, then it will lookup any reference information within
@@ -143,19 +144,19 @@ class Table(object):
             if column.isReference():
                 ref_key = record.recordValue(columnName,
                                              autoInflate=False,
-                                             language=language)
+                                             locale=locale)
                 ref_cache_key = (column.reference(), ref_key)
                 
                 # cache this record so that we only access 1 of them
                 if (not ref_cache_key in ref_cache):
                     col_value = record.recordValue(columnName, 
                                                    autoInflate=autoInflate,
-                                                   language=language)
+                                                   locale=locale)
                     ref_cache[ref_cache_key] = col_value
                 else:
                     col_value = ref_cache[ref_cache_key]
             else:
-                col_value = record.recordValue(columnName, language=language)
+                col_value = record.recordValue(columnName, locale=locale)
             
             column_data[columnName] = col_value
         
@@ -372,7 +373,13 @@ class Table(object):
             column = schema.column(colname)
             if not column:
                 continue
-            
+
+            if column.isTranslatable() and type(value) in (str, unicode) and value.startswith('{'):
+                try:
+                    value = eval(value)
+                except StandardError as err:
+                    value = None
+
             # map a query value to a query
             if column.columnType() == ColumnType.Query:
                 if type(value) == dict:
@@ -688,7 +695,7 @@ class Table(object):
             value = column.default(resolve=True)
             
             if column.isTranslatable():
-                value = {orb.system.language(): value}
+                value = {orb.system.locale(): value}
             
             self.__record_defaults[key] = value
     
@@ -860,7 +867,7 @@ class Table(object):
     
     def recordValue(self,
                     columnName,
-                    language=None,
+                    locale=None,
                     default=None,
                     autoInflate=True,
                     useMethod=True):
@@ -890,9 +897,9 @@ class Table(object):
             
             if method is not None and not orb_getter:
                 keywords = self.__getKeywords(method)
-                # make sure language is a valid keyword for this method
-                if 'language' in keywords:
-                    return method(self, language=language)
+                # make sure locale is a valid keyword for this method
+                if 'locale' in keywords:
+                    return method(self, locale=locale)
                 else:
                     return method(self)
         
@@ -906,23 +913,23 @@ class Table(object):
         
         # return the translatable value
         if column.isTranslatable():
-            # return all the languages
-            if language == 'all':
+            # return all the locales
+            if locale == 'all':
                 return value
             
-            # return specific languages
-            elif type(language) in (list, tuple, set):
+            # return specific locales
+            elif type(locale) in (list, tuple, set):
                 output = {}
-                for lang in language:
+                for lang in locale:
                     output[lang] = value.get(lang)
                 return output
             
-            # return a set of languages
-            elif type(language) == dict:
+            # return a set of locales
+            elif type(locale) == dict:
                 # return first in the set
-                if 'first' in language:
+                if 'first' in locale:
                     langs = set(value.keys())
-                    first = language['first']
+                    first = list(locale['first'])
                     remain = list(langs.difference(first))
                     
                     for lang in first + remain:
@@ -931,11 +938,11 @@ class Table(object):
                             return val
                 return ''
             
-            # return the current language
-            elif language is None:
-                language = orb.system.language()
+            # return the current locale
+            elif locale is None:
+                locale = orb.system.locale()
             
-            value = value.get(language)
+            value = value.get(locale)
             if not value:
                 value = default
         
@@ -972,7 +979,7 @@ class Table(object):
                      includeJoined=True,
                      recurse=True,
                      mapper=None,
-                     language=None):
+                     locale=None):
         """
         Returns a dictionary grouping the columns and their
         current values.  If useFieldNames is set to true, then the keys
@@ -1007,7 +1014,7 @@ class Table(object):
             
             value = self.recordValue(column_name,
                                      autoInflate=autoInflate,
-                                     language=language)
+                                     locale=locale)
             
             if mapper:
                 value = mapper(value)
@@ -1015,7 +1022,20 @@ class Table(object):
             output[column_name] = value
         
         return output
-    
+
+    def recordLocales(self):
+        """
+        Collects a list of all the locales associated with this record.
+
+        :return     {<str>, ..}
+        """
+        col_names = [col.name() for col in self.schema().columns() if col.isTranslatable()]
+        output = set()
+        for name, value in self.__record_values.items():
+            if name in col_names and type(value) == dict:
+                output.update(value.keys())
+        return output
+
     def reload(self, *columnNames, **kwds):
         """
         Reloads specific columns from the database for this record.  This will
@@ -1171,7 +1191,7 @@ class Table(object):
         """
         self.__local_cache[key] = value
     
-    def setRecordDefault(self, columnName, value, language=None):
+    def setRecordDefault(self, columnName, value, locale=None):
         """
         Sets the default value for the column name at the given value.
         
@@ -1193,14 +1213,14 @@ class Table(object):
         value = column.storeValue(value)
         
         if column.isTranslatable():
-            if language is None:
-                language = orb.system.language()
+            if locale is None:
+                locale = orb.system.locale()
             
             self.__record_defaults.setdefault(columnName, {})
             self.__record_values.setdefault(columnName, {})
             
-            self.__record_defaults[columnName][language] = value
-            self.__record_values[columnName][language] = value
+            self.__record_defaults[columnName][locale] = value
+            self.__record_values[columnName][locale] = value
         else:
             self.__record_defaults[columnName] = value
             self.__record_values[columnName] = value
@@ -1211,7 +1231,7 @@ class Table(object):
                        columnName,
                        value,
                        useMethod=True,
-                       language=None):
+                       locale=None):
         """
         Sets the value for this record at the inputed column
         name.  If the columnName provided doesn't exist within
@@ -1251,8 +1271,8 @@ class Table(object):
             
             if method is not None and not orb_setter:
                 keywords = self.__getKeywords(method)
-                if 'language' in keywords:
-                    return method(self, value, language=language)
+                if 'locale' in keywords:
+                    return method(self, value, locale=locale)
                 else:
                     return method(self, value)
         
@@ -1270,7 +1290,7 @@ class Table(object):
         
         if column.isTranslatable():
             if curr_value is None:
-                curr_value = {orb.system.language(): ''}
+                curr_value = {orb.system.locale(): ''}
                 self.__record_values[column.name()] = curr_value
             
             if type(value) == dict:
@@ -1278,15 +1298,15 @@ class Table(object):
                 curr_value.update(value)
             else:
                 value = column.storeValue(value)
-                if not language:
-                    language = orb.system.language()
+                if not locale:
+                    locale = orb.system.locale()
                 
                 try:
-                    equals = curr_value[language] == value
+                    equals = curr_value[locale] == value
                 except UnicodeWarning:
                     equals = False
                 
-                curr_value[language] = value
+                curr_value[locale] = value
         else:
             value = column.storeValue(value)
             

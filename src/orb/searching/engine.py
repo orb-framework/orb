@@ -92,7 +92,7 @@ class SearchEngine(AddonManager):
         """
         return self._spellingEngine
 
-    def suggestions(self, phrase, language=None, limit=10):
+    def suggestions(self, phrase, locale=None, limit=10):
         """
         Returns the best guess suggestions for the inputed phrase.
         
@@ -104,10 +104,10 @@ class SearchEngine(AddonManager):
         known = []
         words = phrase.split()
         for word in words[:-1]:
-            known.append(spelling.autocorrect(word, language))
+            known.append(spelling.autocorrect(word, locale))
         
         output = []
-        for suggestion in spelling.suggestions(words[-1], language, limit):
+        for suggestion in spelling.suggestions(words[-1], locale, limit):
             output.append(u' '.join(known + [suggestion]))
         return output
 

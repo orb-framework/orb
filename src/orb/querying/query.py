@@ -259,7 +259,6 @@ class Query(object):
         self._caseSensitive = options.get('caseSensitive', False)
         self._negate        = options.get('negate', False)
         self._functions     = options.get('functions', [])
-        self._language      = options.get('language', orb.system.language())
         self._math          = options.get('math', [])
     
     # operator methods
@@ -1016,7 +1015,6 @@ class Query(object):
         out._negate = self._negate
         out._functions = self._functions[:]
         out._math = self._math[:]
-        out._language = self._language
         return out
     
     def doesNotContain(self, value):
@@ -1367,15 +1365,7 @@ class Query(object):
         newq.setValue( value )
         
         return newq
-    
-    def language(self):
-        """
-        Returns the language within this query.
-        
-        :return     <str>
-        """
-        return self._language
-    
+
     def lessThan(self, value):
         """
         Sets the operator type to Query.Op.LessThan and sets the
@@ -1552,15 +1542,7 @@ class Query(object):
         :param      op          <Query.Op>
         """
         self._op = op
-    
-    def setLanguage(self, language):
-        """
-        Sets the language within this query.
-        
-        :return     <str>
-        """
-        self._language = language
-    
+
     def setName(self, name):
         """
         Sets the optional name for this query to the given name.
@@ -1654,26 +1636,7 @@ class Query(object):
                 output.update(val.tables())
         
         return list(output)
-    
-    def tr(self, language):
-        """
-        Returns a copy of this query with the language set to the specific
-        language.
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> # lookup for a specific language
-                    |>>> Q('title').tr('fr_FR').contains('nais')
-                    |>>> # lookup for all languages
-                    |>>> Q('title').contains('nais')
-        
-        :param      language | <str>
-        
-        :return     <str>
-        """
-        out = self.copy()
-        out._language = language
-        return out
-    
+
     def toDict(self):
         """
         Creates a dictionary representation of this query.
@@ -1692,7 +1655,6 @@ class Query(object):
         output['negated']       = self._negate
         output['column']        = self._columnName
         output['functions']     = self._functions
-        output['language']      = self._language
         
         table = self.table()
         if table:
@@ -1775,10 +1737,7 @@ class Query(object):
         xquery.set('negated', nstr(self._negate))
         xquery.set('column', nstr(self._columnName))
         xquery.set('functions', ','.join(map(str, self._functions)))
-        
-        if self._language:
-            xquery.set('language', self._language)
-        
+
         # save table info
         table = self.table()
         if table:
@@ -1962,7 +1921,6 @@ class Query(object):
         out._negated = nstr(data.get('negated')).lower() == 'true'
         out._columnName = nstr(data.get('column'))
         out._functions = data.get('functions', [])
-        out._language = data.get('language')
         
         if out._columnName == 'None':
             out._columnName = None
@@ -2254,7 +2212,6 @@ class Query(object):
         out._op = int(xquery.get('op', '1'))
         out._caseSensitive = xquery.get('caseSensitive') == 'True'
         out._negated = xquery.get('negated') == 'True'
-        out._language = xquery.get('language')
         out._columnName = xquery.get('column')
         if out._columnName == 'None':
             out._columnName = None

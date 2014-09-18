@@ -1426,13 +1426,20 @@ class RecordSet(object):
             return []
         
         key = self.cacheKey(options)
-        options['columns'] = columns
-        
         table = self.table()
+        if not table:
+            return []
+
+        schema = table.schema()
         db = self.database()
+
+        # ensure that we're using the field names when looking in the database
+        columns = [schema.column(col).fieldName() if not isinstance(col, orb.Column) else col.fieldName() for col in columns]
+        options['columns'] = columns
+
         lookup  = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
-        
+
         cache = table.recordCache()
         if key in self._all:
             records = self._all[key]
@@ -1451,9 +1458,9 @@ class RecordSet(object):
         # parse the values from the cache
         output = {}
         
-        lang = lookup.language
-        if lang is None:
-            lang = orb.system.language()
+        locale = db_opts.locale
+        if locale is None:
+            locale = orb.system.locale()
         
         for record in records:
             for colname in columns:
@@ -1473,10 +1480,10 @@ class RecordSet(object):
                 else:
                     value = record.get(colname)
                 
-                # grab specific language translation options
+                # grab specific locale translation options
                 if col.isTranslatable() and type(value) == dict:
-                    if lang != 'all':
-                        value = value.get(lang, '')
+                    if locale != 'all':
+                        value = value.get(locale, '')
                 
                 if expand and value is not None:
                     ref_model = col.referenceModel()

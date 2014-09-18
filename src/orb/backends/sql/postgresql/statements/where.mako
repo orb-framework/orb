@@ -153,12 +153,13 @@
                        output=__data__['output'])[0]}
           )
         % endif
-    
+
     % else:
         <%
         if op in (orb.Query.Op.IsIn, orb.Query.Op.IsNotIn) and not value:
             raise orb.errors.EmptyQuery()
-        
+
+        ID = orb.system.settings().primaryField()
         key = str(len(__data__['output']))
         __data__['output'][key] = __sql__.datastore().store(column, value)
         %>
@@ -169,7 +170,16 @@
         % elif op in (orb.Query.Op.Endswith, orb.Query.Op.DoesNotEndwith):
         <% __data__['output'][key] = '%{0}'.format(__data__['output'][key]) %>
         % endif
-        
-        ${field} ${op_sql} %(${key})s
+
+        % if column.isTranslatable():
+            <% table_name = column.schema().tableName() %>
+            "${table_name}"."${ID}" IN (
+                SELECT "${table_name}_id"
+                FROM "${table_name}_i18n"
+                WHERE "${table_name}_i18n"."${column.fieldName()}" ${op_sql} %(${key})s
+            )
+        % else:
+            ${field} ${op_sql} %(${key})s
+        % endif
     % endif
 % endif

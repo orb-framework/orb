@@ -54,7 +54,8 @@ class DatabaseOptions(object):
                          'autoIncrement': True,
                          'force': False,
                          'deleteFlags': orb.DeleteFlags.all()}
-        
+
+        self.locale             = kwds.get('locale', orb.system.locale())
         self.namespace          = kwds.get('namespace')
         self.flags              = kwds.get('flags', 0)
         self.dryRun             = kwds.get('dryRun', False)
@@ -116,6 +117,7 @@ class DatabaseOptions(object):
         out['inflateRecords']   = self.inflateRecords
         out['throwErrors']      = self.throwErrors
         out['deleteFlags']      = self.deleteFlags
+        out['locale']           = self.locale
         return out
     
     @staticmethod
@@ -147,7 +149,7 @@ class LookupOptions(object):
                 start         | <int> || None (default: None)
                 limit         | <int> || None (default: None)
                 distinct      | <bool> (default: False)
-                language      | <str> || None | (default: None)
+                locale        | <str> || None | (default: None)
                 ignoreJoined  | <bool> (default: False)
     """
     def __init__(self, **kwds):
@@ -157,7 +159,6 @@ class LookupOptions(object):
         self.start    = kwds.get('start',   None)
         self.limit    = kwds.get('limit',   None)
         self.distinct = kwds.get('distinct', False)
-        self.language = kwds.get('language', None)
         
         # ensure that the list is not modified
         if self.columns is not None:
@@ -183,8 +184,7 @@ class LookupOptions(object):
                     'start',
                     'limit',
                     'ignoreJoined',
-                    'ignoreAggregates',
-                    'language'):
+                    'ignoreAggregates'):
             val = getattr(self, key)
             if val is None:
                 continue

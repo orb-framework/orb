@@ -574,8 +574,7 @@ class Database(object):
         if self._timezone is None:
             return orb.system.timezone()
         return self._timezone
-    
-    @transactedmethod()
+
     def sync(self, **kwds):
         """
         Syncs the datbase by calling its schema sync method.  If
@@ -599,22 +598,29 @@ class Database(object):
         schemas.sort()
         
         options = kwds.get('options', orb.DatabaseOptions(**kwds))
+
+        # initialize the database
+        con.setupDatabase(options)
         
         # first pass will add columns and default columns, but may miss
         # certain foreign key references since one table may not exist before
         # another yet
-        for schema in schemas:
-            con.syncTable(schema, options)
-    
+        with orb.Transaction():
+            for schema in schemas:
+                if not con.tableExists(schema, options):
+                    con.createTable(schema, options)
+
         # second pass will ensure that all columns, including foreign keys
         # will be generated
-        for schema in schemas:
-            con.updateTable(schema, options)
+        with orb.Transaction():
+            for schema in schemas:
+                con.updateTable(schema, options)
         
         # third pass will generate all the proper value information
-        for schema in schemas:
-            model = schema.model()
-            model.__syncdatabase__()
+        with orb.Transaction():
+            for schema in schemas:
+                model = schema.model()
+                model.__syncdatabase__()
         
     def toXml(self, xparent):
         """

@@ -37,9 +37,9 @@ This method was auto-generated from ORB.
 
 GETTER_I18N_DOCS = """\
 
-:internationalization   You can provide the optional language parameter to get 
-                        the language-specific value for this column.  If no
-                        language is provided, the current global language 
+:internationalization   You can provide the optional locale parameter to get
+                        the locale-specific value for this column.  If no
+                        locale is provided, the current global locale
                         defined in the [[Orb]] instance will be used.
 """
 
@@ -70,9 +70,9 @@ value acutally occurred.
 
 SETTER_I18N_DOCS = """\
 :internationalization   If this column is translatable, you can provide the
-                        optional language parameter to set the language-specific
-                        value for this column.  If no language is provided, the
-                        current global language defined in the [[Orb]] instance 
+                        optional locale parameter to set the locale-specific
+                        value for this column.  If no locale is provided, the
+                        current global locale defined in the [[Orb]] instance
                         will be used.
 """
 
@@ -100,9 +100,9 @@ class gettermethod(object):
         optparams = []
         
         if translatable:
-            args.append('language=None')
+            args.append('locale=None')
             optdocs.append(GETTER_I18N_DOCS)
-            optparams.append('            language    | None || <str> language code')
+            optparams.append('            locale    | None || <str> locale code')
         
         if inflatable:
             args.append('inflated=True')
@@ -130,7 +130,7 @@ class gettermethod(object):
         inflated = kwds.get('inflated', kwds.get('autoInflate', True))
         
         val = record.recordValue(self.columnName,
-                                  language=kwds.get('language', None),
+                                  locale=kwds.get('locale', None),
                                   default=kwds.get('default', None),
                                   autoInflate=inflated,
                                   useMethod=False)
@@ -162,9 +162,9 @@ class settermethod(object):
         optparams = []
         
         if kwds.get('translatable'):
-            args.append('language=None')
+            args.append('locale=None')
             optdocs.append(SETTER_I18N_DOCS)
-            optparams.append('            language    | None || <str>')
+            optparams.append('            locale    | None || <str>')
         
         default = '<variant>  (see {0} for details)'.format(self.columnName)
         returns = kwds.get('returns', default)

@@ -21,39 +21,39 @@ class SpellingEngine(object):
         :param      language | <str> || None
         """
         if language is None:
-            language = orb.system.language()
+            locale = orb.system.locale()
         
         default = SpellingEngine.Alphabet['default']
-        return SpellingEngine.Alphabet.get(language, default)
+        return SpellingEngine.Alphabet.get(locale, default)
 
-    def autocorrect(self, word, language=None):
+    def autocorrect(self, word, locale=None):
         """
-        Returns the best guess for the inputed word for the given language.
+        Returns the best guess for the inputed word for the given locale.
         
         :param      word     | <str> || <unicode>
-                    language | <str> || None
+                    locale   | <str> || None
         
         :return     <unicode> word
         """
-        choices = self.knownWords([word], language)
+        choices = self.knownWords([word], locale)
         if not choices:
-            edits = self.knownEdits(word, language)
-            choices = self.knownWords(edits, language) or edits or [word]
+            edits = self.knownEdits(word, locale)
+            choices = self.knownWords(edits, locale) or edits or [word]
         
-        rankings = self.rankings(language)
+        rankings = self.rankings(locale)
         return max(choices, key=lambda x: x.startswith(word) * 10**10 + rankings.get(x))
 
-    def commonEdits(self, word, language=None):
+    def commonEdits(self, word, locale=None):
         """
         Returns the most common edits for the inputed word for a given
-        language.
+        locale.
         
-        :param      word | <str> || <unicode>
-                    language | <str> || <unicode> || None
+        :param      word   | <str> || <unicode>
+                    locale | <str> || <unicode> || None
         
         :return     {<unicode> word, ..}
         """
-        alphabet = self.alphabet(language)
+        alphabet = self.alphabet(locale)
         s = [(word[:i], word[i:]) for i in range(len(word) + 1)]
         deletes    = [a + b[1:] for a, b in s if b]
         transposes = [a + b[1] + b[0] + b[2:] for a, b in s if len(b)>1]
@@ -61,16 +61,13 @@ class SpellingEngine(object):
         inserts    = [a + c + b for a, b in s for c in alphabet]
         return set(deletes + transposes + replaces + inserts)
 
-    def createRankings(self, source, language=None):
+    def createRankings(self, source, locale=None):
         """
-        Sets the source text information for this language.
+        Sets the source text information for this locale.
         
         :param      words       | <str> || <unicode>
-                    language    | <str> || None
+                    locale      | <str> || None
         """
-        if language is None:
-            language = orb.system.language()
-        
         # collect all the words from the source
         words = re.findall('[a-z]+', source.lower())
         
@@ -81,33 +78,33 @@ class SpellingEngine(object):
         
         return rankings
 
-    def knownEdits(self, word, language=None):
+    def knownEdits(self, word, locale=None):
         """
         Returns the known words for the most common edits for the inputed word.
         
-        :param      word | <str> || <unicode>
-                    language | <str> || None
+        :param      word   | <str> || <unicode>
+                    locale | <str> || None
         
         :return     {<unicode> word, ..}
         """
-        rankings = self.rankings(language)
-        return set(e2 for e1 in self.commonEdits(word, language) \
+        rankings = self.rankings(locale)
+        return set(e2 for e1 in self.commonEdits(word, locale) \
                    for e2 in self.commonEdits(e1) if e2 in rankings)
 
-    def knownWords(self, words, language=None):
+    def knownWords(self, words, locale=None):
         """
         Returns a set of the known words based on the inputed list of 
-        words compared against the language's data set.
+        words compared against the locale's data set.
         
         :param      words       | [<str> || <unicode>, ..]
-                    language    | <str> || None
+                    locale      | <str> || None
         
         :return     {<unicode> word, ..}
         """
-        rankings = self.rankings(language)
+        rankings = self.rankings(locale)
         return set(w for w in words if w in rankings)
 
-    def ranking(self, word, language=None):
+    def ranking(self, word, locale=None):
         """
         Returns the ranking for the inputed word within the spelling engine.
         
@@ -115,52 +112,52 @@ class SpellingEngine(object):
         
         :return     <int>
         """
-        rankings = self.rankings(language)
+        rankings = self.rankings(locale)
         return rankings.get(word, 0)
 
-    def rankings(self, language=None):
+    def rankings(self, locale=None):
         """
         Loads the source text for this spelling suggestor based on the
-        inputed language source.
+        inputed locale source.
         
-        :param      language | <str> || None
+        :param      locale | <str> || None
         
         :return     {<unicode> word: <int> ranking, ..}
         """
-        if language is None:
-            language = orb.system.language()
+        if locale is None:
+            locale = orb.system.locale()
         
         try:
-            return self._rankings[language]
+            return self._rankings[locale]
         except KeyError:
             filepath = os.path.join(os.path.dirname(__file__),
                                     'words',
-                                    '{0}.txt'.format(language))
+                                    '{0}.txt'.format(locale))
             try:
                 source = file(filepath).read()
             except OSError:
                 return {}
             
-            # set the words for this language
-            rankings = self.createRankings(source, language)
-            self._rankings[language] = rankings
+            # set the words for this locale
+            rankings = self.createRankings(source, locale)
+            self._rankings[locale] = rankings
             return rankings
 
-    def suggestions(self, word, language=None, limit=10):
+    def suggestions(self, word, locale=None, limit=10):
         """
         Returns a list of the best guesses for the inputed word for 
-        the given language, along with their ranking.
+        the given locale, along with their ranking.
         
         :param      word     | <str> || <unicode>
-                    language | <str> || None
+                    locale   | <str> || None
         
         :return     [<unicode> word, ..]
         """
-        edits = list(self.knownEdits(word, language))
-        choices = self.knownWords([word] + edits, language) or edits or [word]
+        edits = list(self.knownEdits(word, locale))
+        choices = self.knownWords([word] + edits, locale) or edits or [word]
         choices = list(choices)
         
-        rankings = self.rankings(language)
+        rankings = self.rankings(locale)
         choices.sort(key=lambda x: x.startswith(word) * 10**10 + rankings.get(x))
         choices.reverse()
         return choices[:limit]
