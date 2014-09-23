@@ -612,7 +612,6 @@ class Connection(AddonManager):
         
         # create the new record in the database
         if not record.isRecord():
-            print record, record.recordValues()
             results = self.insert(record, lookup, options)
             if 'db_error' in results:
                 return 'errored', results
