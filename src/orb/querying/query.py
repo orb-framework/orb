@@ -260,6 +260,7 @@ class Query(object):
         self._negate        = options.get('negate', False)
         self._functions     = options.get('functions', [])
         self._math          = options.get('math', [])
+        self._inverted      = options.get('inverted', False)
     
     # operator methods
     def __add__(self, value):
@@ -1015,6 +1016,7 @@ class Query(object):
         out._negate = self._negate
         out._functions = self._functions[:]
         out._math = self._math[:]
+        out._inverted = self._inverted
         return out
     
     def doesNotContain(self, value):
@@ -1169,7 +1171,7 @@ class Query(object):
         :return     [<str>, ..]
         """
         return map(Query.Function.__getitem__, self.functions())
-    
+
     def is_(self, value):
         """
         Sets the operator type to Query.Op.Is and sets the
@@ -1191,7 +1193,15 @@ class Query(object):
         newq.setValue(value)
         
         return newq
-    
+
+    def isInverted(self):
+        """
+        Returns whether or not the value and column data should be inverted during query.
+
+        :return     <bool>
+        """
+        return self._inverted
+
     def greaterThan(self, value):
         """
         Sets the operator type to Query.Op.GreaterThan and sets the
@@ -1235,7 +1245,7 @@ class Query(object):
         newq.setValue(value)
         
         return newq
-    
+
     def hasShortcuts(self):
         """
         Returns whether or not this widget has shortcuts.
@@ -1243,7 +1253,17 @@ class Query(object):
         :return     <bool>
         """
         return '.' in self.columnName()
-    
+
+    def inverted(self):
+        """
+        Returns an inverted copy of this query.
+
+        :return     <orb.Query>
+        """
+        out = self.copy()
+        out.setInverted(not self.isInverted())
+        return out
+
     def isNegated(self):
         """
         Returns whether or not this query is negated.
@@ -1534,7 +1554,15 @@ class Query(object):
         :param      columnName      <str>
         """
         self._columnName = nstr(columnName)
-    
+
+    def setInverted(self, state=True):
+        """
+        Sets whether or not this query is inverted.
+
+        :param      state | <bool>
+        """
+        self._inverted = state
+
     def setOperatorType(self, op):
         """
         Sets the operator type used for this query instance.
@@ -1655,6 +1683,7 @@ class Query(object):
         output['negated']       = self._negate
         output['column']        = self._columnName
         output['functions']     = self._functions
+        output['inverted']      = self._inverted
         
         table = self.table()
         if table:
@@ -1737,6 +1766,7 @@ class Query(object):
         xquery.set('negated', nstr(self._negate))
         xquery.set('column', nstr(self._columnName))
         xquery.set('functions', ','.join(map(str, self._functions)))
+        xquery.set('inverted', nstr(self._inverted))
 
         # save table info
         table = self.table()
@@ -1921,6 +1951,7 @@ class Query(object):
         out._negated = nstr(data.get('negated')).lower() == 'true'
         out._columnName = nstr(data.get('column'))
         out._functions = data.get('functions', [])
+        out._inverted = data.get('inverted', False)
         
         if out._columnName == 'None':
             out._columnName = None
@@ -2213,6 +2244,7 @@ class Query(object):
         out._caseSensitive = xquery.get('caseSensitive') == 'True'
         out._negated = xquery.get('negated') == 'True'
         out._columnName = xquery.get('column')
+        out._inverted = xquery.get('inverted') == 'True'
         if out._columnName == 'None':
             out._columnName = None
         

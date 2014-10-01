@@ -123,10 +123,15 @@
             
             if value.table():
               __data__['select_tables'].add(value.table())
+
+            query_field = '"{0}"."{1}"'.format(val_schema.tableName(), val_col.fieldName())
         %>
-        ${field} ${op_sql} ${'"{0}"."{1}"'.format(val_schema.tableName(),
-                                                  val_col.fieldName())}
-                                                  
+        % if where.isInverted():
+            ${query_field} ${op_sql} ${field}
+        % else:
+            ${field} ${op_sql} ${query_field}
+        % endif
+
     % elif value is None:
         % if op == orb.Query.Op.Is:
         ${field} IS NULL
@@ -141,10 +146,15 @@
               raise orb.errors.EmptyQuery()
           
           key = str(len(__data__['output']))
+          key_id = '%({0})s'.format(key)
           __data__['output'][key] = __sql__.datastore().store(column, value)
           %>
-          ${field} IN %(${key})s
+          % if where.isInverted():
+          ${key_id} IN ${field}
           % else:
+          ${field} IN ${key_id}
+          % endif
+        % else:
           <% SELECT = __sql__.byName('SELECT') %>
           ${field} ${op_sql} (
               ${SELECT(value.table(),
@@ -161,6 +171,7 @@
 
         ID = orb.system.settings().primaryField()
         key = str(len(__data__['output']))
+        key_id = '%({0})s'.format(key)
         __data__['output'][key] = __sql__.datastore().store(column, value)
         %>
         % if op in (orb.Query.Op.Contains, orb.Query.Op.DoesNotContain):
@@ -176,10 +187,16 @@
             "${table_name}"."${ID}" IN (
                 SELECT "${table_name}_id"
                 FROM "${table_name}_i18n"
+                % if where.isInverted():
+                WHERE %(${key})s ${op_sql} "${table_name}_i18n"."${column.fieldName()}"
+                % else:
                 WHERE "${table_name}_i18n"."${column.fieldName()}" ${op_sql} %(${key})s
+                % endif
             )
+        % elif where.isInverted():
+        ${key_id} ${op_sql} ${field}
         % else:
-            ${field} ${op_sql} %(${key})s
+        ${field} ${op_sql} ${key_id}
         % endif
     % endif
 % endif
