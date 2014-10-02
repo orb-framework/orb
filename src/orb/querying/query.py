@@ -536,40 +536,7 @@ class Query(object):
                 if success:
                     value.append(subvalue)
             return (value, True)
-        
-        # restore the record
-        elif typ == 'record':
-            value      = data.get('value', {})
-            schemaName = value.get('schema', '')
-            dbName     = value.get('db', '')
-            
-            table = orb.system.model(schemaName, database=dbName)
-            if table:
-                try:
-                    record = table(int(value.get('id', '0')))
-                except:
-                    return (None, False)
-                
-                return (record, True)
-            return (None, False)
-        
-        # restore a record set
-        elif typ == 'record_set':
-            value = data.get('value', [])
-            schemaName = value.get('schema', '')
-            dbName = value.get('db', '')
-            ids = value.get('ids', [])
-            
-            table = orb.system.model(schemaName, database=dbName)
-            if table:
-                try:
-                    records = table.select(where = Query(table).in_(ids))
-                except:
-                    return (None, False)
-                
-                return (records, True)
-            return (None, False)
-        
+
         # restore date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
             dtime = datetime.datetime.strptime(data['value'],
@@ -613,41 +580,6 @@ class Query(object):
                 if success:
                     value.append(subvalue)
             return (value, True)
-        
-        # restore the record
-        elif typ == 'record':
-            schemaName = xobject.get('schema', '')
-            dbName     = xobject.get('db', '')
-            
-            table = orb.system.model(schemaName, database=dbName)
-            if table:
-                try:
-                    record = table(int(xobject.text))
-                except:
-                    return (None, False)
-                
-                return (record, True)
-            return (None, False)
-        
-        # restore record sets
-        elif typ == 'record_set':
-            schemaName = xobject.get('schema', '')
-            dbName = xobject.get('db', '')
-            
-            try:
-                value = map(eval, xobject.text.split(','))
-            except:
-                return (None, False)
-            
-            table = orb.system.model(schemaName, database=dbName)
-            if table:
-                try:
-                    records = table.select(where = Query(table).in_(value))
-                except:
-                    return (None, False)
-                
-                return (records, True)
-            return (None, False)
 
         # restore date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
@@ -677,8 +609,12 @@ class Query(object):
     def __valueToDict(self, value):
         # store a record
         if orb.Table.recordcheck(value):
-            typ = 'record'
-        
+            return self.__valueToDict(value.id())
+
+        # store a recordset
+        elif orb.RecordSet.typecheck(value):
+            return self.__valueToDict(value.ids())
+
         # store a query
         elif Query.typecheck(value):
             typ = 'query'
@@ -686,11 +622,7 @@ class Query(object):
         # store a query compound
         elif orb.QueryCompound.typecheck(value):
             typ = 'compound'
-        
-        # store a recordset
-        elif orb.RecordSet.typecheck(value):
-            typ = 'record_set'
-        
+
         # store a standard python object
         else:
             typ = type(value).__name__
@@ -708,21 +640,7 @@ class Query(object):
             for subvalue in value:
                 new_value.append(self.__valueToDict(subvalue))
             output['value'] = new_value
-        
-        # save the record
-        elif typ == 'record':
-            data = {}
-            data['schema'] = value.schema().name()
-            data['db'] = value.schema().databaseName()
-            data['id'] = value.primaryKey()
 
-            output['value'] = data
-        
-        # save a record set
-        elif typ == 'record_set':
-            output['value_type'] = 'list'
-            output['value'] = [{'value_type': 'int', 'value': id} for id in value.ids()]
-        
         # save date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
             output['value'] = value.strftime('%Y-%m-%d %H:%M:%S')
@@ -742,13 +660,13 @@ class Query(object):
     
     def __valueToXml(self, xparent, value):
         if orb.Table.recordcheck(value):
-            typ = 'record'
+            return self.__valueToXml(xparent, value.id())
+        elif orb.RecordSet.typecheck(value):
+            return self.__valueToXml(xparent, value.ids())
         elif Query.typecheck(value):
             typ = 'query'
         elif orb.QueryCompound.typecheck(value):
             typ = 'compound'
-        elif orb.RecordSet.typecheck(value):
-            typ = 'record_set'
         else:
             typ = type(value).__name__
         
@@ -763,19 +681,7 @@ class Query(object):
         elif typ in ('list', 'tuple'):
             for subvalue in value:
                 self.__valueToXml(xobject, subvalue)
-        
-        # save the record
-        elif typ == 'record':
-            xobject.set('schema', value.schema().name())
-            xobject.set('db', value.schema().databaseName())
-            xobject.text = nstr(value.primaryKey())
-        
-        # save the record set
-        elif typ == 'record_set':
-            xobject.set('schema', value.table().schema().name())
-            xobject.set('db', value.table().schema().databaseName())
-            xobject.text = ','.join(map(str, value.primaryKeys()))
-        
+
         # save date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
             xobject.text = value.strftime('%Y-%m-%d %H:%M:%S')
