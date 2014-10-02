@@ -715,17 +715,13 @@ class Query(object):
             data['schema'] = value.schema().name()
             data['db'] = value.schema().databaseName()
             data['id'] = value.primaryKey()
-            
+
             output['value'] = data
         
         # save a record set
         elif typ == 'record_set':
-            data = {}
-            data['schema'] = value.table().schema().name()
-            data['db'] = value.table().schema().databaseName()
-            data['ids'] = value.primaryKeys()
-            
-            output['value'] = data
+            output['value_type'] = 'list'
+            output['value'] = [{'value_type': 'int', 'value': id} for id in value.ids()]
         
         # save date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
@@ -1931,7 +1927,29 @@ class Query(object):
             return column.valueToString(self.value())
         
         return projex.text.decoded(self.value())
-    
+
+    @staticmethod
+    def build(data):
+        """
+        Builds a new query from simple data.  This will just create an anded QueryCompound
+        for each key value pair in the inputed dictionary where the key will be equal to the value.
+        This method provides a convenient shortcut case for comparing values from a dictionary against
+        data in the database.  If you want more advanced options, then you should manually create the
+        query.
+
+        :usage      |>>> from orb import Query as Q
+                    |>>> {'firstName': 'Eric', 'lastName': 'Hulser'}
+                    |>>> q = Q.build({'firstName': 'Eric', 'lastName': 'Hulser'})
+                    |
+                    |>>> # the above is the same as doing
+                    |>>> q = Q('firstName') == 'Eric'
+                    |>>> q &= Q('lastName') == 'Hulser'
+        """
+        output = Query()
+        for key, value in data.items():
+            output &= Query(key) == value
+        return output
+
     @staticmethod
     def fromDict(data):
         """

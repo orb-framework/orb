@@ -654,7 +654,17 @@ class RecordSet(object):
                     output[key] = sub_set
         
         return output
-    
+
+    def ids(self, **options):
+        """
+        Returns a list of the ids that are associated with this record set.
+
+        :sa         primaryKeys
+
+        :return     [<variant>, ..]
+        """
+        return self.primaryKeys(**options)
+
     def inflateRecord(self, table, record):
         """
         Inflates the record for the given class, applying a namespace override
@@ -1035,14 +1045,14 @@ class RecordSet(object):
         :return     [<variant>, ..]
         """
         if None in self._all:
-            return [record.primaryKey() for record in self._all[None]]
+            return [record.id() for record in self._all[None]]
         
         elif self.table():
             cols = self.table().schema().primaryColumns()
             cols = map(lambda x: x.fieldName(), cols)
             return self.values(cols, **options)
         
-        return self.values(orb.system.primaryField(), **options)
+        return self.values(orb.system.settings().primaryField(), **options)
     
     def query(self):
         """
@@ -1434,12 +1444,22 @@ class RecordSet(object):
         db = self.database()
 
         # ensure that we're using the field names when looking in the database
-        columns = [schema.column(col).fieldName() if not isinstance(col, orb.Column) else col.fieldName() for col in columns]
-        options['columns'] = columns
+        orb_columns = []
+        fields = []
+        for col in columns:
+            orb_col = schema.column(col) if not isinstance(col, orb.Column) else col
+            if not orb_col:
+                raise orb.errors.ColumnNotFoundError(schema.name(), col)
 
-        lookup  = self.lookupOptions(**options)
+            orb_columns.append(orb_col)
+            fields.append(orb_col.fieldName())
+
+        # create the lookup options
+        options['columns'] = fields
+        lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
 
+        # lookup the data
         cache = table.recordCache()
         if key in self._all:
             records = self._all[key]
@@ -1457,22 +1477,15 @@ class RecordSet(object):
         
         # parse the values from the cache
         output = {}
-        
         locale = db_opts.locale
         if locale is None:
             locale = orb.system.locale()
         
         for record in records:
-            for colname in columns:
+            for orb_col in orb_columns:
+                colname = orb_col.name()
                 output.setdefault(colname, [])
-                
-                col = table.schema().column(colname)
-                if col is None:
-                    raise orb.errors.ColumnNotFoundError(table.schema().name(),
-                                                         colname)
-                
-                expand = bool(col.isReference() and \
-                              db_opts.inflateRecords)
+                expand = bool(orb_col.isReference() and db_opts.inflateRecords)
                 
                 # retreive the value
                 if orb.Table.recordcheck(record):
@@ -1481,26 +1494,32 @@ class RecordSet(object):
                     value = record.get(colname)
                 
                 # grab specific locale translation options
-                if col.isTranslatable() and type(value) == dict:
+                if orb_col.isTranslatable() and type(value) == dict:
                     if locale != 'all':
                         value = value.get(locale, '')
-                
+
+                # expand a reference object if desired
                 if expand and value is not None:
-                    ref_model = col.referenceModel()
-                    
+                    ref_model = orb_col.referenceModel()
                     if not ref_model:
                         output[colname].append(None)
-                    else:
+                    elif not isinstance(value, ref_model):
                         output[colname].append(ref_model(value))
+                    else:
+                        output[colname].append(value)
+
+                # de-expand an already loaded reference object if IDs are all that is wanted
                 elif not expand and orb.Table.recordcheck(value):
                     output[colname].append(value.id())
+
+                # return a standard item
                 else:
                     output[colname].append(value)
         
         if len(output) == 1:
-            return output[columns[0]]
+            return output[orb_columns[0].name()]
         elif output:
-            return zip(*[output[column] for column in columns])
+            return zip(*[output[orb_col.name()] for orb_col in orb_columns])
         else:
             return []
     
