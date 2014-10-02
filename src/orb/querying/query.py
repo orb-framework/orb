@@ -171,6 +171,7 @@ class Query(object):
     }
     
     # additional option values to control query flow
+    UNDEFINED   = '__QUERY__UNDEFINED__'
     NOT_EMPTY   = '__QUERY__NOT_EMPTY__'
     EMPTY       = '__QUERY__EMPTY__'
     ALL         = '__QUERY__ALL__'
