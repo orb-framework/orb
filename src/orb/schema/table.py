@@ -913,6 +913,9 @@ class Table(object):
         
         # return the translatable value
         if column.isTranslatable():
+            if value is None:
+                return ''
+
             # return all the locales
             if locale == 'all':
                 return value
