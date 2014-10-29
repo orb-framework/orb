@@ -1,7 +1,6 @@
 <%
 ADD_COLUMN = __sql__.byName('ADD_COLUMN')
 
-schema = table.schema()
 table_name = schema.tableName()
 
 translations = []

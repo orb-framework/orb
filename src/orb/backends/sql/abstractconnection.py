@@ -892,7 +892,7 @@ class SQLConnection(orb.Connection):
         
         columns = map(schema.column, missing)
         ALTER = self.sql('ALTER_TABLE')
-        sql, data = ALTER(schema.model(), added=columns, options=options)
+        sql, data = ALTER(schema, added=columns, options=options)
         
         if options.dryRun:
             print sql % data

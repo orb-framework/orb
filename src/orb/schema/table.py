@@ -1396,34 +1396,39 @@ class Table(object):
         """
         return self.validateValues(self.recordValues())
     
-    def validateValues(self, values):
+    def validateValues(self, values, returnErrors=False, validateColumns=True):
         """
         Validates the values for the various columns of this record against
         the inputed list of values.
         
         :param      values | {<str> columnName: <variant> value, ..}
         
-        :return     (<bool> valid, <str> message)
+        :return     (<bool> valid, <str> message) || (<bool> valid, {<str> name: <str> error, ..})
         """
         success = True
         msg = []
+        errors = {}
         
         schema = self.schema()
         
         # validate the columns
         for columnName, value in values.items():
             column = schema.column(columnName)
-            if ( not column ):
-                success = False
-                msg.append('%s is not a valid column.' % columnName)
+            if not column:
+                if validateColumns:
+                    success = False
+                    msg.append('%s is not a valid column.' % columnName)
             
             else:
                 valid, col_msg = column.validate(value)
-                if ( not valid ):
+                if not valid:
                     success = False
                     msg.append(col_msg)
-            
-        return (success, '\n\n'.join(msg))
+                    errors[column.name()] = col_msg
+
+        if returnErrors:
+            return success, errors
+        return success, '\n\n'.join(msg)
     
     #----------------------------------------------------------------------
     #                           CLASS METHODS

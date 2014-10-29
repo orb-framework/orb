@@ -12,6 +12,9 @@ type_name = column.columnTypeText()
 type = __sql__.byName('Type::{0}'.format(type_name))
 default_length = __sql__.byName('Length::{0}'.format(type_name))
 max_length = column.maxlength() or default_length
+
+if column.reference() and not column.referenceModel():
+    raise RuntimeError('Invalid reference column: {0}::{1}'.format(column.schema().name(), column.name()))
 %>
 
 % if column.testFlag(column.Flags.AutoIncrement):

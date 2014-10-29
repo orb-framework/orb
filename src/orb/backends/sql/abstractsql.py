@@ -202,18 +202,18 @@ class ADD_COLUMN(SQL):
         return super(ADD_COLUMN, self).render(**scope)
 
 class ALTER_TABLE(SQL):
-    def render(self, table, added=None, removed=None, **scope):
+    def render(self, schema, added=None, removed=None, **scope):
         """
         Generates the ALTER TABLE sql for an <orb.Table>.
         
-        :param      table   | <orb.Table>
+        :param      schema  | <orb.TableSchema>
                     added   | [<orb.Column>, ..] || None
                     removed | [<orb.Column>, ..] || None
                     **scope | <dict>
         
         :return     <str>
         """
-        scope['table'] = table
+        scope['schema'] = schema
         scope['added'] = added if added is not None else []
         scope['removed'] = removed if removed is not None else []
         

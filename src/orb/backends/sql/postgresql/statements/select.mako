@@ -107,12 +107,12 @@
     select_tables = __data__['select_tables']
     table_names = list({'"{0}"'.format(tbl.schema().tableName()) for tbl in select_tables})
 
-    # ensure we have all selection items in our column
-    if group_by:
-        for col in set(query_columns):
-            default = '"{0}"."{1}"'.format(table_name, col.fieldName())
-            field = __data__['field_mapper'].get(col, default)
-            group_by.add(field)
+##    # ensure we have all selection items in our column
+##    if group_by:
+##        for col in set(query_columns):
+##            default = '"{0}"."{1}"'.format(col.schema().tableName(), col.fieldName())
+##            field = __data__['field_mapper'].get(col, default)
+##            group_by.all(field)
 %>
 % if (columns or translated_columns) and where != orb.errors.EmptyQuery:
 -- select from a single table

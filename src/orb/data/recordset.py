@@ -48,6 +48,7 @@ class RecordSet(object):
         self._inflated          = None
         self._counts            = {}
         self._empty             = {}
+        self._currentPage       = -1
         self._pageSize          = 0
         
         # sorting options
@@ -379,7 +380,15 @@ class RecordSet(object):
         :return     [<str>, ..] || None
         """
         return self._columns
-    
+
+    def currentPage(self):
+        """
+        Returns the current page that this record set represents.
+
+        :return     <int>
+        """
+        return self._currentPage
+
     def database(self):
         """
         Returns the database instance that this recordset will use.
@@ -933,7 +942,19 @@ class RecordSet(object):
         :return     [(<str> field, <str> asc|desc), ..] || None
         """
         return self._order
-    
+
+    def ordered(self, *order):
+        """
+        Returns a newly ordered record set based on the inputed ordering.
+
+        :param      order | [(<str> column, <str> asc | desc), ..]
+
+        :return     <orb.RecordSet>
+        """
+        out = RecordSet(self)
+        out.setOrder(order)
+        return out
+
     def pageCount(self, pageSize=None):
         """
         Returns the number of pages that this record set contains.  If no page
@@ -986,11 +1007,13 @@ class RecordSet(object):
             return RecordSet(self)
         
         # lookup the records for the given page
-        start   = pageSize * (pageno - 1)
-        limit   = pageSize
+        start = pageSize * (pageno - 1)
+        limit = pageSize
         
         # returns a new record set with this start and limit information
         output = RecordSet(self)
+        output.setCurrentPage(pageno)
+        output.setPageSize(pageSize)
         output.setStart(start)
         output.setLimit(limit)
         
@@ -1233,7 +1256,15 @@ class RecordSet(object):
         :param      columns | [<str>, ..] || None
         """
         self._columns = columns
-    
+
+    def setCurrentPage(self, pageno):
+        """
+        Sets the current page number that this record set is on.
+
+        :param      pageno | <int>
+        """
+        self._currentPage = pageno
+
     def setDatabase(self, database):
         """
         Sets the database instance for this record set.  If it is left blank,
