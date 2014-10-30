@@ -3,17 +3,17 @@
 """ Defines the base database class. """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2011, Projex Software'
+__license__ = 'LGPL'
 
 # maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 import logging
 import tempfile
@@ -21,7 +21,7 @@ import tempfile
 from projex.decorators import deprecatedmethod
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
-from xml.etree  import ElementTree
+from xml.etree import ElementTree
 
 from ..decorators import transactedmethod
 
@@ -32,37 +32,39 @@ errors = LazyModule('orb.errors')
 
 class Database(object):
     """ Contains all the database connectivity information. """
+
     def __init__(self,
-                 typ='SQLite', 
-                 name='', 
-                 user='', 
-                 password='', 
-                 host='', 
+                 typ='SQLite',
+                 name='',
+                 user='',
+                 password='',
+                 host='',
                  port=None,
                  databaseName=None,
                  applicationToken='',
                  referenced=False,
-                 manager=None):
-        
+                 manager=None,
+                 maximumTimeout=5000):
+
         # define custom properties
-        self._databaseType      = typ
-        self._name              = name
-        self._databaseName      = databaseName
-        self._host              = host
-        self._port              = port
-        self._username          = user
-        self._password          = password
-        self._applicationToken  = applicationToken
-        self._manager           = manager
-        self._credentials       = None
-        self._referenced        = referenced
-        self._default           = False
-        self._backend           = None
-        self._commandsBlocked   = False
-        self._namespace         = None
-        self._timezone          = None
-        self._columnEngines     = {}
-        self._maximumTimeout    = 2000 # ms
+        self._databaseType = typ
+        self._name = name
+        self._databaseName = databaseName
+        self._host = host
+        self._port = port
+        self._username = user
+        self._password = password
+        self._applicationToken = applicationToken
+        self._manager = manager
+        self._credentials = None
+        self._referenced = referenced
+        self._default = False
+        self._backend = None
+        self._commandsBlocked = False
+        self._namespace = None
+        self._timezone = None
+        self._columnEngines = {}
+        self._maximumTimeout = maximumTimeout  # ms
 
     def __del__(self):
         self.disconnect()
@@ -76,14 +78,14 @@ class Database(object):
         """
         if manager is None:
             manager = orb.system
-        
+
         if not manager:
             return False
-        
+
         manager.registerDatabase(self)
         manager.setDatabase(self)
         return True
-    
+
     def applicationToken(self):
         """
         Returns the application token that is linked to the current API.  This
@@ -93,7 +95,7 @@ class Database(object):
         :return     <str>
         """
         return self._applicationToken
-    
+
     def backend(self, autoConnect=False):
         """
         Returns the backend Connection plugin instance for this database.
@@ -109,14 +111,14 @@ class Database(object):
             if not backend:
                 msg = 'There was an error creating a backend class for database.'
                 raise errors.BackendNotFoundError(self._databaseType)
-            
+
             self._backend = backend
-        
+
         if autoConnect:
             backend.open()
-        
+
         return self._backend
-    
+
     def backup(self, filename, **options):
         """
         Exports this database to the given filename.  The file will be a 
@@ -131,7 +133,7 @@ class Database(object):
         if backend:
             return backend.backup(filename, **options)
         return False
-    
+
     def blockCommands(self, state):
         """
         Sets whether or not the database should be blocking
@@ -200,7 +202,7 @@ class Database(object):
         :return     <bool> success
         """
         return self._commandsBlocked
-    
+
     def connect(self):
         """
         Creates the backend instance for this database and connects it to its
@@ -214,7 +216,7 @@ class Database(object):
         if backend:
             return backend.open()
         return False
-    
+
     @deprecatedmethod('0.11', 'Use the Database.backend method now.')
     def connection(self, autoConnect=True):
         """
@@ -230,7 +232,7 @@ class Database(object):
         :return     <orb.Connection>
         """
         return self.backend()
-    
+
     def databaseName(self):
         """
         Returns the database name that will be used at the lower level for \
@@ -240,9 +242,9 @@ class Database(object):
         """
         if not self._databaseName:
             return self.name()
-        
+
         return self._databaseName
-    
+
     def databaseType(self):
         """
         Returns the database type for this instance.
@@ -250,7 +252,7 @@ class Database(object):
         :return     <str>
         """
         return self._databaseType
-    
+
     def columnEngine(self, column_or_type):
         """
         Returns the column engine associated with this database for the given
@@ -268,7 +270,7 @@ class Database(object):
             return self._columnEngines[column_or_type]
         except KeyError:
             engine = None
-        
+
         # lookup by the column type linked for this database
         if type(column_or_type) == orb.Column:
             column_or_type = column_or_type.columnType()
@@ -276,15 +278,15 @@ class Database(object):
                 return self._columnEngines[column_or_type]
             except KeyError:
                 engine = None
-        
+
         # lookup the column type from the backend
         # (at this point it will be just a ColumnType as desired
         backend = self.backend()
         if backend:
             return backend.columnEngine(column_or_type)
-        
+
         return None
-    
+
     def disconnect(self):
         """
         Disconnects the current database connection from the
@@ -294,10 +296,10 @@ class Database(object):
         """
         if not self._backend:
             return False
-            
+
         self._backend.close()
         return True
-    
+
     def duplicate(self):
         """
         Creates a new database instance based on this instance.
@@ -305,20 +307,21 @@ class Database(object):
         :return     <orb.Database>
         """
         inst = self.__class__()
-        inst._databaseType      = self._databaseType
-        inst._name              = self._name
-        inst._databaseName      = self._databaseName
-        inst._host              = self._host
-        inst._port              = self._port
-        inst._username          = self._username
-        inst._password          = self._password
-        inst._applicationToken  = self._applicationToken
-        inst._commandsBlocked   = self._commandsBlocked
-        inst._namespace         = self._namespace
-        inst._timezone          = self._timezone
-        inst._columnEngines     = self._columnEngines.copy()
+        inst._databaseType = self._databaseType
+        inst._name = self._name
+        inst._databaseName = self._databaseName
+        inst._host = self._host
+        inst._port = self._port
+        inst._username = self._username
+        inst._password = self._password
+        inst._applicationToken = self._applicationToken
+        inst._commandsBlocked = self._commandsBlocked
+        inst._namespace = self._namespace
+        inst._timezone = self._timezone
+        inst._columnEngines = self._columnEngines.copy()
+        inst._maximumTimeout = self._maximumTimeout
         return inst
-    
+
     def host(self):
         """
         Returns the host location assigned to this
@@ -329,7 +332,7 @@ class Database(object):
         if not self._host:
             return 'localhost'
         return self._host
-    
+
     def interrupt(self, threadId=None):
         """
         Interrupts the thread at the given id.
@@ -339,7 +342,7 @@ class Database(object):
         back = self.backend()
         if back:
             back.interrupt(threadId)
-    
+
     def isDefault(self):
         """
         Returns if this is the default database when loading the system.
@@ -347,7 +350,7 @@ class Database(object):
         :return     <bool>
         """
         return self._default
-    
+
     def isConnected(self):
         """
         Returns whether or not the database is connected to its server.
@@ -357,7 +360,7 @@ class Database(object):
         if self._backend:
             return self._backend.isConnected()
         return False
-    
+
     def isReferenced(self):
         """
         Returns whether or not this database was loaded from a referenced file.
@@ -365,7 +368,7 @@ class Database(object):
         :return     <bool>
         """
         return self._referenced
-    
+
     def isThreadEnabled(self):
         """
         Returns whether or not threading is enabled for this database.
@@ -392,7 +395,7 @@ class Database(object):
         :return     <str>
         """
         return self._name
-    
+
     def namespace(self):
         """
         Returns the default namespace for this database.  If no namespace
@@ -402,9 +405,9 @@ class Database(object):
         """
         if self._namespace is not None:
             return self._namespace
-        
+
         return orb.system.namespace()
-    
+
     def password(self):
         """
         Returns the password used for this database instance.
@@ -412,7 +415,7 @@ class Database(object):
         :return     <str>
         """
         return self._password
-    
+
     def port(self):
         """
         Returns the port number to connect to the host on.
@@ -420,7 +423,7 @@ class Database(object):
         :return     <int>
         """
         return self._port
-    
+
     def restore(self, filename, **options):
         """
         Imports the data from the given filename.  The file will be a 
@@ -436,7 +439,7 @@ class Database(object):
             self.sync()
             return backend.restore(filename, **options)
         return False
-    
+
     def schemas(self):
         """
         Looks up all the table schemas in the manager that are mapped to \
@@ -445,7 +448,7 @@ class Database(object):
         :return     [<TableSchema>, ..]
         """
         return orb.system.databaseSchemas(self)
-    
+
     def setApplicationToken(self, token):
         """
         Sets the application token for this database to the inputed token.
@@ -453,7 +456,7 @@ class Database(object):
         :param      token | <str>
         """
         self._applicationToken = token
-    
+
     def setCurrent(self):
         """
         Makes this database the current default database
@@ -462,7 +465,7 @@ class Database(object):
         :param      database        <Database>
         """
         self.manager().setDatabase(self)
-    
+
     def setDatabaseName(self, databaseName):
         """
         Sets the database name that will be used at the lower level to manage \
@@ -471,7 +474,7 @@ class Database(object):
         :param      databaseName | <str>
         """
         self._databaseName = databaseName
-    
+
     def setDatabaseType(self, databaseType):
         """
         Sets the database type that will be used for this instance.
@@ -479,7 +482,7 @@ class Database(object):
         :param      databaseType | <str>
         """
         self._databaseType = nstr(databaseType)
-    
+
     def setColumnEngine(self, column_or_type, engine):
         """
         Sets the column engine associated with this database for the given
@@ -492,7 +495,7 @@ class Database(object):
                     engine         | <orb.ColumnEngine> || None
         """
         self._columnEngines[column_or_type] = engine
-    
+
     def setCredentials(self, credentials):
         """
         Sets the credentials for this database to the inputed argument
@@ -501,7 +504,7 @@ class Database(object):
         :param      credentials | <tuple> || None
         """
         self._credentials = credentials
-    
+
     def setDefault(self, state):
         """
         Sets whether or not this database is the default database.
@@ -526,7 +529,7 @@ class Database(object):
         :param      datatbaseName   <str>
         """
         self._name = nstr(name)
-    
+
     def setNamespace(self, namespace):
         """
         Sets the default namespace for this database to the inputed name.
@@ -534,7 +537,7 @@ class Database(object):
         :param      namespace | <str> || None
         """
         self._namespace = namespace
-    
+
     def setHost(self, host):
         """
         Sets the host path location assigned to this
@@ -543,15 +546,15 @@ class Database(object):
         :param      host      <str>
         """
         self._host = nstr(host)
-    
+
     def setPassword(self, password):
         """ 
         Sets the password for the connection for this database.
         
         :param      password    <str>
         """
-        self._password  = nstr(password)
-    
+        self._password = nstr(password)
+
     def setPort(self, port):
         """
         Sets the port number to connect to.  The default value
@@ -560,7 +563,7 @@ class Database(object):
         :param      port    <int>
         """
         self._port = port
-    
+
     def setTimezone(self, timezone):
         """
         Sets the timezone associated directly to this database.
@@ -570,7 +573,7 @@ class Database(object):
         :param     timezone | <pytz.tzfile> || None
         """
         self._timezone = timezone
-    
+
     def setUsername(self, username):
         """
         Sets the username used for this database's connection.
@@ -578,7 +581,7 @@ class Database(object):
         :param      username        <str>
         """
         self._username = nstr(username)
-    
+
     def timezone(self):
         """
         Returns the timezone associated specifically with this database.  If
@@ -611,15 +614,15 @@ class Database(object):
         :return     <bool> success
         """
         # collect the information for this database
-        con     = self.backend()
+        con = self.backend()
         schemas = self.schemas()
         schemas.sort()
-        
+
         options = kwds.get('options', orb.DatabaseOptions(**kwds))
 
         # initialize the database
         con.setupDatabase(options)
-        
+
         # first pass will add columns and default columns, but may miss
         # certain foreign key references since one table may not exist before
         # another yet
@@ -633,13 +636,13 @@ class Database(object):
         with orb.Transaction():
             for schema in schemas:
                 con.updateTable(schema, options)
-        
+
         # third pass will generate all the proper value information
         with orb.Transaction():
             for schema in schemas:
                 model = schema.model()
                 model.__syncdatabase__()
-        
+
     def toXml(self, xparent):
         """
         Saves this datbase instance to xml under the inputed parent.
@@ -651,10 +654,11 @@ class Database(object):
         xdatabase = ElementTree.SubElement(xparent, 'database')
         xdatabase.set('name', self._name)
         xdatabase.set('default', nstr(self._default))
-        
+        xdatabase.set('timeout', str(self._maximumTimeout))
+
         if self.databaseType():
             xdatabase.set('type', self.databaseType())
-        
+
         if self._host:
             ElementTree.SubElement(xdatabase, 'host').text = nstr(self._host)
         if self._port:
@@ -664,13 +668,13 @@ class Database(object):
         if self._password:
             ElementTree.SubElement(xdatabase, 'password').text = self._password
         if self._databaseName:
-            ElementTree.SubElement(xdatabase, 
+            ElementTree.SubElement(xdatabase,
                                    'dbname').text = self._databaseName
         if self._applicationToken:
-            ElementTree.SubElement(xdatabase, 
+            ElementTree.SubElement(xdatabase,
                                    'token').text = self._applicationToken
         return xdatabase
-    
+
     def username(self):
         """
         Returns the username used for the backend of this
@@ -679,7 +683,7 @@ class Database(object):
         :return     <str>
         """
         return self._username
-    
+
     @staticmethod
     def current(manager=None):
         """
@@ -704,18 +708,19 @@ class Database(object):
         :return     <Database>
         """
         db = Database(referenced=referenced)
-        
+
         db.setDatabaseType(xdatabase.get('type', 'SQLite'))
         db.setName(xdatabase.get('name', ''))
         db.setDefault(xdatabase.get('default') == 'True')
-        
-        xhost   = xdatabase.find('host')
-        xport   = xdatabase.find('port')
-        xuser   = xdatabase.find('username')
-        xpword  = xdatabase.find('password')
+        db.setMaximumTimeout(int(xdatabase.get('maximumTimeout', 5000)))
+
+        xhost = xdatabase.find('host')
+        xport = xdatabase.find('port')
+        xuser = xdatabase.find('username')
+        xpword = xdatabase.find('password')
         xdbname = xdatabase.find('dbname')
-        xtoken  = xdatabase.find('token')
-        
+        xtoken = xdatabase.find('token')
+
         if xhost != None:
             db.setHost(xhost.text)
         if xport != None:
@@ -728,6 +733,6 @@ class Database(object):
             db.setDatabaseName(xdbname.text)
         if xtoken != None:
             db.setApplicationToken(xtoken.text)
-        
+
         return db
 
