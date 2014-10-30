@@ -21,6 +21,11 @@ class OrbError(StandardError):
     """ Defines the base error class for the orb package """
     pass
 
+class DatabaseError(OrbError):
+    """ Defines the base error class for all database related errors """
+    def __init__(self, msg='Unknown database error occurred.'):
+        super(DatabaseError, self).__init__(msg)
+
 # B
 #------------------------------------------------------------------------------
 
@@ -95,11 +100,6 @@ class ConnectionLostError(OrbError):
 
 # D
 #------------------------------------------------------------------------------
-
-class DatabaseError(OrbError):
-    def __init__(self, err):
-        text = '%s\n\nUnknown database error occurred.' % err
-        OrbError.__init__( self, text )
 
 class DatabaseQueryError(OrbError):
     def __init__(self, sql, options, err):
@@ -207,6 +207,14 @@ class MissingTableSchemaWarning(OrbError):
         err = '%s is not a valid table schema.' % tableName
         OrbError.__init__( self, err )
 
+# Q
+#------------------------------------------------------------------------------
+
+class QueryTimeout(DatabaseError):
+    def __init__(self, query, msecs):
+        msg = 'Query took longer than {0} seconds:\n{1}'.format(msecs, query)
+        super(QueryTimeout, self).__init__(msecs)
+
 # P
 #------------------------------------------------------------------------------
 
@@ -218,6 +226,14 @@ class PrimaryKeyNotFoundError(OrbError):
     def __init__( self, table, pkey ):
         msg = '%s has not primary key: %s.' % (table, pkey)
         OrbError.__init__( self, msg )
+
+# R
+#------------------------------------------------------------------------------
+
+class RecordNotFound(OrbError):
+    def __init__(self, table, pkey):
+        msg = 'Could not find "{0}" for table {1}'.format(pkey, table.schema().name())
+        super(RecordNotFound, self).__init__(msg)
 
 # T
 #------------------------------------------------------------------------------

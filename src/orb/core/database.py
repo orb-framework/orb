@@ -62,6 +62,7 @@ class Database(object):
         self._namespace         = None
         self._timezone          = None
         self._columnEngines     = {}
+        self._maximumTimeout    = 2000 # ms
 
     def __del__(self):
         self.disconnect()
@@ -375,7 +376,15 @@ class Database(object):
         if con:
             return con.isThreadEnabled()
         return False
-    
+
+    def maximumTimeout(self):
+        """
+        Returns the maximum number of milliseconds to allow a query to occur before timing it out.
+
+        :return     <int>
+        """
+        return self._maximumTimeout
+
     def name(self):
         """
         Returns the database name for this database instance.
@@ -500,7 +509,16 @@ class Database(object):
         :param      state | <bool>
         """
         self._default = state
-    
+
+    def setMaximumTimeout(self, msecs):
+        """
+        Sets the maximum number of milliseconds to allow a query to run on
+        the server before canceling it.
+
+        :param      msecs | <int>
+        """
+        self._maximumTimeout = msecs
+
     def setName(self, name):
         """
         Sets the database name for this instance to the given name.

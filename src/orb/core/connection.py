@@ -42,12 +42,12 @@ class Connection(AddonManager):
         super(Connection, self).__init__()
         
         # define custom properties
-        self._database          = database
-        self._threadEnabled     = False
-        self._internalsEnabled  = True
-        self._commitEnabled     = True
-        self._engine            = None
-        self._columnEngines     = {}
+        self._database = database
+        self._threadEnabled = False
+        self._internalsEnabled = True
+        self._commitEnabled = True
+        self._engine = None
+        self._columnEngines = {}
     
     def __del__(self):
         """

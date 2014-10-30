@@ -22,9 +22,8 @@ import logging
 import os
 import projex.security
 import projex.text
-import weakref
 
-from collections import OrderedDict
+from collections import defaultdict
 from projex.callbacks import CallbackSet
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
@@ -68,7 +67,7 @@ class Manager(object):
         self._environments  = {}
         self._groups        = {}
         self._databases     = {}
-        self._schemas       = {}
+        self._schemas       = defaultdict(dict)
         self._properties    = {}
         self._customEngines = {}
     
@@ -198,16 +197,10 @@ class Manager(object):
         Returns a list of schemas that are mapped to the inputed database.
         
         :param      db | <orb.database.Database>
+
+        :return     [<orb.TableSchema>, ..]
         """
-        is_curr = db == self._database
-        
-        out = []
-        for schema in self._schemas.values():
-            if not schema.databaseName() and is_curr or \
-               schema.databaseName() == db.name():
-                out.append(schema)
-        
-        return out
+        return self._schemas[db.name()].values()
     
     def environment(self, name=None):
         """
@@ -239,10 +232,10 @@ class Manager(object):
         
         :param      schema | <orb.tableschema.TableSchema>
         """
-        names           = [schema.name()] + schema.inheritsRecursive()
+        names = [schema.name()] + schema.inheritsRecursive()
         related_columns = []
         
-        for table_schema in self._schemas.values():
+        for table_schema in self.schemas():
             for column in table_schema.columns():
                 if column in related_columns:
                     continue
@@ -259,11 +252,11 @@ class Manager(object):
         
         :param      schema | <orb.tableschema.TableSchema>
         """
-        names       = [schema.name()] + schema.inheritsRecursive()
-        relations   = []
-        processed   = []
+        names = [schema.name()] + schema.inheritsRecursive()
+        relations = []
+        processed = []
         
-        for table_schema in self._schemas.values():
+        for table_schema in self.schemas():
             rel_cols = []
             
             for column in table_schema.columns():
@@ -347,7 +340,7 @@ class Manager(object):
         :return     [<orb.tableschema.Table>, ..]
         """
         out = []
-        for schema in self._schemas.values():
+        for schema in self.schemas():
             smodel = schema.model()
             
             if model == smodel:
@@ -688,7 +681,7 @@ class Manager(object):
         group.setOrder(len(self._groups))
         self._groups[(database, group.name())] = group
         for schema in group.schemas():
-            self._schemas[(database, nstr(schema.name()))] = schema
+            self._schemas[database][nstr(schema.name())] = schema
     
     def registerSchema(self, schema, database=None):
         """
@@ -702,7 +695,7 @@ class Manager(object):
         grp = self.group(schema.groupName(), autoAdd=True, database=database)
         grp.addSchema(schema)
         
-        self._schemas[(database, schema.name())] = schema
+        self._schemas[database][schema.name()] = schema
     
     def save(self, encrypted=False):
         """
@@ -785,27 +778,21 @@ class Manager(object):
         
         :return     <orb.tableschema.TableSchema> || None
         """
-        use_generic = False
-        if database is None:
-            use_generic = True
-            curr_db = self.database()
-            if curr_db:
-                database = curr_db.name()
-            else:
-                database = ''
-        
-        # look for direct access
-        key = (database, nstr(name))
-        if key in self._schemas:
-            return self._schemas[key]
+        if database is not None:
+            return self._schemas[database].get(name)
+
+        # look for the current one
+        database = self.database().name() if self.database() else ''
+        schema = self._schemas[database][nstr(name)]
         
         # look for generic access
-        if use_generic:
-            for key, schema in self._schemas.items():
-                if key[1] == name:
-                    return schema
+        if not schema:
+            for db in self._schemas:
+                if name in db:
+                    schema = db[name]
+                    break
         
-        return None
+        return schema
     
     def schemas(self, database=None):
         """
@@ -814,10 +801,9 @@ class Manager(object):
         :return     [<orb.tableschema.TableSchema>, ..]
         """
         if database is None:
-            return self._schemas.values()
-        
-        return [schema for key, schema in self._schemas.items() \
-                if key[0] == database]
+            return [schema for db in self._schemas.values() for schema in db.values()]
+        else:
+            return self._schemas[database].values()
     
     def searchEngine(self):
         """
@@ -1094,7 +1080,7 @@ class Manager(object):
         
         self._groups.pop(key)
         for schema in group.schemas():
-            self._schemas.pop((database, nstr(schema.name())), None)
+            del self._schemas[database][nstr(schema.name())]
         
     def unregisterEnvironment(self, environment):
         """
@@ -1113,14 +1099,12 @@ class Manager(object):
         """
         if database is None:
             database = schema.databaseName()
-        
-        key = (database, schema.name())
-        if key in self._schemas:
-            grp = self.group(schema.groupName(), database=database)
+
+        rem_schema = self._schemas[database].pop(schema.name(), None)
+        if rem_schema:
+            grp = rem_schema.group()
             grp.removeSchema(schema)
-            
-            self._schemas.pop(key)
-    
+
     @staticmethod
     def databaseTypes():
         """
