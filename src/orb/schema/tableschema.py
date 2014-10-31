@@ -36,7 +36,7 @@ class TableSchema(object):
     """
     
     TEMPLATE_PREFIXED = '[prefix::underscore::lower]_[name::underscore::lower]'
-    TEMPLATE_TABLE    = '[name::underscore::lower]'
+    TEMPLATE_TABLE    = '[name::underscore::plural::lower]'
     
     _customHandlers = []
     
@@ -1065,7 +1065,15 @@ class TableSchema(object):
         if self._timezone is None:
             return self.database().timezone()
         return self._timezone
-    
+
+    def toolTip(self):
+        tip = '<b>{0} <small>(Table)</small></b>'.format(self.name())
+        tip += '<p>'
+        tip += '<em>db name</em>: {0}<br>'.format(self.databaseName())
+        tip += '<em>group</em>: {0}'.format(self.groupName())
+        tip += '</p>'
+        return tip
+
     def useAdvancedFormatting(self):
         """
         Returns whether or not to use advanced string formatting vs.

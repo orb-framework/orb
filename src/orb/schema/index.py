@@ -233,7 +233,10 @@ class Index(object):
         :return     <bool>
         """
         return self._unique
-    
+
+    def toolTip(self):
+        return '<h1>{0} <small>Index</small></h1>'.format(self.name())
+
     def toXml(self, xparent):
         """
         Saves the index data for this column to XML.

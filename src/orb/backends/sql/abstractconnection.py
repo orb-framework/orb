@@ -293,6 +293,10 @@ class SQLConnection(orb.Connection):
         
         :return     [{<str> key: <variant>, ..}, ..], <int> rowcount
         """
+        # make sure we don't have an undefined query
+        if data and orb.Query.UNDEFINED in data.values():
+            return [], 0
+
         rowcount = 0
         if data is None:
             data = {}

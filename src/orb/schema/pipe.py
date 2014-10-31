@@ -211,7 +211,10 @@ class Pipe(object):
         if self._targetTable is None:
             self._targetTable = orb.Orb.instance().model(self._targetReference)
         return self._targetTable
-    
+
+    def toolTip(self):
+        return '<h1>{0} <small>Pipe</small></h1>'.format(self.name())
+
     def toXml(self, xparent):
         """
         Saves the index data for this column to XML.

@@ -783,11 +783,11 @@ class Manager(object):
 
         # look for the current one
         database = self.database().name() if self.database() else ''
-        schema = self._schemas[database][nstr(name)]
+        schema = self._schemas[database].get(nstr(name))
         
         # look for generic access
         if not schema:
-            for db in self._schemas:
+            for db in self._schemas.values():
                 if name in db:
                     schema = db[name]
                     break

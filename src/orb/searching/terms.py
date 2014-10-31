@@ -83,13 +83,13 @@ class SearchTerm(object):
         return self._text.lstrip('-').strip('"').strip("'")
 
     def toQuery(self, table, column=''):
-        column = self.column() or column
+        column = column or self.column()
+        col = table.schema().column(column)
         
         # if the column is not specified then return an or join
         # for all searchable columns
-        if not column:
+        if not col:
             search_columns = table.schema().searchableColumns()
-            
             out = orb.Query()
             for search_column in search_columns:
                 out |= self.toQuery(table, search_column.name())
@@ -97,12 +97,12 @@ class SearchTerm(object):
         
         # otherwise, search the provided column
         else:
-            col = table.schema().column(column)
-            if not col:
-                raise orb.errors.ColumnNotFoundError(table.schema().name(),
-                                                     self.column())
-            
-            text = self._text
+            # use a non-column based ':' search term
+            if self.column() and col.name() != self.column():
+                text = '{0}:'.format(self.column()) + self._text
+            else:
+                text = self._text
+
             negated = text.startswith('-')
             text = text.lstrip('-')
             exact = (text.startswith('"') and text.endswith("'")) or \

@@ -37,11 +37,11 @@ class TableGroup(object):
         self._filename      = ''
         self._order         = 0
         self._referenced    = referenced
-        
         self._databaseName  = ''
         self._namespace     = ''
         self._schemas       = set()
         self._properties    = {}
+        self._useModelPrefix = False
         self._modelPrefix   = ''
     
     def addSchema(self, schema):
@@ -302,7 +302,10 @@ class TableGroup(object):
         :param      requires | [<str>, ..]
         """
         self._requires = requires[:]
-    
+
+    def setUseModelPrefix(self, state=True):
+        self._useModelPrefix = state
+
     def toXml(self, xparent):
         """
         Saves the schema group to the inputed xml.
@@ -313,12 +316,14 @@ class TableGroup(object):
         """
         xgroup = ElementTree.SubElement(xparent, 'group')
         xgroup.set('name', self.name())
+
         if self.isReferenced():
             xgroup.set('referenced', 'True')
         else:
             xgroup.set('dbname', self.databaseName())
             xgroup.set('prefix', self.modelPrefix())
             xgroup.set('namespace', self._namespace)
+            xgroup.set('usePrefix', str(self.useModelPrefix()))
             
             # save the properties
             xprops = ElementTree.SubElement(xgroup, 'properties')
@@ -339,7 +344,10 @@ class TableGroup(object):
                     schema.toXml(xschemas)
         
         return xgroup
-    
+
+    def useModelPrefix(self):
+        return self._useModelPrefix
+
     @staticmethod
     def fromXml(xgroup, referenced=False, database=None):
         """
@@ -397,6 +405,7 @@ class TableGroup(object):
                 grp = TableGroup(referenced=referenced)
                 grp.setName(grpname)
                 grp.setModelPrefix(xgroup.get('prefix', ''))
+                grp.setUseModelPrefix(xgroup.get('useModelPrefix') == 'True')
                 grp.setNamespace(xgroup.get('namespace', ''))
                 if dbname is not None:
                     grp.setDatabaseName(dbname)

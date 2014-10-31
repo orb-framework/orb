@@ -21,7 +21,6 @@ __email__           = 'team@projexsoftware.com'
 import copy
 import datetime
 import logging
-import json
 import projex.text
 import projex.rest
 import projex.security

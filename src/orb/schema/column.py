@@ -49,8 +49,6 @@ class Column(object):
     TEMPLATE_INDEX       = 'by[name::camelHump::upper_first]'
     TEMPLATE_REVERSED    = '[name::reversed::camelHump::lower_first]'
     TEMPLATE_REFERENCE   = '[name::underscore::lower]_id'
-    TEMPLATE_COMPLEX_REF = '[table::underscore::lower]_' \
-                           '[name::underscore::lower]_id'
     
     TEMPLATE_MAP = {
         'getterName':   TEMPLATE_GETTER,
@@ -1330,7 +1328,10 @@ class Column(object):
         if self._timezone is None:
             return self.schema().timezone()
         return self._timezone
-    
+
+    def toolTip(self):
+        return '<h1>{0} <small>{1}</small></h1>'.format(self.name(), self.columnTypeText())
+
     def toXml(self, xparent):
         """
         Saves the data about this column out to xml as a child node for the
@@ -1591,10 +1592,7 @@ class Column(object):
         
         # generate a reference field type
         if typ == 'fieldName' and reference:
-            if name.lower() == reference.lower():
-                templ = Column.TEMPLATE_REFERENCE
-            else:
-                templ = Column.TEMPLATE_COMPLEX_REF
+            templ = Column.TEMPLATE_REFERENCE
         
         # generate the default templates
         else:
