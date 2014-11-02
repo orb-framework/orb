@@ -85,7 +85,10 @@ class PSQLConnection(SQLConnection):
         cursor = db.cursor(cursor_factory=DictCursor)
 
         # register the hstore option
-        register_hstore(cursor, unicode=True)
+        try:
+            register_hstore(cursor, unicode=True)
+        except StandardError:
+            pass
 
         if log.getEffectiveLevel() == logging.DEBUG:
             log.debug('#-------------------------')

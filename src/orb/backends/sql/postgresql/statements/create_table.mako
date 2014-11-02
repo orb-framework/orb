@@ -6,6 +6,9 @@ schema = table.schema()
 table_name = schema.tableName()
 pcols = [u'"{0}"'.format(pcol.fieldName()) for pcol in schema.primaryColumns()]
 
+if not pcols:
+    raise errors.DatabaseError('No primary keys defined.')
+
 columns = []
 translations = []
 for column in sorted(schema.columns(recurse=False), key=lambda x: x.fieldName()):
@@ -27,7 +30,7 @@ for column in sorted(schema.columns(recurse=False), key=lambda x: x.fieldName())
 -- create the table
 CREATE TABLE IF NOT EXISTS "${table_name}" (
     -- define the columns
-    % for column in columns:
+    % for i, column in enumerate(columns):
     ${ADD_COLUMN(column)[0].strip().replace('ADD COLUMN ', '')},
     % endfor
     -- define the constraints

@@ -28,8 +28,9 @@ orb = LazyModule('orb')
 
 
 class TableGroup(object):
-    def __init__( self, name = '', referenced = False ):
-        self._name          = name
+    def __init__(self, name='', referenced=False, manager=None):
+        self._name = name
+        self._manager = manager or orb.system
         
         # reference information
         self._requires      = []
@@ -39,7 +40,6 @@ class TableGroup(object):
         self._referenced    = referenced
         self._databaseName  = ''
         self._namespace     = ''
-        self._schemas       = set()
         self._properties    = {}
         self._useModelPrefix = False
         self._modelPrefix   = ''
@@ -50,7 +50,7 @@ class TableGroup(object):
         
         :param      schema | <orb.TableSchema>
         """
-        self._schemas.add(schema)
+        schema.setGroup(self)
     
     def database(self):
         """
@@ -208,8 +208,7 @@ class TableGroup(object):
         
         :param      schema | <orb.TableSchema>
         """
-        if schema in self._schemas:
-            self._schemas.remove(schema)
+        schema.setGroup(None)
     
     def requires(self):
         """
@@ -226,7 +225,7 @@ class TableGroup(object):
         
         :return     [<orb.TableSchema>, ..]
         """
-        return list(self._schemas)
+        return [schema for schema in self._manager.schemas() if schema.group() == self]
     
     def setDatabaseName(self, name):
         """
@@ -349,13 +348,14 @@ class TableGroup(object):
         return self._useModelPrefix
 
     @staticmethod
-    def fromXml(xgroup, referenced=False, database=None):
+    def fromXml(xgroup, referenced=False, database=None, manager=None):
         """
         Loads the schema group from the inputed xml schema data.
         
         :param      xgroup      | <xml.etree.ElementTree.Element>
                     referenced  | <bool>
                     database    | <str> || None
+                    manager     | <orb.Manager> || None
         
         :return     (<orb.TableGroup>, [<orb.TableSchema>, ..]) || (None, [])
         """        
@@ -396,13 +396,13 @@ class TableGroup(object):
                 for xprop in xprops:
                     grp.setProperty(xprop.get('key'), xprop.get('value'))
             
-            return (None, [])
+            return None, []
         
         # import non-referenced schemas
         else:
             grp = orb.system.group(grpname, database=dbname)
             if not grp:
-                grp = TableGroup(referenced=referenced)
+                grp = TableGroup(referenced=referenced, manager=manager)
                 grp.setName(grpname)
                 grp.setModelPrefix(xgroup.get('prefix', ''))
                 grp.setUseModelPrefix(xgroup.get('useModelPrefix') == 'True')
@@ -429,5 +429,5 @@ class TableGroup(object):
                 for xprop in xprops:
                     grp.setProperty(xprop.get('key'), xprop.get('value'))
             
-            return (grp, schemas)
+            return grp, schemas
 

@@ -960,6 +960,7 @@ class TableSchema(object):
         :param      group | <orb.TableGroup>
         """
         self._group = group
+        self._groupName = group.name() if group else ''
     
     def setGroupName(self, groupName):
         """
@@ -1048,8 +1049,8 @@ class TableSchema(object):
         :return     <str>
         """
         if (not self._tableName):
-            self._tableName = self.defaultTableName( self.name(),
-                                                     self.groupName() )
+            self._tableName = self.defaultTableName(self.name(),
+                                                    self.group().modelPrefix() if self.group().useModelPrefix() else '')
         return self._tableName
     
     def timezone(self):

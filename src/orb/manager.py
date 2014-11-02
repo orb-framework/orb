@@ -312,7 +312,7 @@ class Manager(object):
                     return group
         
         if autoAdd:
-            grp = orb.TableGroup(nstr(name))
+            grp = orb.TableGroup(nstr(name), manager=self)
             grp.setDatabaseName(database)
             grp.setOrder(len(self._groups))
             self._groups[(database, grp.name())] = grp
@@ -561,7 +561,8 @@ class Manager(object):
             for xgroup in xgroups:
                 grp, schemas = orb.TableGroup.fromXml(xgroup,
                                                       referenced,
-                                                      database=database)
+                                                      database=database,
+                                                      manager=self)
                 if not grp:
                     continue
                 
@@ -675,6 +676,9 @@ class Manager(object):
         
         :param      group | <orb.TableGroup>
         """
+        if group in self._groups.values():
+            return
+
         if database is None:
             database = group.databaseName()
         
@@ -1071,16 +1075,9 @@ class Manager(object):
         
         :param      group | <orb.TableGroup>
         """
-        if database is None:
-            database = group.databaseName()
-        
-        key = (database, group.name())
-        if not key in self._groups:
-            return
-        
-        self._groups.pop(key)
-        for schema in group.schemas():
-            del self._schemas[database][nstr(schema.name())]
+        for key, grp in self._groups.items():
+            if grp == group:
+                del self._groups[key]
         
     def unregisterEnvironment(self, environment):
         """
