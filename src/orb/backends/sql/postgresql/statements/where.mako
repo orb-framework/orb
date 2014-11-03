@@ -23,7 +23,7 @@
 
     # ensure the column exists
     if not column:
-        raise orb.errors.ColumnNotFoundError(baseSchema, where.columnName())
+        raise orb.errors.ColumnNotFound(baseSchema, where.columnName())
 
     __data__.setdefault('select_tables', set())
     __data__.setdefault('traversal', [])
@@ -74,7 +74,7 @@
       case = __sql__.byName('Op::{0}::CaseSensitive'.format(orb.Query.Op(op)))
       op_sql = case or op_sql
     if op_sql is None:
-        raise orb.errors.DatabaseQueryError('{0} is an unknown operator.'.format(orb.Query.Op(op)))
+        raise orb.errors.QueryInvalid('{0} is an unknown operator.'.format(orb.Query.Op(op)))
     
     value = where.value()
     if orb.Table.recordcheck(value):
@@ -106,7 +106,7 @@
                 sql = __sql__.byName('Math::{0}'.format(math_key))
             if not sql:
                 msg = 'Cannot {0} {1} types.'.format(math_key, type_key)
-                raise orb.errors.DatabaseQueryError(msg)
+                raise orb.errors.QueryInvalid(msg)
             
             field += sql
             if orb.Query.typecheck(target):
@@ -143,8 +143,8 @@
         % if value.isLoaded():
           <%
           if not value:
-              raise orb.errors.EmptyQuery()
-          
+              raise orb.errors.QueryIsNull()
+
           key = str(len(__data__['output']))
           key_id = '%({0})s'.format(key)
           __data__['output'][key] = __sql__.datastore().store(column, value)
@@ -167,7 +167,7 @@
     % else:
         <%
         if op in (orb.Query.Op.IsIn, orb.Query.Op.IsNotIn) and not value:
-            raise orb.errors.EmptyQuery()
+            raise orb.errors.QueryIsNull()
 
         ID = orb.system.settings().primaryField()
         key = str(len(__data__['output']))

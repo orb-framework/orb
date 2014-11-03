@@ -472,7 +472,7 @@ class SQLite(AbstractSQL):
         # create a new cursor for this transaction
         db = self.backendDb()
         if db is None:
-            raise errors.ConnectionLostError()
+            raise errors.ConnectionLost()
         
         cursor = db.cursor()
         
@@ -530,10 +530,10 @@ class SQLite(AbstractSQL):
                 if nstr(err) == 'interrupted':
                     raise errors.Interruption()
                 else:
-                    raise errors.DatabaseQueryError(command, data, err)
+                    raise errors.QueryFailed(command, data, err)
             
             except Exception, err:
-                raise errors.DatabaseQueryError(command, data, err)
+                raise errors.QueryFailed(command, data, err)
         
         if returning:
             results = map(mapper, cursor.fetchall())
@@ -560,7 +560,7 @@ class SQLite(AbstractSQL):
         """
         # make sure we have a sqlite module
         if not sqlite:
-            raise errors.MissingBackend('Could not import sqlite3')
+            raise errors.BackendNotFound('Could not import sqlite3')
         
         # create the name of the database
         dbname = os.path.normpath(nstr(db.databaseName()))
@@ -574,7 +574,7 @@ class SQLite(AbstractSQL):
             return sqlitedb
         
         except sqlite.Error:
-            raise errors.ConnectionError('Error connecting to sqlite', db)
+            raise errors.ConnectionFailed('Error connecting to sqlite', db)
     
     def _interrupt(self, threadId, backendDb):
         """

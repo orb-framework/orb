@@ -404,7 +404,7 @@ class RecordSet(object):
             db = orb.system.database()
             
         if not db:
-            log.error(errors.DatabaseNotFoundError())
+            raise errors.DatabaseNotFound()
         
         self._database = db
         return db
@@ -1480,7 +1480,7 @@ class RecordSet(object):
         for col in columns:
             orb_col = schema.column(col) if not isinstance(col, orb.Column) else col
             if not orb_col:
-                raise orb.errors.ColumnNotFoundError(schema.name(), col)
+                raise orb.errors.ColumnNotFound(schema.name(), col)
 
             orb_columns.append(orb_col)
             fields.append(orb_col.fieldName())

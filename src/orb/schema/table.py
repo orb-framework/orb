@@ -885,7 +885,7 @@ class Table(object):
         column = self.schema().column(columnName)
         if not column:
             table = self.schema().name()
-            raise errors.ColumnNotFoundError(table, columnName)
+            raise errors.ColumnNotFound(table, columnName)
         
         elif useMethod:
             method = getattr(self.__class__, column.getterName(), None)
@@ -955,7 +955,7 @@ class Table(object):
         # ensure we have a proper reference model
         refmodel = column.referenceModel()
         if refmodel is None:
-           raise errors.TableNotFoundError(column.reference())
+           raise errors.TableNotFound(column.reference())
         
         # make sure our value already meets the criteria
         elif refmodel.recordcheck(value):
@@ -1251,7 +1251,7 @@ class Table(object):
         # validate the column
         column = self.schema().column(columnName)
         if not column:
-            raise errors.ColumnNotFoundError(column, self.schema().name())
+            raise errors.ColumnNotFound(column, self.schema().name())
         
         # set a proxy value
         proxy = self.proxyColumn(columnName)
@@ -1262,7 +1262,7 @@ class Table(object):
             return True
         
         elif proxy:
-            raise errors.ColumnReadOnlyError(column)
+            raise errors.ColumnReadOnly(column)
         
         elif useMethod:
             method = getattr(self.__class__, column.setterName(), None)
@@ -1280,7 +1280,7 @@ class Table(object):
         
         # cannot update aggregate or join columns
         if column.isReadOnly():
-            raise errors.ColumnReadOnlyError(column)
+            raise errors.ColumnReadOnly(column)
         
         # make sure the inputed value matches the validation
         validator = column.validator()

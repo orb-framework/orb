@@ -60,7 +60,7 @@ class ColumnJoiner(object):
         """
         ref = orb.system.schema(self._reference)
         if not ref:
-            raise orb.errors.TableNotFoundError(self._reference)
+            raise orb.errors.TableNotFound(self._reference)
         
         return ref.column(self._referenceColumn)
 
@@ -72,7 +72,7 @@ class ColumnJoiner(object):
         """
         ref = orb.system.schema(self._reference)
         if not ref:
-            raise orb.errors.TableNotFoundError(self._reference)
+            raise orb.errors.TableNotFound(self._reference)
         
         return ref.column(self._targetColumn)
 

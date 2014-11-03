@@ -148,7 +148,7 @@ class SQLConnection(orb.Connection):
             cmd, data = SELECT_COUNT(table_or_join,
                                      lookup=lookup,
                                      options=options)
-        except errors.EmptyQuery:
+        except errors.QueryIsNull:
             return 0
         
         if options.dryRun:
@@ -306,8 +306,8 @@ class SQLConnection(orb.Connection):
             return [], 0
         
         if not self.open():
-            raise errors.ConnectionError('Failed to open connection.',
-                                         self.database())
+            raise errors.ConnectionFailed('Failed to open connection.',
+                                          self.database())
         
         # when in debug mode, simply log the command to the logger
         elif self.database().commandsBlocked():
@@ -337,7 +337,7 @@ class SQLConnection(orb.Connection):
             
             # attempt to reconnect as long as we have enough retries left
             # otherwise raise the error
-            except errors.ConnectionLostError, err:
+            except errors.ConnectionLost:
                 delta = datetime.datetime.now() - start
                 log.debug('Query took: %s' % delta)
                 
@@ -558,7 +558,7 @@ class SQLConnection(orb.Connection):
         
         # make sure we have a database assigned to this backend
         elif not self._database:
-            raise errors.DatabaseNotFoundError()
+            raise errors.DatabaseNotFound()
         
         # open a new backend connection to the database for this thread
         conn = self._open(self._database)
@@ -642,7 +642,7 @@ class SQLConnection(orb.Connection):
                                    lookup=lookup,
                                    options=options,
                                    COLUMNS=COLUMNS)
-            except errors.EmptyQuery:
+            except errors.QueryIsNull:
                 return []
         else:
             schemas = [table_or_join.schemas()]
@@ -653,7 +653,7 @@ class SQLConnection(orb.Connection):
                                         lookup=lookup,
                                         options=options,
                                         COLUMNS=COLUMNS)
-            except errors.EmptyQuery:
+            except errors.QueryIsNull:
                 return []
         
         if not sql:

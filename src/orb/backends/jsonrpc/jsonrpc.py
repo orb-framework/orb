@@ -150,7 +150,7 @@ class JSONRPC(orb.Connection):
         # ensure we have a database
         db = self.database()
         if not db:
-            raise errors.DatabaseNotFoundError()
+            raise errors.DatabaseNotFound()
         
         # generate the json rpc API url
         url = db.host().rstrip('/') + '/' + command

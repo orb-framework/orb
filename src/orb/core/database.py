@@ -110,7 +110,7 @@ class Database(object):
             backend = orb.Connection.create(self)
             if not backend:
                 msg = 'There was an error creating a backend class for database.'
-                raise errors.BackendNotFoundError(self._databaseType)
+                raise errors.BackendNotFound(self._databaseType)
 
             self._backend = backend
 

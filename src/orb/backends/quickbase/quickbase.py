@@ -138,7 +138,7 @@ class Quickbase(orb.Connection):
         
         # make sure we have a valid query
         else:
-            raise errors.InvalidQueryError(option)
+            raise errors.QueryInvalid('Invalid select option: {0}'.format(table_or_join))
         
         limit = 0
         start = 0
@@ -307,7 +307,7 @@ class Quickbase(orb.Connection):
         """
         if not self._database:
             self._failed = True
-            raise errors.DatabaseNotFoundError()
+            raise errors.DatabaseNotFound()
         
         elif self._ticket:
             return True
@@ -365,7 +365,7 @@ class Quickbase(orb.Connection):
         
         # make sure we have a schema to work with
         elif not schema:
-            raise errors.InvalidQueryError(query)
+            raise errors.QueryInvalid(query)
 
         value       = query.value()
         tableName   = schema.tableName()
@@ -374,7 +374,7 @@ class Quickbase(orb.Connection):
         col         = schema.column(colname)
 
         if not col:
-            warn = errors.ColumnNotFoundError(colname, tableName)
+            warn = errors.ColumnNotFound(colname, tableName)
             log.warning(warn)
             return ''
         
@@ -416,8 +416,7 @@ class Quickbase(orb.Connection):
         
         pkey = value.primaryKey()
         if not pkey:
-            raise errors.PrimaryKeyNotFoundError(value.__class__.__name__, 
-                                                 value)
+            raise errors.PrimaryKeyNotDefined(value)
         
         if type(pkey) in (list, tuple, set):
             if len(pkey) == 1:

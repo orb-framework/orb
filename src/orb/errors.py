@@ -3,19 +3,22 @@
 """ Defines the common errors for the database module. """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2011, Projex Software'
+__license__ = 'LGPL'
 
 # maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 
-#------------------------------------------------------------------------------
+orb = lazy_import('orb')
+
+# ------------------------------------------------------------------------------
 
 class OrbError(StandardError):
     """ Defines the base error class for the orb package """
@@ -23,128 +26,104 @@ class OrbError(StandardError):
 
 class DatabaseError(OrbError):
     """ Defines the base error class for all database related errors """
+
     def __init__(self, msg='Unknown database error occurred.'):
         super(DatabaseError, self).__init__(msg)
 
-# B
-#------------------------------------------------------------------------------
+class DataStoreError(OrbError):
+    pass
 
-class BackendNotFoundError(OrbError):
+# B
+# ------------------------------------------------------------------------------
+
+class BackendNotFound(OrbError):
     def __init__(self, backend):
-        OrbError.__init__(self, 'Could not find %s backend' % backend)
+        super(BackendNotFound, self).__init__('Could not find %s backend', backend)
 
 # C
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
-class CannotRemoveError(OrbError):
-    def __init__( self, msg ):
-        OrbError.__init__( self, msg )
+class CannotDelete(OrbError):
+    def __init__(self, msg, tablename):
+        super(CannotDelete, self).__init__(msg, tablename)
 
-class ColumnNotFoundError(OrbError):
+class ColumnNotFound(OrbError):
     def __init__(self, column, table=''):
         try:
             table = column.schema().name()
             col = column.name()
         except AttributeError:
             col = nstr(column)
-        
-        opts = (table, col)
-        OrbError.__init__(self, '%s is a missing column from %s.' % opts)
 
-class ColumnReadOnlyError(OrbError):
+        super(ColumnNotFound, self).__init__('{0} is a missing column from {1}.'.format(table, col))
+
+class ColumnReadOnly(OrbError):
     def __init__(self, column):
         try:
             text = column.name()
         except AttributeError:
             text = nstr(column)
-        
-        OrbError.__init__(self, '%s is a read-only column.' % text)
 
-class ColumnRequiredError(OrbError):
-    def __init__( self, column ):
+        super(ColumnReadOnly, self).__init__('{0} is a read-only column.'.format(text))
+
+class ColumnRequired(OrbError):
+    def __init__(self, column):
         try:
             text = column.name()
         except AttributeError:
             text = nstr(column)
-        
-        OrbError.__init__(self, '%s is a required column.' % text)
 
-class ConnectionError(OrbError):
+        super(ColumnRequired, self).__init__('{0} is a required column.'.format(text))
+
+class ConnectionFailed(OrbError):
     def __init__(self, msg, db):
-        from orb import Connection
-        
+
         msgs = [msg]
         msgs.append('')
-        
+
         pwd = '*' * (len(db.password()) - 4) + db.password()[-4:]
-        
+
         msgs.append('type: %s' % db.databaseType())
         msgs.append('database: %s' % db.databaseName())
         msgs.append('username: %s' % db.username())
         msgs.append('password: %s' % pwd)
         msgs.append('host: %s' % db.host())
         msgs.append('port: %s' % db.port())
-        
-        msgs.append('')
-        
-        typs = ','.join(Connection.addons().keys())
-        
-        msgs.append('valid types: %s' % typs)
-        
-        OrbError.__init__(self, '\n'.join(msgs))
 
-class ConnectionLostError(OrbError):
+        msgs.append('')
+
+        typs = ','.join(orb.Connection.addons().keys())
+
+        msgs.append('valid types: %s' % typs)
+
+        super(ConnectionFailed, self).__init__('\n'.join(msgs))
+
+
+class ConnectionLost(OrbError):
     def __init__(self):
-        OrbError.__init__(self, 'Connection was lost to the database.  '\
+        OrbError.__init__(self, 'Connection was lost to the database.  ' \
                                 'Please retry again soon.')
 
+
 # D
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
-class DatabaseQueryError(OrbError):
-    def __init__(self, sql, options, err):
-        msg = 'Query was:\n\n"%s"\n\nArgs: %s\n\nError: %s'
-        msg %= (sql, options, err)
-        OrbError.__init__(self, msg)
-
-class DatabaseNotFoundError(OrbError):
+class DatabaseNotFound(OrbError):
     def __init__(self):
-        OrbError.__init__(self, 'No database was found.')
+        super(DatabaseNotFound, self).__init__('No database was found.')
 
-class DataStoreError(OrbError):
-    pass
+class DependencyNotFound(OrbError):
+    def __init__(self, package):
+        msg = 'Required package `{0}` is not installed.'.format(package)
+        super(DependencyNotFound, self).__init__(msg)
 
-class DependencyNotFoundError(OrbError):
-    pass
-
-class DuplicateColumnWarning(OrbError):
+class DuplicateColumnFound(OrbError):
     """ Thrown when there is a duplicate column found within a single \
         hierarchy of a Table. """
-    
+
     def __init__(self, schema, column):
-        opts = (schema, column)
-        err = '%s: %s is already a column and cannot be duplicated.' % opts
-        OrbError.__init__(self, err)
-
-# E
-#----------------------------------------------------------------------
-
-class EmptyQuery(OrbError):
-    def __init__(self):
-        super(EmptyQuery, self).__init__('This query will result in no items.')
-
-# F
-#------------------------------------------------------------------------------
-
-class ForeignKeyMissingReferenceError(OrbError):
-    def __init__( self, column ):
-        try:
-            text = column.name()
-        except AttributeError:
-            text = nstr(column)
-        
-        text = '%s is a foreign key with no reference table.' % column
-        OrbError.__init__( self, text )
+        msg = '{0}: {1} is already a column and cannot be duplicated.'
+        super(DuplicateColumnFound, self).__init__(msg.format(schema, column))
 
 # I
 #------------------------------------------------------------------------------
@@ -153,62 +132,27 @@ class Interruption(StandardError):
     def __init__(self):
         StandardError.__init__(self, 'interrupted')
 
-class InvalidDatabaseXmlError(OrbError):
-    def __init__( self, xml ):
-        OrbError.__init__( self, '%s is an invalid XML data set.' % xml )
-
-class InvalidColumnTypeError(OrbError):
-    def __init__( self, columnType ):
-        text = '%s is an invalid Column type.' % columnType
-        OrbError.__init__( self, text )
-
-class InvalidQueryError(OrbError):
-    def __init__( self, query ):
-        text = 'Invalid lookup info: %s' % query
-        OrbError.__init__( self, text )
-
-class InvalidPrimaryKeyError(OrbError):
-    def __init__( self, columns, pkey ):
-        colnames = ','.join([col.name() for col in columns])
-        text     = 'Invalid key: %s | %s' % (colnames, pkey)
-        OrbError.__init__( self, text )
-
 class InvalidResponse(OrbError):
     def __init__(self, method, err):
-        msg = 'Invalid response from rest method "%s": %s' % (method, err)
-        OrbError.__init__(self, msg)
-
-class InvalidSchemaDefinitionError(OrbError):
-    def __init__( self, definition ):
-        err = '%s is not a valid schema definition type.' % type(definition)
-        err += ' A schema must be either a dictionary or a TableSchema.'
-        OrbError.__init__( self, err )
-
-# M
-#------------------------------------------------------------------------------
-
-class MissingBackend(OrbError):
-    pass
-
-class MissingRequirement(OrbError):
-    def __init__(self, package):
-        msg = 'Required package `{0}` is not installed.'.format(package)
-        super(MissingRequirement, self).__init__(msg)
-
-class MissingTableShortcut(OrbError):
-    def __init__(self, query):
-        err = '%s has no table reference for its shortcuts' % query
-        OrbError.__init__(self, err)
-
-class MissingTableSchemaWarning(OrbError):
-    """ Thrown when a call to the tableSchema method of the \
-        class cannot find the requested table schema. """
-    def __init__( self, tableName ):
-        err = '%s is not a valid table schema.' % tableName
-        OrbError.__init__( self, err )
+        msg = 'Invalid response from rest method "{0}": {1}'
+        super(InvalidResponse, self).__init__(msg.format(method, err))
 
 # Q
 #------------------------------------------------------------------------------
+
+class QueryFailed(OrbError):
+    def __init__(self, sql, options, err):
+        msg = 'Query was:\n\n"%s"\n\nArgs: %s\n\nError: %s'
+        msg %= (sql, options, err)
+        super(QueryFailed, self).__init__(msg)
+
+class QueryInvalid(OrbError):
+    def __init__(self, msg):
+        super(QueryInvalid, self).__init__(msg)
+
+class QueryIsNull(OrbError):
+    def __init__(self):
+        super(EmptyQuery, self).__init__('This query will result in no items.')
 
 class QueryTimeout(DatabaseError):
     def __init__(self, query, msecs):
@@ -218,51 +162,42 @@ class QueryTimeout(DatabaseError):
 # P
 #------------------------------------------------------------------------------
 
-class PrimaryKeyNotDefinedError(OrbError):
-    def __init__( self, record ):
-        OrbError.__init__( self, 'No primary key defined for %s.' % record )
-
-class PrimaryKeyNotFoundError(OrbError):
-    def __init__( self, table, pkey ):
-        msg = '%s has not primary key: %s.' % (table, pkey)
-        OrbError.__init__( self, msg )
+class PrimaryKeyNotDefined(OrbError):
+    def __init__(self, record):
+        super(OrbError, self).__init__('No primary key defined for {0}.'.format(record))
 
 # R
 #------------------------------------------------------------------------------
 
-class RecordNotFound(OrbError):
-    def __init__(self, table, pkey):
-        msg = 'Could not find "{0}" for table {1}'.format(pkey, table.schema().name())
-        super(RecordNotFound, self).__init__(msg)
+class ReferenceNotFound(OrbError):
+    def __init__(self, column):
+        try:
+            text = column.name()
+        except AttributeError:
+            text = nstr(column)
+
+        msg = '{0} is a foreign key with no reference table.'
+        super(ReferenceNotFound, self).__init__(msg.format(text))
 
 # T
 #------------------------------------------------------------------------------
 
-class TableNotFoundError(OrbError):
+class TableNotFound(OrbError):
     def __init__(self, table):
-        OrbError.__init__(self, 'Could not find "%s" table.' % table)
-
-# S
-#------------------------------------------------------------------------------
-
-class SchemaNotFoundError(OrbError):
-    def __init__(self):
-        OrbError.__init__(self, 'No schema was found to sync.')
-
-# U
-#----------------------------------------------------------------------
-
-class UnsupportedWhereAggregate(OrbError):
-    def __init__(self, typ):
-        OrbError.__init__(self, '%s is not a supported WHERE clause' % typ)
+        OrbError.__init__(self, 'Could not find `{0}` table.'.format(table))
 
 # V
 #------------------------------------------------------------------------------
 
 class ValidationError(OrbError):
-    """ 
+    """
     Raised when a column is being set with a value that does not pass
     validation.
     """
-    def __init__(self, column, value):
-        OrbError.__init__(self, column.validatorHelp())
+    def __init__(self, validator, column, value):
+        self.column = column
+        self.validator = validator
+        self.value = value
+
+        super(ValidationError, self).__init__(validator.help().format(column=column.name(), value=value))
+

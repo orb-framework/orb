@@ -101,7 +101,7 @@ class ColumnAggregator(object):
             if ref:
                 return ref.column(self._referenceColumn)
             else:
-                raise orb.errors.TableNotFoundError(self._reference)
+                raise orb.errors.TableNotFound(self._reference)
         else:
             return None
 
@@ -117,7 +117,7 @@ class ColumnAggregator(object):
             if ref:
                 return ref.column(self._targetColumn)
             else:
-                raise orb.errors.TableNotFoundError(self._reference)
+                raise orb.errors.TableNotFound(self._reference)
         else:
             return None
 

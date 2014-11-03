@@ -27,6 +27,7 @@ import projex.text
 import re
 
 from orb import Query as Q
+from orb import errors
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +98,7 @@ class Mongo(orb.Connection):
         
         # make sure we have a valid query
         else:
-            logger.error(errors.InvalidQueryError(option))
-            return []
+            raise errors.QueryInvalid('Invalid select parameter: {0}'.format(table_or_join))
         
         limit = 0
         start = 0
@@ -351,9 +351,7 @@ class Mongo(orb.Connection):
             
             # make sure all the required columns have been set
             elif column.required() and value == None:
-                err = errors.ColumnRequiredError(columnName)
-                logger.error(err)
-                return {'db_error': err}
+                raise errors.ColumnRequired(columnName)
             
             # no need fo undefined items to be set
             elif value == None:
@@ -362,10 +360,8 @@ class Mongo(orb.Connection):
             # extract the primary key information
             elif orb.Table.recordcheck(value):
                 fvalue = value.primaryKey()
-                if ( not fvalue ):
-                    err = errors.PrimaryKeyNotFoundError(tableName, value)
-                    logger.error(err)
-                    continue
+                if not fvalue:
+                    raise errors.PrimaryKeyNotDefined(value)
                 
                 if ( isinstance(value.database().backend(), Mongo) ):
                     value = bson.objectid.ObjectId(fvalue)
@@ -436,9 +432,8 @@ class Mongo(orb.Connection):
             return True
         
         elif not self._database:
-            logger.error(errors.DatabaseNotFoundError())
-            self._failed = True
-            return False
+            self._failed = Truew
+            raise errors.DatabaseNotFound()
         
         dbname  = self._database.databaseName()
         user    = self._database.username()
@@ -515,9 +510,7 @@ class Mongo(orb.Connection):
         
         # make sure we have a schema to work with
         elif not schema:
-            err = errors.InvalidQueryError(query)
-            logger.error( err )
-            return {}
+            raise errors.QueryInvalid(query)
             
         value       = query.value()
         tableName   = schema.tableName()
@@ -635,10 +628,7 @@ class Mongo(orb.Connection):
         
         pkey = value.primaryKey()
         if not pkey:
-            err = errors.PrimaryKeyNotFoundError(value.__class__.__name__, 
-                                                 value)
-            logger.error( err )
-            return {}
+            raise errors.PrimaryKeyNotDefined(value)
         
         if type(pkey) in (list, tuple, set):
             if len(pkey) == 1:
@@ -752,9 +742,7 @@ class Mongo(orb.Connection):
         # grab the primary key information
         pkey = record.primaryKey()
         if not pkey:
-            err = errors.PrimaryKeyNotDefinedError(record)
-            logger.error( err )
-            return { 'db_error': err }
+            raise errors.PrimaryKeyNotDefined(record)
         
         db = self.mongodb()
         if not db:
@@ -770,19 +758,15 @@ class Mongo(orb.Connection):
             newValue = changevals[1]
             
             if not column:
-                logger.error( errors.ColumnNotFoundError(colname) )
-                continue
+                raise errors.ColumnNotFound(colname)
             
             elif column.required() and newValue == None:
-                logger.error( errors.ColumnRequiredError(colname) )
-                continue
+                raise errors.ColumnRequired(colname)
             
             elif orb.Table.recordcheck(newValue):
                 pkeyValue = newValue.primaryKey()
                 if not pkeyValue:
-                    err = errors.PrimaryKeyNotFoundError(tableName, newValue)
-                    logger.error(err)
-                    continue
+                    raise errors.PrimaryKeyNotDefined(newValue)
                 
                 if isinstance(newValue.database().backend(), Mongo):
                     newValue = bson.objectid.ObjectId(pkeyValue)

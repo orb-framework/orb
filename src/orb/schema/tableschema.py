@@ -354,8 +354,7 @@ class TableSchema(object):
                 dups = output.intersection(ancest_columns)
                 if dups:
                     dup_names = ','.join(map(lambda x: x.name(), dups))
-                    err = errors.DuplicateColumnWarning(self.name(), dup_names)
-                    log.warning(nstr(err))
+                    raise errors.DuplicateColumnFound(self.name(), dup_names)
                 
                 output.update(ancest_columns)
         
@@ -732,8 +731,7 @@ class TableSchema(object):
         if cols is None and self._inherits:
             inherited = orb.system.schema(self._inherits)
             if not inherited:
-                warn = errors.MissingTableSchemaWarning(self._inherits)
-                log.warn(warn)
+                raise errors.TableNotFound(self._inherits)
             else:
                 cols = inherited.primaryColumns()
         

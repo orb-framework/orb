@@ -89,8 +89,7 @@ class Index(object):
             
             if not column:
                 tableName = table.schema().name()
-                log.warning(errors.ColumnNotFoundError(col, tableName))
-                continue
+                raise errors.ColumnNotFound(col, tableName)
             
             if column.isEncrypted():
                 value = projex.security.encrypt(value)

@@ -47,7 +47,7 @@ elif agg_type == orb.QueryAggregate.Type.Maximum:
 elif agg_type == orb.QueryAggregate.Type.Minimum:
     command = 'MIN("{0}")'.format(targ_col.fieldName())
 else:
-    raise orb.DatabaseQueryError('Invalid aggregate type.')
+    raise orb.QueryInvalid('Invalid aggregate type.')
 
 __data__['field_mapper'][column] = '"{0}"."{1}"'.format(join_table,
                                                         column.name())

@@ -160,7 +160,7 @@ class Connection(AddonManager):
                         msg = 'Could not remove records, there are still '\
                               'references to the %s model.'
                         tblname = ref_table.__name__
-                        raise errors.CannotRemoveError(msg, tblname)
+                        raise errors.CannotDelete(msg, tblname)
                 
                 # cascade additional removals
                 elif flags & orb.DeleteFlags.Cascaded and \
@@ -701,7 +701,7 @@ class Connection(AddonManager):
         cls = Connection.byName(database.databaseType())
         if not cls:
             from orb import errors
-            raise errors.BackendNotFoundError(database.databaseType())
+            raise errors.BackendNotFound(database.databaseType())
         return cls(database)
 
 

@@ -115,7 +115,7 @@ class MySQLConnection(SQLConnection):
         # create a new cursor for this transaction
         db = self.backendDb()
         if not db:
-            raise errors.ConnectionLostError()
+            raise errors.ConnectionLost()
         
         cursor = db.cursor()
         cursor._defer_warnings = not self.internalsEnabled()
@@ -161,7 +161,7 @@ class MySQLConnection(SQLConnection):
         :return     <bool> success
         """
         if not mysql:
-            raise errors.MissingBackend('MySQLdb not installed.')
+            raise errors.BackendNotFound('MySQLdb not installed.')
             
         dbname  = db.databaseName()
         user    = db.username()
@@ -185,7 +185,7 @@ class MySQLConnection(SQLConnection):
             return mysqldb
         
         except mysql.OperationalError, err:
-            raise errors.ConnectionError('Could not connect to MySQL', db)
+            raise errors.ConnectionFailed('Could not connect to MySQL', db)
     
     def _interrupt(self, threadId, backendDb):
         """

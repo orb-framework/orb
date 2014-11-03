@@ -77,8 +77,8 @@
     if lookup.where:
         try:
           where = WHERE(lookup.where, baseSchema=schema, __data__=__data__)[0].strip()
-        except orb.errors.EmptyQuery:
-          where = orb.errors.EmptyQuery
+        except orb.errors.QueryIsNull:
+          where = orb.errors.QueryIsNull
     else:
         where = ''
 
@@ -114,7 +114,7 @@
 ##            field = __data__['field_mapper'].get(col, default)
 ##            group_by.all(field)
 %>
-% if (columns or translated_columns) and where != orb.errors.EmptyQuery:
+% if (columns or translated_columns) and where != orb.errors.QueryIsNull:
 -- select from a single table
 % if lookup.distinct:
 SELECT DISTINCT

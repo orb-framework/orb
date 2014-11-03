@@ -111,8 +111,7 @@ class Join(object):
             db = self.database()
         
         if not db:
-            log.error( errors.DatabaseNotFoundError())
-            return None
+            raise errors.DatabaseNotFound()
         
         try:
             return db.backend().selectFirst(self, lookup, options)
@@ -146,8 +145,7 @@ class Join(object):
             db = self.database()
             
         if not db:
-            log.error( errors.DatabaseNotFoundError() )
-            return []
+            raise errors.DatabaseNotFound()
         
         try:
             return db.backend().select(self, lookup, options)

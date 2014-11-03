@@ -1006,7 +1006,7 @@ class Query(object):
             table = basetable
         
         if not table:
-            raise errors.MissingTableShortcut(self)
+            raise errors.QueryInvalid('Could not traverse: {0}'.format(self.columnName()))
         
         # setup the shortcut pathing
         names = self.columnName().split('.')

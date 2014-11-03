@@ -64,10 +64,10 @@ class Manager(object):
         
         # registry
         self._callbacks     = CallbackSet()
-        self._environments  = {}
-        self._groups        = {}
-        self._databases     = {}
-        self._schemas       = defaultdict(dict)
+        self._environments  = set()
+        self._databases     = set()
+        self._groups        = set()
+        self._schemas       = set()
         self._properties    = {}
         self._customEngines = {}
     
@@ -91,11 +91,11 @@ class Manager(object):
         self._database = None
         
         # close any active connections
-        for db in self._databases.values():
+        for db in self._databases:
             db.disconnect()
         
         # close any active environments
-        for env in self._environments.values():
+        for env in self._environments:
             env.clear()
         
         self._filename = ''
@@ -171,10 +171,14 @@ class Manager(object):
         else:
             db = None
         
-        if not db:
-            db = self._databases.get(nstr(name))
+        if db:
+            return db
+
+        for db in self._databases:
+            if db.name() == name:
+                return db
         
-        return db
+        return None
     
     def databases(self, recursive=False):
         """
@@ -184,7 +188,7 @@ class Manager(object):
         
         :return     [<orb.database.Database>, ..]
         """
-        output = self._databases.values()
+        output = list(self._databases)
         
         if recursive:
             for env in self.environments():
@@ -200,7 +204,7 @@ class Manager(object):
 
         :return     [<orb.TableSchema>, ..]
         """
-        return self._schemas[db.name()].values()
+        return [schema for schema in self._schemas if schema.database() == db]
     
     def environment(self, name=None):
         """
@@ -212,9 +216,13 @@ class Manager(object):
         
         :return     <orb.environment.Environment> || None
         """
-        if name:
-            return self._environments.get(nstr(name))
-        return self._environment
+        if name is None:
+            return self._environment
+
+        for env in self._environments:
+            if env.name() == name:
+                return env
+        return None
     
     def environments(self):
         """
@@ -223,7 +231,7 @@ class Manager(object):
         
         :return     [<orb.environment.Environment>, ..]
         """
-        return self._environments.values()
+        return list(self._environments)
     
     def findRelatedColumns(self, schema):
         """
@@ -291,33 +299,9 @@ class Manager(object):
         
         :return     <orb.TableGroup> || None
         """
-        use_generic = False
-        if database is None:
-            use_generic = True
-            curr_db = self.database()
-            if curr_db:
-                database = curr_db.name()
-            else:
-                database = ''
-        
-        # look for direct access
-        key = (database, nstr(name))
-        if key in self._groups:
-            return self._groups[key]
-        
-        # look for generic access
-        if use_generic:
-            for key, group in self._groups.items():
-                if key[1] == name:
-                    return group
-        
-        if autoAdd:
-            grp = orb.TableGroup(nstr(name), manager=self)
-            grp.setDatabaseName(database)
-            grp.setOrder(len(self._groups))
-            self._groups[(database, grp.name())] = grp
-            return grp
-            
+        for group in self._groups:
+            if group.name() == name and (database is None or group.databaseName() == database):
+                return group
         return None
     
     def groups(self, database=None):
@@ -327,11 +311,9 @@ class Manager(object):
         :return     [<orb.TableGroup>, ..]
         """
         if database is None:
-            out = self._groups.values()
-            out.sort(key = lambda x: x.order())
-            return out
-        
-        return [grp for key, grp in self._groups.items() if key[0] == database]
+            return list(self._groups)
+        else:
+            return [grp for grp in self._groups if grp.databaseName() == database]
     
     def inheritedModels(self, model):
         """
@@ -567,6 +549,8 @@ class Manager(object):
                     continue
                 
                 self.registerGroup(grp)
+                for schema in schemas:
+                    self.registerSchema(schema)
                 output += schemas
         
         return output
@@ -653,7 +637,7 @@ class Manager(object):
         :param      database | <orb.database.Database>
                     active   | <bool>
         """
-        self._databases[database.name()] = database
+        self._databases.add(database)
         if active or not self._database:
             self._database = database
     
@@ -664,7 +648,7 @@ class Manager(object):
         :param      database | <orb.environment.Environment>
                     active | <bool>
         """
-        self._environments[environment.name()] = environment
+        self._environments.add(environment)
         
         # set the active environment
         if active or not self._environment:
@@ -676,16 +660,14 @@ class Manager(object):
         
         :param      group | <orb.TableGroup>
         """
-        if group in self._groups.values():
+        if group in self._groups:
             return
 
-        if database is None:
-            database = group.databaseName()
+        if database is not None:
+            group.setDatabaseName(database)
         
         group.setOrder(len(self._groups))
-        self._groups[(database, group.name())] = group
-        for schema in group.schemas():
-            self._schemas[database][nstr(schema.name())] = schema
+        self._groups.add(group)
     
     def registerSchema(self, schema, database=None):
         """
@@ -693,13 +675,10 @@ class Manager(object):
         
         :param      schema | <orb.tableschema.TableSchema>
         """
-        if database is None:
-            database = schema.databaseName()
-        
-        grp = self.group(schema.groupName(), autoAdd=True, database=database)
-        grp.addSchema(schema)
-        
-        self._schemas[database][schema.name()] = schema
+        if database is not None:
+            schema.setDatabaseName(database)
+
+        self._schemas.add(schema)
     
     def save(self, encrypted=False):
         """
@@ -782,21 +761,10 @@ class Manager(object):
         
         :return     <orb.tableschema.TableSchema> || None
         """
-        if database is not None:
-            return self._schemas[database].get(name)
-
-        # look for the current one
-        database = self.database().name() if self.database() else ''
-        schema = self._schemas[database].get(nstr(name))
-        
-        # look for generic access
-        if not schema:
-            for db in self._schemas.values():
-                if name in db:
-                    schema = db[name]
-                    break
-        
-        return schema
+        for schema in self._schemas:
+            if schema.name() == name and (database is None or schema.databaseName() == database):
+                return schema
+        return None
     
     def schemas(self, database=None):
         """
@@ -805,9 +773,9 @@ class Manager(object):
         :return     [<orb.tableschema.TableSchema>, ..]
         """
         if database is None:
-            return [schema for db in self._schemas.values() for schema in db.values()]
+            return list(self._schemas)
         else:
-            return self._schemas[database].values()
+            return [schema for schema in self._schemas if schema.databaseName() == database]
     
     def searchEngine(self):
         """
@@ -1065,9 +1033,11 @@ class Manager(object):
         
         :param      database | <orb.database.Database>
         """
-        if database.name() in self._databases:
-            database.disconnect()
-            self._databases.pop(database.name())
+        database.disconnect()
+        try:
+            self._database.remove(database)
+        except KeyError:
+            pass
     
     def unregisterGroup(self, group, database=None):
         """
@@ -1075,9 +1045,10 @@ class Manager(object):
         
         :param      group | <orb.TableGroup>
         """
-        for key, grp in self._groups.items():
-            if grp == group:
-                del self._groups[key]
+        try:
+            self._groups.remove(group)
+        except KeyError:
+            pass
         
     def unregisterEnvironment(self, environment):
         """
@@ -1085,8 +1056,10 @@ class Manager(object):
         
         :param      database | <orb.environment.Environment>
         """
-        if environment.name() in self._environments:
-            self._environments.pop(environment.name())
+        try:
+            self._environments.remove(environment)
+        except KeyError:
+            pass
     
     def unregisterSchema(self, schema, database=None):
         """
@@ -1094,13 +1067,10 @@ class Manager(object):
         
         :param      schema | <orb.tableschema.TableSchema>
         """
-        if database is None:
-            database = schema.databaseName()
-
-        rem_schema = self._schemas[database].pop(schema.name(), None)
-        if rem_schema:
-            grp = rem_schema.group()
-            grp.removeSchema(schema)
+        try:
+            self._schemas.remove(schema)
+        except KeyError:
+            pass
 
     @staticmethod
     def databaseTypes():

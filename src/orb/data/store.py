@@ -127,7 +127,7 @@ class DataStore(AddonManager):
             try:
                 return yaml.dumps(py_value)
             except ImportError:
-                raise orb.errors.MissingRequirement('PyYaml')
+                raise orb.errors.DependencyNotFound('PyYaml')
             except StandardError:
                 raise orb.errors.DataStoreError('Unable to convert to yaml')
         
@@ -156,7 +156,7 @@ class DataStore(AddonManager):
                 try:
                     return py_value.astimezone(pytz.utc).replace(tzinfo=None)
                 except ImportError:
-                    raise orb.errors.MissingRequirement('pytz')
+                    raise orb.errors.DependencyNotFound('pytz')
             return py_value
         
         # save a dictionary

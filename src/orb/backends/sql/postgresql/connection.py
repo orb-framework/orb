@@ -80,7 +80,7 @@ class PSQLConnection(SQLConnection):
         # create a new cursor for this transaction
         db = self.nativeConnection()
         if db is None:
-            raise errors.ConnectionLostError()
+            raise errors.ConnectionLost()
 
         cursor = db.cursor(cursor_factory=DictCursor)
 
@@ -110,7 +110,7 @@ class PSQLConnection(SQLConnection):
 
         # look for a disconnection error
         except pg.InterfaceError:
-            raise errors.ConnectionLostError()
+            raise errors.ConnectionLost()
 
         # look for integrity errors
         except (pg.IntegrityError, pg.OperationalError), err:
@@ -155,7 +155,7 @@ class PSQLConnection(SQLConnection):
         :return     <variant> | backend specific database connection
         """
         if not pg:
-            raise errors.MissingBackend('psycopg2 is not installed.')
+            raise errors.BackendNotFound('psycopg2 is not installed.')
 
         dbname = db.databaseName()
         user = db.username()
@@ -179,7 +179,7 @@ class PSQLConnection(SQLConnection):
                               port=port)
         except pg.OperationalError, err:
             log.error(err)
-            raise errors.ConnectionError('Failed to connect to Postgres', db)
+            raise errors.ConnectionFailed('Failed to connect to Postgres', db)
 
     def _interrupt(self, threadId, connection):
         """
