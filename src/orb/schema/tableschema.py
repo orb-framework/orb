@@ -120,6 +120,7 @@ class TableSchema(object):
         if index in self._indexes:
             return
 
+        index.setSchema(self)
         self._indexes.append(index)
 
     def addPipe(self, pipe):
@@ -131,6 +132,7 @@ class TableSchema(object):
         if pipe in self._pipes:
             return
 
+        pipe.setSchema(self)
         self._pipes.append(pipe)
 
     def ancestor(self):
@@ -1063,13 +1065,33 @@ class TableSchema(object):
             return self.database().timezone()
         return self._timezone
 
-    def toolTip(self):
-        tip = '<b>{0} <small>(Table)</small></b>'.format(self.name())
-        tip += '<p>'
-        tip += '<em>db name</em>: {0}<br>'.format(self.databaseName())
-        tip += '<em>group</em>: {0}'.format(self.groupName())
-        tip += '</p>'
-        return tip
+    def toolTip(self, context='normal'):
+        tip = '''\
+<b>{name} <small>(Table from {group} group)</small></b><br>
+<em>Usage</em>
+<pre>
+>>> # api usage
+>>> record = {name}()
+>>> record.commit()
+
+>>> all_records = {name}.all()
+>>> some_records = {name}.select(where=query)
+
+>>> # meta data
+>>> schema = {name}.schema()
+
+>>> # ui display info
+>>> schema.displayName()
+'{display}'
+
+>>> # database table info
+>>> schema.databaseName()
+'{db_name}'
+</pre>'''
+        return tip.format(name=self.name(),
+                          group=self.groupName(),
+                          db_name=self.databaseName(),
+                          display=self.displayName())
 
     def useAdvancedFormatting(self):
         """

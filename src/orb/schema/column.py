@@ -1298,8 +1298,130 @@ class Column(object):
             return self.schema().timezone()
         return self._timezone
 
-    def toolTip(self):
-        return '<h1>{0} <small>{1}</small></h1>'.format(self.name(), self.columnTypeText())
+    def toolTip(self, context='normal'):
+        example_values = {
+            'ForeignKey': '{0}.all().first()'.format(self.reference()),
+            'Integer': '0',
+            'String': '"example string"',
+            'Text': '"example text"',
+            'Bool': 'True',
+            'Email': 'me@example.com',
+            'Password': 'ex@mp1e',
+            'BigInt': '10',
+            'Date': 'datetime.date.today()',
+            'Datetime': 'datetime.datetime.now()',
+            'DatetimeWithTimezone': 'datetime.datetime.now()',
+            'Time': 'datetime.time(12, 0, 0)',
+            'Interval': 'datetime.timedelta(seconds=1)',
+            'Decimal': '0.0',
+            'Double': '0.0',
+            'Enum': 'Types.Example',
+            'Url': '"http://example.com"',
+            'Filepath': '"/path/to/example.png"',
+            'Directory': '"/path/to/example/"',
+            'Xml': '"<example></example>"',
+            'Html': '"<html><example></example></html>"',
+            'Color': '"#000"',
+            'Image': 'QtGui.QPixmap("/path/to/example.png")',
+            'ByteArray': 'QtCore.QByteArray()',
+            'Pickle': '{"example": 10}',
+            'Dict': '{"example": 10}',
+            'Query': 'orb.Query(column) == value'
+        }
+
+        example_returns = example_values.copy()
+        example_returns['ForeignKey'] = '&lt;{0}&gt;'.format(self.reference())
+        example_returns['Query'] = '&lt;orb.Query&gt;'
+
+        coltype = self.columnTypeText()
+        default = projex.text.underscore(self.name())
+        opts = {'name': self.name(),
+                'type': self.reference() if coltype == 'ForeignKey' else self.columnTypeText(),
+                'field': self.fieldName(),
+                'getter': self.getterName(),
+                'setter': self.setterName(),
+                'schema': self.schema().name(),
+                'display': self.displayName(),
+                'value': example_values.get(coltype, default),
+                'default': default,
+                'return': example_returns.get(coltype, example_values.get(coltype, default)),
+                'record': projex.text.underscore(self.schema().name()),
+                'ref_record': projex.text.underscore(self.reference())}
+
+        # show indexed information
+        if context == 'normal':
+            tip = '''\
+<b>{schema}.{name} <small>({type})</small></b>
+<pre>
+>>> # example api usage
+>>> {record} = {schema}()
+>>> {record}.{setter}({value})
+>>> {record}.{getter}()
+{return}
+
+>>> # meta data
+>>> column = {schema}.schema().column('{name}')
+
+>>> # ui display info
+>>> column.displayName()
+'{display}'
+
+>>> # database field info
+>>> column.fieldName()
+'{field}'
+</pre>'''
+
+        elif context == 'index' and self.indexed():
+            opts['index'] = self.indexName()
+            if self.unique():
+                tip = '''\
+<b>{schema}.{name} <small>({schema} || None)</small></b>
+<pre>
+>>> # lookup record by index
+>>> {schema}.{index}({default})
+&lt;{schema}&gt;
+</pre>
+'''
+            else:
+                tip = '''\
+<b>{schema}.{name} <small>(RecordSet([{schema}, ..]))</small></b>
+<pre>
+>>> # lookup records by index
+>>> {schema}.{index}({default})
+&lt;orb.RecordSet([&lt;{schema}&gt;, ..])&gt;
+</pre>
+'''
+
+        # show reversed information
+        elif context == 'reverse' and self.isReversed():
+            opts['reference'] = self.reference()
+            opts['reverse'] = self.reversedName()
+
+            if self.unique():
+                tip = '''\
+<b>{reference}.{reverse} <small>({reference})</small></b><br>
+<pre>
+>>> # look up {schema} record through the reverse accessor
+>>> {ref_record} = {reference}()
+>>> {ref_record}.{reverse}()
+&lt;{schema}&gt;
+</pre>
+'''
+            else:
+                tip = '''\
+<b>{reference}.{reverse} <small>(RecordSet([{reference}, ..]))</small></b><br>
+<pre>
+>>> # look up {schema} records through the reverse accessor
+>>> {ref_record} = {reference}()
+>>> {ref_record}.{reverse}()
+&lt;orb.RecordSet([&lt;{schema}&gt;, ..])&gt;
+</pre>
+'''
+
+        else:
+            tip = ''
+
+        return tip.format(**opts)
 
     def toXml(self, xparent):
         """

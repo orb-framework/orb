@@ -738,6 +738,8 @@ class Manager(object):
         # save out the groups
         xgroups = ElementTree.SubElement(xorb, 'groups')
         for grp in self.groups():
+            if grp.isReferenced():
+                continue
             grp.toXml(xgroups)
         
         projex.text.xmlindent(xorb)

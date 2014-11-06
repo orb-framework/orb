@@ -1283,9 +1283,7 @@ class Table(object):
             raise errors.ColumnReadOnly(column)
         
         # make sure the inputed value matches the validation
-        validator = column.validator()
-        if validator and value is not None and not validator.match(value):
-            raise errors.ValidationError(column, value)
+        column.validate(value)
         
         # store the new value
         curr_value = self.__record_values.get(column.name())
@@ -1404,7 +1402,6 @@ class Table(object):
         
         :return     (<bool> valid, <str> message) || (<bool> valid, {<str> name: <str> error, ..})
         """
-        success = True
         msg = []
         errors = {}
         
@@ -1415,19 +1412,17 @@ class Table(object):
             column = schema.column(columnName)
             if not column:
                 if validateColumns:
-                    success = False
                     msg.append('%s is not a valid column.' % columnName)
             
             else:
-                valid, col_msg = column.validate(value)
-                if not valid:
-                    success = False
-                    msg.append(col_msg)
-                    errors[column.name()] = col_msg
+                try:
+                    column.validate(value)
+                except errors.ValidationError as err:
+                    errors[column.name()] = err
 
         if returnErrors:
-            return success, errors
-        return success, '\n\n'.join(msg)
+            return not bool(errors), errors
+        return not bool(errors), '\n\n'.join([nstr(err) for err in errors])
     
     #----------------------------------------------------------------------
     #                           CLASS METHODS

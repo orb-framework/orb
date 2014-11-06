@@ -120,7 +120,7 @@ class PSQLConnection(SQLConnection):
                 pass
 
             log.debug(traceback.print_exc())
-            raise errors.OrbError(nstr(err))
+            raise errors.QueryFailed(command, data, nstr(err))
 
         # connection has closed underneath the hood
         except pg.Error, err:
@@ -130,7 +130,7 @@ class PSQLConnection(SQLConnection):
                 pass
 
             log.error(traceback.print_exc())
-            raise errors.OrbError(nstr(err))
+            raise errors.QueryFailed(command, data, nstr(err))
 
         try:
             results = map(mapper, cursor.fetchall())

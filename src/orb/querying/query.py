@@ -941,7 +941,7 @@ class Query(object):
         
         return newq
     
-    def doesNotMatch(self, value):
+    def doesNotMatch(self, value, caseSensitive=True):
         """
         Sets the operator type to Query.Op.DoesNotMatch and sets the \
         value to the inputed value.
@@ -956,8 +956,9 @@ class Query(object):
                     |comments does_not_contain test
         """
         newq = self.copy()
-        newq.setOperatorType( Query.Op.DoesNotMatch )
-        newq.setValue( value )
+        newq.setOperatorType(Query.Op.DoesNotMatch)
+        newq.setValue(value)
+        newq.setCaseSensitive(caseSensitive)
         
         return newq
     
@@ -1343,7 +1344,7 @@ class Query(object):
         q.addFunction(Query.Function.Lower)
         return q
     
-    def matches(self, value):
+    def matches(self, value, caseSensitive=True):
         """
         Sets the operator type to Query.Op.Matches and sets \
         the value to the inputed regex expression.  This method will only work \
@@ -1361,6 +1362,7 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.Matches)
         newq.setValue(value)
+        newq.setCaseSensitive(caseSensitive)
         
         return newq
     

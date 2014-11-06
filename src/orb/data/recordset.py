@@ -976,7 +976,7 @@ class RecordSet(object):
             return 1
         
         # determine the number of pages in this record set
-        pageFraction = len(self) / float(pageSize)
+        pageFraction = self.count(start=0, limit=None) / float(pageSize)
         pageCount    = int(pageFraction)
         
         # determine if there is a remainder of records

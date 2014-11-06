@@ -130,9 +130,9 @@ class SearchTerm(object):
                 expr = u'.*'.join(parts)
             
             if negated:
-                return orb.Query(table, column).asString().doesNotMatch(expr)
+                return orb.Query(table, column).asString().doesNotMatch(expr, caseSensitive=False)
             else:
-                return orb.Query(table, column).asString().matches(expr)
+                return orb.Query(table, column).asString().matches(expr, caseSensitive=False)
 
     def toString(self):
         if self.column():

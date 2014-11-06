@@ -15,6 +15,8 @@ __email__           = 'team@projexsoftware.com'
 
 #------------------------------------------------------------------------------
 
+import projex.text
+
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
@@ -152,8 +154,8 @@ class Pipe(object):
     
     def pipeReferenceModel(self):
         if self._pipeTable is None:
-            pipeTable = orb.Orb.instance().model(self._pipeReference)
-            if not self._targetReference and pipeTable:
+            pipeTable = orb.system.model(self._pipeReference)
+            if pipeTable and not self._targetReference:
                 col = pipeTable.schema().column(self._targetColumn)
                 self._targetReference = col.reference()
             
@@ -197,7 +199,13 @@ class Pipe(object):
     
     def setTargetReference(self, reference):
         self._targetReference = reference
-    
+
+    def schema(self):
+        return self._schema
+
+    def setSchema(self, schema):
+        self._schema = schema
+
     def sourceColumn(self):
         return self._sourceColumn
     
@@ -205,15 +213,45 @@ class Pipe(object):
         return self._targetColumn
     
     def targetReference(self):
+        if not self._targetReference:
+            try:
+                pipe = orb.system.schema(self.pipeReference())
+                col = pipe.column(self.targetColumn())
+                self._targetReference = col.reference()
+            except AttributeError:
+                pass
+
         return self._targetReference
     
     def targetReferenceModel(self):
         if self._targetTable is None:
-            self._targetTable = orb.Orb.instance().model(self._targetReference)
+            self._targetTable = orb.system.model(self.targetReference())
         return self._targetTable
 
-    def toolTip(self):
-        return '<h1>{0} <small>Pipe</small></h1>'.format(self.name())
+    def toolTip(self, context='pipe'):
+        tip = '''\
+<b>{schema}.{name} <small>(RecordSet([{target_model}, ..]))</small></b>
+<pre>
+>>> # piped through {pipe} model
+>>> {record} = {schema}()
+>>> {record}.{getter}()
+&lt;orb.PipeRecordSet([&lt;{target_model}&gt;, ..])&gt;
+
+>>> # modify the joined records
+>>> {target_record} = {target_model}.all().first()
+>>> {record}.{getter}().addRecord({target_record})
+>>> {record}.{getter}().removeRecord({target_record})
+</pre>
+'''
+        return tip.format(name=self.name(),
+                          getter=self.name(),
+                          schema=self.schema().name(),
+                          record=projex.text.underscore(self.schema().name()),
+                          pipe=self.pipeReference(),
+                          source=self.sourceColumn(),
+                          target=self.targetColumn(),
+                          target_model=self.targetReference(),
+                          target_record=projex.text.underscore(self.targetReference()))
 
     def toXml(self, xparent):
         """

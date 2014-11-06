@@ -48,6 +48,7 @@ class Index(object):
             columns = []
         
         self.__name__ = name
+        self._schema = None
         self._columnNames = columns
         self._unique = unique
         self._order = order
@@ -171,7 +172,10 @@ class Index(object):
         :return     <str>
         """
         return self.__name__
-    
+
+    def schema(self):
+        return self._schema
+
     def setCached(self, state):
         """
         Sets whether or not this index should cache the results of its query.
@@ -223,7 +227,10 @@ class Index(object):
         :param      state | <bool>
         """
         self._unique = state
-    
+
+    def setSchema(self, schema):
+        self._schema = schema
+
     def unique(self):
         """
         Returns whether or not the results that this index expects should be \
@@ -233,8 +240,31 @@ class Index(object):
         """
         return self._unique
 
-    def toolTip(self):
-        return '<h1>{0} <small>Index</small></h1>'.format(self.name())
+    def toolTip(self, context='index'):
+        if self.unique():
+            tip = '''\
+<b>{schema}.{name} <small>({schema} || None)</small></b>
+<pre>
+>>> # lookup record by index
+>>> {schema}.{getter}({columns})
+&lt;{schema}&gt;
+</pre>
+'''
+        else:
+            tip = '''\
+<b>{schema}.{name} <small>(RecordSet([{schema}, ..]))</small></b>
+<pre>
+>>> # lookup records by index
+>>> {schema}.{getter}({columns})
+&lt;orb.RecordSet([&lt;{schema}&gt;, ..])&gt;
+</pre>
+'''
+
+        return tip.format(name=self.name(),
+                          getter=self.name(),
+                          schema=self.schema().name(),
+                          record=projex.text.underscore(self.schema().name()),
+                          columns=', '.join([projex.text.underscore(c) for c in self.columnNames()]))
 
     def toXml(self, xparent):
         """
