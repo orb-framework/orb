@@ -258,16 +258,6 @@ class RecordSet(object):
             else:
                 output = results
 
-            if not db_opts.inflateRecords and db_opts.locale != 'all':
-                trans_cols = [col for col in lookup.columns or table.schema().columns() if col.isTranslatable()]
-                if trans_cols:
-                    for result in results:
-                        for col in trans_cols:
-                            try:
-                                result[col.name()] = eval(result[col.name()])[db_opts.locale]
-                            except StandardError as err:
-                                result[col.name()] = ''
-
             self._all[key] = output
         
         # return sorted results from an in-place sort

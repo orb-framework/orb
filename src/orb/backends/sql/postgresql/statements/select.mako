@@ -62,11 +62,18 @@
                     columns.append(__data__['join_column'])
 
         elif use_column and column.isTranslatable():
-            # process translation logic
-            col_sql = 'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{1}"'
-            translated_columns.append(col_sql.format(column.fieldName(), column.name()))
-            group_by.add('"{0}"."{1}"'.format(table_name, ID))
-            __data__['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
+            if options.inflateRecords or options.locale == 'all':
+                # process translation logic
+                col_sql = 'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{1}"'
+                translated_columns.append(col_sql.format(column.fieldName(), column.name()))
+                group_by.add('"{0}"."{1}"'.format(table_name, ID))
+                __data__['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
+            else:
+                col_sql = '(array_agg("i18n"."{0}"))[1] AS "{1}"'
+                translated_columns.append(col_sql.format(column.fieldName(), column.name()))
+                group_by.add('"{0}"."{1}"'.format(table_name, ID))
+                __data__['output']['locale'] = options.locale
+                __data__['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
 
         elif not column.isProxy() and use_column:
             query_columns.append(column)
@@ -130,9 +137,15 @@ ${'\n'.join(joined)}
 ${'\n'.join(__data__['traversal'])}
 % endif
 % if translated_columns:
+% if options.inflateRecords or options.locale == 'all':
 LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
     "i18n"."${table_name}_id" = "${ID}"
 )
+% else:
+LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
+    "i18n"."${table_name}_id" = "${ID}" AND "i18n"."locale" = %(locale)s
+)
+% endif
 % endif
 % if where and len(select_tables) > 1:
 WHERE "${table_name}"."${ID}" IN (

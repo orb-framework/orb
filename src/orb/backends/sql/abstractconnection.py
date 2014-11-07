@@ -474,7 +474,7 @@ class SQLConnection(orb.Connection):
         # update the values for the database
         for i, record in enumerate(records):
             try:
-                record._updateFromDatabase(results[i])
+                record._updateFromDatabase(results[i], options)
             except IndexError:
                 pass
             

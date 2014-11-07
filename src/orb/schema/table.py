@@ -346,7 +346,7 @@ class Table(object):
         self.__record_database = database
         self.__record_dbloaded.update(columns)
         
-    def _updateFromDatabase(self, values):
+    def _updateFromDatabase(self, values, options=None):
         """
         Called from the backend class when it needs to
         manipulate information on this record instance.
@@ -373,11 +373,16 @@ class Table(object):
             if not column:
                 continue
 
-            if column.isTranslatable() and type(value) in (str, unicode) and value.startswith('{'):
-                try:
-                    value = eval(value)
-                except StandardError as err:
-                    value = None
+            if column.isTranslatable():
+                if type(value) in (str, unicode) and value.startswith('{'):
+                    try:
+                        value = eval(value)
+                    except StandardError as err:
+                        value = None
+                elif options:
+                    value = {options.locale: value}
+                else:
+                    value = {orb.system.locale(): value}
 
             # map a query value to a query
             if column.columnType() == ColumnType.Query:
