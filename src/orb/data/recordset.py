@@ -23,6 +23,7 @@ import re
 
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
+from projex.rest import unjsonify
 
 from ..common import SearchMode
 
@@ -50,6 +51,7 @@ class RecordSet(object):
         self._empty             = {}
         self._currentPage       = -1
         self._pageSize          = 0
+        self._locale            = None
         
         # sorting options
         self._sort_cmp_callable = None
@@ -246,15 +248,26 @@ class RecordSet(object):
             
             elif lookup.columns and not options.get('ignoreColumns'):
                 if len(lookup.columns) == 1:
-                    output = map(lambda x: x[lookup.columns[0]], results)
+                    col = lookup.columns[0]
+                    output = [x[col] for x in results]
                 else:
-                    output = [[r.get(col, None) for col in lookup.columns] \
-                                for r in results]
+                    output = [[r.get(col, None) for col in lookup.columns]
+                              for r in results]
             
             # return the raw results
             else:
                 output = results
-            
+
+            if not db_opts.inflateRecords and db_opts.locale != 'all':
+                trans_cols = [col for col in lookup.columns or table.schema().columns() if col.isTranslatable()]
+                if trans_cols:
+                    for result in results:
+                        for col in trans_cols:
+                            try:
+                                result[col.name()] = eval(result[col.name()])[db_opts.locale]
+                            except StandardError as err:
+                                result[col.name()] = ''
+
             self._all[key] = output
         
         # return sorted results from an in-place sort
@@ -418,6 +431,7 @@ class RecordSet(object):
         """
         options.setdefault('inflateRecords', self.isInflated())
         options.setdefault('namespace',      self.namespace())
+        options.setdefault('locale', self._locale)
         
         return orb.DatabaseOptions(**options)
     
@@ -976,7 +990,7 @@ class RecordSet(object):
             return 1
         
         # determine the number of pages in this record set
-        pageFraction = self.count(start=0, limit=None) / float(pageSize)
+        pageFraction = self.totalCount() / float(pageSize)
         pageCount    = int(pageFraction)
         
         # determine if there is a remainder of records
@@ -1300,6 +1314,7 @@ class RecordSet(object):
         """
         self._namespace = options.namespace
         self._inflated = options.inflateRecords
+        self._locale = options.locale
 
     def setIgnoreAggregates(self, state=True):
         """
@@ -1448,6 +1463,15 @@ class RecordSet(object):
         :return     <subclass of orb.Table>
         """
         return self._table
+
+    def totalCount(self):
+        """
+        Returns the total number of records in this result set vs. the default count which
+        will factor in the page size information.
+
+        :return     <int>
+        """
+        return self.count(start=0, limit=None)
 
     def values(self, columns, **options):
         """

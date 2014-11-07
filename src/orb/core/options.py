@@ -53,6 +53,7 @@ class DatabaseOptions(object):
                          'throwErrors': throwErrors,
                          'autoIncrement': True,
                          'force': False,
+                         'locale': orb.system.locale(),
                          'deleteFlags': orb.DeleteFlags.all()}
 
         self.locale             = kwds.get('locale', orb.system.locale())
