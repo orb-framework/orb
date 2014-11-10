@@ -110,7 +110,7 @@ class Column(object):
                                                    RemovedAction.DoNothing)
 
         # reversed referencing options
-        self._reversed = options.get('reversed', False)
+        self._reversed = options.get('reversed', bool(options.get('reversedName')))
         self._reversedName = options.get('reversedName', '')
         self._reversedCached = options.get('reversedCached', False)
         self._reversedCacheExpires = options.get('reversedCachedExpires', 0)

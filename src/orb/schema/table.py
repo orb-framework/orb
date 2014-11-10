@@ -165,7 +165,10 @@ class Table(object):
             return column_data[columnName]
     
     #----------------------------------------------------------------------
-    
+
+    def __json__(self):
+        return projex.rest.py2json(self.recordValues())
+
     def __iter__(self):
         """
         Iterates this object for its values

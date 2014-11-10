@@ -1,0 +1,10 @@
+site_name: ORB
+pages:
+  - ['index.md', 'Introduction']
+  - ['getting-started.md', 'Getting Started']
+  - ['advanced/databases.md', 'Advanced', 'Databases']
+  - ['advanced/schemas.md', 'Advanced', 'Schemas']
+  - ['advanced/querying.md', 'Advanced', 'Querying']
+  - ['advanced/i18n.md', 'Advanced', 'Internationalization']
+  - ['about/license.md', 'About', 'License']
+theme: bootstrap

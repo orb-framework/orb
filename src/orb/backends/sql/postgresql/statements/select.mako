@@ -10,7 +10,6 @@
 
     schema = table.schema()
     table_name = schema.tableName()
-    translations = []
 
     def cmpcol(a, b):
         result = cmp(a.isAggregate(), b.isAggregate())
@@ -93,7 +92,7 @@
     if order:
         used = set()
         order_by = []
-        for col, dir in order:
+        for col, direction in order:
             col_obj = schema.column(col)
             if not col_obj:
               continue
@@ -107,7 +106,7 @@
             if lookup.columns and not col_obj.name() in lookup.columns:
                 columns.append(field)
 
-            order_by.append('{0} {1}'.format(field, dir.upper()))
+            order_by.append('{0} {1}'.format(field, direction.upper()))
     else:
         order_by = []
 

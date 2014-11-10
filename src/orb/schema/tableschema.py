@@ -1047,8 +1047,9 @@ class TableSchema(object):
         :return     <str>
         """
         if not self._tableName:
-            self._tableName = self.defaultTableName(self.name(),
-                                                    self.group().modelPrefix() if self.group().useModelPrefix() else '')
+            grp = self.group()
+            prefix = grp.modelPrefix() if grp and grp.useModelPrefix() else ''
+            self._tableName = self.defaultTableName(self.name(), prefix)
         return self._tableName
 
     def timezone(self):
