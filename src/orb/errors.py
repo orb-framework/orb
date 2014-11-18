@@ -169,6 +169,11 @@ class PrimaryKeyNotDefined(OrbError):
 # R
 #------------------------------------------------------------------------------
 
+class RecordNotFound(OrbError):
+    def __init__(self, model, pk):
+        msg = 'Could not find record {0}{1}.'.format(model, pk)
+        super(RecordNotFound, self).__init__(msg)
+
 class ReferenceNotFound(OrbError):
     def __init__(self, column):
         try:
@@ -184,7 +189,7 @@ class ReferenceNotFound(OrbError):
 
 class TableNotFound(OrbError):
     def __init__(self, table):
-        OrbError.__init__(self, 'Could not find `{0}` table.'.format(table))
+        super(TableNotFound, self).__init__('Cound not find `{0}` table.'.format(table))
 
 # V
 #------------------------------------------------------------------------------

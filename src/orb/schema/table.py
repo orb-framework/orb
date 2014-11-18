@@ -328,6 +328,8 @@ class Table(object):
                                     inflated=False)
             if data:
                 self._updateFromDatabase(data)
+            else:
+                raise errors.RecordNotFound(self, args)
         
         self.setRecordValues(**kwds)
     
