@@ -1,4 +1,6 @@
 site_name: ORB
+mkdocs_extensions:
+  - mkdocs.contrib.autodoc
 pages:
   - ['index.md', 'Introduction']
   - ['getting-started.md', 'Getting Started']
@@ -6,5 +8,7 @@ pages:
   - ['advanced/schemas.md', 'Advanced', 'Schemas']
   - ['advanced/querying.md', 'Advanced', 'Querying']
   - ['advanced/i18n.md', 'Advanced', 'Internationalization']
+  - ['api/autodoc:projex', 'API', 'projex']
+  - ['api/autodoc:orb', 'API', 'ORB']
   - ['about/license.md', 'About', 'License']
 theme: bootstrap

@@ -1936,9 +1936,13 @@ class Table(object):
         
         # define the record set and return it
         rset = orb.RecordSet(cls)
+        terms = kwds.pop('terms', '')
+        if terms:
+            rset = rset.search(terms)
+
         rset.setLookupOptions(lookup)
         rset.setDatabaseOptions(options)
-        
+
         if db is not None:
             rset.setDatabase(db)
         

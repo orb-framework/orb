@@ -261,7 +261,6 @@ class Pipe(object):
         xpipe.set('targetColumn', self._targetColumn)
         xpipe.set('cached', nstr(self.cached()))
         xpipe.set('expires', nstr(self._cachedExpires))
-
         return xpipe
 
     @staticmethod
@@ -273,14 +272,12 @@ class Pipe(object):
         
         :return     <Index> || None
         """
-        pipe = Pipe(referenced=referenced)
-        pipe.setName(xpipe.get('name', ''))
+        pipe = Pipe(xpipe.get('name', ''), referenced=referenced)
         pipe.setPipeReference(xpipe.get('pipeReference', ''))
         pipe.setSourceColumn(xpipe.get('sourceColumn', ''))
         pipe.setTargetReference(xpipe.get('targetReference', ''))
         pipe.setTargetColumn(xpipe.get('targetColumn', ''))
         pipe.setCached(xpipe.get('cached') == 'True')
         pipe.setCachedExpires(int(xpipe.get('expires', pipe._cachedExpires)))
-
         return pipe
 
