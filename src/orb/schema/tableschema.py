@@ -260,7 +260,6 @@ class TableSchema(object):
             if traversal is not None:
                 traversal += traversed
             return found
-
         except KeyError:
             pass
 

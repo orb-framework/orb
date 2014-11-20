@@ -6,17 +6,17 @@ database classes.
 """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2011, Projex Software'
+__license__ = 'LGPL'
 
 # maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 import copy
 import datetime
@@ -41,6 +41,7 @@ errors = LazyModule('orb.errors')
 # treat unicode warnings as errors
 from exceptions import UnicodeWarning
 from warnings import filterwarnings
+
 filterwarnings(action='error', category=UnicodeWarning)
 
 
@@ -49,27 +50,27 @@ class Table(object):
     Defines the base class type that all database records should inherit from.
     """
     # define the table meta class
-    __metaclass__       = TableBase
-    
+    __metaclass__ = TableBase
+
     # meta database information
-    __db__              = ''         # name of DB in Environment for this model
-    __db_group__        = 'Default'  # name of database group
-    __db_name__         = ''         # name of database schema
-    __db_tablename__    = ''         # name of table in database
-    __db_schema__       = None       # <orb.TableSchema> for direct creation
-    __db_ignore__       = True       # bypass database table processing
-    
+    __db__ = ''  # name of DB in Environment for this model
+    __db_group__ = 'Default'  # name of database group
+    __db_name__ = ''  # name of database schema
+    __db_tablename__ = ''  # name of table in database
+    __db_schema__ = None  # <orb.TableSchema> for direct creation
+    __db_ignore__ = True  # bypass database table processing
+
     Hooks = enum('PreCommit', 'PostCommit')
-    
+
     ReloadOptions = enum('Conflicts',
                          'Modified',
                          'Unmodified',
                          'IgnoreConflicts')
-    
+
+    # ----------------------------------------------------------------------
+    # PRIVATE CLASS METHODS
     #----------------------------------------------------------------------
-    #                       PRIVATE CLASS METHODS
-    #----------------------------------------------------------------------
-    
+
     @classmethod
     def __syncdatabase__(cls):
         """
@@ -78,11 +79,11 @@ class Table(object):
         default information for their class type.
         """
         pass
-    
+
     #----------------------------------------------------------------------
     #                       PRIVATE STATIC METHODS
     #----------------------------------------------------------------------
-    
+
     @staticmethod
     def __getKeywords(func):
         """
@@ -97,12 +98,12 @@ class Table(object):
             return func.func_code.co_varnames[-len(func.func_defaults):]
         except (TypeError, ValueError, IndexError):
             return tuple()
-    
+
     @staticmethod
-    def __groupingKey(record, 
-                      schema, 
-                      grouping, 
-                      ref_cache, 
+    def __groupingKey(record,
+                      schema,
+                      grouping,
+                      ref_cache,
                       autoInflate=False,
                       locale=None):
         """
@@ -118,7 +119,7 @@ class Table(object):
         :return     <str>
         """
         columnName = grouping
-        
+
         # lookup template patterns
         if '[' in columnName:
             pattern = re.compile('\[([^\]:]+[^\]]*)\]')
@@ -126,29 +127,29 @@ class Table(object):
             syntax = columnName
         else:
             columnNames = [columnName]
-            syntax      = None
-    
+            syntax = None
+
         column_data = {}
         for columnName in columnNames:
-            columnName  = columnName.split(':')[0]
-            column      = schema.column(columnName)
-            
+            columnName = columnName.split(':')[0]
+            column = schema.column(columnName)
+
             if not column:
-                log.warning('%s is not a valid column of %s', 
-                               columnName,
-                               schema.name())
+                log.warning('%s is not a valid column of %s',
+                            columnName,
+                            schema.name())
                 continue
-            
+
             # lookup references
             if column.isReference():
                 ref_key = record.recordValue(columnName,
                                              autoInflate=False,
                                              locale=locale)
                 ref_cache_key = (column.reference(), ref_key)
-                
+
                 # cache this record so that we only access 1 of them
-                if (not ref_cache_key in ref_cache):
-                    col_value = record.recordValue(columnName, 
+                if not ref_cache_key in ref_cache:
+                    col_value = record.recordValue(columnName,
                                                    autoInflate=autoInflate,
                                                    locale=locale)
                     ref_cache[ref_cache_key] = col_value
@@ -156,27 +157,38 @@ class Table(object):
                     col_value = ref_cache[ref_cache_key]
             else:
                 col_value = record.recordValue(columnName, locale=locale)
-            
+
             column_data[columnName] = col_value
-        
+
         if syntax:
             return projex.text.render(syntax, column_data)
         else:
             return column_data[columnName]
-    
+
     #----------------------------------------------------------------------
 
     def __json__(self):
-        return projex.rest.py2json(self.recordValues())
+        """
+        Converts this object to JSON.
+
+        :return     <dict>
+        """
+        return projex.rest.py2json(dict(self))
 
     def __iter__(self):
         """
-        Iterates this object for its values
+        Iterates this object for its values.  This will return the field names from the
+        database rather than the API names.  If you want the API names, you should use
+        the recordValues method.
+
+        :sa         recordValues
+
+        :return     <iter>
         """
-        values = self.recordValues()
+        values = self.recordValues(useFieldNames=True)
         for key, value in values.items():
             yield key, value
-    
+
     def __format__(self, format_spec):
         """
         Formats this record based on the inputed format_spec.  If no spec
@@ -194,41 +206,42 @@ class Table(object):
             column = self.schema().column(format_spec)
             if column:
                 return nstr(self.recordValue(format_spec))
-        
+
         return super(Table, self).__format__(format_spec)
-    
+
     def __str__(self):
         """
         Defines the custom string format for this table.
         """
         return projex.text.toBytes(unicode(self))
-        
+
     def __unicode__(self):
         """
         Defines the custom string format for this table.
         """
         schema = self.schema()
-        adv    = False
-        
+        adv = False
+        sform = None
+
         # extract any inherited 
         while schema:
-            sform  = schema.stringFormat()
-            adv    = schema.useAdvancedFormatting()
-            
+            sform = schema.stringFormat()
+            adv = schema.useAdvancedFormatting()
+
             if sform:
                 break
             else:
                 schema = orb.system.schema(schema.inherits())
-        
+
         if not sform:
             return unicode(super(Table, self).__str__())
-        
+
         elif adv:
             return unicode(sform).format(self, self=self)
-        
+
         else:
             return unicode(sform) % self.recordValues()
-    
+
     def __eq__(self, other):
         """
         Checks to see if the two records are equal to each other
@@ -244,7 +257,7 @@ class Table(object):
             return True
         else:
             return False
-    
+
     def __ne__(self, other):
         """
         Returns whether or not this object is not equal to the other object.
@@ -254,7 +267,7 @@ class Table(object):
         :return     <bool>
         """
         return not self.__eq__(other)
-    
+
     def __hash__(self):
         """
         Creates a hash key for this instance based on its primary key info.
@@ -264,10 +277,10 @@ class Table(object):
         # use the base id information
         if not self.isRecord():
             return super(Table, self).__hash__()
-        
+
         # return a combination of its table and its primary key hashes
         return hash((self.__class__, self.database(), self.primaryKey()))
-    
+
     def __cmp__(self, other):
         """
         Compares one record to another.
@@ -277,7 +290,7 @@ class Table(object):
         :return     -1 || 0 || 1
         """
         return cmp(nstr(self), nstr(other))
-    
+
     def __init__(self, *args, **kwds):
         """
         Initializes a database record for the table class.  A
@@ -294,35 +307,33 @@ class Table(object):
         """
         # define table properties in a way that shouldn't be accidentally
         # overwritten
-        self.__local_cache          = {}
-        self.__record_defaults      = {}
-        self.__record_values        = {}
-        self.__record_dbloaded      = set()
-        self.__record_datacache     = None
-        self.__record_database      = db = kwds.pop('db', None)
-        self.__record_namespace     = namespace = kwds.pop('recordNamespace',
-                                                           None)
-        
+        self.__local_cache = {}
+        self.__record_defaults = {}
+        self.__record_values = {}
+        self.__record_dbloaded = set()
+        self.__record_datacache = None
+        self.__record_database = db = kwds.pop('db', None)
+        self.__record_namespace = namespace = kwds.pop('recordNamespace', None)
+
         # initialize the defaults
         if 'db_dict' in kwds:
             self._updateFromDatabase(kwds.pop('db_dict'))
-        
+
         elif not args:
             self.initRecord()
             self.resetRecord()
-        
+
         # initialize from the database
         else:
             # extract the primary key for initializing from a record
             if len(args) == 1 and Table.recordcheck(args[0]):
-                record  = args[0]
-                args    = record.primaryKey()
-                values  = copy.deepcopy(record.recordValues())
-                self._updateFromDatabase(values)
-            
+                record = args[0]
+                args = record.id()
+                self._updateFromDatabase(dict(record))
+
             elif len(args) == 1:
                 args = args[0]
-            
+
             lookup = Q(type(self)) == args
             data = self.selectFirst(where=lookup, db=db, namespace=namespace,
                                     inflated=False)
@@ -330,9 +341,9 @@ class Table(object):
                 self._updateFromDatabase(data)
             else:
                 raise errors.RecordNotFound(self, args)
-        
+
         self.setRecordValues(**kwds)
-    
+
     #----------------------------------------------------------------------
     #                       PROTECTED METHODS
     #----------------------------------------------------------------------
@@ -342,42 +353,42 @@ class Table(object):
         
         :param      columns | [<str>, ..] || None
         """
-        if columns is None:
-            columns = self.schema().columnNames(includeProxies=False)
-        
+        columns = [self.schema().column(column) for column in columns] if columns else self.schema().columns()
+
         for column in columns:
             self.__record_defaults[column] = self.__record_values.get(column)
-        
+
         self.__record_database = database
         self.__record_dbloaded.update(columns)
-        
-    def _updateFromDatabase(self, values, options=None):
+
+    def _updateFromDatabase(self, data, options=None):
         """
         Called from the backend class when it needs to
         manipulate information on this record instance.
         
-        :param      values      { <str> key: <variant>, .. }
+        :param      data  | {<str> column_name: <variant>, ..}
         """
-        schema       = self.schema()
-        tableName    = schema.name()
-        dvalues      = {}
-        
-        for key, value in values.items():
+        schema = self.schema()
+        tableName = schema.tableName()
+        dvalues = {}
+
+        for column_name, value in data.items():
             try:
-                tname, colname = key.split('.')
+                tname, colname = column_name.split('.')
             except ValueError:
-                colname = key
+                colname = column_name
                 tname = tableName
-            
-            # value being set for another table from a join
+
+            # make sure this value is from the database
             if tname != tableName:
                 continue
-            
+
             # retrieve the column information
             column = schema.column(colname)
             if not column:
                 continue
 
+            # store translatable columns
             if column.isTranslatable():
                 if type(value) in (str, unicode) and value.startswith('{'):
                     try:
@@ -395,15 +406,15 @@ class Table(object):
                     value = orb.Query.fromDict(value)
                 elif type(value) in (str, unicode):
                     value = orb.Query.fromXmlString(value)
-            
-            dvalues[column.name()] = value
-            self.__record_dbloaded.add(column.name())
-            
+
+            dvalues[column] = value
+            self.__record_dbloaded.add(column)
+
         # pylint: disable-msg=W0142
-        self.__record_values.update(copy.deepcopy(dvalues))
-        self.__record_defaults.update(copy.deepcopy(dvalues))
-        
-    def _removedFromDatabase( self ):
+        self.__record_values.update(dvalues)
+        self.__record_defaults.update(dvalues)
+
+    def _removedFromDatabase(self):
         """
         Called after a record has been removed from the
         database, so the record instance can clean up
@@ -411,7 +422,7 @@ class Table(object):
         """
         self.__record_defaults.clear()
         self.__record_dbloaded.clear()
-    
+
     #----------------------------------------------------------------------
     #                       PRIVATE METHODS
     #----------------------------------------------------------------------
@@ -420,76 +431,73 @@ class Table(object):
         Returns a dictionary of changees that have been made 
         to the data from this record.
         
-        :return     { <fieldName>: ( <variant> old, <variant> new), .. }
+        :return     { <orb.Column>: ( <variant> old, <variant> new), .. }
         """
         changes = {}
         is_record = self.isRecord()
-        
+
         for column in self.schema().columns(recurse=recurse,
                                             includeProxies=includeProxies,
                                             include=columns):
-            columnName      = column.name()
-            newValue        = self.__record_values.get(columnName)
-            
-            newValue = self.__record_values.get(columnName)
-            
+            newValue = self.__record_values.get(column)
+
             # assume all changes for a new record
             if not is_record:
                 oldValue = None
-                
+
                 # ignore read only columns for initial insert
                 if column.isReadOnly():
                     continue
-                
+
             # only look for changes from loaded columns
-            elif columnName in self.__record_dbloaded:
-                oldValue = self.__record_defaults.get(columnName)
-            
+            elif column in self.__record_dbloaded:
+                oldValue = self.__record_defaults.get(column)
+
             # otherwise, ignore the change
             else:
                 continue
-            
+
             # compare two queries
             if orb.Query.typecheck(newValue) or \
-               orb.Query.typecheck(oldValue) or \
-               orb.QueryCompound.typecheck(newValue) or \
-               orb.QueryCompound.typecheck(oldValue):
+                    orb.Query.typecheck(oldValue) or \
+                    orb.QueryCompound.typecheck(newValue) or \
+                    orb.QueryCompound.typecheck(oldValue):
                 equals = hash(oldValue) == hash(newValue)
-            
+
             # compare two datetimes
             elif isinstance(newValue, datetime.datetime) and \
-               isinstance(oldValue, datetime.datetime):
+                    isinstance(oldValue, datetime.datetime):
                 try:
                     equals = newValue == oldValue
-                
+
                 # compare against non timezoned values
                 except TypeError:
                     norm_new = newValue.replace(tzinfo=None)
                     norm_old = oldValue.replace(tzinfo=None)
                     equals = norm_new == norm_old
-            
+
             # compare a table against a non-table
             elif Table.recordcheck(newValue) or \
-                 Table.recordcheck(oldValue):
+                    Table.recordcheck(oldValue):
                 if type(newValue) == int:
                     equals = oldValue.primaryKey() == newValue
                 elif type(oldValue) == int:
                     equals = newValue.primaryKey() == newValue
                 else:
                     equals = newValue == oldValue
-            
+
             # compare all other types
             else:
                 try:
                     equals = newValue == oldValue
                 except UnicodeWarning:
                     equals = False
-            
+
             if not equals:
-                changes[columnName] = (oldValue, newValue)
-            
+                changes[column] = (oldValue, newValue)
+
         return changes
-    
+
     def clearCustomCache(self):
         """
         Clears out any custom cached data.  This is a pure virutal method,
@@ -498,7 +506,7 @@ class Table(object):
         is cached when the system decides to clear.
         """
         pass
-    
+
     def commit(self, *args, **kwds):
         """
         Commits the current change set information to the database,
@@ -518,28 +526,28 @@ class Table(object):
         """
         # run any pre-commit logic required for this record
         self.preCommit(*args, **kwds)
-        
+
         # support columns as defined by a variable list of arguments
         if args:
             columns = set(kwds.get('columns', []))
             columns.update(args)
             kwds['columns'] = list(columns)
-            
+
         # grab the database
         db = kwds.pop('db', None)
         if db is None:
             db = self.database()
-        
+
         if db is None:
             log.error('No database defined for %s, cannot commit', nstr(self))
-            return ('error', 'No database defined for {}'.format(self))
-        
+            return 'error', 'No database defined for {}'.format(self)
+
         # grab the backend
         backend = db.backend()
         if not backend:
             log.error('No backend found for %s, cannot commit', nstr(db))
-            return ('error', 'No backend for {}'.format(db))
-        
+            return 'error', 'No backend for {}'.format(db)
+
         # sync the record to the database
         lookup = kwds.get('lookup', orb.LookupOptions(**kwds))
         options = kwds.get('options', orb.DatabaseOptions(**kwds))
@@ -551,24 +559,24 @@ class Table(object):
             else:
                 log.error('Failed to commit record.\n%s', err)
                 results = ('errored', nstr(err))
-        
+
         if results and not 'errored' in results:
             # marks this table as expired
             self.markTableCacheExpired()
-            
+
             # clear any custom caches
             self.__local_cache.clear()
             self.clearCustomCache()
-            
+
             self.__record_database = db
-        
+
         # run any pre-commit logic required for this record
         kwds['results'] = results
-        
+
         self.postCommit(*args, **kwds)
-        
+
         return results
-    
+
     def conflicts(self, *columnNames, **options):
         """
         Looks up conflicts from the database by comparing values for specific
@@ -588,28 +596,30 @@ class Table(object):
         autoInflate = options.pop('autoInflate', False)
         if not self.isRecord():
             return {}
-        
+
         schema = self.schema()
         if not columnNames:
             columnNames = schema.columnNames()
-        
+
         query = Q(type(self)) == self
         values = self.selectFirst(columns=columnNames,
                                   where=query,
                                   inflated=False)
-        
+
         # look for clashing changes
         conflicts = {}
         for colname, d_value in values.items():
+            column = self.schema().column(colname)
+
             # don't care about non-loaded columns
-            if not colname in self.__record_dbloaded:
+            if not (column and column in self.__record_dbloaded):
                 continue
-            
-            m_default = self.__record_defaults[colname]
-            m_value = self.__record_values[colname]
-            
+
+            m_default = self.__record_defaults[column]
+            m_value = self.__record_values[column]
+
             if autoInflate:
-                ref_model = self.schema().column(colname).referenceModel()
+                ref_model = column.referenceModel()
                 if ref_model:
                     if m_default is not None:
                         m_default = ref_model(m_default)
@@ -624,21 +634,21 @@ class Table(object):
                     m_value = m_value.primaryKey()
                 if Table.recordcheck(m_default):
                     m_default = m_default.primaryKey()
-            
+
             # ignore unchanged values, we can update without issue
             if m_value == m_default:
                 continue
-            
+
             # ignore unchaged values from the database, we can save without
             # conflict
             elif d_value in (m_default, m_value):
                 continue
-            
+
             # otherwise, mark the conflict
-            conflicts[colname] = (d_value, m_value)
-        
+            conflicts[column] = (d_value, m_value)
+
         return conflicts
-     
+
     def database(self):
         """
         Returns the database instance for this record.  If no
@@ -651,7 +661,7 @@ class Table(object):
         if self.__record_database is None:
             return self.getDatabase()
         return self.__record_database
-    
+
     def dataCache(self):
         """
         Returns the cache instance record for this record.
@@ -661,7 +671,7 @@ class Table(object):
         if not self.__record_datacache:
             self.__record_datacache = orb.DataCache()
         return self.__record_datacache
-    
+
     def duplicate(self):
         """
         Creates a new record based on this instance, initializing
@@ -669,15 +679,12 @@ class Table(object):
         
         :return     <Table>
         """
-        db_values = copy.deepcopy(self.__record_values)
-        
-        for key in self.primaryKeyDict():
-            db_values.pop(key, None)
-        
-        output = self.__class__()
-        output.__record_values = db_values
-        return output
-    
+        pcols = self.schema().primaryColumns()
+        db_values = {col: value for col, value in self.__record_values.items() if col not in pcols}
+        inst = self.__class__()
+        inst._Table__record_values = db_values
+        return inst
+
     def findAllRelatedRecords(self):
         """
         Looks up all related records to this record via all the relations
@@ -691,23 +698,21 @@ class Table(object):
         for table, columns in relations:
             for column in columns:
                 q = Q(column.name()) == self
-                output[(table, column)] = table.select(where = q)
-        
+                output[(table, column)] = table.select(where=q)
+
         return output
-    
+
     def initRecord(self):
         """
         Initializes the default values for this record.
         """
         for column in self.schema().columns(includeProxies=False):
-            key = column.name()
             value = column.default(resolve=True)
-            
             if column.isTranslatable():
                 value = {orb.system.locale(): value}
-            
-            self.__record_defaults[key] = value
-    
+
+            self.__record_defaults[column] = value
+
     def insertInto(self, db, **options):
         """
         Inserts this record into another database.  This method will allow
@@ -717,11 +722,11 @@ class Table(object):
         """
         if self.database() == db:
             return False
-        
+
         lookup = orb.LookupOptions(**options)
         db_opts = orb.DatabaseOptions(**options)
         db_opts.force = True
-        
+
         backend = db.backend()
         try:
             backend.insert([self], lookup, db_opts)
@@ -732,7 +737,7 @@ class Table(object):
             else:
                 log.error('Backend error occurred.\n%s', err)
                 return False
-    
+
     def isModified(self):
         """
         Returns whether or not any data has been modified for
@@ -742,9 +747,9 @@ class Table(object):
         """
         if not self.isRecord():
             return True
-        
+
         return len(self.changeset()) > 0
-    
+
     def isRecord(self, db=None):
         """
         Returns whether or not this database table record exists
@@ -752,10 +757,11 @@ class Table(object):
         
         :return     <bool>
         """
-        if db is None or db == self.database():
-            return self.primaryKey() is not None
+        if db in (None, self.database()):
+            # make sure we have an ID and that the ID has been loaded from the database
+            return self.id() is not None and self.__record_dbloaded.issuperset(self.schema().primaryColumns())
         return False
-    
+
     def localCache(self, key, default=None):
         """
         Returns the data from the local cache for the given key.
@@ -764,7 +770,7 @@ class Table(object):
                     default | <variant>
         """
         return self.__local_cache.get(key, default)
-    
+
     def preCommit(self, *args, **kwds):
         """
         Virtual method to be used to define any logic that will be required
@@ -779,7 +785,7 @@ class Table(object):
         """
         for hook in type(self).tableHooks(Table.Hooks.PreCommit):
             hook(self, *args, **kwds)
-    
+
     def postCommit(self, *args, **kwds):
         """
         Virtual method to be used to define any logic that will be required
@@ -794,7 +800,7 @@ class Table(object):
         """
         for hook in type(self).tableHooks(Table.Hooks.PostCommit):
             hook(self, *args, **kwds)
-    
+
     def primaryKey(self):
         """
         Returns the values for the primary key for this record.
@@ -833,25 +839,23 @@ class Table(object):
         defaults = self.__record_defaults
         output = []
         for col in cols:
-            if not col.name() in self.__record_dbloaded:
+            if not col in self.__record_dbloaded:
                 return None
-            
-            output.append(defaults.get(col.name()))
-        
+            output.append(defaults.get(col))
+
         if len(output) == 1:
             return output[0]
         return tuple(output)
-    
+
     def primaryKeyTuple(self):
         """
         Returns this records primary key as a tuple.
         
         :return     (<variant>, ..)
         """
-        cols     = self.schema().primaryColumns()
-        defaults = self.__record_defaults
-        return tuple([defaults.get(col.name()) for col in cols])
-    
+        cols = self.schema().primaryColumns()
+        return tuple([self.__record_defaults.get(col) for col in cols])
+
     def primaryKeyDict(self):
         """
         Returns a dictionary of the primary key information for this
@@ -859,10 +863,9 @@ class Table(object):
         
         :return     <dict>
         """
-        cols     = self.schema().primaryColumns()
-        defaults = self.__record_defaults
-        return dict([(col.name(), defaults.get(col.name())) for col in cols])
-    
+        cols = self.schema().primaryColumns()
+        return {col: self.__record_defaults.get(col) for col in cols}
+
     def recordNamespace(self):
         """
         Returns the records specific namespace.  This can be used to override
@@ -873,7 +876,7 @@ class Table(object):
         if not self.__record_namespace:
             return self.schema().namespace()
         return self.__record_namespace
-    
+
     def recordValue(self,
                     columnName,
                     locale=None,
@@ -889,21 +892,19 @@ class Table(object):
         
         :return     <variant>
         """
-        columnName = nstr(columnName)
-        
         # lookup the specific column for this instance
+        columnName = nstr(columnName)
         column = self.schema().column(columnName)
         if not column:
-            table = self.schema().name()
-            raise errors.ColumnNotFound(table, columnName)
-        
-        elif useMethod:
+            raise errors.ColumnNotFound(self, columnName)
+
+        if useMethod:
             method = getattr(self.__class__, column.getterName(), None)
             try:
                 orb_getter = type(method.im_func).__name__ == 'gettermethod'
             except AttributeError:
                 orb_getter = False
-            
+
             if method is not None and not orb_getter:
                 keywords = self.__getKeywords(method)
                 # make sure locale is a valid keyword for this method
@@ -911,15 +912,15 @@ class Table(object):
                     return method(self, locale=locale)
                 else:
                     return method(self)
-        
+
         try:
-            value = self.__record_values[columnName]
+            value = self.__record_values[column]
         except KeyError:
             proxy = self.proxyColumn(columnName)
             if proxy and proxy.getter():
                 return proxy.getter()(self)
             return default
-        
+
         # return the translatable value
         if column.isTranslatable():
             if value is None:
@@ -928,14 +929,14 @@ class Table(object):
             # return all the locales
             if locale == 'all':
                 return value
-            
+
             # return specific locales
             elif type(locale) in (list, tuple, set):
                 output = {}
                 for lang in locale:
                     output[lang] = value.get(lang)
                 return output
-            
+
             # return a set of locales
             elif type(locale) == dict:
                 # return first in the set
@@ -943,44 +944,44 @@ class Table(object):
                     langs = set(value.keys())
                     first = list(locale['first'])
                     remain = list(langs.difference(first))
-                    
+
                     for lang in first + remain:
                         val = value.get(lang)
                         if val:
                             return val
                 return ''
-            
+
             # return the current locale
             elif locale is None:
                 locale = orb.system.locale()
-            
+
             value = value.get(locale)
             if not value:
                 value = default
-        
+
         # return none output's and non-auto inflated values immediately
         if value is None or not (column.isReference() and autoInflate):
             return column.restoreValue(value)
-        
+
         # ensure we have a proper reference model
         refmodel = column.referenceModel()
         if refmodel is None:
-           raise errors.TableNotFound(column.reference())
-        
+            raise errors.TableNotFound(column.reference())
+
         # make sure our value already meets the criteria
         elif refmodel.recordcheck(value):
             return value
-        
+
         # inflate the value to the class value
         inst = refmodel.selectFirst(where=Q(refmodel) == value,
                                     db=self.database())
-        if value == self.__record_defaults.get(columnName):
-            self.__record_defaults[columnName] = inst
-        
+        if value == self.__record_defaults.get(column):
+            self.__record_defaults[column] = inst
+
         # cache the record value
-        self.__record_values[columnName] = inst
+        self.__record_values[column] = inst
         return inst
-    
+
     def recordValues(self,
                      columns=None,
                      useFieldNames=False,
@@ -1010,29 +1011,29 @@ class Table(object):
         """
         output = {}
         schema = self.schema()
-        for column in self.schema().columns(includeProxies=includeProxies,
-                                            includeAggregates=includeAggregates,
-                                            includeJoined=includeJoined,
-                                            recurse=recurse):
+        for column in schema.columns(includeProxies=includeProxies,
+                                     includeAggregates=includeAggregates,
+                                     includeJoined=includeJoined,
+                                     recurse=recurse):
             column_name = column.name()
             if columns is not None and not column_name in columns:
                 continue
-            
+
             if ignorePrimary and column.primary():
                 continue
-            
+
             if useFieldNames:
                 column_name = column.fieldName()
-            
+
             value = self.recordValue(column_name,
                                      autoInflate=autoInflate,
                                      locale=locale)
-            
+
             if mapper:
                 value = mapper(value)
-            
+
             output[column_name] = value
-        
+
         return output
 
     def recordLocales(self):
@@ -1041,10 +1042,10 @@ class Table(object):
 
         :return     {<str>, ..}
         """
-        col_names = [col.name() for col in self.schema().columns() if col.isTranslatable()]
+        translatable = [col for col in self.schema().columns() if col.isTranslatable()]
         output = set()
-        for name, value in self.__record_values.items():
-            if name in col_names and type(value) == dict:
+        for column, value in self.__record_values.items():
+            if column in translatable and type(value) == dict:
                 output.update(value.keys())
         return output
 
@@ -1065,80 +1066,76 @@ class Table(object):
         opts = Table.ReloadOptions
         reload_options = kwds.get('options',
                                   Table.ReloadOptions.IgnoreConflicts)
-       
+
         if not self.isRecord():
             return {}
-        
+
         if not columnNames:
-            columnNames = self.schema().columnNames()
-        
-        columnNames = list(columnNames)
-        
+            columns = self.schema().columns()
+        else:
+            columns = [self.schema().column(colname) for colname in columnNames]
+
         # only update unmodified columns
         if reload_options & (opts.Modified | opts.Unmodified):
-            for colname in self.__record_values:
-                m_value = self.__record_values[colname]
-                m_default = self.__record_defaults[colname]
-                
+            for column in self.__record_values:
+                m_value = self.__record_values[column]
+                m_default = self.__record_defaults[column]
+
                 if reload_options & opts.Unmodified and m_value != m_default:
                     try:
-                        columnNames.remove(colname)
+                        columns.remove(column)
                     except ValueError:
                         continue
-                
+
                 elif reload_options & opts.Modified and m_value == m_default:
                     try:
-                        columnNames.remove(colname)
+                        columns.remove(column)
                     except ValueError:
                         continue
-        
+
         # don't look anything up if there are no values
-        if not columnNames:
+        if not columns:
             return {}
-        
+
         query = Q(type(self)) == self
-        values = self.selectFirst(columns=columnNames,
+        values = self.selectFirst(columns=columns,
                                   where=query,
                                   inflated=False)
-        
+
         # look for clashing changes
         conflicts = {}
+        updates = {}
         for colname, d_value in values.items():
+            column = self.schema().column(colname)
+            if not reload_options & opts.IgnoreConflicts:
+                updates[column] = d_value
+
             # don't care about non-loaded columns
-            if not colname in self.__record_dbloaded:
-                if reload_options & opts.Conflicts:
-                    values.pop(colname)
+            if not column in self.__record_dbloaded:
                 continue
-            
-            m_default = self.__record_defaults[colname]
-            m_value = self.__record_values[colname]
-            
+
+            m_default = self.__record_defaults[column]
+            m_value = self.__record_values[column]
+
             # ignore unchanged values, we can update without issue
             if m_value == m_default:
-                if reload_options & opts.Conflicts:
-                    values.pop(colname)
                 continue
-            
+
             # ignore unchaged values from the database, we can save without
             # conflict
             elif d_value == m_default:
-                if reload_options & opts.Conflicts:
-                    values.pop(colname)
                 continue
-            
+
             # otherwise, mark the conflict
-            conflicts[colname] = (d_value, m_value)
-            
-            if reload_options & opts.IgnoreConflicts:
-                values.pop(colname)
-        
+            conflicts[column] = (d_value, m_value)
+
         # update the record internals
         self.__record_dbloaded.update(values.keys())
         self.__record_defaults.update(values)
         self.__record_values.update(values)
-        
+
         return conflicts
-    
+
     def remove(self, **kwds):
         """
         Removes this record from the database.  If the dryRun \
@@ -1156,12 +1153,12 @@ class Table(object):
         """
         if not self.isRecord():
             return 0
-        
+
         cls = type(self)
         opts = orb.DatabaseOptions(**kwds)
         lookup = orb.LookupOptions(**kwds)
         lookup.where = Q(cls) == self
-        
+
         try:
             return self.database().backend().remove(cls, lookup, opts)
         except AttributeError:
@@ -1171,9 +1168,9 @@ class Table(object):
                 raise
             else:
                 log.error('Backend error occurred.\n%s', err)
-        
+
         return 0
-    
+
     def resetRecord(self):
         """
         Resets the values for this record to the database
@@ -1183,7 +1180,7 @@ class Table(object):
         
         :sa     reload
         """
-        self.__record_values = copy.deepcopy(self.__record_defaults)
+        self.__record_values = self.__record_defaults.copy()
 
     def setDatabase(self, database):
         """
@@ -1193,7 +1190,7 @@ class Table(object):
         :param      database        <Database> || None
         """
         self.__record_database = database
-    
+
     def setLocalCache(self, key, value):
         """
         Sets a value for the local cache to the inputed key & value.
@@ -1202,7 +1199,7 @@ class Table(object):
                     value   | <variant>
         """
         self.__local_cache[key] = value
-    
+
     def setRecordDefault(self, columnName, value, locale=None):
         """
         Sets the default value for the column name at the given value.
@@ -1212,33 +1209,34 @@ class Table(object):
         
         :return     <bool> | success
         """
-        if not columnName in self.__record_defaults:
-            # lookup the proxy column
+        column = self.schema().column(columnName)
+
+        # check to see if we're setting a proxy column
+        if not column:
             proxy = self.proxyColumn(columnName)
             if proxy and proxy.setter():
                 proxy.setter()(self, value)
                 return True
-            
-            return False
-        
-        column = self.schema().column(columnName)
+
+            raise errors.ColumnNotFound(self, columnName)
+
+        # otherwise, store the column information in the defaults
         value = column.storeValue(value)
-        
         if column.isTranslatable():
             if locale is None:
                 locale = orb.system.locale()
-            
-            self.__record_defaults.setdefault(columnName, {})
-            self.__record_values.setdefault(columnName, {})
-            
-            self.__record_defaults[columnName][locale] = value
-            self.__record_values[columnName][locale] = value
+
+            self.__record_defaults.setdefault(column, {})
+            self.__record_values.setdefault(column, {})
+
+            self.__record_defaults[column][locale] = value
+            self.__record_values[column][locale] = value
         else:
-            self.__record_defaults[columnName] = value
-            self.__record_values[columnName] = value
-        
+            self.__record_defaults[column] = value
+            self.__record_values[column] = value
+
         return True
-    
+
     def setRecordValue(self,
                        columnName,
                        value,
@@ -1257,12 +1255,12 @@ class Table(object):
         """
         # convert the inputed value information
         value = orb.DataConverter.toPython(value)
-        
+
         # validate the column
         column = self.schema().column(columnName)
         if not column:
             raise errors.ColumnNotFound(column, self.schema().name())
-        
+
         # set a proxy value
         proxy = self.proxyColumn(columnName)
         if proxy and proxy.setter():
@@ -1270,39 +1268,39 @@ class Table(object):
             if result is not None:
                 return result
             return True
-        
+
         elif proxy:
             raise errors.ColumnReadOnly(column)
-        
+
         elif useMethod:
             method = getattr(self.__class__, column.setterName(), None)
             try:
                 orb_setter = type(method.im_func).__name__ == 'settermethod'
             except AttributeError:
                 orb_setter = False
-            
+
             if method is not None and not orb_setter:
                 keywords = self.__getKeywords(method)
                 if 'locale' in keywords:
                     return method(self, value, locale=locale)
                 else:
                     return method(self, value)
-        
+
         # cannot update aggregate or join columns
         if column.isReadOnly():
             raise errors.ColumnReadOnly(column)
-        
+
         # make sure the inputed value matches the validation
         column.validate(value)
-        
+
         # store the new value
-        curr_value = self.__record_values.get(column.name())
-        
+        curr_value = self.__record_values.get(column)
+
         if column.isTranslatable():
             if curr_value is None:
                 curr_value = {orb.system.locale(): ''}
-                self.__record_values[column.name()] = curr_value
-            
+                self.__record_values[column] = curr_value
+
             if type(value) == dict:
                 equals = False
                 curr_value.update(value)
@@ -1310,31 +1308,31 @@ class Table(object):
                 value = column.storeValue(value)
                 if not locale:
                     locale = orb.system.locale()
-                
+
                 try:
                     equals = curr_value[locale] == value
                 except UnicodeWarning:
                     equals = False
-                
+
                 curr_value[locale] = value
         else:
             value = column.storeValue(value)
-            
+
             # test comparison for queries
             if orb.Query.typecheck(value) or \
-               orb.Query.typecheck(curr_value) or \
-               orb.QueryCompound.typecheck(value) or \
-               orb.QueryCompound.typecheck(curr_value):
+                    orb.Query.typecheck(curr_value) or \
+                    orb.QueryCompound.typecheck(value) or \
+                    orb.QueryCompound.typecheck(curr_value):
                 equals = hash(value) == hash(curr_value)
             else:
                 try:
                     equals = curr_value == value
                 except UnicodeWarning:
                     equals = False
-            
-            self.__record_values[column.name()] = value
+
+            self.__record_values[column] = value
         return not equals
-    
+
     def setRecordValues(self, **data):
         """
         Sets the values for this record from the inputed column
@@ -1350,16 +1348,16 @@ class Table(object):
             col = schema.column(colname)
             if not col:
                 continue
-            
+
             try:
                 changed = self.setRecordValue(col.name(), value)
             except errors.OrbError:
                 continue
-            
+
             if changed:
                 count += 1
         return count
-    
+
     def setRecordNamespace(self, namespace):
         """
         Sets the namespace that will be used by this record in the database.
@@ -1368,7 +1366,7 @@ class Table(object):
         :param      namespace | <str> || None
         """
         self.__record_namespace = namespace
-    
+
     def revert(self, *columnNames, **kwds):
         """
         Reverts all conflicting column data from the database so that the
@@ -1381,7 +1379,7 @@ class Table(object):
         """
         kwds.setdefault('options', Table.ReloadOptions.Conflicts)
         self.reload(*columnNames, **kwds)
-    
+
     def updateFromRecord(self, record):
         """
         Updates this records values from the inputed record.
@@ -1394,7 +1392,7 @@ class Table(object):
                 self.setRecordValue(column, values[1])
             except errors.OrbError:
                 pass
-    
+
     def validateRecord(self):
         """
         Validates the current records values against its columns.
@@ -1402,7 +1400,7 @@ class Table(object):
         :return     (<bool> valid, <str> message)
         """
         return self.validateValues(self.recordValues())
-    
+
     def validateValues(self, values, returnErrors=False, validateColumns=True):
         """
         Validates the values for the various columns of this record against
@@ -1414,16 +1412,16 @@ class Table(object):
         """
         msg = []
         errors = {}
-        
+
         schema = self.schema()
-        
+
         # validate the columns
         for columnName, value in values.items():
             column = schema.column(columnName)
             if not column:
                 if validateColumns:
                     msg.append('%s is not a valid column.' % columnName)
-            
+
             else:
                 try:
                     column.validate(value)
@@ -1433,11 +1431,11 @@ class Table(object):
         if returnErrors:
             return not bool(errors), errors
         return not bool(errors), '\n\n'.join([nstr(err) for err in errors])
-    
+
     #----------------------------------------------------------------------
     #                           CLASS METHODS
     #----------------------------------------------------------------------
-    
+
     @classmethod
     def addTableHook(cls, hookType, hook):
         """
@@ -1473,7 +1471,7 @@ class Table(object):
         :return     <orb.Table> || None
         """
         return getattr(cls, '_{0}__current'.format(cls.__name__), None)
-    
+
     @classmethod
     def defineProxy(cls, typ, getter, setter=None, **options):
         """
@@ -1488,19 +1486,19 @@ class Table(object):
                     setter     | <callable>
         """
         proxies = getattr(cls, '_%s__proxies' % cls.__name__, {})
-        
+
         name = options.get('name', getter.__name__)
-        
+
         options['getter'] = getter
         options['setter'] = setter
-        options['proxy']  = True
+        options['proxy'] = True
         options['schema'] = cls.schema()
-        
+
         col = orb.Column(typ, name, **options)
-        
+
         proxies[name] = col
         setattr(cls, '_%s__proxies' % cls.__name__, proxies)
-    
+
     @classmethod
     def defineRecord(cls, **kwds):
         """
@@ -1514,19 +1512,19 @@ class Table(object):
         # require at least some arguments to be set
         if not kwds:
             return cls()
-        
+
         # lookup the record from the database
         db = kwds.pop('db', None)
         q = Q()
-        
+
         for key, value in kwds.items():
             q &= Q(key) == value
-        
+
         record = cls.select(where=q, db=db).first()
         if not record:
             record = cls(**kwds)
             record.commit(db=db)
-        
+
         return record
 
     @classmethod
@@ -1540,7 +1538,7 @@ class Table(object):
         :return     <orb.Query> || None
         """
         return getattr(cls, '_%s__baseTableQuery' % cls.__name__, None)
-    
+
     @classmethod
     def dictify(cls,
                 records,
@@ -1562,7 +1560,7 @@ class Table(object):
         dicter = lambda x: x.recordValues(useFieldNames=useFieldNames,
                                           autoInflate=autoInflate,
                                           mapper=mapper)
-        
+
         return map(dicter, records)
 
     @classmethod
@@ -1575,7 +1573,7 @@ class Table(object):
         """
         while True:
             token = projex.security.generateToken()
-            if cls.select(where=Q(column)==token).count() == 0:
+            if len(cls.select(where=Q(column) == token)) == 0:
                 return token
 
     @classmethod
@@ -1592,7 +1590,7 @@ class Table(object):
             return orb.system.database(db)
         else:
             return cls.schema().database()
-    
+
     @staticmethod
     def groupRecords(records, groupings, autoInflate=False):
         """
@@ -1606,38 +1604,38 @@ class Table(object):
         
         :return     <dict>
         """
-        if autoInflate == None:
+        if autoInflate is None:
             autoInflate = True
-            
-        output      = {}
-        ref_cache   = {}  # stores the grouping options for auto-inflated vars
-        
+
+        output = {}
+        ref_cache = {}  # stores the grouping options for auto-inflated vars
+
         for record in records:
-            data    = output
-            schema  = record.schema()
-            
+            data = output
+            schema = record.schema()
+
             # make sure we have the proper level
             for i in range(len(groupings) - 1):
-                grouping_key = Table.__groupingKey(record, 
-                                                   schema, 
-                                                   groupings[i], 
-                                                   ref_cache, 
+                grouping_key = Table.__groupingKey(record,
+                                                   schema,
+                                                   groupings[i],
+                                                   ref_cache,
                                                    autoInflate)
-                
+
                 data.setdefault(grouping_key, {})
                 data = data[grouping_key]
-            
-            grouping_key = Table.__groupingKey(record, 
-                                               schema, 
-                                               groupings[-1], 
-                                               ref_cache, 
+
+            grouping_key = Table.__groupingKey(record,
+                                               schema,
+                                               groupings[-1],
+                                               ref_cache,
                                                autoInflate)
-            
+
             data.setdefault(grouping_key, [])
             data[grouping_key].append(record)
-        
+
         return output
-    
+
     @classmethod
     def inflateRecord(cls, values, default=None, db=None):
         """
@@ -1652,13 +1650,13 @@ class Table(object):
         # inflate values from the database into the given class type
         if Table.recordcheck(values):
             record = values
-            values = values._Table__record_values
+            values = dict(values)
         else:
             record = None
-        
+
         schema = cls.schema()
         column = schema.polymorphicColumn()
-        
+
         # attept to expand the class to its defined polymorphic type
         if column and column.name() in values:
             morph = column.referenceModel()
@@ -1666,20 +1664,17 @@ class Table(object):
                 morph_name = nstr(morph(values[column.name()], db=db))
                 dbname = cls.schema().databaseName()
                 morph_cls = orb.system.model(morph_name, database=dbname)
-                
+
                 if morph_cls and morph_cls != cls:
                     pcols = morph_cls.schema().primaryColumns()
-                    pkeys = []
-                    for pcol in pcols:
-                        pkeys.append(values.get(pcol.name()))
-                    
+                    pkeys = [values.get(pcol.name(), values.get(pcol.fieldName())) for pcol in pcols if pcol in values]
                     record = morph_cls(*pkeys, db=db)
-        
+
         if record is None:
             record = cls(db_dict=values, db=db)
-        
+
         return record
-    
+
     @classmethod
     def isTableCacheExpired(cls, cachetime):
         """
@@ -1692,14 +1687,14 @@ class Table(object):
         dtime = getattr(cls, key, None)
         if dtime is None:
             return False
-        
+
         return cachetime < dtime
-    
+
     @classmethod
-    def jsonify(cls, 
-                records, 
-                useFieldNames=False, 
-                autoInflate=False, 
+    def jsonify(cls,
+                records,
+                useFieldNames=False,
+                autoInflate=False,
                 mapper=None):
         """
         Converts the inputed records of this table to json format.
@@ -1716,12 +1711,12 @@ class Table(object):
         # convert the data to a string if nothing else to jsonify successfully
         if mapper is None:
             mapper = str
-        
-        return projex.rest.jsonify(cls.dictify(records, 
+
+        return projex.rest.jsonify(cls.dictify(records,
                                                useFieldNames=useFieldNames,
                                                autoInflate=autoInflate,
                                                mapper=mapper))
-    
+
     @classmethod
     def markTableCacheExpired(cls):
         """
@@ -1730,7 +1725,7 @@ class Table(object):
         """
         key = '_{0}__cache_expired'.format(cls.__name__)
         setattr(cls, key, datetime.datetime.now())
-    
+
     @classmethod
     def polymorphicModel(cls, key, default=None):
         """
@@ -1742,10 +1737,10 @@ class Table(object):
         
         :return     <subclass of VoldbTable> || None
         """
-        models  = getattr(cls, '_%s__models' % cls.__name__, {})
+        models = getattr(cls, '_%s__models' % cls.__name__, {})
         if key in models:
             return models[key]
-            
+
         classes = getattr(cls, '_%s__polymorphs' % cls.__name__, {})
         name = classes.get(key, key)
         if name:
@@ -1754,7 +1749,7 @@ class Table(object):
             setattr(cls, '_%s__models' % cls.__name__, models)
             return model
         return None
-    
+
     @classmethod
     def proxyColumn(cls, name):
         """
@@ -1765,7 +1760,7 @@ class Table(object):
         :return     <orb.Column> || None
         """
         return getattr(cls, '_%s__proxies' % cls.__name__, {}).get(nstr(name))
-    
+
     @classmethod
     def proxyColumns(cls):
         """
@@ -1776,7 +1771,7 @@ class Table(object):
         :return     {<str> columnName: <orb.Column>, ..}
         """
         return getattr(cls, '_%s__proxies' % cls.__name__, {}).values()
-    
+
     @classmethod
     def popRecordCache(cls):
         """
@@ -1788,7 +1783,7 @@ class Table(object):
         if stack:
             return stack.pop()
         return None
-    
+
     @classmethod
     def pushRecordCache(cls, cache):
         """
@@ -1800,9 +1795,9 @@ class Table(object):
         if stack is None:
             stack = []
             setattr(cls, '_%s__recordCacheStack' % cls.__name__, stack)
-        
+
         stack.append(cache)
-    
+
     @classmethod
     def removeTableHook(cls, hookType, hook):
         """
@@ -1816,7 +1811,7 @@ class Table(object):
         hooks = getattr(cls, key, {})
         try:
             hooks[hookType].remove(hook)
-        except KeyError, ValueError:
+        except (KeyError, ValueError):
             pass
 
     @classmethod
@@ -1831,19 +1826,19 @@ class Table(object):
         stack = getattr(cls, '_%s__recordCacheStack' % cls.__name__, [])
         if stack:
             return stack[-1]
-        
+
         # checks to see if the schema defines a cache
         schema = cls.schema()
         if not schema.isCacheEnabled():
             return None
-        
+
         # define the cache for the first time
         cache = orb.RecordCache(cls)
         cache.setExpires(cls, schema.cacheExpireIn())
         cls.pushRecordCache(cache)
-        
+
         return cache
-    
+
     @classmethod
     def resolveQueryValue(cls, value):
         """
@@ -1854,12 +1849,12 @@ class Table(object):
         :return     <variant>
         """
         return value
-    
+
     @classmethod
     def schema(cls):
         """  Returns the class object's schema information. """
         return cls.__db_schema__
-    
+
     @classmethod
     def searchThesaurus(cls):
         """
@@ -1869,7 +1864,7 @@ class Table(object):
         """
         key = '_{0}__searchThesaurus'.format(cls.__name__)
         return getattr(cls, key, orb.system.searchThesaurus())
-    
+
     @classmethod
     def selectFirst(cls, *args, **kwds):
         """
@@ -1894,7 +1889,7 @@ class Table(object):
             return (cls.select(*args, **kwds))[0]
         except IndexError:
             return None
-        
+
     @classmethod
     def select(cls, *args, **kwds):
         """
@@ -1921,7 +1916,7 @@ class Table(object):
         :return     [ <cls>, .. ] || { <variant> grp: <variant> result, .. }
         """
         db = kwds.pop('db', None)
-        
+
         # support legacy code
         arg_headers = ['columns', 'where', 'order', 'limit']
         for i in range(len(args)):
@@ -1931,10 +1926,10 @@ class Table(object):
                 kwds['options'] = args[i]
             else:
                 kwds[arg_headers[i]] = args[i]
-        
-        lookup  = kwds.get('lookup', orb.LookupOptions(**kwds))
+
+        lookup = kwds.get('lookup', orb.LookupOptions(**kwds))
         options = kwds.get('options', orb.DatabaseOptions(**kwds))
-        
+
         # setup the default query options
         default_q = cls.baseTableQuery()
         if default_q:
@@ -1942,7 +1937,7 @@ class Table(object):
                 lookup.where &= default_q
             else:
                 lookup.where = default_q
-        
+
         # define the record set and return it
         rset = orb.RecordSet(cls)
         rset.setLookupOptions(lookup)
@@ -1959,7 +1954,7 @@ class Table(object):
             return rset
         else:
             return list(rset)
-    
+
     @classmethod
     def setBaseTableQuery(cls, query):
         """
@@ -1969,7 +1964,7 @@ class Table(object):
         :param      query | <orb.Query> || None
         """
         setattr(cls, '_%s__baseTableQuery' % cls.__name__, query)
-    
+
     @classmethod
     def setCurrentRecord(cls, record):
         """
@@ -1978,7 +1973,7 @@ class Table(object):
         :return     <orb.Table> || None
         """
         return setattr(cls, '_{0}__current'.format(cls.__name__), record)
-    
+
     @classmethod
     def setPolymorphicModel(cls, key, value):
         """
@@ -2026,7 +2021,7 @@ class Table(object):
         """
         models = orb.system.models()
         return [model for model in models if issubclass(model, cls)]
-    
+
     @classmethod
     def recordcheck(cls, obj):
         """
@@ -2037,7 +2032,7 @@ class Table(object):
         :return     <bool>
         """
         return isinstance(obj, cls)
-    
+
     @classmethod
     def typecheck(cls, obj):
         """

@@ -511,6 +511,9 @@ class Column(object):
         
         :param      name | <str>
         """
+        if name == self:
+            return True
+
         opts = [self.name(),
                 self.name().strip('_'),
                 self.displayName(),

@@ -1718,19 +1718,27 @@ class Query(object):
         q.addFunction(Query.Function.Upper)
         return q
     
-    def validate(self, record):
+    def validate(self, record, table=None):
         """
         Validates this query's value against the inputed record.  This will 
         return True if the record satisies the query condition.
         
-        :param      record | <
+        :param      record | <dict> || <orb.Table>
+                    table  | <orb.Table> || None
         
         :return     <bool>
         """
         if isinstance(record, orb.Table):
             rvalue = record.recordValue(self.columnName(), autoInflate=False)
         else:
-            rvalue = record.get(self.columnName())
+            table = table or self.table()
+            if table:
+                col = table.schema().column(self.columnName())
+                if not col:
+                    return False
+                rvalue = record.get(col.name(), record.get(col.fieldName()))
+            else:
+                rvalue = record.get(self.columnName())
         
         mvalue = self._value
         
@@ -1799,11 +1807,11 @@ class Query(object):
         
         elif self._op == Query.Op.Matches:
             return re.match(projex.text.decoded(mvalue),
-                            projex.text.decoded(rvalue)) != None
+                            projex.text.decoded(rvalue)) is not None
         
         elif self._op == Query.Op.DoesNotMatch:
             return re.match(projex.text.decoded(mvalue),
-                            projex.text.decoded(rvalue)) == None
+                            projex.text.decoded(rvalue)) is not None
         
         # list operations
         elif self._op == Query.Op.IsIn:

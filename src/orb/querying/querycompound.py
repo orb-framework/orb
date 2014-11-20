@@ -1,4 +1,4 @@
-##!/usr/bin/python
+# #!/usr/bin/python
 
 """
 Defines the global query building syntzx for generating db
@@ -6,15 +6,15 @@ agnostic queries quickly and easily.
 """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2011, Projex Software'
+__license__ = 'LGPL'
 
 # maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
 import logging
 import projex.text
@@ -35,7 +35,7 @@ class QueryCompound(object):
         'And',
         'Or'
     )
-    
+
     def __contains__(self, value):
         """
         Returns whether or not the query compound contains a query for the
@@ -56,10 +56,10 @@ class QueryCompound(object):
             if value in query:
                 return True
         return False
-    
+
     def __nonzero__(self):
         return not self.isNull()
-    
+
     def __str__(self):
         """
         Returns the string representation for this query instance
@@ -67,13 +67,13 @@ class QueryCompound(object):
         :sa         toString
         """
         return self.toString()
-        
+
     def __init__(self, *queries, **options):
-        self._queries   = queries
-        self._op        = options.get('op', QueryCompound.Op.And)
-        self._negate    = options.get('negate', False)
-        self._name      = nstr(options.get('name', ''))
-    
+        self._queries = queries
+        self._op = options.get('op', QueryCompound.Op.And)
+        self._negate = options.get('negate', False)
+        self._name = nstr(options.get('name', ''))
+
     def __and__(self, other):
         """
         Creates a new compound query using the 
@@ -91,10 +91,10 @@ class QueryCompound(object):
                     |(test does_not_equal 1 and name is Eric)
         """
         return self.and_(other)
-    
+
     def __hash__(self):
         return hash(self.toXmlString())
-    
+
     def __neg__(self):
         """
         Negates the current state of the query.
@@ -109,7 +109,7 @@ class QueryCompound(object):
                     |NOT (test is  1 and name is Eric)
         """
         return self.negated()
-    
+
     def __or__(self, other):
         """
         Creates a new compound query using the 
@@ -127,7 +127,7 @@ class QueryCompound(object):
                     |(test isNot 1 or name is Eric)
         """
         return self.or_(other)
-        
+
     def and_(self, other):
         """
         Creates a new compound query using the 
@@ -146,23 +146,23 @@ class QueryCompound(object):
         """
         if other is None or other.isNull():
             return self
-        
+
         elif self.isNull():
             return other
-        
+
         # grow this objects list if the operator types are the same
         if self.operatorType() == QueryCompound.Op.And and \
-           not self.isNegated():
+                not self.isNegated():
             queries = list(self._queries)
             queries.append(other)
-            opts = { 'op': QueryCompound.Op.And }
-            
+            opts = {'op': QueryCompound.Op.And}
+
             # pylint: disable-msg=W0142
-            return QueryCompound( *queries, **opts )
-            
+            return QueryCompound(*queries, **opts)
+
         # create a new compound
-        return QueryCompound(self, other, op = QueryCompound.Op.And)
-    
+        return QueryCompound(self, other, op=QueryCompound.Op.And)
+
     def copy(self):
         """
         Returns a copy of this query compound.
@@ -174,7 +174,7 @@ class QueryCompound(object):
         out._op = self._op
         out._negate = self._negate
         return out
-    
+
     def columns(self, schema=None):
         """
         Returns any columns used within this query.
@@ -185,7 +185,7 @@ class QueryCompound(object):
         for query in self.queries():
             output += query.columns(schema=schema)
         return list(set(output))
-    
+
     def expandShortcuts(self, basetable=None):
         """
         Expands any shortcuts that were created for this query.  Shortcuts
@@ -206,7 +206,7 @@ class QueryCompound(object):
             queries.append(query.expandShortcuts(basetable))
         output._queries = queries
         return output
-    
+
     def findValue(self, column, instance=1):
         """
         Looks up the value for the inputed column name for the given instance.
@@ -223,9 +223,9 @@ class QueryCompound(object):
         for query in self.queries():
             success, value, instance = query.findValue(column, instance)
             if success:
-                return (success, value, 0)
-        return (False, None, instance)
-    
+                return success, value, 0
+        return False, None, instance
+
     def isNegated(self):
         """
         Returns whether or not this query is negated.
@@ -233,7 +233,7 @@ class QueryCompound(object):
         :return <bool>
         """
         return self._negate
-    
+
     def isNull(self):
         """
         Returns whether or not this join is empty or not.
@@ -242,15 +242,15 @@ class QueryCompound(object):
         """
         am_null = True
         for query in self._queries:
-            if ( not query.isNull() ):
+            if not query.isNull():
                 am_null = False
                 break
-        
+
         return am_null
-    
+
     def name(self):
         return self._name
-    
+
     def negated(self):
         """
         Negates this instance and returns it.
@@ -258,10 +258,10 @@ class QueryCompound(object):
         :return     self
         """
         qcompound = QueryCompound(*self._queries)
-        qcompound._op     = self._op
+        qcompound._op = self._op
         qcompound._negate = not self._negate
         return qcompound
-    
+
     def operatorType(self):
         """
         Returns the operator type for this compound.
@@ -269,7 +269,7 @@ class QueryCompound(object):
         :return     <QueryCompound.Op>
         """
         return self._op
-    
+
     def or_(self, other):
         """
         Creates a new compound query using the 
@@ -286,24 +286,24 @@ class QueryCompound(object):
                     |>>> print query
                     |(test isNot 1 or name is Eric)
         """
-        if ( other is None or other.isNull() ):
+        if other is None or other.isNull():
             return self
-            
-        elif ( self.isNull() ):
+
+        elif self.isNull():
             return other
-        
+
         # grow this objects list if the operator types are the same
         if ( self.operatorType() == QueryCompound.Op.Or and
-             not self.isNegated() ):
+                 not self.isNegated() ):
             queries = list(self._queries)
             queries.append(other)
-            opts = { 'op': QueryCompound.Op.Or }
-            
+            opts = {'op': QueryCompound.Op.Or}
+
             # pylint: disable-msg=W0142
             return QueryCompound(*queries, **opts)
-        
-        return QueryCompound(self, other, op = QueryCompound.Op.Or)
-    
+
+        return QueryCompound(self, other, op=QueryCompound.Op.Or)
+
     def queries(self):
         """
         Returns the list of queries that are associated with
@@ -312,7 +312,7 @@ class QueryCompound(object):
         :return     <list> [ <Query> || <QueryCompound>, .. ]
         """
         return self._queries
-    
+
     def removed(self, columnName):
         """
         Removes the query containing the inputed column name from this
@@ -326,13 +326,13 @@ class QueryCompound(object):
         new_queries = []
         for query in out._queries:
             new_queries.append(query.removed(columnName))
-        
+
         out._queries = new_queries
         return out
-    
+
     def setName(self, name):
         self._name = nstr(name)
-    
+
     def setOperatorType(self, op):
         """
         Sets the operator type that this compound that will be
@@ -341,7 +341,7 @@ class QueryCompound(object):
         :param      op      <QueryCompound.Op>
         """
         self._op = op
-    
+
     def tables(self):
         """
         Returns the tables that this query is referencing.
@@ -351,9 +351,9 @@ class QueryCompound(object):
         output = []
         for query in self._queries:
             output += query.tables()
-        
+
         return list(set(output))
-    
+
     def toString(self):
         """
         Returns this query instance as a semi readable language
@@ -368,10 +368,10 @@ class QueryCompound(object):
         optypestr = QueryCompound.Op[self.operatorType()]
         op_type = ' %s ' % projex.text.underscore(optypestr)
         query = '(%s)' % op_type.join([q.toString() for q in self.queries()])
-        if ( self.isNegated() ):
+        if self.isNegated():
             query = 'NOT ' + query
         return query
-    
+
     def toDict(self):
         """
         Creates a dictionary representation of this query.
@@ -379,22 +379,22 @@ class QueryCompound(object):
         :return     <dict>
         """
         output = {}
-        
+
         if self.isNull():
             return output
-        
-        output['type']    = 'compound'
-        output['name']    = self.name()
-        output['op']      = self.operatorType()
+
+        output['type'] = 'compound'
+        output['name'] = self.name()
+        output['op'] = self.operatorType()
         output['negated'] = self.isNegated()
-        
+
         queries = []
         for query in self.queries():
             queries.append(query.toDict())
-        
+
         output['queries'] = queries
         return output
-    
+
     def toXml(self, xparent=None):
         """
         Returns this query as an XML value.
@@ -405,21 +405,21 @@ class QueryCompound(object):
         """
         if self.isNull():
             return None
-        
+
         if xparent is None:
             xquery = ElementTree.Element('compound')
         else:
             xquery = ElementTree.SubElement(xparent, 'compound')
-        
+
         xquery.set('name', nstr(self.name()))
         xquery.set('op', nstr(self.operatorType()))
         xquery.set('negated', nstr(self.isNegated()))
-        
+
         for query in self.queries():
             query.toXml(xquery)
-        
+
         return xquery
-    
+
     def toXmlString(self, indented=False):
         """
         Returns this query as an XML string.
@@ -431,33 +431,33 @@ class QueryCompound(object):
         xml = self.toXml()
         if indented:
             projex.text.xmlindent(xml)
-        
+
         return ElementTree.tostring(xml)
-    
-    def validate(self, record):
+
+    def validate(self, record, table=None):
         """
         Validates the inputed record against this query compound.
         
         :param      record | <orb.Table>
         """
-        op      = self._op
+        op = self._op
         queries = self.queries()
-        
-        if ( not queries ):
+
+        if not queries:
             return False
-        
+
         for query in queries:
-            valid = query.validate(record)
-            
-            if ( op == QueryCompound.Op.And and not valid ):
+            valid = query.validate(record, table)
+
+            if op == QueryCompound.Op.And and not valid:
                 return False
-            elif ( op == QueryCompound.Op.Or and valid ):
+            elif op == QueryCompound.Op.Or and valid:
                 return True
-        
+
         return op == QueryCompound.Op.And
-    
+
     @staticmethod
-    def build( compound, queries ):
+    def build(compound, queries):
         """
         Builds a compound based on the inputed compound string.  This should 
         look like: ((QUERY_1 and QUERY_2) or (QUERY_3 and QUERY_4)).  The 
@@ -471,82 +471,80 @@ class QueryCompound(object):
         
         :return     <Query> || <QueryCompound>
         """
-        found      = False
-        open       = 0
         indexStack = []
-        compounds  = {}
-        new_text   = projex.text.decoded(compound)
-        
+        compounds = {}
+        new_text = projex.text.decoded(compound)
+
         for index, char in enumerate(projex.text.decoded(compound)):
             # open a new compound
-            if ( char == '(' ):
+            if char == '(':
                 indexStack.append(index)
-                
+
             # close a compound
-            elif ( char == ')' and indexStack ):
+            elif char == ')' and indexStack:
                 openIndex = indexStack.pop()
-                match     = compound[openIndex+1:index]
-                
-                if ( not match ):
+                match = compound[openIndex + 1:index]
+
+                if not match:
                     continue
-                
+
                 # create the new compound
                 new_compound = QueryCompound.build(match, queries)
-                
+
                 key = 'QCOMPOUND_%i' % (len(compounds) + 1)
                 compounds[key] = new_compound
-                
+
                 new_text = new_text.replace('(' + match + ')', key)
-        
+
         new_text = new_text.strip('()')
-        query    = Query()
-        last_op  = 'and'
+        query = Query()
+        last_op = 'and'
         for section in new_text.split():
             section = section.strip('()')
-            
+
             # merge a compound
-            if ( section in compounds ):
+            if section in compounds:
                 section_q = compounds[section]
-            
-            elif ( section in queries ):
+
+            elif section in queries:
                 section_q = queries[section]
-            
-            elif ( section in ('and', 'or') ):
+
+            elif section in ('and', 'or'):
                 last_op = section
                 continue
-            
+
             else:
                 log.warning('Missing query section: %s', section)
                 continue
-            
-            if ( query is None ):
+
+            if query is None:
                 query = section_q
-            elif ( last_op == 'and' ):
+            elif last_op == 'and':
                 query &= section_q
             else:
                 query |= section_q
-        
+
         return query
-    
+
     @staticmethod
     def fromDict(data):
         if data.get('type') != 'compound':
             return orb.Query.fromDict(data)
-        
+
         compound = QueryCompound()
         compound.setName(data.get('name', ''))
         compound._negated = data.get('negated') == 'True'
         compound.setOperatorType(int(data.get('op', '1')))
-        
+
         queries = []
         for subdata in data.get('queries', []):
             queries.append(orb.Query.fromDict(subdata))
-        
+
         compound._queries = queries
         return compound
-    
+
     @staticmethod
-    def fromString( querystr ):
+    def fromString(querystr):
         """
         Returns a new compound from the inputed query string.  This simply calls
         the Query.fromString method, as the two work the same.
@@ -556,24 +554,24 @@ class QueryCompound(object):
         :return     <Query> || <QueryCompound> || None
         """
         return orb.Query.fromString(querystr)
-    
+
     @staticmethod
     def fromXml(xquery):
         if xquery.tag == 'query':
             return orb.Query.fromXml(xquery)
-        
+
         compound = QueryCompound()
         compound.setName(xquery.get('name', ''))
         compound._negated = xquery.get('negated') == 'True'
         compound.setOperatorType(int(xquery.get('op', '1')))
-        
+
         queries = []
         for xsubquery in xquery:
             queries.append(orb.Query.fromXml(xsubquery))
-        
+
         compound._queries = queries
         return compound
-    
+
     @staticmethod
     def fromXmlString(xquery_str):
         """
@@ -587,9 +585,9 @@ class QueryCompound(object):
             xml = ElementTree.fromstring(xquery_str)
         except ExpatError:
             return Query()
-        
+
         return orb.Query.fromXml(xml)
-    
+
     @staticmethod
     def typecheck(obj):
         """

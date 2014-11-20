@@ -197,31 +197,29 @@ class RecordCache(object):
         offset = 0
         output = []
 
+        schema = table.schema()
+        columns = schema.columns() if not lookup.columns else [schema.column(col) for col in lookup.columns]
+
         for r, record in enumerate(records):
             # ensure we're looking up a valid record
-            if lookup.where and not lookup.where.validate(record):
+            if lookup.where and not lookup.where.validate(record, table):
                 continue
 
             if start < offset:
                 offset += 1
                 continue
 
-            if lookup.columns:
-                record = [(key, val) for key, val in record.items()
-                          if key in lookup.columns]
-            else:
-                record = record.items()
-            
             # ensure we have unique ordering for distinct
+            record = [item for item in record.items() if schema.column(item[0]) in columns]
             record.sort()
             if lookup.distinct and record in output:
                 continue
             
-            output.append(record)
+            output.append(dict(record))
             if lookup.limit and len(output) == lookup.limit:
                 break
         
-        return map(dict, output)
+        return output
     
     def record(self, table, primaryKey):
         """

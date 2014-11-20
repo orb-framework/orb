@@ -815,8 +815,7 @@ class SQLConnection(orb.Connection):
             schemas = [record.schema()]
             
             for schema in schemas:
-                cols = map(schema.column, rchanges.keys())
-                updater[schema].append((record, cols))
+                updater[schema].append((record, rchanges))
         
         if not updater:
             if len(records) > 1:

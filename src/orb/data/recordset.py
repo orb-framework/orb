@@ -1153,7 +1153,7 @@ class RecordSet(object):
             
             if not results:
                 if not has_default:
-                    raise IndexError, index
+                    raise IndexError(index)
                 else:
                     return default
             

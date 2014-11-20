@@ -65,12 +65,12 @@
             if options.inflateRecords or options.locale == 'all':
                 # process translation logic
                 col_sql = 'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{1}"'
-                translated_columns.append(col_sql.format(column.fieldName(), column.name()))
+                translated_columns.append(col_sql.format(column.fieldName(), column.fieldName()))
                 group_by.add('"{0}"."{1}"'.format(table_name, ID))
                 __data__['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
             else:
                 col_sql = '(array_agg("i18n"."{0}"))[1] AS "{1}"'
-                translated_columns.append(col_sql.format(column.fieldName(), column.name()))
+                translated_columns.append(col_sql.format(column.fieldName(), column.fieldName()))
                 group_by.add('"{0}"."{1}"'.format(table_name, ID))
                 __data__['output']['locale'] = options.locale
                 __data__['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
@@ -88,7 +88,7 @@
             else:
                 columns.append('"{0}"."{1}" AS "{2}"'.format(table_name,
                                                              column.fieldName(),
-                                                             column.name()))
+                                                             column.fieldName()))
 
     # include any additional expansions from pipes
     if lookup.expand:
@@ -159,7 +159,7 @@ LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
 )
 % else:
 LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
-    "i18n"."${table_name}_id" = "${ID}" AND "i18n"."locale" = %(locale)s
+    "i18n"."${table_name}_id" = "${table_name}"."${ID}" AND "i18n"."locale" = %(locale)s
 )
 % endif
 % endif
