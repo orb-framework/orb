@@ -56,7 +56,7 @@ class DatabaseOptions(object):
                          'locale': orb.system.locale(),
                          'deleteFlags': orb.DeleteFlags.all()}
 
-        self.locale             = kwds.get('locale', orb.system.locale())
+        self.locale             = kwds.get('locale') or orb.system.locale()
         self.namespace          = kwds.get('namespace')
         self.flags              = kwds.get('flags', 0)
         self.dryRun             = kwds.get('dryRun', False)
@@ -67,7 +67,7 @@ class DatabaseOptions(object):
         self.autoIncrement      = kwds.get('autoIncrement', True)
         self.force              = kwds.get('force', False)
         self.deleteFlags        = kwds.get('deleteFlags', orb.DeleteFlags.all())
-    
+
     def __str__(self):
         """
         Returns a string for this instance.
@@ -155,11 +155,12 @@ class LookupOptions(object):
     """
     def __init__(self, **kwds):
         self.columns  = kwds.get('columns', None)
-        self.where    = kwds.get('where',   None)
-        self.order    = kwds.get('order',   None)
-        self.start    = kwds.get('start',   None)
-        self.limit    = kwds.get('limit',   None)
+        self.where    = kwds.get('where', None)
+        self.order    = kwds.get('order', None)
+        self.start    = kwds.get('start', None)
+        self.limit    = kwds.get('limit', None)
         self.distinct = kwds.get('distinct', False)
+        self.expand   = kwds.get('expand', None)
         
         # ensure that the list is not modified
         if self.columns is not None:
@@ -185,7 +186,8 @@ class LookupOptions(object):
                     'start',
                     'limit',
                     'ignoreJoined',
-                    'ignoreAggregates'):
+                    'ignoreAggregates',
+                    'expand'):
             val = getattr(self, key)
             if val is None:
                 continue
@@ -221,7 +223,8 @@ class LookupOptions(object):
                     'limit',
                     'distinct',
                     'ignoreAggregates',
-                    'ignoreJoined'):
+                    'ignoreJoined',
+                    'expand'):
             if getattr(self, key):
                 return False
         
@@ -248,6 +251,8 @@ class LookupOptions(object):
             out['ignoreJoined'] = self.ignoreJoined
         if self.ignoreAggregates:
             out['ignoreAggregates'] = self.ignoreAggregates
+        if self.expand:
+            out['expand'] = self.expand[:]
         return out
     
     @staticmethod

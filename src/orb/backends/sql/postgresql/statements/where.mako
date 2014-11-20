@@ -183,6 +183,10 @@
         % endif
 
         % if column.isTranslatable():
+            ## check to see if this column has already been merged
+            % if column in __data__['field_mapper']:
+            ${field} ${op_sql} %(${key})s
+            % else:
             <% table_name = column.schema().tableName() %>
             "${table_name}"."${ID}" IN (
                 SELECT "${table_name}_id"
@@ -193,6 +197,7 @@
                 WHERE "${table_name}_i18n"."${column.fieldName()}" ${op_sql} %(${key})s
                 % endif
             )
+            % endif
         % elif where.isInverted():
         ${key_id} ${op_sql} ${field}
         % else:

@@ -41,6 +41,9 @@ class DataStore(AddonManager):
         
         :return     <variant> | python value
         """
+        if not column:
+            return db_value
+
         col_type = orb.ColumnType.base(column.columnType())
         
         if db_value is None:

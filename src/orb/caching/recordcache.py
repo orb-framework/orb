@@ -192,26 +192,22 @@ class RecordCache(object):
         records = cache.value('preloaded_records', [])
         if lookup.order:
             records = sorted(records, OrderCompare(lookup.order))
-        
-        if lookup.start:
-            start = lookup.start
-        else:
-            start = 0
-        
-        if lookup.distinct:
-            output = set()
-        else:
-            output = []
-        
-        for r in range(start, len(records)):
-            record = records[r]
-            
+
+        start = lookup.start or 0
+        offset = 0
+        output = []
+
+        for r, record in enumerate(records):
             # ensure we're looking up a valid record
             if lookup.where and not lookup.where.validate(record):
                 continue
-            
+
+            if start < offset:
+                offset += 1
+                continue
+
             if lookup.columns:
-                record = [(key,val) for key, val in record.items() \
+                record = [(key, val) for key, val in record.items()
                           if key in lookup.columns]
             else:
                 record = record.items()
@@ -222,7 +218,7 @@ class RecordCache(object):
                 continue
             
             output.append(record)
-            if lookup.limit and len(output) == record:
+            if lookup.limit and len(output) == lookup.limit:
                 break
         
         return map(dict, output)
@@ -318,7 +314,7 @@ class RecordCache(object):
         if lookup.where is not None:
             is_simple = len(lookup.where.tables()) <= 1
         else:
-            is_simple = True
+            is_simple = not (bool(lookup.expand) or options.locale != orb.system.locale())
         
         # return an exact cached match
         if cache and not cache.isExpired(cache_key):

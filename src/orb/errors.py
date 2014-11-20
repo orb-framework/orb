@@ -171,7 +171,7 @@ class PrimaryKeyNotDefined(OrbError):
 
 class RecordNotFound(OrbError):
     def __init__(self, model, pk):
-        msg = 'Could not find record {0}{1}.'.format(model, pk)
+        msg = 'Could not find record {0}({1}).'.format(model.schema().name(), pk)
         super(RecordNotFound, self).__init__(msg)
 
 class ReferenceNotFound(OrbError):

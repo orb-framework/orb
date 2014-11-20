@@ -63,6 +63,7 @@ class RecordSet(object):
         self._length            = None
         
         # select information
+        self._expand            = None
         self._start             = None
         self._limit             = None
         self._database          = -1
@@ -420,7 +421,7 @@ class RecordSet(object):
         :return     <orb.DatabaseOptions>
         """
         options.setdefault('inflateRecords', self.isInflated())
-        options.setdefault('namespace',      self.namespace())
+        options.setdefault('namespace', self.namespace())
         options.setdefault('locale', self._locale)
         
         return orb.DatabaseOptions(**options)
@@ -431,43 +432,40 @@ class RecordSet(object):
         
         :param      other | <RecordSet>
         """
-        self._table             = other._table
-        
         # default options
         self._grouped           = other._grouped
         self._ordered           = other._ordered
         self._inflated          = other._inflated
-        
+        self._counts            = other._counts.copy()
+        self._empty             = other._empty.copy()
+        self._currentPage       = other._currentPage
+        self._pageSize          = other._pageSize
+        self._locale            = other._locale
+
         # sorting options
         self._sort_cmp_callable = other._sort_cmp_callable
         self._sort_key_callable = other._sort_key_callable
         self._sort_reversed     = other._sort_reversed
-        
+
+        # record cache
+        self._all               = other._all.copy()
+        self._length            = other._length
+
         # select information
+        self._expand            = list(other._expand) if other._expand else None
         self._start             = other._start
         self._limit             = other._limit
         self._database          = other._database
-        
-        if other._query is not None:
-            self._query = other._query.copy()
-        else:
-            self._query = None
-        
-        if self._columns is not None:
-            self._columns = list(other._columns)
-        else:
-            self._columns = []
-        
-        self._groupBy           = other._groupBy
-        self._order             = other._order
-        self._namespace         = other._namespace
+        self._query             = other._query.copy() if other._query else None
+        self._columns           = list(other._columns) if other._columns else None
+        self._groupBy           = list(other._groupBy) if other._groupBy else None
+        self._order             = list(other._order) if other._order else None
         self._ignoreAggregates  = other._ignoreAggregates
         self._ignoreJoined      = other._ignoreJoined
-        
-        # include the cache information for the other's all
-        if None in other._all:
-            self._all[None] = other._all[None]
-    
+        self._namespace         = other._namespace
+
+        self._table             = other._table
+
     def distinct(self, columns, **options):
         """
         Returns a distinct series of column values for the current record set
@@ -920,6 +918,7 @@ class RecordSet(object):
             kwds.setdefault('where', self.query())
         
         # initialize the options with this record sets values
+        kwds.setdefault('expand',   self._expand)
         kwds.setdefault('columns',  self.columns())
         kwds.setdefault('where',    self.query())
         kwds.setdefault('order',    self.order())
@@ -1349,6 +1348,7 @@ class RecordSet(object):
         
         :param      lookup | <orb.LookupOptions>
         """
+        self._expand            = lookup.expand
         self._query             = lookup.where
         self._columns           = lookup.columns
         self._order             = lookup.order
@@ -1523,8 +1523,6 @@ class RecordSet(object):
         # parse the values from the cache
         output = {}
         locale = db_opts.locale
-        if locale is None:
-            locale = orb.system.locale()
         
         for record in records:
             for orb_col in orb_columns:

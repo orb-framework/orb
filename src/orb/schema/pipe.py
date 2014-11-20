@@ -201,6 +201,11 @@ class Pipe(object):
     def sourceColumn(self):
         return self._sourceColumn
 
+    def sourceReferenceModel(self):
+        model = self.pipeReferenceModel()
+        column = model.schema().column(self.sourceColumn())
+        return column.referenceModel()
+
     def targetColumn(self):
         return self._targetColumn
 

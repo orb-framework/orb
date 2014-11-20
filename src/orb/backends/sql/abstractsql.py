@@ -368,6 +368,10 @@ class SELECT_COUNT(SQL):
         
         return super(SELECT_COUNT, self).render(**scope)
 
+class SELECT_EXPAND(SQL):
+    def render(self, **scope):
+        return super(SELECT_EXPAND, self).render(**scope)
+
 class SELECT_JOINER(SQL):
     def render(self, column, **scope):
         """

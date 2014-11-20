@@ -20,6 +20,7 @@ __version__ = '%i.%i.%i' % __version_info__
 
 # ------------------------------------------------------------------------------
 
+import datetime
 import logging
 import os
 import orb
@@ -35,7 +36,7 @@ log = logging.getLogger(__name__)
 
 try:
     import psycopg2 as pg
-    from psycopg2.extras import DictCursor, register_hstore
+    from psycopg2.extras import DictCursor, register_hstore, register_json
     from psycopg2.extensions import QueryCanceledError
 
 except ImportError:
@@ -90,14 +91,19 @@ class PSQLConnection(SQLConnection):
         except StandardError:
             pass
 
-        if log.getEffectiveLevel() == logging.DEBUG:
-            log.debug('#-------------------------')
-            log.debug(command % data)
-            log.debug('#-------------------------')
+        # register the json option
+        register_json(cursor)
+
+        log.debug(command)
+        log.debug(data)
 
         try:
+            now = datetime.datetime.now()
             cursor.execute(command, data)
             rowcount = cursor.rowcount
+
+            delta = datetime.datetime.now() - now
+            log.debug('Query took: {0} seconds'.format(delta.total_seconds()))
 
         # look for a cancelled query
         except QueryCanceledError:

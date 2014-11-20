@@ -1885,8 +1885,15 @@ class Table(object):
         
         :return     <cls> || None
         """
-        rset = cls.select()
-        return rset.first(*args, **kwds)
+        if 'lookup' in kwds:
+            kwds['lookup'].limit = 1
+        else:
+            kwds['limit'] = 1
+
+        try:
+            return (cls.select(*args, **kwds))[0]
+        except IndexError:
+            return None
         
     @classmethod
     def select(cls, *args, **kwds):
@@ -1939,12 +1946,12 @@ class Table(object):
         # define the record set and return it
         rset = orb.RecordSet(cls)
         rset.setLookupOptions(lookup)
-        terms = kwds.pop('terms', '')
         rset.setDatabaseOptions(options)
 
         if db is not None:
             rset.setDatabase(db)
 
+        terms = kwds.pop('terms', '')
         if terms:
             rset = rset.search(terms)
 

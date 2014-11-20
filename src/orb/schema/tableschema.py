@@ -569,6 +569,12 @@ class TableSchema(object):
 
         return False
 
+    def hasTranslations(self):
+        for col in self.columns():
+            if col.isTranslatable():
+                return True
+        return False
+
     def indexes(self, recurse=True):
         """
         Returns the list of indexes that are associated with this schema.

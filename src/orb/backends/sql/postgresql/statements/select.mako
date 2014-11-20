@@ -1,6 +1,7 @@
 <%
     SELECT_AGGREGATE = __sql__.byName('SELECT_AGGREGATE')
     SELECT_JOINER = __sql__.byName('SELECT_JOINER')
+    SELECT_EXPAND = __sql__.byName('SELECT_EXPAND')
     WHERE = __sql__.byName('WHERE')
     ID = orb.system.settings().primaryField()
 
@@ -76,9 +77,25 @@
 
         elif not column.isProxy() and use_column:
             query_columns.append(column)
-            columns.append('"{0}"."{1}" AS "{2}"'.format(table_name,
-                                                         column.fieldName(),
-                                                         column.name()))
+
+            # expand a reference column
+            if column.isReference() and lookup.expand and column.name() in lookup.expand:
+                col_sql = SELECT_EXPAND(column=column, lookup=lookup, options=options)[0]
+                if col_sql:
+                    columns.append(col_sql)
+
+            # or, just return the base record
+            else:
+                columns.append('"{0}"."{1}" AS "{2}"'.format(table_name,
+                                                             column.fieldName(),
+                                                             column.name()))
+
+    # include any additional expansions from pipes
+    if lookup.expand:
+        for pipe in schema.pipes():
+            col_sql = SELECT_EXPAND(pipe=pipe, lookup=lookup, options=options)[0]
+            if col_sql:
+                columns.append(col_sql)
 
     if lookup.where:
         try:
