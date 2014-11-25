@@ -711,33 +711,33 @@ class Manager(object):
         
         # save out references
         xrefs = ElementTree.SubElement(xorb, 'references')
-        for ref_file in self._referenceFiles:
+        for ref_file in sorted(self._referenceFiles):
             rel_path = os.path.relpath(ref_file, filename)
             xref = ElementTree.SubElement(xrefs, 'reference')
             xref.set('path', rel_path)
         
         # save out properties
         xprops = ElementTree.SubElement(xorb, 'properties')
-        for key, value in self._properties.items():
+        for key, value in sorted(self._properties.items()):
             xprop = ElementTree.SubElement(xprops, 'property')
             xprop.set('key', key)
             xprop.set('value', value)
         
         # save out the environments
         xenvs = ElementTree.SubElement(xorb, 'environments')
-        for env in self.environments():
+        for env in sorted(self.environments(), key=lambda x: x.name()):
             if not env.isReferenced():
                 env.toXml(xenvs)
         
         # save out the global databases
         xdbs = ElementTree.SubElement(xorb, 'databases')
-        for db in self.databases():
+        for db in sorted(self.databases(), key=lambda x: x.name()):
             if not db.isReferenced():
                 db.toXml(xdbs)
         
         # save out the groups
         xgroups = ElementTree.SubElement(xorb, 'groups')
-        for grp in self.groups():
+        for grp in sorted(self.groups(), key=lambda x: x.name()):
             if grp.isReferenced():
                 continue
             grp.toXml(xgroups)
