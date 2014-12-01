@@ -100,6 +100,7 @@ class TableSchema(object):
         self._model = None
         self._referenced = referenced
         self._searchEngine = None
+        self._validators = []
 
     def addColumn(self, column):
         """
@@ -134,6 +135,16 @@ class TableSchema(object):
 
         pipe.setSchema(self)
         self._pipes.append(pipe)
+
+    def addValidator(self, validator):
+        """
+        Adds a record validators that are associated with this schema.  You
+        can define different validation addons for a table's schema that will process when
+        calling the Table.validateRecord method.
+
+        :param      validator | <orb.AbstractRecordValidator>
+        """
+        self._validators.append(validator)
 
     def ancestor(self):
         """
@@ -767,7 +778,7 @@ class TableSchema(object):
         try:
             self._columns.remove(column)
             column._schema = None
-        except KeyError:
+        except ValueError:
             pass
 
     def removeIndex(self, index):
@@ -776,8 +787,10 @@ class TableSchema(object):
         
         :param      index | <orb.Index>
         """
-        if index in self._indexes:
+        try:
             self._indexes.remove(index)
+        except ValueError:
+            pass
 
     def removePipe(self, pipe):
         """
@@ -785,8 +798,23 @@ class TableSchema(object):
         
         :param      pipe | <orb.Pipe>
         """
-        if pipe in self._pipes:
+        try:
             self._pipes.remove(pipe)
+        except ValueError:
+            pass
+
+    def removeValidator(self, validator):
+        """
+        Removes a record validators that are associated with this schema.  You
+        can define different validation addons for a table's schema that will process when
+        calling the Table.validateRecord method.
+
+        :param      validator | <orb.AbstractRecordValidator>
+        """
+        try:
+            self._validators.remove(validator)
+        except ValueError:
+            pass
 
     def searchEngine(self):
         """
@@ -1037,6 +1065,16 @@ class TableSchema(object):
         """
         self._useAdvancedFormatting = state
 
+    def setValidators(self, validators):
+        """
+        Sets the list of the record validators that are associated with this schema.  You
+        can define different validation addons for a table's schema that will process when
+        calling the Table.validateRecord method.
+
+        :param      validators | [<orb.AbstractRecordValidator>, ..]
+        """
+        self._validators = validators
+
     def stringFormat(self):
         """
         Returns the string format style for this schema.
@@ -1151,6 +1189,16 @@ class TableSchema(object):
             pipe.toXml(xschema)
 
         return xschema
+
+    def validators(self):
+        """
+        Returns a list of the record validators that are associated with this schema.  You
+        can define different validation addons for a table's schema that will process when
+        calling the Table.validateRecord method.
+
+        :return     [<orb.AbstractRecordValidator>, ..]
+        """
+        return self._validators
 
     @staticmethod
     def defaultTableName(name, prefix=''):

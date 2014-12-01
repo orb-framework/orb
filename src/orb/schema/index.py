@@ -298,7 +298,7 @@ class Index(object):
             column_values = [values[schema.column(name)] for name in self.columnNames()]
         except StandardError as err:
             msg = 'Could not validate all the required columns ({0}).'.format(', '.join(self.columnNames()))
-            raise errors.ValidationError(self, schema.name(), None, format=msg)
+            raise errors.IndexValidationError(self, msg=msg)
 
         # ensure a unique record is preserved
         if self.unique():
@@ -306,7 +306,7 @@ class Index(object):
             other = lookup(*column_values)
             if other and other != record:
                 msg = 'A record already exists with the same {0} combination.'.format(', '.join(self.columnNames()))
-                raise errors.ValidationError(self, schema.name(), None, format=msg)
+                raise errors.IndexValidationError(self, msg=msg)
 
         return True
 

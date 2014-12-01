@@ -1,27 +1,8 @@
 import re
 
-from projex.decorators import abstractmethod
+from orb import errors
 
-class AbstractValidator(object):
-    def __init__(self):
-        self._help = ''
-
-    def help(self):
-        """
-        Returns the help information for the user when the validation error occurs.
-
-        :return     <str>
-        """
-        return self._help
-
-    def setHelp(self, text):
-        """
-        Sets the help information for the user when the validation error occurs.
-
-        :param      text | <str>
-        """
-        self._help = text
-
+class AbstractColumnValidator(object):
     @abstractmethod()
     def validate(self, value):
         """
@@ -35,12 +16,29 @@ class AbstractValidator(object):
 
 #-----------------------------------------------------------
 
-class RegexValidator(AbstractValidator):
+class AbstractRecordValidator(object):
+    @abstractmethod
+    def validate(self, record, values):
+        """
+        Validates the record against the inputed dictionary of column
+        values.
+
+        :param      record | <orb.Table>
+                    values | {<orb.Column>: <value>, ..}
+
+        :return     <bool>
+        """
+        return False
+
+#-----------------------------------------------------------
+
+class RegexValidator(AbstractColumnValidator):
     def __init__(self):
         super(RegexValidator, self).__init__()
 
         # define extra properties
         self._expression = ''
+        self._help = ''
 
     def expression(self):
         """
@@ -50,6 +48,14 @@ class RegexValidator(AbstractValidator):
         """
         return self._expression
 
+    def help(self):
+        """
+        Returns the help expression that will be shown to when this validator fails.
+
+        :return     <str>
+        """
+        return self._help
+
     def setExpression(self, expression):
         """
         Sets the regular expression to the inputed text.
@@ -58,7 +64,15 @@ class RegexValidator(AbstractValidator):
         """
         self._expression = expression
 
-    def validate(self, value):
+    def setHelp(self, help):
+        """
+        Defines the help text that will be raised when processing this validator.
+
+        :param      help | <str>
+        """
+        self._help = help
+
+    def validate(self, column, value):
         """
         Validates the inputed value against this validator's expression.
 
@@ -67,20 +81,20 @@ class RegexValidator(AbstractValidator):
         :return     <bool> | is valid
         """
         try:
-            return re.match(self.expression(), value) is not None
+            valid = re.match(self.expression(), value) is not None
         except StandardError:
-            return False
+            msg = 'Invalid validator expression: {0}'.format(self.expression())
+            raise errors.ColumnValidationError(column, msg=msg)
+        else:
+            if not valid:
+                msg = 'Invalid value for {0}, needs to match {1}'.format(column.name(), self.expression())
+                raise errors.ColumnValidationError(column, msg=self.help() or msg)
+            return True
 
 #-----------------------------------------------------------
 
-class NotNullValidator(AbstractValidator):
-    def __init__(self):
-        super(NotNullValidator, self).__init__()
-
-        # define the help information
-        self.setHelp('{context} is required.')
-
-    def validate(self, value):
+class RequiredValidator(AbstractColumnValidator):
+    def validate(self, column, value):
         """
         Varifies that the inputed value is not a NULL value.
 
@@ -88,10 +102,7 @@ class NotNullValidator(AbstractValidator):
 
         :return     <bool>
         """
-        # for boolean values, only a None value will fail
-        if type(value) == bool:
-            return True
-
-        # otherwise, ensure the value "exists"
-        else:
-            return bool(value)
+        if type(value) != bool and not bool(value):
+            msg = '{0} is required.'.format(column.name())
+            raise errors.ColumnValidationError(column, msg=msg)
+        return True

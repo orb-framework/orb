@@ -1498,8 +1498,7 @@ class Column(object):
         :return     <bool> success
         """
         for validator in self.validators():
-            if not validator.validate(value):
-                raise errors.ValidationError(validator, self.name(), value)
+            validator.validate(self, value)
         return True
 
     def validators(self):
@@ -1510,7 +1509,7 @@ class Column(object):
         """
         default = []
         if self.required():
-            default.append(orb.NotNullValidator())
+            default.append(orb.RequiredValidator())
 
         return self._validators + default
 

@@ -1401,6 +1401,10 @@ class Table(object):
         for index in self.schema().indexes():
             index.validate(self, values)
 
+        # validate the record against all custom validators
+        for validator in self.schema().validators():
+            validator.validate(self, values)
+
         return True
 
     #----------------------------------------------------------------------

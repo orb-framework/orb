@@ -23,4 +23,4 @@ from .tablebase import TableBase
 from .tableenum import TableEnum
 from .tablegroup import TableGroup
 from .tableschema import TableSchema
-from .validator import RegexValidator, NotNullValidator
+from .validator import RegexValidator, RequiredValidator, AbstractColumnValidator, AbstractRecordValidator

@@ -33,6 +33,15 @@ class DatabaseError(OrbError):
 class DataStoreError(OrbError):
     pass
 
+class ValidationError(OrbError):
+    """
+    Raised when a column is being set with a value that does not pass
+    validation.
+    """
+    def __init__(self, msg, context=''):
+        super(ValidationError, self).__init__(msg)
+        self.context = context
+
 # B
 # ------------------------------------------------------------------------------
 
@@ -59,6 +68,12 @@ class ColumnReadOnly(OrbError):
             text = nstr(column)
 
         super(ColumnReadOnly, self).__init__('{0} is a read-only column.'.format(text))
+
+class ColumnValidationError(ValidationError):
+    def __init__(self, column, msg):
+        super(ColumnValidationError, self).__init__(msg, context=column.name())
+
+        self.column = column
 
 class ColumnRequired(OrbError):
     def __init__(self, column):
@@ -124,12 +139,17 @@ class DuplicateColumnFound(OrbError):
 
 class Interruption(StandardError):
     def __init__(self):
-        StandardError.__init__(self, 'interrupted')
+        StandardError.__init__(self, 'Database operation was interrupted.')
 
 class InvalidResponse(OrbError):
     def __init__(self, method, err):
         msg = 'Invalid response from rest method "{0}": {1}'
         super(InvalidResponse, self).__init__(msg.format(method, err))
+
+class IndexValidationError(ValidationError):
+    def __init__(self, index, msg):
+        super(IndexValidationError, self).__init__(msg, context=index.schema().name())
+        self.index = index
 
 # Q
 #------------------------------------------------------------------------------
@@ -184,20 +204,4 @@ class ReferenceNotFound(OrbError):
 class TableNotFound(OrbError):
     def __init__(self, table):
         super(TableNotFound, self).__init__('Cound not find `{0}` table.'.format(table))
-
-# V
-#------------------------------------------------------------------------------
-
-class ValidationError(OrbError):
-    """
-    Raised when a column is being set with a value that does not pass
-    validation.
-    """
-    def __init__(self, validator, context, value, format=None):
-        self.context = context
-        self.validator = validator
-        self.value = value
-        format = format or validator.help()
-
-        super(ValidationError, self).__init__(format.format(context=context, value=value))
 
