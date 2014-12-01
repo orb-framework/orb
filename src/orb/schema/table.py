@@ -411,8 +411,8 @@ class Table(object):
             self.__record_dbloaded.add(column)
 
         # pylint: disable-msg=W0142
-        self.__record_values.update(dvalues)
-        self.__record_defaults.update(dvalues)
+        self.__record_values.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
+        self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
 
     def _removedFromDatabase(self):
         """
@@ -522,10 +522,17 @@ class Table(object):
                     <orb.DatabaseOptions>, 'options' for 
                     an instance of the <orb.DatabaseOptions>
         
-        :return     (<str> commit type, <dict> changeset) || None
+        :return     <bool> success
         """
+        # check to see if we have any modifications to store
+        if not self.isModified():
+            return False
+
         # run any pre-commit logic required for this record
         self.preCommit(*args, **kwds)
+
+        # validate the data from the software side that is about to be saved
+        self.validateRecord()
 
         # support columns as defined by a variable list of arguments
         if args:
@@ -539,43 +546,29 @@ class Table(object):
             db = self.database()
 
         if db is None:
-            log.error('No database defined for %s, cannot commit', nstr(self))
-            return 'error', 'No database defined for {}'.format(self)
+            raise errors.DatabaseNotFound()
 
         # grab the backend
         backend = db.backend()
-        if not backend:
-            log.error('No backend found for %s, cannot commit', nstr(db))
-            return 'error', 'No backend for {}'.format(db)
 
         # sync the record to the database
         lookup = kwds.get('lookup', orb.LookupOptions(**kwds))
         options = kwds.get('options', orb.DatabaseOptions(**kwds))
-        try:
-            results = backend.syncRecord(self, lookup, options)
-        except errors.OrbError, err:
-            if options.throwErrors:
-                raise
-            else:
-                log.error('Failed to commit record.\n%s', err)
-                results = ('errored', nstr(err))
 
-        if results and not 'errored' in results:
-            # marks this table as expired
-            self.markTableCacheExpired()
+        results = backend.storeRecord(self, lookup, options)
 
-            # clear any custom caches
-            self.__local_cache.clear()
-            self.clearCustomCache()
+        # marks this table as expired
+        self.markTableCacheExpired()
 
-            self.__record_database = db
+        # clear any custom caches
+        self.__local_cache.clear()
+        self.__record_database = db
+        self.clearCustomCache()
 
         # run any pre-commit logic required for this record
         kwds['results'] = results
-
         self.postCommit(*args, **kwds)
-
-        return results
+        return True
 
     def conflicts(self, *columnNames, **options):
         """
@@ -747,7 +740,6 @@ class Table(object):
         """
         if not self.isRecord():
             return True
-
         return len(self.changeset()) > 0
 
     def isRecord(self, db=None):
@@ -1180,7 +1172,8 @@ class Table(object):
         
         :sa     reload
         """
-        self.__record_values = self.__record_defaults.copy()
+        values = {k: v if type(v) != dict else v.copy() for k, v in self.__record_defaults.items()}
+        self.__record_values = values
 
     def setDatabase(self, database):
         """
@@ -1259,7 +1252,7 @@ class Table(object):
         # validate the column
         column = self.schema().column(columnName)
         if not column:
-            raise errors.ColumnNotFound(column, self.schema().name())
+            raise errors.ColumnNotFound(self.schema().name(), columnName)
 
         # set a proxy value
         proxy = self.proxyColumn(columnName)
@@ -1342,21 +1335,9 @@ class Table(object):
         
         :return     <int> number set
         """
-        schema = self.schema()
-        count = 0
         for colname, value in data.items():
-            col = schema.column(colname)
-            if not col:
-                continue
-
-            try:
-                changed = self.setRecordValue(col.name(), value)
-            except errors.OrbError:
-                continue
-
-            if changed:
-                count += 1
-        return count
+            self.setRecordValue(colname, value)
+        return len(data)
 
     def setRecordNamespace(self, namespace):
         """
@@ -1380,6 +1361,9 @@ class Table(object):
         kwds.setdefault('options', Table.ReloadOptions.Conflicts)
         self.reload(*columnNames, **kwds)
 
+    def update(self, **values):
+        return self.setRecordValues(**values)
+
     def updateFromRecord(self, record):
         """
         Updates this records values from the inputed record.
@@ -1393,44 +1377,31 @@ class Table(object):
             except errors.OrbError:
                 pass
 
-    def validateRecord(self):
+    def validateRecord(self, overrides=None):
         """
-        Validates the current records values against its columns.
-        
-        :return     (<bool> valid, <str> message)
-        """
-        return self.validateValues(self.recordValues())
+        Validates the current record object to make sure it is ok to commit to the database.  If
+        the optional override dictionary is passed in, then it will use the given values vs. the one
+        stored with this record object which can be useful to check to see if the record will be valid before
+        it is committed.
 
-    def validateValues(self, values, returnErrors=False, validateColumns=True):
-        """
-        Validates the values for the various columns of this record against
-        the inputed list of values.
-        
-        :param      values | {<str> columnName: <variant> value, ..}
-        
-        :return     (<bool> valid, <str> message) || (<bool> valid, {<str> name: <str> error, ..})
-        """
-        msg = []
-        errors = {}
+        :param      overrides | <dict>
 
+        :return     <bool>
+        """
         schema = self.schema()
+        values = {k: v if type(v) != dict else v.copy() for k, v in self.__record_values.items()}
+        overrides = overrides or {}
+        values.update({schema.column(col): v for col, v in overrides.items() if schema.column(col)})
 
         # validate the columns
-        for columnName, value in values.items():
-            column = schema.column(columnName)
-            if not column:
-                if validateColumns:
-                    msg.append('%s is not a valid column.' % columnName)
+        for column, value in values.items():
+            column.validate(value)
 
-            else:
-                try:
-                    column.validate(value)
-                except errors.ValidationError as err:
-                    errors[column.name()] = err
+        # validate the indexes
+        for index in self.schema().indexes():
+            index.validate(self, values)
 
-        if returnErrors:
-            return not bool(errors), errors
-        return not bool(errors), '\n\n'.join([nstr(err) for err in errors])
+        return True
 
     #----------------------------------------------------------------------
     #                           CLASS METHODS

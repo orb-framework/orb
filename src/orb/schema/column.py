@@ -1499,7 +1499,7 @@ class Column(object):
         """
         for validator in self.validators():
             if not validator.validate(value):
-                raise errors.ValidationError(validator, self, value)
+                raise errors.ValidationError(validator, self.name(), value)
         return True
 
     def validators(self):
@@ -1512,7 +1512,7 @@ class Column(object):
         if self.required():
             default.append(orb.NotNullValidator())
 
-        return self._validators
+        return self._validators + default
 
     def valueFromString(self, value, extra=None, db=None):
         """

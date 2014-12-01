@@ -78,7 +78,7 @@ class NotNullValidator(AbstractValidator):
         super(NotNullValidator, self).__init__()
 
         # define the help information
-        self.setHelp('{column} is a required field.')
+        self.setHelp('{context} is required.')
 
     def validate(self, value):
         """

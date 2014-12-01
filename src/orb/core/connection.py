@@ -6,15 +6,15 @@ to the backend databases.
 """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2011, Projex Software'
+__license__ = 'LGPL'
 
 # maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
 import cPickle
 import logging
@@ -38,9 +38,10 @@ class Connection(AddonManager):
     the backends that are included with the orb package can be found in the
     <orb.backends> package.
     """
+
     def __init__(self, database):
         super(Connection, self).__init__()
-        
+
         # define custom properties
         self._database = database
         self._threadEnabled = False
@@ -48,13 +49,13 @@ class Connection(AddonManager):
         self._commitEnabled = True
         self._engine = None
         self._columnEngines = {}
-    
+
     def __del__(self):
         """
         Closes the connection when the connection instance is deleted.
         """
         self.close()
-    
+
     def backup(self, filename, **options):
         """
         Backs up the data from this database backend to the inputed filename.
@@ -69,12 +70,12 @@ class Connection(AddonManager):
             colnames = schema.columnNames(includeProxies=False,
                                           includeJoined=False,
                                           includeAggregates=False)
-            
+
             values = schema.model().select(colnames,
                                            inflated=False,
                                            db=db).all()
             data[schema.name()] = map(lambda x: dict(zip(colnames, x)), values)
-        
+
         # save this backup to the database file
         f = open(filename, 'wb')
         cPickle.dump(data, f)
@@ -95,7 +96,7 @@ class Connection(AddonManager):
         :return     <bool> closed
         """
         return True
-    
+
     def collectRemoveRecords(self, table, lookup, options, collection=None):
         """
         Collects records for removal by looking up the schema's relations
@@ -111,71 +112,70 @@ class Connection(AddonManager):
         """
         if collection is None:
             collection = {}
-        
+
         # define the base lookup query
         query = lookup.where
         if query is None:
             query = orb.Query()
-        
+
         # add the base collection data
         collection.setdefault(table, [])
-        
+
         # lookup cascading removal
         def load_keys(table, query):
             return table.select(where=query).primaryKeys()
+
         root_keys = None
-        
+
         # lookup related records
         flags = options.deleteFlags
         if flags is None:
             flags = orb.DeleteFlags.all()
-        
+
         relations = orb.Orb.instance().findRelations(table.schema())
         for ref_table, columns in relations:
             for column in columns:
                 action = column.referenceRemovedAction()
-                
+
                 # remove based on a certain criteria
                 if query is not None:
                     if root_keys is None:
                         root_keys = load_keys(table, query)
-                    
+
                     ref_query = orb.Query()
                     for min_key, max_key in projex.iters.group(root_keys):
                         if min_key == max_key:
                             ref_query |= orb.Query(column.name()) == min_key
                         else:
                             ref_query |= orb.Query(column.name()).between(min_key,
-                                                                  max_key)
-                
+                                                                          max_key)
+
                 # remove if there is a valid reference
                 else:
                     ref_query = orb.Query(column.name()) != None
-                
+
                 # block removal of records
-                if flags & orb.DeleteFlags.Blocked and \
-                   action == orb.RemovedAction.Block:
+                if flags & orb.DeleteFlags.Blocked and action == orb.RemovedAction.Block:
                     found = ref_table.select(where=ref_query)
                     if not found.isEmpty():
-                        msg = 'Could not remove records, there are still '\
+                        msg = 'Could not remove records, there are still ' \
                               'references to the %s model.'
                         tblname = ref_table.__name__
                         raise errors.CannotDelete(msg, tblname)
-                
+
                 # cascade additional removals
-                elif flags & orb.DeleteFlags.Cascaded and \
-                     action == orb.RemovedAction.Cascade:
+                elif flags & orb.DeleteFlags.Cascaded and action == orb.RemovedAction.Cascade:
                     ref_lookup = orb.LookupOptions(where=ref_query)
                     self.collectRemoveRecords(ref_table,
                                               ref_lookup,
                                               options,
                                               collection)
-        
+
         if query:
             collection[table].append(query)
-        
+
         return collection
-    
+
     @abstractmethod()
     def commit(self):
         """
@@ -184,7 +184,7 @@ class Connection(AddonManager):
         :return     <bool> success
         """
         return False
-    
+
     def commitEnabled(self):
         """
         Returns whether or not committing is currently enabled.
@@ -192,7 +192,7 @@ class Connection(AddonManager):
         :return     <bool>
         """
         return self._commitEnabled and self.internalsEnabled()
-    
+
     @abstractmethod()
     def count(self, table_or_join, lookup, options):
         """
@@ -208,9 +208,9 @@ class Connection(AddonManager):
         :return     <int>
         """
         return 0
-    
+
     @abstractmethod()
-    def createTable( self, schema, options ):
+    def createTable(self, schema, options):
         """
         Creates a new table in the database based cff the inputed
         table information.
@@ -221,7 +221,7 @@ class Connection(AddonManager):
         :return     <bool> success
         """
         return False
-    
+
     def columnEngine(self, columnType):
         """
         Returns the data engine associated with this backend for the given
@@ -230,7 +230,7 @@ class Connection(AddonManager):
         :param      columnType | <orb.ColumnType>
         """
         return self._columnEngines.get(columnType)
-    
+
     def columnEngines(self):
         """
         Returns a dict of the column engines associated with this connection.
@@ -238,7 +238,7 @@ class Connection(AddonManager):
         :return     {<orb.ColumnType> coltype: <orb.ColumnEngine>, ..}
         """
         return self._columnEngines
-    
+
     def database(self):
         """
         Returns the database instance that this connection is
@@ -247,7 +247,7 @@ class Connection(AddonManager):
         :return     <Database>
         """
         return self._database
-    
+
     def defaultPrimaryColumn(self):
         """
         Defines a default column to be used as the primary column for this \
@@ -270,7 +270,7 @@ class Connection(AddonManager):
                           unique=True,
                           private=True,
                           searchable=True)
-    
+
     def defaultInheritColumn(self, schema):
         """
         Defines a default column to be used as the primary column for this \
@@ -285,12 +285,12 @@ class Connection(AddonManager):
                          fieldName=settings.inheritField(),
                          unique=True,
                          private=True)
-        
+
         col.setReference(schema.inherits())
         col._schema = schema
-        
+
         return col
-    
+
     def disableInternals(self):
         """
         Disables the internal checks and update system.  This method should
@@ -302,9 +302,9 @@ class Connection(AddonManager):
         :sa     enableInternals
         """
         self._internalsEnabled = False
-    
+
     @abstractmethod()
-    def distinct( self, table_or_join, lookup, options ):
+    def distinct(self, table_or_join, lookup, options):
         """
         Returns the distinct set of records that exist for a given lookup
         for the inputed table or join instance.
@@ -318,7 +318,7 @@ class Connection(AddonManager):
         :return     {<str> columnName: <list> value, ..}
         """
         return 0
-        
+
     def enableInternals(self):
         """
         Enables the internal checks and update system.  This method should
@@ -330,7 +330,7 @@ class Connection(AddonManager):
         :sa     disableInternals
         """
         self._internalsEnabled = True
-        
+
     def engine(self):
         """
         Returns the engine associated with this connection backend.
@@ -338,9 +338,9 @@ class Connection(AddonManager):
         :return     <orb.SchemaEngine>
         """
         return self._engine
-    
+
     @abstractmethod()
-    def execute( self, command, data=None, flags=0):
+    def execute(self, command, data=None, flags=0):
         """
         Executes the inputed command into the current 
         connection cursor.
@@ -366,7 +366,7 @@ class Connection(AddonManager):
         :return     <bool>
         """
         return False
-    
+
     def internalsEnabled(self):
         """
         Returns whether or not this connection has its internal checks and
@@ -377,7 +377,7 @@ class Connection(AddonManager):
         :return     <bool>
         """
         return self._internalsEnabled
-    
+
     def interrupt(self, threadId=None):
         """
         Interrupts/stops the database access through a particular thread.
@@ -385,9 +385,9 @@ class Connection(AddonManager):
         :param      threadId | <int> || None
         """
         pass
-    
+
     @abstractmethod()
-    def isConnected( self ):
+    def isConnected(self):
         """
         Returns whether or not this conection is currently
         active.
@@ -395,17 +395,17 @@ class Connection(AddonManager):
         :return     <bool> connected
         """
         return False
-    
-    def isThreadEnabled( self ):
+
+    def isThreadEnabled(self):
         """
         Returns whether or not this connection can be threaded.
         
         :return     <bool>
         """
         return self._threadEnabled
-    
+
     @abstractmethod()
-    def open( self ):
+    def open(self):
         """
         Opens a new database connection to the datbase defined
         by the inputed database.
@@ -413,7 +413,7 @@ class Connection(AddonManager):
         :return     <bool> success
         """
         return False
-    
+
     def remove(self, table, lookup, options):
         """
         Removes the given records from the inputed schema.  This method is 
@@ -432,7 +432,7 @@ class Connection(AddonManager):
         for rem_table in removals:
             rem_table.markTableCacheExpired()
         return count
-    
+
     @abstractmethod
     def removeRecords(self, remove, options):
         """
@@ -447,7 +447,7 @@ class Connection(AddonManager):
         :return     <int> | number of rows removed
         """
         return 0
-    
+
     def restore(self, filename, **options):
         """
         Restores this backend database from the inputed pickle file.
@@ -458,54 +458,54 @@ class Connection(AddonManager):
         """
         # save this backup to the database file
         print '0% complete: loading data dump...'
-        
+
         f = open(filename, 'rb')
         data = cPickle.load(f)
         f.close()
-        
+
         items = data.items()
         count = float(len(items))
         db_name = self.database().name()
         i = 0
-        
+
         ignore = options.get('ignore', [])
         include = options.get('include', [])
-        
+
         self.disableInternals()
         options.setdefault('autoCommit', False)
         for schema_name, records in items:
             i += 1
-            print '{0:.0%} complete: restoring {1}...'.format(i/count,
+            print '{0:.0%} complete: restoring {1}...'.format(i / count,
                                                               schema_name)
-            
+
             # determine if this schema should be ignored
             if schema_name in ignore:
                 print 'ignoring {0}...'.format(schema_name)
                 continue
-            
+
             elif include and not schema_name in include:
                 print 'ignoring {0}...'.format(schema_name)
                 continue
-            
+
             schema = orb.Orb.instance().schema(schema_name,
                                                database=db_name)
             if schema:
                 self.setRecords(schema, records, **options)
             else:
                 print schema_name, 'not found'
-        
+
         self.enableInternals()
         self.commit()
-        
+
         return True
-    
+
     @abstractmethod()
-    def rollback( self ):
+    def rollback(self):
         """
         Rollsback the latest code run on the database.
         """
         return False
-    
+
     @abstractmethod()
     def select(self, table_or_join, lookup, options):
         """
@@ -519,7 +519,7 @@ class Connection(AddonManager):
         :return     [<variant> result, ..]
         """
         return []
-    
+
     def selectFirst(self, table_or_join, lookup, options):
         """
         Returns the first result based on the inputed query options \
@@ -534,11 +534,11 @@ class Connection(AddonManager):
         """
         # limit the lookup information to 1
         lookup.limit = 1
-        
+
         # load the results
-        results = self.select( table, query_options, options )
-        
-        if ( results ):
+        results = self.select(table, query_options, options)
+
+        if results:
             return results[0]
         return None
 
@@ -557,7 +557,7 @@ class Connection(AddonManager):
                     records | [<dict> record, ..]
         """
         pass
-    
+
     def setCommitEnabled(self, state):
         """
         Sets whether or not committing changes to the database is currently
@@ -566,7 +566,7 @@ class Connection(AddonManager):
         :param      state | <bool>
         """
         self._commitEnabled = state
-    
+
     def setColumnEngine(self, columnType, engine):
         """
         Sets the data engine associated with this backend for the given
@@ -576,7 +576,7 @@ class Connection(AddonManager):
                     engine     | <orb.ColumnEngine>
         """
         self._columnEngines[columnType] = engine
-    
+
     def setEngine(self, engine):
         """
         Returns the table engine associated with this connection backend.
@@ -584,7 +584,7 @@ class Connection(AddonManager):
         :param     engine | <orb.SchemaEngine>
         """
         self._engine = engine
-    
+
     def setThreadEnabled(self, state):
         """
         Sets whether or not this database backend supports threading.
@@ -592,8 +592,8 @@ class Connection(AddonManager):
         :param      state | <bool>
         """
         self._threadEnabled = state
-    
-    def syncRecord(self, record, lookup, options):
+
+    def storeRecord(self, record, lookup, options):
         """
         Syncs the record to the current database, checking to \
         see if the record exists, and if so - updates the records \
@@ -604,24 +604,14 @@ class Connection(AddonManager):
                     lookup      | <orb.LookupOptions>
                     options     | <orb.DatabaseOptions>
         
-        :return     (<str> type, <dict> changeet) || None
+        :return     <variant>
         """
-        changes = record.changeset()
-        if not changes:
-            return '', {}
-        
         # create the new record in the database
         if not record.isRecord():
-            results = self.insert(record, lookup, options)
-            if 'db_error' in results:
-                return 'errored', results
-            return 'created', results
+            return self.insert(record, lookup, options)
         else:
-            results = self.update(record, lookup, options)
-            if 'db_error' in results:
-                return 'errored', results
-            return 'updated', results
-    
+            return self.update(record, lookup, options)
+
     def syncTable(self, schema, options):
         """
         Syncs the table to the current database, checking to see
@@ -631,15 +621,13 @@ class Connection(AddonManager):
         :param      schema     | <orb.TableSchema>
                     options    | <orb.DatabaseOptions>
         
-        :return     (<str> type, <bool> changed) || None
+        :return     <bool> changed
         """
-        if self.tableExists(schema, options):
-            results = self.updateTable(schema, options)
-            return ('created', )
+        if not self.tableExists(schema, options):
+            return self.createTable(schema, options)
         else:
-            results = self.createTable(schema, options)
-            return ('updated', results)
-    
+            return self.updateTable(schema, options)
+
     @abstractmethod()
     def tableExists(self, schema, options):
         """
@@ -652,7 +640,7 @@ class Connection(AddonManager):
         :return     <bool>
         """
         return False
-    
+
     @abstractmethod()
     def update(self, record, options):
         """
@@ -665,7 +653,7 @@ class Connection(AddonManager):
         :return     <bool>
         """
         return False
-    
+
     @abstractmethod
     def updateTable(self, table, options):
         """
@@ -689,7 +677,7 @@ class Connection(AddonManager):
         :return     <bool> success
         """
         return False
-    
+
     @staticmethod
     def create(database):
         """
@@ -700,12 +688,12 @@ class Connection(AddonManager):
         """
         cls = Connection.byName(database.databaseType())
         if not cls:
-            from orb import errors
             raise errors.BackendNotFound(database.databaseType())
         return cls(database)
 
 
 # register the addon module
 from orb.backends import __plugins__
+
 Connection.registerAddonModule(__plugins__)
 

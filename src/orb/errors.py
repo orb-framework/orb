@@ -199,10 +199,11 @@ class ValidationError(OrbError):
     Raised when a column is being set with a value that does not pass
     validation.
     """
-    def __init__(self, validator, column, value):
-        self.column = column
+    def __init__(self, validator, context, value, format=None):
+        self.context = context
         self.validator = validator
         self.value = value
+        format = format or validator.help()
 
-        super(ValidationError, self).__init__(validator.help().format(column=column.name(), value=value))
+        super(ValidationError, self).__init__(format.format(context=context, value=value))
 

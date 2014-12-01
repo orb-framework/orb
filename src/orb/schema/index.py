@@ -282,7 +282,34 @@ class Index(object):
         xindex.set('cachedExpires', nstr(self._cachedExpires))
         
         return xindex
-    
+
+    def validate(self, record, values):
+        """
+        Validates whether or not this index's requirements are satisfied by the inputed record and
+        values.  If this index fails validation, a ValidationError will be raised.
+
+        :param      record | subclass of <orb.Table>
+                    values | {<orb.Column>: <variant>, ..}
+
+        :return     <bool>
+        """
+        schema = record.schema()
+        try:
+            column_values = [values[schema.column(name)] for name in self.columnNames()]
+        except StandardError as err:
+            msg = 'Could not validate all the required columns ({0}).'.format(', '.join(self.columnNames()))
+            raise errors.ValidationError(self, schema.name(), None, format=msg)
+
+        # ensure a unique record is preserved
+        if self.unique():
+            lookup = getattr(record, self.name())
+            other = lookup(*column_values)
+            if other and other != record:
+                msg = 'A record already exists with the same {0} combination.'.format(', '.join(self.columnNames()))
+                raise errors.ValidationError(self, schema.name(), None, format=msg)
+
+        return True
+
     @staticmethod
     def fromXml(xindex, referenced=False):
         """
