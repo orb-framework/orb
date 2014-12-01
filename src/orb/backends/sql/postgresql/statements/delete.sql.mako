@@ -1,8 +1,3 @@
-<%
-WHERE = __sql__.byName('WHERE')
-where_sql, _ = WHERE(where, baseSchema=table.schema(), __data__=__data__)
-%>
-
-DELETE FROM "${table.schema().tableName()}"
-WHERE ${where_sql}
+DELETE FROM "${table}"
+WHERE ${WHERE(query, baseSchema=schema, IO=IO)}
 RETURNING *;

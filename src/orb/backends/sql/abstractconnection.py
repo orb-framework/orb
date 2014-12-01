@@ -215,7 +215,8 @@ class SQLConnection(orb.Connection):
         super(SQLConnection, self).disableInternals()
         
         ENABLE_INTERNALS = self.sql('ENABLE_INTERNALS')
-        sql, data = ENABLE_INTERNALS(False, options=options)
+        data = {}
+        sql = ENABLE_INTERNALS(False, options=options, IO=data)
         
         self.execute(sql, data, autoCommit=False)
     
@@ -250,7 +251,8 @@ class SQLConnection(orb.Connection):
         :sa     disableInternals
         """
         ENABLE_INTERNALS = self.sql('ENABLE_INTERNALS')
-        sql, data = ENABLE_INTERNALS(True, options=options)
+        data = {}
+        sql = ENABLE_INTERNALS(True, IO=data)
         
         self.execute(sql, data, autoCommit=False)
         
@@ -267,7 +269,8 @@ class SQLConnection(orb.Connection):
         :return     [<str>, ..]
         """
         TABLE_COLUMNS = self.sql('TABLE_COLUMNS')
-        sql, data = TABLE_COLUMNS(schema, options=options)
+        data = {}
+        sql = TABLE_COLUMNS(schema, options=options, IO=data)
         result = self.execute(sql, data, autoCommit=False)[0]
         return [x['column_name'] for x in result]
     
@@ -440,14 +443,14 @@ class SQLConnection(orb.Connection):
                                  batch,
                                  columns=lookup.columns,
                                  autoincrement=autoinc,
-                                 __data__=data,
-                                 options=options)
+                                 options=options,
+                                 IO=data)
                 cmds.append(icmd)
             
             # for inherited schemas in non-OO tables, we'll define the
             # primary keys before insertion
             if autoinc:
-                cmd, _ = INSERTED_KEYS(schema, count=len(batch), __data__=data)
+                cmd, _ = INSERTED_KEYS(schema, count=len(batch), IO=data)
                 cmds.append(cmd)
         
         if not cmds:
@@ -603,7 +606,8 @@ class SQLConnection(orb.Connection):
         DELETE = self.sql('DELETE')
         for table, queries in remove.items():
             for query in queries:
-                sql, data = DELETE(table, query, options=options)
+                data = {}
+                sql = DELETE(table, query, options=options, IO=data)
                 if options.dryRun:
                     print sql % data
                 else:
@@ -632,16 +636,15 @@ class SQLConnection(orb.Connection):
         
         :return     [({<str> columnName: <variant> value, .., ..), ..]
         """
-        COLUMNS = {}
-        
+        data = {}
         if orb.Table.typecheck(table_or_join):
             schemas = [table_or_join.schema()]
             SELECT = self.sql('SELECT')
             try:
-                sql, data = SELECT(table_or_join,
-                                   lookup=lookup,
-                                   options=options,
-                                   COLUMNS=COLUMNS)
+                sql = SELECT(table_or_join,
+                             lookup=lookup,
+                             options=options,
+                             IO=data)
             except errors.QueryIsNull:
                 return []
         else:
@@ -649,10 +652,10 @@ class SQLConnection(orb.Connection):
             SELECT_JOIN = self.sql('SELECT_JOIN')
             
             try:
-                sql, data = SELECT_JOIN(table_or_join,
-                                        lookup=lookup,
-                                        options=options,
-                                        COLUMNS=COLUMNS)
+                sql = SELECT_JOIN(table_or_join,
+                                  lookup=lookup,
+                                  options=options,
+                                  IO=data)
             except errors.QueryIsNull:
                 return []
         
@@ -698,8 +701,9 @@ class SQLConnection(orb.Connection):
         Initializes the database by defining any additional structures that are required during selection.
         """
         SETUP_DB = self.sql('SETUP_DB')
+        data = {}
         try:
-            sql, data = SETUP_DB()
+            sql = SETUP_DB(IO=data)
         except StandardError as err:
             log.error(str(err))
         else:
@@ -774,7 +778,8 @@ class SQLConnection(orb.Connection):
         :return     <bool> exists
         """
         TABLE_EXISTS = self.sql('TABLE_EXISTS')
-        sql, data = TABLE_EXISTS(schema, options=options)
+        data = {}
+        sql = TABLE_EXISTS(schema, options=options, IO=data)
         return bool(self.execute(sql, data, autoCommit=False)[0])
     
     def update(self, records, lookup, options):
@@ -829,7 +834,7 @@ class SQLConnection(orb.Connection):
         UPDATE = self.sql('UPDATE')
         
         for schema, changes in updater.items():
-            icmd, _ = UPDATE(schema, changes, __data__=data, options=options)
+            icmd, _ = UPDATE(schema, changes, options=options, IO=data)
             cmds.append(icmd)
         
         cmd = u'\n'.join(cmds)
@@ -895,7 +900,8 @@ class SQLConnection(orb.Connection):
         
         columns = map(schema.column, missing)
         ALTER = self.sql('ALTER_TABLE')
-        sql, data = ALTER(schema, added=columns, options=options)
+        data = {}
+        sql = ALTER(schema, added=columns, options=options, IO=data)
         
         if options.dryRun:
             print sql % data

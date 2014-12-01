@@ -1,62 +1,34 @@
-<%
-ADD_COLUMN = __sql__.byName('ADD_COLUMN')
-ADD_CONSTRAINT = __sql__.byName('ADD_CONSTRAINT')
-
-schema = table.schema()
-table_name = schema.tableName()
-pcols = [u'"{0}"'.format(pcol.fieldName()) for pcol in schema.primaryColumns()]
-
-if not pcols:
-    raise errors.DatabaseError('No primary keys defined.')
-
-columns = []
-translations = []
-for column in sorted(schema.columns(recurse=False), key=lambda x: x.fieldName()):
-    if column.isAggregate():
-        continue
-    elif column.isJoined():
-        continue
-    elif column.isProxy():
-        continue
-    elif column.isTranslatable():
-        translations.append(column)
-    elif column.primary() and schema.inherits():
-        continue
-    elif column.isReference():
-        continue
-    else:
-        columns.append(column)
-%>
 -- create the table
-CREATE TABLE IF NOT EXISTS "${table_name}" (
+CREATE TABLE IF NOT EXISTS "${table}" (
     -- define the columns
-    % for i, column in enumerate(columns):
-    ${ADD_COLUMN(column)[0].strip().replace('ADD COLUMN ', '')},
+    % for i, column in enumerate(columns['standard']):
+    ${ADD_COLUMN(column).replace('ADD COLUMN ', '')},
     % endfor
-    -- define the constraints
-    % if pcols:
-    CONSTRAINT "${table_name}_pkey" PRIMARY KEY (${u','.join(pcols)})
+
+    % if columns['primary']:
+    -- define the primary key constraint
+    CONSTRAINT "${table_name}_pkey" PRIMARY KEY (${u','.join([u'"{0}"'.format(col.fieldName()) for col in columns['primary']])})
     % endif
 )
-% if schema.inherits():
-INHERITS "${schema.inheritsModel().schema().tableName()}"
+% if inherits:
+INHERITS "${inherits}"
 % endif
 WITH (OIDS=FALSE);
-ALTER TABLE "${table_name}" OWNER TO "${__db__.username()}";
+ALTER TABLE "${table}" OWNER TO "${owner}";
 
-% if translations:
+% if columns['i18n']:
 -- create the translations table
-CREATE TABLE "${table_name}_i18n" (
+CREATE TABLE "${table}_i18n" (
     -- define the columns
     "locale" CHARACTER VARYING(5),
-    "${table_name}_id" BIGINT REFERENCES "${table_name}" (${u','.join(pcols)}) ON DELETE CASCADE,
-    % for translation in translations:
-    ${ADD_COLUMN(translation)[0].strip().replace('ADD COLUMN ', '')},
+    "${table}_id" BIGINT REFERENCES "${table}" (${u','.join([u'"{0}"'.format(col.fieldName()) for col in columns['primary']])}) ON DELETE CASCADE,
+    % for column in columns['translations']:
+    ${ADD_COLUMN(column).replace('ADD COLUMN ', '')},
     % endfor
     
     -- define the constraints
-    CONSTRAINT "${table_name}_i18n_pkey" PRIMARY KEY ("${table_name}_id", "locale")
+    CONSTRAINT "${table}_i18n_pkey" PRIMARY KEY ("${table}_id", "locale")
 )
 WITH (OIDS=FALSE);
-ALTER TABLE "${table_name}_i18n" OWNER TO "${__db__.username()}";
+ALTER TABLE "${table}_i18n" OWNER TO "${owner}";
 % endif

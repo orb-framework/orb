@@ -374,9 +374,7 @@ class Quickbase(orb.Connection):
         col         = schema.column(colname)
 
         if not col:
-            warn = errors.ColumnNotFound(colname, tableName)
-            log.warning(warn)
-            return ''
+            raise errors.ColumnNotFound(tableName, colname)
         
         # extract the primary key information
         if orb.Table.recordcheck(value):

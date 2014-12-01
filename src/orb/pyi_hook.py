@@ -20,7 +20,7 @@ for root, folders, files in os.walk(os.path.join(basepath)):
     for file in files:
         if file.endswith('.mako'):
             src = os.path.join(root, file)
-            targ = src.replace('.mako', '_mako.py')
+            targ = src.replace('.', '_') + '.py'
             with open(src, 'r') as f:
                 data = f.read()
             

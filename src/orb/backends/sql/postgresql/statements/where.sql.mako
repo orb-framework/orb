@@ -1,9 +1,9 @@
 % if orb.QueryCompound.typecheck(where):
     <%
-    WHERE = __sql__.byName('WHERE')
+    WHERE = SQL.byName('WHERE')
     sub_queries = []
     for subquery in where.queries():
-        sub_q = WHERE(subquery, baseSchema=baseSchema, __data__=__data__)[0]
+        sub_q = WHERE(subquery, baseSchema=baseSchema, GLOBALS=GLOBALS, IO=IO)
         if sub_q:
             sub_queries.append(sub_q)
     %>
@@ -17,20 +17,20 @@
 
 % else:
     <%
-    WHERE = __sql__.byName('WHERE')
+    WHERE = SQL.byName('WHERE')
     traversal = []
     column = where.column(baseSchema, traversal=traversal, db=__database__)
 
     # ensure the column exists
     if not column:
-        raise orb.errors.ColumnNotFound(baseSchema, where.columnName())
+        raise orb.errors.ColumnNotFound(baseSchema.name(), where.columnName())
 
-    __data__.setdefault('select_tables', set())
-    __data__.setdefault('traversal', [])
-    __data__.setdefault('field_mapper', {})
+    GLOBALS.setdefault('select_tables', set())
+    GLOBALS.setdefault('traversal', [])
+    GLOBALS.setdefault('field_mapper', {})
 
     last_key = None
-    join_count = __data__.get('join_count', 0)
+    join_count = GLOBALS.get('join_count', 0)
     if traversal:
         traversal.append(column)
 
@@ -52,9 +52,9 @@
             
             cmd = u'LEFT JOIN "{0}" AS "{3}" ON {1}={2}'
             
-            __data__['field_mapper'][curr] = '"{0}"."{1}"'.format(join_table,
+            GLOBALS['field_mapper'][curr] = '"{0}"."{1}"'.format(join_table,
                                                                   curr.fieldName())
-            __data__['traversal'].append(cmd.format(curr.schema().tableName(),
+            GLOBALS['traversal'].append(cmd.format(curr.schema().tableName(),
                                                     last_key,
                                                     curr_key,
                                                     join_table))
@@ -64,14 +64,14 @@
     # if we're not mapping the column already, we'll need to add it into the
     # selection 
     elif where.table() and where.table().schema() != baseSchema:
-        __data__['select_tables'].add(column.schema().model())
+        GLOBALS['select_tables'].add(column.schema().model())
     
-    __data__['join_count'] = join_count
+    GLOBALS['join_count'] = join_count
 
     op = where.operatorType()
-    op_sql = __sql__.byName('Op::{0}'.format(orb.Query.Op(op)))
+    op_sql = SQL.byName('Op::{0}'.format(orb.Query.Op(op)))
     if where.caseSensitive():
-      case = __sql__.byName('Op::{0}::CaseSensitive'.format(orb.Query.Op(op)))
+      case = SQL.byName('Op::{0}::CaseSensitive'.format(orb.Query.Op(op)))
       op_sql = case or op_sql
     if op_sql is None:
         raise orb.errors.QueryInvalid('{0} is an unknown operator.'.format(orb.Query.Op(op)))
@@ -80,8 +80,8 @@
     if orb.Table.recordcheck(value):
         value = value.primaryKey()
     
-    if column in __data__.get('field_mapper', {}):
-        field = __data__['field_mapper'][column]
+    if column in GLOBALS.get('field_mapper', {}):
+        field = GLOBALS['field_mapper'][column]
     else:
         def query_to_sql(q):
             column = q.column(baseSchema)
@@ -90,7 +90,7 @@
             
             # process any functions on the query
             for func in q.functions():
-                qfunc = __sql__.byName('Func::{0}'.format(orb.Query.Function(func)))
+                qfunc = SQL.byName('Func::{0}'.format(orb.Query.Function(func)))
                 if qfunc:
                     output = qfunc.format(output)
             
@@ -101,9 +101,9 @@
             math_key = orb.Query.Math(op)
             type_key = orb.ColumnType(column.columnType())
             
-            sql = __sql__.byName('Math::{0}::{1}'.format(math_key, type_key))
+            sql = SQL.byName('Math::{0}::{1}'.format(math_key, type_key))
             if not sql:
-                sql = __sql__.byName('Math::{0}'.format(math_key))
+                sql = SQL.byName('Math::{0}'.format(math_key))
             if not sql:
                 msg = 'Cannot {0} {1} types.'.format(math_key, type_key)
                 raise orb.errors.QueryInvalid(msg)
@@ -112,8 +112,8 @@
             if orb.Query.typecheck(target):
                 field += query_to_sql(target)
             else:
-                key = len(__data__['output'])
-                __data__['output'][str(key)] = target
+                key = len(IO)
+                IO[str(key)] = target
                 field += '%({0})s'.format(key)
     %>
     % if orb.Query.typecheck(value):
@@ -122,7 +122,7 @@
             val_col = value.column()
             
             if value.table():
-              __data__['select_tables'].add(value.table())
+              GLOBALS['select_tables'].add(value.table())
 
             query_field = '"{0}"."{1}"'.format(val_schema.tableName(), val_col.fieldName())
         %>
@@ -145,9 +145,9 @@
           if not value:
               raise orb.errors.QueryIsNull()
 
-          key = str(len(__data__['output']))
+          key = str(len(IO))
           key_id = '%({0})s'.format(key)
-          __data__['output'][key] = __sql__.datastore().store(column, value)
+          IO[key] = SQL.datastore().store(column, value)
           %>
           % if where.isInverted():
           ${key_id} IN ${field}
@@ -155,12 +155,12 @@
           ${field} IN ${key_id}
           % endif
         % else:
-          <% SELECT = __sql__.byName('SELECT') %>
+          <% SELECT = SQL.byName('SELECT') %>
           ${field} ${op_sql} (
               ${SELECT(value.table(),
                        lookup=value.lookupOptions(columns=value.table().schema().primaryColumns()),
                        options=value.databaseOptions(),
-                       output=__data__['output'])[0]}
+                       output=IO)[0]}
           )
         % endif
 
@@ -170,21 +170,21 @@
             raise orb.errors.QueryIsNull()
 
         ID = orb.system.settings().primaryField()
-        key = str(len(__data__['output']))
+        key = str(len(IO))
         key_id = '%({0})s'.format(key)
-        __data__['output'][key] = __sql__.datastore().store(column, value)
+        IO[key] = SQL.datastore().store(column, value)
         %>
         % if op in (orb.Query.Op.Contains, orb.Query.Op.DoesNotContain):
-        <% __data__['output'][key] = '%{0}%'.format(__data__['output'][key]) %>
+        <% IO[key] = '%{0}%'.format(IO[key]) %>
         % elif op in (orb.Query.Op.Startswith, orb.Query.Op.DoesNotStartwith):
-        <% __data__['output'][key] = '{0}%'.format(__data__['output'][key]) %>
+        <% IO[key] = '{0}%'.format(IO[key]) %>
         % elif op in (orb.Query.Op.Endswith, orb.Query.Op.DoesNotEndwith):
-        <% __data__['output'][key] = '%{0}'.format(__data__['output'][key]) %>
+        <% IO[key] = '%{0}'.format(IO[key]) %>
         % endif
 
         % if column.isTranslatable():
             ## check to see if this column has already been merged
-            % if column in __data__['field_mapper']:
+            % if column in GLOBALS['field_mapper']:
             ${field} ${op_sql} %(${key})s
             % else:
             <% table_name = column.schema().tableName() %>

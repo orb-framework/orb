@@ -48,14 +48,8 @@ class CannotDelete(OrbError):
         super(CannotDelete, self).__init__(msg, tablename)
 
 class ColumnNotFound(OrbError):
-    def __init__(self, column, table=''):
-        try:
-            table = column.schema().name()
-            col = column.name()
-        except AttributeError:
-            col = nstr(column)
-
-        super(ColumnNotFound, self).__init__('{0} is a missing column from {1}.'.format(table, col))
+    def __init__(self, table, column):
+        super(ColumnNotFound, self).__init__('{0} is a missing column from {1}.'.format(table, column))
 
 class ColumnReadOnly(OrbError):
     def __init__(self, column):

@@ -1,5 +1,5 @@
 <%
-WHERE = __sql__.byName('WHERE')
+WHERE = SQL.byName('WHERE')
 
 aggr = column.aggregator()
 src_table = column.schema().tableName()
@@ -8,33 +8,31 @@ ref_table = ref_col.schema().tableName()
 targ_col = aggr.targetColumn()
 
 query = aggr.where(column)
-traversals = __data__.get('traversal', [])
-__data__['traversal'] = []
+traversals = GLOBALS.get('traversal', [])
+GLOBALS['traversal'] = []
 if query is not None:
-    where = WHERE(query,
-                  baseSchema=ref_col.schema(),
-                  __data__=__data__)[0]
+    where = WHERE(query, baseSchema=ref_col.schema(), IO=IO, GLOBALS=GLOBALS)
 else:
     where = None
-new_traversals = __data__.get('traversal', [])
-__data__['traversal'] = traversals
+new_traversals = GLOBALS.get('traversal', [])
+GLOBALS['traversal'] = traversals
 
 pcols = []
 for pcol in column.schema().primaryColumns():
   pcols.append('"{0}"."{1}"'.format(src_table, pcol.fieldName()))
 
 # create the join table name
-join_count = __data__.get('join_count', 0)
+join_count = GLOBALS.get('join_count', 0)
 join_count += 1
 join_table = 'join_{0}'.format(join_count)
 
 join_col = 'SUM(COALESCE("{0}"."{1}",0)) AS "{1}"'.format(join_table,
                                                           column.name())
 
-__data__['join_count'] = join_count
-__data__['join_table'] = join_table
-__data__['join_column'] = join_col
-__data__.setdefault('field_mapper', {})
+GLOBALS['join_count'] = join_count
+GLOBALS['join_table'] = join_table
+GLOBALS['join_column'] = join_col
+GLOBALS.setdefault('field_mapper', {})
 
 agg_type = aggr.aggregateType()
 
@@ -49,8 +47,7 @@ elif agg_type == orb.QueryAggregate.Type.Minimum:
 else:
     raise orb.QueryInvalid('Invalid aggregate type.')
 
-__data__['field_mapper'][column] = '"{0}"."{1}"'.format(join_table,
-                                                        column.name())
+GLOBALS['field_mapper'][column] = '"{0}"."{1}"'.format(join_table, column.name())
 %>
 
 LEFT JOIN (

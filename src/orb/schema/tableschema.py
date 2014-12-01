@@ -240,7 +240,7 @@ class TableSchema(object):
                traversal=None):
         """
         Returns the column instance based on its name.  
-        If error reporting is on, then the ColumnNotFoundError 
+        If error reporting is on, then the ColumnNotFound
         error will be thrown the key inputed is not a valid 
         column name.
         

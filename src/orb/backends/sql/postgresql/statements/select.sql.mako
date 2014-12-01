@@ -1,13 +1,13 @@
 <%
-    SELECT_AGGREGATE = __sql__.byName('SELECT_AGGREGATE')
-    SELECT_JOINER = __sql__.byName('SELECT_JOINER')
-    SELECT_EXPAND = __sql__.byName('SELECT_EXPAND')
-    WHERE = __sql__.byName('WHERE')
+    SELECT_AGGREGATE = SQL.byName('SELECT_AGGREGATE')
+    SELECT_JOINER = SQL.byName('SELECT_JOINER')
+    SELECT_EXPAND = SQL.byName('SELECT_EXPAND')
+    WHERE = SQL.byName('WHERE')
     ID = orb.system.settings().primaryField()
 
-    __data__['traversal'] = []
-    __data__['field_mapper'] = {}
-    __data__['select_tables'] = {table}
+    GLOBALS['traversal'] = []
+    GLOBALS['field_mapper'] = {}
+    GLOBALS['select_tables'] = {table}
 
     schema = table.schema()
     table_name = schema.tableName()
@@ -25,7 +25,7 @@
 
     joined = []
     columns = []
-    translated_columns = []
+    i18n_columns = []
     group_by = set()
     if lookup.where:
         query_columns = lookup.where.columns(schema)
@@ -43,44 +43,45 @@
 
         if column.isAggregate():
             if use_column or column in query_columns:
-                aggr_sql = SELECT_AGGREGATE(column, __data__=__data__)[0]
+                aggr_sql = SELECT_AGGREGATE(column, GLOBALS=GLOBALS, IO=IO)
 
                 group_by.update(pcols)
                 joined.append(aggr_sql)
 
                 if use_column:
-                    columns.append(__data__['join_column'])
+                    columns.append(GLOBALS['join_column'])
 
         elif column.isJoined():
             if use_column or column in query_columns:
-                aggr_sql = SELECT_JOINER(column, __data__=__data__)[0]
+                aggr_sql = SELECT_JOINER(column, GLOBALS=GLOBALS, IO=IO)
 
                 group_by.update(pcols)
                 joined.append(aggr_sql)
 
                 if use_column:
-                    columns.append(__data__['join_column'])
+                    columns.append(GLOBALS['join_column'])
 
         elif use_column and column.isTranslatable():
             if options.inflateRecords or options.locale == 'all':
                 # process translation logic
                 col_sql = 'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{1}"'
-                translated_columns.append(col_sql.format(column.fieldName(), column.fieldName()))
+                i18n_columns.append(col_sql.format(column.fieldName(), column.fieldName()))
                 group_by.add('"{0}"."{1}"'.format(table_name, ID))
-                __data__['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
+                GLOBALS['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
             else:
                 col_sql = '(array_agg("i18n"."{0}"))[1] AS "{1}"'
-                translated_columns.append(col_sql.format(column.fieldName(), column.fieldName()))
+                i18n_columns.append(col_sql.format(column.fieldName(), column.fieldName()))
                 group_by.add('"{0}"."{1}"'.format(table_name, ID))
-                __data__['output']['locale'] = options.locale
-                __data__['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
+
+                IO['locale'] = options.locale
+                GLOBALS['field_mapper'][column] = '"i18n"."{0}"'.format(column.fieldName())
 
         elif not column.isProxy() and use_column:
             query_columns.append(column)
 
             # expand a reference column
             if column.isReference() and lookup.expand and column.name() in lookup.expand:
-                col_sql = SELECT_EXPAND(column=column, lookup=lookup, options=options)[0]
+                col_sql = SELECT_EXPAND(column=column, lookup=lookup, options=options, GLOBALS=GLOBALS, IO=IO)
                 if col_sql:
                     columns.append(col_sql)
 
@@ -93,13 +94,13 @@
     # include any additional expansions from pipes
     if lookup.expand:
         for pipe in schema.pipes():
-            col_sql = SELECT_EXPAND(pipe=pipe, lookup=lookup, options=options)[0]
+            col_sql = SELECT_EXPAND(pipe=pipe, lookup=lookup, options=options, GLOBALS=GLOBALS, IO=IO)
             if col_sql:
                 columns.append(col_sql)
 
     if lookup.where:
         try:
-          where = WHERE(lookup.where, baseSchema=schema, __data__=__data__)[0].strip()
+          where = WHERE(lookup.where, baseSchema=schema, GLOBALS=GLOBALS, IO=IO)
         except orb.errors.QueryIsNull:
           where = orb.errors.QueryIsNull
     else:
@@ -115,7 +116,7 @@
               continue
 
             default = '"{0}"."{1}"'.format(table_name, col_obj.fieldName())
-            field = __data__['field_mapper'].get(col_obj, default)
+            field = GLOBALS['field_mapper'].get(col_obj, default)
 
             if field != default:
               group_by.add(field)
@@ -127,32 +128,25 @@
     else:
         order_by = []
 
-    select_tables = __data__['select_tables']
+    select_tables = GLOBALS['select_tables']
     table_names = list({'"{0}"'.format(tbl.schema().tableName()) for tbl in select_tables})
 
 ##    # ensure we have all selection items in our column
 ##    if group_by:
 ##        for col in set(query_columns):
 ##            default = '"{0}"."{1}"'.format(col.schema().tableName(), col.fieldName())
-##            field = __data__['field_mapper'].get(col, default)
+##            field = GLOBALS['field_mapper'].get(col, default)
 ##            group_by.all(field)
 %>
-% if (columns or translated_columns) and where != orb.errors.QueryIsNull:
+% if (columns or i18n_columns) and where != orb.errors.QueryIsNull:
 -- select from a single table
-% if lookup.distinct:
-SELECT DISTINCT
-% else:
-SELECT
-% endif
-    ${',\n    '.join(columns+translated_columns)}
+SELECT ${'DISTINCT' if lookup.distinct else ''}
+    ${',\n    '.join(columns+i18n_columns)}
 FROM "${table_name}"
-% if joined:
-${'\n'.join(joined)}
-% endif
-% if __data__['traversal']:
-${'\n'.join(__data__['traversal'])}
-% endif
-% if translated_columns:
+${'\n'.join(joined) if joined else ''}
+${'\n'.join(GLOBALS['traversal']) if GLOBALS['traversal'] else ''}
+
+% if i18n_columns:
 % if options.inflateRecords or options.locale == 'all':
 LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
     "i18n"."${table_name}_id" = "${ID}"

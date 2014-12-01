@@ -6,19 +6,19 @@ pcols = ['"{0}"'.format(pcol.fieldName()) for pcol in schema.primaryColumns()]
 <%
 updates = []
 translation_updates = {}
-pkey = str(len(__data__['output']))
-__data__['output'][pkey] = record.primaryKey()
+pkey = str(len(IO))
+IO[pkey] = record.primaryKey()
 
 for column in columns:
     if column.isTranslatable():
         for locale, value in record.recordValue(column.name(), locale='all').items():
-            key = str(len(__data__['output']))
-            __data__['output'][key] = __sql__.datastore().store(column, value)
+            key = str(len(IO))
+            IO[key] = SQL.datastore().store(column, value)
             translation_updates.setdefault(locale, [])
             translation_updates[locale].append('"{0}" = %({1})s'.format(column.fieldName(), key))
     else:
-        key = str(len(__data__['output']))
-        __data__['output'][key] = __sql__.datastore().store(column,
+        key = str(len(IO))
+        IO[key] = SQL.datastore().store(column,
                                                   record.recordValue(column.name()))
         updates.append('"{0}" = %({1})s'.format(column.fieldName(), key))
 %>

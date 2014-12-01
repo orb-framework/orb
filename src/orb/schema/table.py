@@ -888,7 +888,7 @@ class Table(object):
         columnName = nstr(columnName)
         column = self.schema().column(columnName)
         if not column:
-            raise errors.ColumnNotFound(self, columnName)
+            raise errors.ColumnNotFound(self.schema().name(), columnName)
 
         if useMethod:
             method = getattr(self.__class__, column.getterName(), None)
@@ -1211,7 +1211,7 @@ class Table(object):
                 proxy.setter()(self, value)
                 return True
 
-            raise errors.ColumnNotFound(self, columnName)
+            raise errors.ColumnNotFound(self.schema().name(), columnName)
 
         # otherwise, store the column information in the defaults
         value = column.storeValue(value)
@@ -1238,7 +1238,7 @@ class Table(object):
         """
         Sets the value for this record at the inputed column
         name.  If the columnName provided doesn't exist within
-        the schema, then the ColumnNotFoundError error will be 
+        the schema, then the ColumnNotFound error will be
         raised.
         
         :param      columnName      | <str>

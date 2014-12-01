@@ -758,7 +758,7 @@ class Mongo(orb.Connection):
             newValue = changevals[1]
             
             if not column:
-                raise errors.ColumnNotFound(colname)
+                raise errors.ColumnNotFound(schema.name(), colname)
             
             elif column.required() and newValue == None:
                 raise errors.ColumnRequired(colname)

@@ -211,9 +211,11 @@ class PSQLConnection(SQLConnection):
             SELECT = self.sql().byName('SELECT')
 
             schema = table_or_join.schema()
-            sql, data = SELECT(table_or_join,
+            data = {}
+            sql = SELECT(table_or_join,
                                lookup=lookup,
-                               options=options)
+                               options=options,
+                               IO=data)
 
             # if we don't have any command to run, just return a blank list
             if not sql:

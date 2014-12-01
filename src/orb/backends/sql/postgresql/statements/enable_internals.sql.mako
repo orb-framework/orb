@@ -1,10 +1,10 @@
-% if schema is None:
+% if not table:
 SET unique_checks=${int(enabled)};
 SET foreign_key_checks=${int(enabled)};
 % else:
 % if enabled:
-ALTER TABLE "${schema.tableName()}" ENABLE KEYS;
+ALTER TABLE "${table}" ENABLE KEYS;
 % else:
-ALTER TABLE "${schema.tableName()}" DISABLE KEYS;
+ALTER TABLE "${table}" DISABLE KEYS;
 % endif
 % endif
