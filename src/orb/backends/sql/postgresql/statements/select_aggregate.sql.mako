@@ -11,7 +11,7 @@ query = aggr.where(column)
 traversals = GLOBALS.get('traversal', [])
 GLOBALS['traversal'] = []
 if query is not None:
-    where = WHERE(query, baseSchema=ref_col.schema(), IO=IO, GLOBALS=GLOBALS)
+    where = WHERE(ref_col.schema(), query, GLOBALS=GLOBALS, IO=IO)
 else:
     where = None
 new_traversals = GLOBALS.get('traversal', [])

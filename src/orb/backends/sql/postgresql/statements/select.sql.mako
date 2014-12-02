@@ -100,7 +100,7 @@
 
     if lookup.where:
         try:
-          where = WHERE(lookup.where, baseSchema=schema, GLOBALS=GLOBALS, IO=IO)
+          where = WHERE(schema, lookup.where, GLOBALS=GLOBALS, IO=IO)
         except orb.errors.QueryIsNull:
           where = orb.errors.QueryIsNull
     else:

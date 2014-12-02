@@ -1,7 +1,7 @@
 -- create the table
 CREATE TABLE IF NOT EXISTS "${table}" (
     -- define the columns
-    % for i, column in enumerate(columns['standard']):
+    % for i, column in enumerate(columns['base']):
     ${ADD_COLUMN(column).replace('ADD COLUMN ', '')},
     % endfor
 

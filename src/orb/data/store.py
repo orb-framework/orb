@@ -16,6 +16,7 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
+import cPickle
 import datetime
 import decimal
 import orb

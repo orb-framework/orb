@@ -1,7 +1,7 @@
-% if added['standard']:
+% if added['base']:
 -- update the table
 ALTER TABLE "${table}"
-    % for column in added['standard'][:-1]:
+    % for column in added['base'][:-1]:
     ${ADD_COLUMN(column)},
     % endfor
     ${ADD_COLUMN(column)}

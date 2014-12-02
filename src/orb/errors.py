@@ -58,7 +58,7 @@ class CannotDelete(OrbError):
 
 class ColumnNotFound(OrbError):
     def __init__(self, table, column):
-        super(ColumnNotFound, self).__init__('{0} is a missing column from {1}.'.format(table, column))
+        super(ColumnNotFound, self).__init__('Did not find {0} column on {1}.'.format(column, table))
 
 class ColumnReadOnly(OrbError):
     def __init__(self, column):
@@ -205,3 +205,9 @@ class TableNotFound(OrbError):
     def __init__(self, table):
         super(TableNotFound, self).__init__('Cound not find `{0}` table.'.format(table))
 
+# V
+#------------------------------------------------------------------------------
+
+class ValueNotFound(OrbError):
+    def __init__(self, record, column):
+        super(ValueNotFound, self).__init__('{0} has no value for {1}'.format(record, column))

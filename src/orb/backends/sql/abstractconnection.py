@@ -143,11 +143,13 @@ class SQLConnection(orb.Connection):
             SELECT_COUNT = self.sql('SELECT_COUNT')
         else:
             SELECT_COUNT = self.sql('SELECT_COUNT_JOIN')
-        
+
+        data = {}
         try:
-            cmd, data = SELECT_COUNT(table_or_join,
-                                     lookup=lookup,
-                                     options=options)
+            cmd = SELECT_COUNT(table_or_join,
+                               lookup=lookup,
+                               options=options,
+                               IO=data)
         except errors.QueryIsNull:
             return 0
         
@@ -192,7 +194,8 @@ class SQLConnection(orb.Connection):
             return False
         
         CREATE_TABLE = self.sql('CREATE_TABLE')
-        cmd, data = CREATE_TABLE(schema.model(), options=options)
+        data = {}
+        cmd = CREATE_TABLE(schema.model(), options=options, IO=data)
         
         if not options.dryRun:
             self.execute(cmd, data)
@@ -362,7 +365,7 @@ class SQLConnection(orb.Connection):
                     
                     try:
                         self.rollback()
-                    except:
+                    except StandardError:
                         pass
                     
                     raise
@@ -408,22 +411,17 @@ class SQLConnection(orb.Connection):
             rchanges = record.changeset(columns=lookup.columns)
             changes.append(rchanges)
             
-            # do not insert records that alread exist
+            # do not insert records that already exist
             if options.force:
                 pass
-            
-            elif record.isRecord():
+            elif record.isRecord() or not rchanges:
                 continue
-            
-            elif not rchanges:
-                continue
-            
+
             inserter[record.schema()].append(record)
         
         cmds = []
         data = {}
-        data['output'] = {}
-        
+
         autoinc = options.autoIncrement
         INSERT = self.sql('INSERT')
         INSERTED_KEYS = self.sql('INSERTED_KEYS')
@@ -439,35 +437,35 @@ class SQLConnection(orb.Connection):
             
             for batch in projex.iters.batch(schema_records, size):
                 batch = list(batch)
-                icmd, _ = INSERT(schema,
-                                 batch,
-                                 columns=lookup.columns,
-                                 autoincrement=autoinc,
-                                 options=options,
-                                 IO=data)
-                cmds.append(icmd)
+                icmd = INSERT(schema,
+                              batch,
+                              columns=lookup.columns,
+                              autoincrement=autoinc,
+                              options=options,
+                              IO=data)
+                if icmd:
+                    cmds.append(icmd)
             
             # for inherited schemas in non-OO tables, we'll define the
             # primary keys before insertion
             if autoinc:
-                cmd, _ = INSERTED_KEYS(schema, count=len(batch), IO=data)
+                cmd = INSERTED_KEYS(schema, count=len(batch), IO=data)
                 cmds.append(cmd)
         
         if not cmds:
             return {}
         
         cmd = u'\n'.join(cmds)
-        cmd_data = data['output']
         
         if options.dryRun:
-            print cmd % cmd_data
+            print cmd % data
             
             if len(changes) == 1:
                 return {}
             else:
                 return []
         else:
-            results, _ = self.execute(cmd, cmd_data, autoCommit=False)
+            results, _ = self.execute(cmd, data, autoCommit=False)
         
         if not self.commit():
             if len(changes) == 1:
@@ -834,11 +832,10 @@ class SQLConnection(orb.Connection):
         UPDATE = self.sql('UPDATE')
         
         for schema, changes in updater.items():
-            icmd, _ = UPDATE(schema, changes, options=options, IO=data)
+            icmd = UPDATE(schema, changes, options=options, IO=data)
             cmds.append(icmd)
         
         cmd = u'\n'.join(cmds)
-        data = data['output']
         
         if options.dryRun:
             print cmd % data

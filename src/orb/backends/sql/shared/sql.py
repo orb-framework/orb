@@ -1,13 +1,14 @@
 import logging
 import orb
 
+from collections import defaultdict
 from orb import errors
 from orb.backends.sql.abstractsql import SQL
 
 log = logging.getLogger(__name__)
 
 # A
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 class ADD_COLUMN(SQL):
     def collectFlags(self, column):
@@ -15,11 +16,11 @@ class ADD_COLUMN(SQL):
         flags = []
         Flags = orb.Column.Flags
         for flag in column.iterFlags():
-            flag_sql = self.byName('Flag::{0}'.format(Flags(flag)))
+            flag_sql = self.baseSQL().byName('Flag::{0}'.format(Flags(flag)))
             if flag_sql:
                 flags.append(flag_sql)
             else:
-                log.error('Unkown flag: {0}'.format(flag))
+                log.error('Unknown flag: {0}'.format(flag))
         return flags
 
     def render(self, column, **scope):
@@ -35,7 +36,7 @@ class ADD_COLUMN(SQL):
             raise errors.TableNotFound(column.reference())
 
         type_name = column.columnTypeText()
-        sql_type = self.byName('Type::{0}'.format(type_name))
+        sql_type = self.baseSQL().byName('Type::{0}'.format(type_name))
         if not sql_type:
             raise errors.DatabaseError('Unknown column type: {0}'.format(type_name))
 
@@ -45,21 +46,19 @@ class ADD_COLUMN(SQL):
             'reference': column.referenceModel().schema().tableName() if column.reference() else '',
             'type': sql_type,
             'flags': self.collectFlags(column),
-            'max_length': column.maxlength() or self.byName('Length::{0}'.format(type_name))
+            'max_length': column.maxlength() or self.baseSQL().byName('Length::{0}'.format(type_name))
         }
         new_scope.update(scope)
 
         return super(ADD_COLUMN, self).render(**new_scope)
 
+
 class ALTER_TABLE(SQL):
-    def collectColumns(self, table, selection):
+    @staticmethod
+    def collectColumns(table, selection):
         schema = table.schema()
-        columns = {
-            'all': [],
-            'i18n': [],
-            'standard': [],
-            'primary': schema.primaryColumns()
-        }
+        columns = defaultdict(list)
+        columns['primary'] = schema.primaryColumns()
 
         # extract the columns that we'll need
         for column in sorted(selection, key=lambda x: x.fieldName()):
@@ -76,7 +75,7 @@ class ALTER_TABLE(SQL):
                 columns['i18n'].append(column)
             else:
                 columns['all'].append(column)
-                columns['standard'].append(column)
+                columns['base'].append(column)
 
         return columns
 
@@ -92,7 +91,7 @@ class ALTER_TABLE(SQL):
         :return     <str>
         """
         schema = table.schema()
-        db = db or orb.manager.database()
+        db = scope.get('db', orb.manager.database())
 
         # define the new scope
         new_scope = {
@@ -103,8 +102,8 @@ class ALTER_TABLE(SQL):
             'inherits': schema.inheritsModel().schema().tableName() if schema.inherits() else '',
 
             # define some useful sql queries by default
-            'ADD_COLUMN': self.byName('ADD_COLUMN'),
-            'ADD_CONSTRAINT': self.byName('ADD_CONSTRAINT')
+            'ADD_COLUMN': self.baseSQL().byName('ADD_COLUMN'),
+            'ADD_CONSTRAINT': self.baseSQL().byName('ADD_CONSTRAINT')
         }
 
         if not new_scope['primary_columns']:
@@ -113,20 +112,17 @@ class ALTER_TABLE(SQL):
         # update any user overrides
         new_scope.update(scope)
 
-        return super(CREATE_TABLE, self).render(**new_scope)
+        return super(ALTER_TABLE, self).render(**new_scope)
+
 
 # C
 #----------------------------------------------------------------------
 
 class CREATE_TABLE(SQL):
-    def collectColumns(self, table):
-        columns = {
-            'all': [],
-            'i18n': [],
-            'standard': [],
-            'primary': []
-        }
+    @staticmethod
+    def collectColumns(table):
         schema = table.schema()
+        columns = defaultdict(list)
 
         # extract the columns that we'll need
         for column in sorted(schema.columns(recurse=False), key=lambda x: x.fieldName()):
@@ -143,7 +139,7 @@ class CREATE_TABLE(SQL):
                 columns['i18n'].append(column)
             else:
                 columns['all'].append(column)
-                columns['standard'].append(column)
+                columns['base'].append(column)
 
         return columns
 
@@ -167,8 +163,8 @@ class CREATE_TABLE(SQL):
             'inherits': schema.inheritsModel().schema().tableName() if schema.inherits() else '',
 
             # define some useful sql queries by default
-            'ADD_COLUMN': self.byName('ADD_COLUMN'),
-            'ADD_CONSTRAINT': self.byName('ADD_CONSTRAINT')
+            'ADD_COLUMN': self.baseSQL().byName('ADD_COLUMN'),
+            'ADD_CONSTRAINT': self.baseSQL().byName('ADD_CONSTRAINT')
         }
 
         if not new_scope['primary_columns']:
@@ -178,6 +174,7 @@ class CREATE_TABLE(SQL):
         new_scope.update(scope)
 
         return super(CREATE_TABLE, self).render(**new_scope)
+
 
 # D
 #----------------------------------------------------------------------
@@ -199,6 +196,7 @@ class DELETE(SQL):
 
         return super(DELETE, self).render(**scope)
 
+
 # E
 #----------------------------------------------------------------------
 
@@ -209,43 +207,42 @@ class ENABLE_INTERNALS(SQL):
 
         return super(ENABLE_INTERNALS, self).render(**scope)
 
+
 # I
 #----------------------------------------------------------------------
 
 class INSERT(SQL):
-    def collectInsertions(self, records, columns, io, locale):
-        columns = {
-            'all': [],
-            'standard': [],
-            'i18n': [],
-        }
-        insertions = {
-            'all': [],
-            'standard': [],
-            'i18n': []
-        }
+    def collectInsertions(self, records, cols, io, locale):
+        columns = defaultdict(list)
+        insertions = defaultdict(list)
 
         for i, record in enumerate(records):
-            values = record.recordValues(locale=locale)
+            values = record.recordValues(locale=locale, key='column')
 
             row_all = []
-            row_standard = []
+            row_base = []
             row_i18n = []
 
-            for column in columns:
+            store = self.datastore()
+
+            for column in cols:
+                # do not insert auto-incrementing columns
+                if column.autoIncrement():
+                    continue
+
+                # extract the value from the column
+                try:
+                    value = store.store(column, values[column])
+                except KeyError:
+                    raise errors.ValueNotFound(record, column.name())
+
                 # store the columns we're using the first pass through
                 if not i:
                     columns['all'].append(column)
                     if not column.isTranslatable():
-                        columns['standard'].append(column)
+                        columns['base'].append(column)
                     else:
                         columns['i18n'].append(column)
-
-                # extract the value from the column
-                try:
-                    value = values[column]
-                except KeyError:
-                    raise errors.ValueNotFound(record, column.name())
 
                 # store the insertion key/value pairing
                 key = len(io)
@@ -254,13 +251,16 @@ class INSERT(SQL):
 
                 row_all.append(key_ref)
                 if not column.isTranslatable():
-                    row_standard.append(key_ref)
+                    row_base.append(key_ref)
                 else:
                     row_i18n.append(key_ref)
 
-            insertions['all'].append(row_all)
-            insertions['standard'].append(row_all)
-            insertions['i18n'].append(row_all)
+            if row_all:
+                insertions['all'].append(row_all)
+            if row_base:
+                insertions['base'].append(row_all)
+            if row_i18n:
+                insertions['i18n'].append(row_all)
 
         return columns, insertions
 
@@ -285,9 +285,10 @@ class INSERT(SQL):
         else:
             columns = [schema.column(col) for col in columns]
 
-        io = scope.get('IO', {})
         locale = scope.get('locale', orb.system.locale())
+        io = scope.get('IO', {})
         io['locale'] = locale
+
         columns, insertions = self.collectInsertions(records, columns, io, locale)
 
         new_scope = {
@@ -301,6 +302,7 @@ class INSERT(SQL):
         new_scope.update(**scope)
 
         return super(INSERT, self).render(**new_scope)
+
 
 class INSERTED_KEYS(SQL):
     def render(self, schema, count=1, **scope):
@@ -322,6 +324,22 @@ class INSERTED_KEYS(SQL):
         scope['count'] = count
 
         return super(INSERTED_KEYS, self).render(**scope)
+
+# Q
+#----------------------------------------------------------------------
+
+class QUOTE(SQL):
+    def render(self, *text, **scope):
+        """
+        Wraps the inputed text in SQL safe quotes for this language.
+
+        :param      text | [<str>, ..]
+
+        :return     <str>
+        """
+        scope.setdefault('joiner', '.')
+        scope['text'] = text
+        return super(QUOTE, self).render(**scope)
 
 # S
 #----------------------------------------------------------------------
@@ -348,6 +366,7 @@ class SELECT(SQL):
 
         return super(SELECT, self).render(**new_scope)
 
+
 class SELECT_AGGREGATE(SQL):
     def render(self, column, **scope):
         """
@@ -361,6 +380,7 @@ class SELECT_AGGREGATE(SQL):
         scope['column'] = column
 
         return super(SELECT_AGGREGATE, self).render(**scope)
+
 
 class SELECT_COUNT(SQL):
     def render(self, table, **scope):
@@ -380,9 +400,11 @@ class SELECT_COUNT(SQL):
 
         return super(SELECT_COUNT, self).render(**scope)
 
+
 class SELECT_EXPAND(SQL):
     def render(self, **scope):
         return super(SELECT_EXPAND, self).render(**scope)
+
 
 class SELECT_JOINER(SQL):
     def render(self, column, **scope):
@@ -397,6 +419,7 @@ class SELECT_JOINER(SQL):
         scope['column'] = column
 
         return super(SELECT_JOINER, self).render(**scope)
+
 
 # T
 #----------------------------------------------------------------------
@@ -418,6 +441,7 @@ class TABLE_COLUMNS(SQL):
 
         return super(TABLE_COLUMNS, self).render(**scope)
 
+
 class TABLE_EXISTS(SQL):
     def render(self, schema, **scope):
         """
@@ -435,6 +459,7 @@ class TABLE_EXISTS(SQL):
         scope['table'] = schema.tableName()
 
         return super(TABLE_EXISTS, self).render(**scope)
+
 
 # U
 #----------------------------------------------------------------------
@@ -462,107 +487,234 @@ class UPDATE(SQL):
 #----------------------------------------------------------------------
 
 class WHERE(SQL):
-    def render(self, where, baseSchema=None, **scope):
+    def queryToSQL(self, schema, query):
+        QUOTE = self.baseSQL().byName('QUOTE')
+
+        column = query.column(schema)
+        output = QUOTE(column.schema().tableName(), column.fieldName())
+
+        # process any functions on the query
+        for func in query.functions():
+            sql_func = self.baseSQL().byName('Func::{0}'.format(orb.Query.Function(func)))
+            if not sql_func:
+                msg = 'Unknown function type {0}'.format(orb.Query.Function(func))
+                raise errors.QueryInvalid(msg)
+            else:
+                output = sql_func.format(output)
+        return output
+
+    def render(self, schema, query, **scope):
         """
         Generates the WHERE sql for an <orb.Table>.
 
-        :param      where   | <orb.Query> || <orb.QueryCompound>
+        :param      schema  | <orb.Schema>
+                    where   | <orb.Query> || <orb.QueryCompound>
                     **scope | <dict>
 
         :return     <str>
         """
-        scope['baseSchema'] = baseSchema
-        scope['where'] = where
+        scope.setdefault('IO', {})
+        scope.setdefault('GLOBALS', {})
 
-        return super(WHERE, self).render(**scope)
+        io = scope['IO']
+        glbls = scope['GLOBALS']
+        db = scope.get('db', orb.system.database())
+
+        # create a compound query
+        if orb.QueryCompound.typecheck(query):
+            queries = [self(schema, subq, GLOBALS=glbls, IO=io) for subq in query.queries()]
+            joiner = u' AND ' if query.operatorType() == orb.QueryCompound.Op.And else u' OR '
+            result = joiner.join([q for q in queries if q])
+            return u'({0})'.format(result) if result else ''
+
+        # create a basic query
+        else:
+            QUOTE = self.baseSQL().byName('QUOTE')
+            TRAVERSAL_JOIN = self.baseSQL().byName('TRAVERSAL_JOIN')
+
+            traversal = []
+
+            glbls.setdefault('join_count', 0)
+            glbls.setdefault('select_tables', set())
+            glbls.setdefault('traversal', [])
+            glbls.setdefault('field_mapper', {})
+
+            # grab the column from the query
+            column = query.column(schema, traversal=traversal, db=db)
+            if not column:
+                raise errors.ColumnNotFound(schema.name(), query.columnName())
+
+            if traversal:
+                last_key = None
+                traversal.append(column)
+
+                for i, curr in enumerate(traversal[1:]):
+                    glbls['join_count'] += 1
+                    join_table = u'join_{0}'.format(glbls['join_count'])
+
+                    if not last_key:
+                        last_key = QUOTE(traversal[i].schema().tableName(), traversal[i].fieldName())
+
+                    pcols = [QUOTE(join_table, pcol.fieldName()) for pcol in curr.schema().primaryColumns()]
+                    if len(pcols) > 1:
+                        curr_key = u'({0})'.format(u','.join(pcols))
+                    else:
+                        curr_key = pcols[0]
+
+                    sql = TRAVERSAL_JOIN(table=curr.schema().tableName(),
+                                         alias=join_table,
+                                         id=curr_key,
+                                         reference=last_key)
+
+                    last_key = QUOTE(join_table, curr.fieldName())
+                    glbls['field_mapper'][curr] = last_key
+                    glbls['traversal'].append(sql)
+
+            elif query.table() and query.table().schema() != schema:
+                glbls['select_tables'].add(column.schema().model())
+
+            # grab the field information
+            try:
+                field = glbls['field_mapper'][column]
+            except KeyError:
+                field = self.queryToSQL(schema, query)
+
+            # calculate the field math modifications
+            for op, target in query.math():
+                opts = {
+                    'math': orb.Query.Math(op),
+                    'type': orb.ColumnType(column.columnType())
+                }
+
+                base = self.baseSQL()
+                sql = base.byName('Math::{math}::{type}'.format(**opts)) or base.byName('Math::{math}'.format(**opts))
+                if not sql:
+                    msg = 'Cannot {math} {type} types.'.format(**opts)
+                    raise errors.QueryInvalid(msg)
+                else:
+                    field += sql
+                    if orb.Query.typecheck(target):
+                        field += self.queryToSQL(schema, target)
+                    else:
+                        key = len(io)
+                        io[str(key)] = target
+                        field += '%({0})s'.format(key)
+
+            # calculate the sql operation
+            op_name = orb.Query.Op(query.operatorType())
+            op = self.baseSQL().byName('Op::{0}'.format(op_name))
+
+            if query.caseSensitive():
+                case = self.baseSQL().byName('Op::{0}::CaseSensitive'.format(op_name))
+                op = case or op
+
+            if op is None:
+                raise orb.errors.QueryInvalid('{0} is an unknown operator.'.format(op_name))
+
+            # calculate the value
+            value = query.value()
+            if orb.Table.recordcheck(value):
+                value = value.primaryKey()
+
+            # update the scope
+            scope['query'] = query
+            scope['column'] = column
+            scope['field'] = field
+            scope['value'] = value
+            scope['op'] = op
+
+            return super(WHERE, self).render(**scope)
 
 #----------------------------------------------------------------------
 
+# define base quote options
+SQL.registerAddon('TRAVERSAL_JOIN', SQL(u'LEFT JOIN "${table}" AS "${alias}" ON ${id}=${reference}'))
+
 # define base column types
-SQL.registerAddon('Type::BigInt',                   u'BIGINT')
-SQL.registerAddon('Type::Bool',                     u'BOOL')
-SQL.registerAddon('Type::ByteArray',                u'VARBINARY')
-SQL.registerAddon('Type::Color',                    u'VARCHAR')
-SQL.registerAddon('Type::Date',                     u'DATE')
-SQL.registerAddon('Type::Datetime',                 u'DATETIME')
-SQL.registerAddon('Type::DatetimeWithTimezone',     u'TIMESTAMP')
-SQL.registerAddon('Type::Decimal',                  u'DECIMAL UNSIGNED')
-SQL.registerAddon('Type::Directory',                u'VARCHAR')
-SQL.registerAddon('Type::Dict',                     u'BLOB')
-SQL.registerAddon('Type::Double',                   u'DOUBLE UNSIGNED')
-SQL.registerAddon('Type::Email',                    u'VARCHAR')
-SQL.registerAddon('Type::Enum',                     u'INT UNSIGNED')
-SQL.registerAddon('Type::Filepath',                 u'VARCHAR')
-SQL.registerAddon('Type::ForeignKey',               u'BIGINT UNSIGNED')
-SQL.registerAddon('Type::Html',                     u'TEXT')
-SQL.registerAddon('Type::Image',                    u'BLOB')
-SQL.registerAddon('Type::Integer',                  u'INT UNSIGNED')
-SQL.registerAddon('Type::Password',                 u'VARCHAR')
-SQL.registerAddon('Type::Pickle',                   u'BLOB')
-SQL.registerAddon('Type::Query',                    u'TEXT')
-SQL.registerAddon('Type::String',                   u'VARCHAR')
-SQL.registerAddon('Type::Text',                     u'TEXT')
-SQL.registerAddon('Type::Time',                     u'TIME')
-SQL.registerAddon('Type::Url',                      u'VARCHAR')
-SQL.registerAddon('Type::Xml',                      u'TEXT')
-SQL.registerAddon('Type::Yaml',                     u'TEXT')
+SQL.registerAddon('Type::BigInt', u'BIGINT')
+SQL.registerAddon('Type::Bool', u'BOOL')
+SQL.registerAddon('Type::ByteArray', u'VARBINARY')
+SQL.registerAddon('Type::Color', u'VARCHAR')
+SQL.registerAddon('Type::Date', u'DATE')
+SQL.registerAddon('Type::Datetime', u'DATETIME')
+SQL.registerAddon('Type::DatetimeWithTimezone', u'TIMESTAMP')
+SQL.registerAddon('Type::Decimal', u'DECIMAL UNSIGNED')
+SQL.registerAddon('Type::Directory', u'VARCHAR')
+SQL.registerAddon('Type::Dict', u'BLOB')
+SQL.registerAddon('Type::Double', u'DOUBLE UNSIGNED')
+SQL.registerAddon('Type::Email', u'VARCHAR')
+SQL.registerAddon('Type::Enum', u'INT UNSIGNED')
+SQL.registerAddon('Type::Filepath', u'VARCHAR')
+SQL.registerAddon('Type::ForeignKey', u'BIGINT UNSIGNED')
+SQL.registerAddon('Type::Html', u'TEXT')
+SQL.registerAddon('Type::Image', u'BLOB')
+SQL.registerAddon('Type::Integer', u'INT UNSIGNED')
+SQL.registerAddon('Type::Password', u'VARCHAR')
+SQL.registerAddon('Type::Pickle', u'BLOB')
+SQL.registerAddon('Type::Query', u'TEXT')
+SQL.registerAddon('Type::String', u'VARCHAR')
+SQL.registerAddon('Type::Text', u'TEXT')
+SQL.registerAddon('Type::Time', u'TIME')
+SQL.registerAddon('Type::Url', u'VARCHAR')
+SQL.registerAddon('Type::Xml', u'TEXT')
+SQL.registerAddon('Type::Yaml', u'TEXT')
 
 # define the default lengths
-SQL.registerAddon('Length::Color',                  25)
-SQL.registerAddon('Length::String',                 256)
-SQL.registerAddon('Length::Email',                  256)
-SQL.registerAddon('Length::Password',               256)
-SQL.registerAddon('Length::Url',                    500)
-SQL.registerAddon('Length::Filepath',               500)
-SQL.registerAddon('Length::Directory',              500)
+SQL.registerAddon('Length::Color', 25)
+SQL.registerAddon('Length::String', 256)
+SQL.registerAddon('Length::Email', 256)
+SQL.registerAddon('Length::Password', 256)
+SQL.registerAddon('Length::Url', 500)
+SQL.registerAddon('Length::Filepath', 500)
+SQL.registerAddon('Length::Directory', 500)
 
 # define the base flags
-SQL.registerAddon('Flag::Unique',                   u'UNIQUE')
-SQL.registerAddon('Flag::Required',                 u'NOT NULL')
-SQL.registerAddon('Flag::AutoIncrement',            u'AUTO_INCREMENT')
+SQL.registerAddon('Flag::Unique', u'UNIQUE')
+SQL.registerAddon('Flag::Required', u'NOT NULL')
+SQL.registerAddon('Flag::AutoIncrement', u'AUTO_INCREMENT')
 
 # define the base operators
-SQL.registerAddon('Op::Is',                              u'=')
-SQL.registerAddon('Op::IsNot',                           u'!=')
-SQL.registerAddon('Op::LessThan',                        u'<')
-SQL.registerAddon('Op::Before',                          u'<')
-SQL.registerAddon('Op::LessThanOrEqual',                 u'<=')
-SQL.registerAddon('Op::GreaterThanOrEqual',              u'>=')
-SQL.registerAddon('Op::GreaterThan',                     u'>')
-SQL.registerAddon('Op::After',                           u'>')
-SQL.registerAddon('Op::Matches',                         u'~*')
-SQL.registerAddon('Op::Matches::CaseSensitive',          u'~')
-SQL.registerAddon('Op::DoesNotMatch',                    u'!~*')
-SQL.registerAddon('Op::DoesNotMatch::CaseSensitive',     u'!~*')
-SQL.registerAddon('Op::Contains',                        u'ILIKE')
-SQL.registerAddon('Op::Contains::CaseSensitive',         u'LIKE')
-SQL.registerAddon('Op::Startswith',                      u'ILIKE')
-SQL.registerAddon('Op::Startswith::CaseSensitive',       u'LIKE')
-SQL.registerAddon('Op::Endswith',                        u'ILIKE')
-SQL.registerAddon('Op::Endswith::CaseSensitive',         u'LIKE')
-SQL.registerAddon('Op::DoesNotContain',                  u'NOT ILIKE')
-SQL.registerAddon('Op::DoesNotContain::CaseSensitive',   u'NOT LIKE')
-SQL.registerAddon('Op::DoesNotStartwith',                u'NOT ILIKE')
+SQL.registerAddon('Op::Is', u'=')
+SQL.registerAddon('Op::IsNot', u'!=')
+SQL.registerAddon('Op::LessThan', u'<')
+SQL.registerAddon('Op::Before', u'<')
+SQL.registerAddon('Op::LessThanOrEqual', u'<=')
+SQL.registerAddon('Op::GreaterThanOrEqual', u'>=')
+SQL.registerAddon('Op::GreaterThan', u'>')
+SQL.registerAddon('Op::After', u'>')
+SQL.registerAddon('Op::Matches', u'~*')
+SQL.registerAddon('Op::Matches::CaseSensitive', u'~')
+SQL.registerAddon('Op::DoesNotMatch', u'!~*')
+SQL.registerAddon('Op::DoesNotMatch::CaseSensitive', u'!~*')
+SQL.registerAddon('Op::Contains', u'ILIKE')
+SQL.registerAddon('Op::Contains::CaseSensitive', u'LIKE')
+SQL.registerAddon('Op::Startswith', u'ILIKE')
+SQL.registerAddon('Op::Startswith::CaseSensitive', u'LIKE')
+SQL.registerAddon('Op::Endswith', u'ILIKE')
+SQL.registerAddon('Op::Endswith::CaseSensitive', u'LIKE')
+SQL.registerAddon('Op::DoesNotContain', u'NOT ILIKE')
+SQL.registerAddon('Op::DoesNotContain::CaseSensitive', u'NOT LIKE')
+SQL.registerAddon('Op::DoesNotStartwith', u'NOT ILIKE')
 SQL.registerAddon('Op::DoesNotStartwith::CaseSensitive', u'NOT LIKE')
-SQL.registerAddon('Op::DoesNotEndwith',                  u'NOT ILIKE')
-SQL.registerAddon('Op::DoesNotEndwith::CaseSensitive',   u'NOT LIKE')
-SQL.registerAddon('Op::IsIn',                            u'IN')
-SQL.registerAddon('Op::IsNotIn',                         u'NOT IN')
+SQL.registerAddon('Op::DoesNotEndwith', u'NOT ILIKE')
+SQL.registerAddon('Op::DoesNotEndwith::CaseSensitive', u'NOT LIKE')
+SQL.registerAddon('Op::IsIn', u'IN')
+SQL.registerAddon('Op::IsNotIn', u'NOT IN')
 
 # define the base functions
-SQL.registerAddon('Func::Lower',                    u'lower({0})')
-SQL.registerAddon('Func::Upper',                    u'upper({0})')
-SQL.registerAddon('Func::Abs',                      u'abs({0})')
-SQL.registerAddon('Func::AsString',                 u'{0}::varchar')
+SQL.registerAddon('Func::Lower', u'lower({0})')
+SQL.registerAddon('Func::Upper', u'upper({0})')
+SQL.registerAddon('Func::Abs', u'abs({0})')
+SQL.registerAddon('Func::AsString', u'{0}::varchar')
 
 # define the base math operators
-SQL.registerAddon('Math::Add',                      u'+')
-SQL.registerAddon('Math::Subtract',                 u'-')
-SQL.registerAddon('Math::Multiply',                 u'*')
-SQL.registerAddon('Math::Divide',                   u'/')
-SQL.registerAddon('Math::And',                      u'&')
-SQL.registerAddon('Math::Or',                       u'|')
+SQL.registerAddon('Math::Add', u'+')
+SQL.registerAddon('Math::Subtract', u'-')
+SQL.registerAddon('Math::Multiply', u'*')
+SQL.registerAddon('Math::Divide', u'/')
+SQL.registerAddon('Math::And', u'&')
+SQL.registerAddon('Math::Or', u'|')
 
-SQL.registerAddon('Math::Add::String',              u'||')
-SQL.registerAddon('Math::Add::Text',                u'||')
+SQL.registerAddon('Math::Add::String', u'||')
+SQL.registerAddon('Math::Add::Text', u'||')
 

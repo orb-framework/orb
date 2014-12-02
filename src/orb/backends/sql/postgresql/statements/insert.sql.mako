@@ -1,12 +1,12 @@
-% if insertions['standard']:
+% if insertions['base']:
 INSERT INTO "${table}" (
-    ${','.join(['"{0}"'.format(column.fieldName()) for column in columns['standard']])}:
+    ${','.join(['"{0}"'.format(column.fieldName()) for column in columns['base']])}
 )
 VALUES
-    % for row in insertions['standard'][:-1]:
+    % for row in insertions['base'][:-1]:
     (${','.join(row)},
     % endfor
-    (${','.join(insertions['standard'][-1])})
+    (${','.join(insertions['base'][-1])})
 ;
 % endif
 
@@ -19,6 +19,6 @@ VALUES
     % for i, row in enumerate(insertions['i18n'][:-1]):
     (LASTVAL() - ${count - (i+1)}, %(locale)s, ${','.join(row)}),
     %endfor
-    (LASTVAL(), %(locale)s, ${','.join(row)})
+    (LASTVAL(), %(locale)s, ${','.join(insertions['i18n'][-1])})
 ;
 % endif

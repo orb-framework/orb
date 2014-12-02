@@ -22,6 +22,7 @@ import orb
 import sys
 
 from orb import errors
+from mako import exceptions
 from projex.addon import AddonManager
 
 log = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ class SQL(AddonManager):
         super(SQL, self).__init__()
         
         # define custom properties
-        self._template = mako.template.Template(sql)
+        self._template = mako.template.Template(sql, strict_undefined=True)
         self._sql = sql
         self._baseSQL = baseSQL or SQL
 
@@ -70,6 +71,7 @@ class SQL(AddonManager):
         # define common properties
         scope.setdefault('orb', orb)
         scope.setdefault('SQL', self.baseSQL())
+        scope.setdefault('QUOTE', scope['SQL'].byName('QUOTE'))
         scope.setdefault('IO', {})
         scope.setdefault('GLOBALS', {})
 

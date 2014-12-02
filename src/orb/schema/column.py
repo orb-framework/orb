@@ -73,6 +73,9 @@ class Column(object):
                  'IgnoreByDefault',
                  'Translatable')
 
+    def __str__(self):
+        return self.name() or self.fieldName() or '<< INVALID COLUMN >>'
+
     def __init__(self, typ, name, **options):
         # define required arguments
         self._name = name
@@ -1508,7 +1511,7 @@ class Column(object):
         :return     [<orb.Validator>, ..]
         """
         default = []
-        if self.required():
+        if self.required() and not self.autoIncrement():
             default.append(orb.RequiredValidator())
 
         return self._validators + default

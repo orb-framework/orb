@@ -122,7 +122,7 @@ class PSQLConnection(SQLConnection):
         except (pg.IntegrityError, pg.OperationalError), err:
             try:
                 db.rollback()
-            except:
+            except StandardError:
                 pass
 
             log.debug(traceback.print_exc())
@@ -213,9 +213,9 @@ class PSQLConnection(SQLConnection):
             schema = table_or_join.schema()
             data = {}
             sql = SELECT(table_or_join,
-                               lookup=lookup,
-                               options=options,
-                               IO=data)
+                         lookup=lookup,
+                         options=options,
+                         IO=data)
 
             # if we don't have any command to run, just return a blank list
             if not sql:

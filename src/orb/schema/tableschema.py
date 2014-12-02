@@ -264,12 +264,12 @@ class TableSchema(object):
         """
         key = (name, recurse, includeProxies, includeJoined, includeAggregates)
         key = hash(key)
+        traversal = traversal if traversal is not None else []
 
         # lookup the existing cached record
         try:
             found, traversed = self._columnIndex[key]
-            if traversal is not None:
-                traversal += traversed
+            traversal += traversed
             return found
         except KeyError:
             pass
@@ -313,6 +313,7 @@ class TableSchema(object):
 
         # cache this lookup for the future
         self._columnIndex[key] = (found, traversed)
+        traversal += traversed
         return found
 
     def columnNames(self,

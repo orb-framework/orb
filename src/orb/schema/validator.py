@@ -3,21 +3,20 @@ import re
 from orb import errors
 
 class AbstractColumnValidator(object):
-    @abstractmethod()
-    def validate(self, value):
+    def validate(self, column, value):
         """
         Validates the inputed value for this instance.
 
-        :param      value | <variant>
+        :param      column | <orb.Column>
+                    value | <variant>
 
         :return     <bool> | is valid
         """
-        return False
+        raise NotImplemented
 
 #-----------------------------------------------------------
 
 class AbstractRecordValidator(object):
-    @abstractmethod
     def validate(self, record, values):
         """
         Validates the record against the inputed dictionary of column
@@ -28,7 +27,7 @@ class AbstractRecordValidator(object):
 
         :return     <bool>
         """
-        return False
+        raise NotImplemented
 
 #-----------------------------------------------------------
 

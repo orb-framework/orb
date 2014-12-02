@@ -185,9 +185,7 @@ class Table(object):
 
         :return     <iter>
         """
-        values = self.recordValues(useFieldNames=True)
-        for key, value in values.items():
-            yield key, value
+        return iter(self.recordValues(key='field'))
 
     def __format__(self, format_spec):
         """
@@ -870,7 +868,7 @@ class Table(object):
         return self.__record_namespace
 
     def recordValue(self,
-                    columnName,
+                    column,
                     locale=None,
                     default=None,
                     autoInflate=True,
@@ -878,20 +876,18 @@ class Table(object):
         """
         Returns the value for the column for this record.
         
-        :param      columnName  | <str>
+        :param      column      | <orb.Column> || <str>
                     default     | <variant>
                     autoInflate | <bool>
         
         :return     <variant>
         """
-        # lookup the specific column for this instance
-        columnName = nstr(columnName)
-        column = self.schema().column(columnName)
-        if not column:
-            raise errors.ColumnNotFound(self.schema().name(), columnName)
+        col = self.schema().column(column)
+        if not col:
+            raise errors.ColumnNotFound(self.schema().name(), column)
 
         if useMethod:
-            method = getattr(self.__class__, column.getterName(), None)
+            method = getattr(self.__class__, col.getterName(), None)
             try:
                 orb_getter = type(method.im_func).__name__ == 'gettermethod'
             except AttributeError:
@@ -906,15 +902,15 @@ class Table(object):
                     return method(self)
 
         try:
-            value = self.__record_values[column]
+            value = self.__record_values[col]
         except KeyError:
-            proxy = self.proxyColumn(columnName)
+            proxy = self.proxyColumn(column)
             if proxy and proxy.getter():
                 return proxy.getter()(self)
             return default
 
         # return the translatable value
-        if column.isTranslatable():
+        if col.isTranslatable():
             if value is None:
                 return ''
 
@@ -952,13 +948,13 @@ class Table(object):
                 value = default
 
         # return none output's and non-auto inflated values immediately
-        if value is None or not (column.isReference() and autoInflate):
-            return column.restoreValue(value)
+        if value is None or not (col.isReference() and autoInflate):
+            return col.restoreValue(value)
 
         # ensure we have a proper reference model
-        refmodel = column.referenceModel()
+        refmodel = col.referenceModel()
         if refmodel is None:
-            raise errors.TableNotFound(column.reference())
+            raise errors.TableNotFound(col.reference())
 
         # make sure our value already meets the criteria
         elif refmodel.recordcheck(value):
@@ -967,16 +963,15 @@ class Table(object):
         # inflate the value to the class value
         inst = refmodel.selectFirst(where=Q(refmodel) == value,
                                     db=self.database())
-        if value == self.__record_defaults.get(column):
-            self.__record_defaults[column] = inst
+        if value == self.__record_defaults.get(col):
+            self.__record_defaults[col] = inst
 
         # cache the record value
-        self.__record_values[column] = inst
+        self.__record_values[col] = inst
         return inst
 
     def recordValues(self,
                      columns=None,
-                     useFieldNames=False,
                      autoInflate=False,
                      ignorePrimary=False,
                      includeProxies=True,
@@ -984,12 +979,11 @@ class Table(object):
                      includeJoined=True,
                      recurse=True,
                      mapper=None,
-                     locale=None):
+                     locale=None,
+                     key='name'):
         """
         Returns a dictionary grouping the columns and their
-        current values.  If useFieldNames is set to true, then the keys
-        for the returned dictionary will be the field name rather than the
-        API name for the column.  If the autoInflate value is set to True,
+        current values.  If the autoInflate value is set to True,
         then you will receive any foreign keys as inflated classes (if you
         have any values that are already inflated in your class, then you
         will still get back the class and not the primary key value).  Setting
@@ -1003,28 +997,32 @@ class Table(object):
         """
         output = {}
         schema = self.schema()
-        for column in schema.columns(includeProxies=includeProxies,
+        all_columns = schema.columns(includeProxies=includeProxies,
                                      includeAggregates=includeAggregates,
                                      includeJoined=includeJoined,
-                                     recurse=recurse):
-            column_name = column.name()
-            if columns is not None and not column_name in columns:
+                                     recurse=recurse)
+        req_columns = [schema.column(col) for col in columns] if columns else None
+
+        for column in all_columns:
+            if req_columns is not None and column not in req_columns:
+                continue
+            elif ignorePrimary and column.primary():
                 continue
 
-            if ignorePrimary and column.primary():
-                continue
+            if key == 'name':
+                val_key = column.name()
+            elif key == 'field':
+                val_key = column.fieldName()
+            elif key == 'column':
+                val_key = column
+            else:
+                raise errors.OrbError('Invalid key request.')
 
-            if useFieldNames:
-                column_name = column.fieldName()
-
-            value = self.recordValue(column_name,
-                                     autoInflate=autoInflate,
-                                     locale=locale)
-
+            value = self.recordValue(column, autoInflate=autoInflate, locale=locale)
             if mapper:
                 value = mapper(value)
 
-            output[column_name] = value
+            output[val_key] = value
 
         return output
 
