@@ -1,13 +1,13 @@
 -- create the table
 CREATE TABLE IF NOT EXISTS "${table}" (
     -- define the columns
-    % for i, column in enumerate(columns['base']):
+    % for i, column in enumerate(columns['base'] + columns['primary']):
     ${ADD_COLUMN(column).replace('ADD COLUMN ', '')},
     % endfor
 
     % if columns['primary']:
     -- define the primary key constraint
-    CONSTRAINT "${table_name}_pkey" PRIMARY KEY (${u','.join([u'"{0}"'.format(col.fieldName()) for col in columns['primary']])})
+    CONSTRAINT "${table}_pkey" PRIMARY KEY (${u','.join([QUOTE(col.fieldName()) for col in columns['primary']])})
     % endif
 )
 % if inherits:
@@ -21,7 +21,7 @@ ALTER TABLE "${table}" OWNER TO "${owner}";
 CREATE TABLE "${table}_i18n" (
     -- define the columns
     "locale" CHARACTER VARYING(5),
-    "${table}_id" BIGINT REFERENCES "${table}" (${u','.join([u'"{0}"'.format(col.fieldName()) for col in columns['primary']])}) ON DELETE CASCADE,
+    "${table}_id" BIGINT REFERENCES "${table}" (${u','.join([QUOTE(col.fieldName()) for col in columns['primary']])}) ON DELETE CASCADE,
     % for column in columns['translations']:
     ${ADD_COLUMN(column).replace('ADD COLUMN ', '')},
     % endfor

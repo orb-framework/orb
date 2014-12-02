@@ -4,7 +4,7 @@ ALTER TABLE "${table}"
     % for column in added['base'][:-1]:
     ${ADD_COLUMN(column)},
     % endfor
-    ${ADD_COLUMN(column)}
+    ${ADD_COLUMN(added['base'][-1])}
 ;
 % endif
 
@@ -13,7 +13,7 @@ ALTER TABLE "${table}"
 CREATE TABLE IF NOT EXISTS "${table}_i18n" (
     -- define the pkey columns
     "locale" CHARACTER VARYING(5),
-    "${table}_id" BIGINT REFERENCES "${table}" (${u','.join(pcols)}) ON DELETE CASCADE,
+    "${table}_id" BIGINT REFERENCES "${table}" (${u','.join([QUOTE(col.fieldName()) for col in added['primary']])}) ON DELETE CASCADE,
     
     -- define the pkey constraints
     CONSTRAINT "${table}_i18n_pkey" PRIMARY KEY ("locale", "${table}_id")
@@ -26,5 +26,5 @@ ALTER TABLE "${table}_i18n"
     % for column in added['i18n'][:-1]:
     ${ADD_COLUMN(column)},
     % endfor
-    ${ADD_COLUMN(column)}
+    ${ADD_COLUMN(added['i18n'][-1])}
 % endif

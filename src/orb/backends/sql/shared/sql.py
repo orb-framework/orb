@@ -55,14 +55,16 @@ class ADD_COLUMN(SQL):
 
 class ALTER_TABLE(SQL):
     @staticmethod
-    def collectColumns(table, selection):
-        schema = table.schema()
+    def collectColumns(schema, selection):
         columns = defaultdict(list)
+        if selection is None:
+            return columns
+
         columns['primary'] = schema.primaryColumns()
 
         # extract the columns that we'll need
         for column in sorted(selection, key=lambda x: x.fieldName()):
-            if column.isAggregate() or column.isJoined() or column.isProxy() or column.isReference():
+            if column.isAggregate() or column.isJoined() or column.isProxy():
                 continue
             elif column.primary():
                 if schema.inherits():
@@ -79,7 +81,7 @@ class ALTER_TABLE(SQL):
 
         return columns
 
-    def render(self, table, added=None, removed=None, **scope):
+    def render(self, schema, added=None, removed=None, **scope):
         """
         Generates the ALTER TABLE sql for an <orb.Table>.
 
@@ -90,14 +92,13 @@ class ALTER_TABLE(SQL):
 
         :return     <str>
         """
-        schema = table.schema()
-        db = scope.get('db', orb.manager.database())
+        db = scope.get('db', orb.system.database())
 
         # define the new scope
         new_scope = {
             'table': schema.tableName(),
-            'added': self.collectColumns(table, added),
-            'removed': self.collectColumns(table, removed),
+            'added': self.collectColumns(schema, added),
+            'removed': self.collectColumns(schema, removed),
             'owner': db.username(),
             'inherits': schema.inheritsModel().schema().tableName() if schema.inherits() else '',
 
@@ -105,9 +106,6 @@ class ALTER_TABLE(SQL):
             'ADD_COLUMN': self.baseSQL().byName('ADD_COLUMN'),
             'ADD_CONSTRAINT': self.baseSQL().byName('ADD_CONSTRAINT')
         }
-
-        if not new_scope['primary_columns']:
-            raise errors.DatabaseError('No primary keys defined for {0}.'.format(schema.name()))
 
         # update any user overrides
         new_scope.update(scope)
@@ -153,7 +151,7 @@ class CREATE_TABLE(SQL):
         :return     <str>
         """
         schema = table.schema()
-        db = db or orb.manager.database()
+        db = db or orb.system.database()
 
         # define the new scope
         new_scope = {
@@ -167,7 +165,7 @@ class CREATE_TABLE(SQL):
             'ADD_CONSTRAINT': self.baseSQL().byName('ADD_CONSTRAINT')
         }
 
-        if not new_scope['primary_columns']:
+        if not new_scope['columns']['primary']:
             raise errors.DatabaseError('No primary keys defined for {0}.'.format(schema.name()))
 
         # update any user overrides
