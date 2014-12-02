@@ -297,7 +297,9 @@ class Index(object):
         try:
             column_values = [values[schema.column(name)] for name in self.columnNames()]
         except StandardError as err:
-            msg = 'Could not validate all the required columns ({0}).'.format(', '.join(self.columnNames()))
+            msg = 'Missing some columns ({0}) from {1}.{2}.'.format(', '.join(self.columnNames()),
+                                                                    record.schema().name(),
+                                                                    self.name())
             raise errors.IndexValidationError(self, msg=msg)
 
         # ensure a unique record is preserved
