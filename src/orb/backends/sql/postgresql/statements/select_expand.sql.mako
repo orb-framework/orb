@@ -52,6 +52,44 @@
         )
     ) AS ${pipe.name()}_count
     % endif
+
+% elif reverseLookup:
+    <%
+        source_schema = reverseLookup.schema()
+        source_column = reverseLookup
+        ref_schema = reverseLookup.referenceModel().schema()
+    %>
+    % if reverseLookup.reversedName() in lookup.expand:
+    (
+        % if source_schema.hasTranslations():
+            SELECT ARRAY_AGG(ROW_TO_JSON(row)) FROM (
+                SELECT source_table.*, i18n.*
+                FROM "${source_schema.tableName()}" AS target_table
+                LEFT JOIN "${source_schema.tableName()}_i18n" AS i18n
+                ON i18n.locale = '${options.locale}' AND i18n."${source_schema.tableName()}_id" = ref_table.id
+                WHERE source_table."${source_column.fieldName()}" = "${ref_schema.tableName()}".id
+                GROUP BY source_table.id, i18n."${source_schema.tableName()}_id", i18n.locale
+            ) row
+        % else:
+            SELECT ARRAY_AGG(ROW_TO_JSON(source_table.*))
+            FROM "${source_schema.tableName()}" AS source_table
+            WHERE source_table."${source_column.fieldName()}" = "${ref_schema.tableName()}".id
+        % endif
+    ) AS ${reverseLookup.reversedName()}
+    % elif reverseLookup.reversedName() + '.ids' in lookup.expand:
+    (
+        SELECT ARRAY_AGG(source_table.id)
+        FROM "${source_schema.tableName()}" AS source_table
+        WHERE source_table."${source_column.fieldName()}" = "${ref_schema.tableName()}".id
+    ) AS ${reverseLookup.reversedName()}_ids
+    % elif reverseLookup.reversedName() + '.count' in lookup.expand:
+    (
+        SELECT COUNT(source_table.*)
+        FROM "${source_schema.tableName()}" AS source_table
+        WHERE source_table."${source_column.fieldName()}" = "${ref_schema.tableName()}".id
+    ) AS ${reverseLookup.reversedName()}_count
+    % endif
+
 % elif column:
     <%
         reference = column.referenceModel()

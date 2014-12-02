@@ -91,12 +91,23 @@
                                                              column.fieldName(),
                                                              column.fieldName()))
 
-    # include any additional expansions from pipes
+    # include any additional expansions from pipes or reverse lookups
     if lookup.expand:
+        # include reverse lookups
+        for reverseLookup in schema.reverseLookups():
+            name = reverseLookup.reversedName()
+            if name in lookup.expand or name + '.ids' in lookup.expand or name + '.count' in lookup.expand:
+                col_sql = SELECT_EXPAND(reverseLookup=reverseLookup, lookup=lookup, options=options, GLOBALS=GLOBALS, IO=IO)
+                if col_sql:
+                    columns.append(col_sql)
+
+        # include pipes
         for pipe in schema.pipes():
-            col_sql = SELECT_EXPAND(pipe=pipe, lookup=lookup, options=options, GLOBALS=GLOBALS, IO=IO)
-            if col_sql:
-                columns.append(col_sql)
+            name = pipe.name()
+            if name in lookup.expand or name + '.ids' in lookup.expand or name + '.count' in lookup.expand:
+                col_sql = SELECT_EXPAND(pipe=pipe, lookup=lookup, options=options, GLOBALS=GLOBALS, IO=IO)
+                if col_sql:
+                    columns.append(col_sql)
 
     if lookup.where:
         try:

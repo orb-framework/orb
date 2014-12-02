@@ -817,6 +817,16 @@ class TableSchema(object):
         except ValueError:
             pass
 
+    def reverseLookups(self):
+        """
+        Returns a list of all the reverse-lookup columns that reference this schema.
+
+        :return     [<orb.Column>, ..]
+        """
+        return [column for schema in orb.system.schemas()
+                       for column in schema.columns()
+                       if column.reference() == self.name() and column.isReversed()]
+
     def searchEngine(self):
         """
         Returns the search engine that will be used for this system.

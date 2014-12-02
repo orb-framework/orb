@@ -403,6 +403,11 @@ class SELECT_COUNT(SQL):
 
 class SELECT_EXPAND(SQL):
     def render(self, **scope):
+        # define optional arguments
+        scope.setdefault('column', None)
+        scope.setdefault('pipe', None)
+        scope.setdefault('reverseLookup', None)
+
         return super(SELECT_EXPAND, self).render(**scope)
 
 

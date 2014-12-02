@@ -185,7 +185,9 @@ class Table(object):
 
         :return     <iter>
         """
-        return iter(self.recordValues(key='field'))
+        data = self.recordValues(key='field')
+        for key, value in data.items():
+            yield key, value
 
     def __format__(self, format_spec):
         """
