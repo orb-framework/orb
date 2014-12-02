@@ -169,6 +169,27 @@ class Query(object):
             Op.IsNotIn
         )
     }
+
+    NegativeOps = {
+        Op.Is: Op.IsNot,
+        Op.IsNot: Op.Is,
+        Op.LessThan: Op.GreaterThanOrEqual,
+        Op.LessThanOrEqual: Op.GreaterThan,
+        Op.GreaterThan: Op.LessThanOrEqual,
+        Op.GreaterThanOrEqual: Op.LessThan,
+        Op.Before: Op.After,
+        Op.After: Op.Before,
+        Op.Contains: Op.DoesNotContain,
+        Op.DoesNotContain: Op.Contains,
+        Op.Startswith: Op.DoesNotStartwith,
+        Op.DoesNotStartwith: Op.Startswith,
+        Op.Endswith: Op.DoesNotEndwith,
+        Op.DoesNotEndwith: Op.Endswith,
+        Op.Matches: Op.DoesNotMatch,
+        Op.DoesNotMatch: Op.Matches,
+        Op.IsIn: Op.IsNotIn,
+        Op.IsNotIn: Op.IsIn
+    }
     
     # additional option values to control query flow
     UNDEFINED   = '__QUERY__UNDEFINED__'
@@ -257,7 +278,6 @@ class Query(object):
         self._op            = options.get('op',    Query.Op.Is)
         self._value         = options.get('value', Query.UNDEFINED)
         self._caseSensitive = options.get('caseSensitive', False)
-        self._negate        = options.get('negate', False)
         self._functions     = options.get('functions', [])
         self._math          = options.get('math', [])
         self._inverted      = options.get('inverted', False)
@@ -480,7 +500,7 @@ class Query(object):
         :usage      |>>> from orb import Query as Q
                     |>>> query = Q('test') == 1
                     |>>> print -query
-                    |NOT test is 1
+                    |test != 1
         """
         return self.negated()
     
@@ -915,7 +935,6 @@ class Query(object):
         out._op = self._op
         out._value = self._value
         out._caseSensitive = self._caseSensitive
-        out._negate = self._negate
         out._functions = self._functions[:]
         out._math = self._math[:]
         out._inverted = self._inverted
@@ -1167,14 +1186,6 @@ class Query(object):
         out.setInverted(not self.isInverted())
         return out
 
-    def isNegated(self):
-        """
-        Returns whether or not this query is negated.
-        
-        :return <bool>
-        """
-        return self._negate
-    
     def isNot(self, value):
         """
         Sets the operator type to Query.Op.IsNot and sets the
@@ -1373,9 +1384,9 @@ class Query(object):
         :return     <self>
         """
         query = self.copy()
-        query.setOperatorType(self.operatorType())
+        op = self.operatorType()
+        query.setOperatorType(self.NegativeOps.get(op, op))
         query.setValue(self.value())
-        query._negate = not self._negate
         return query
     
     def operatorType(self):
@@ -1584,7 +1595,6 @@ class Query(object):
         output['name']          = self._name
         output['op']            = self._op
         output['caseSensitive'] = self._caseSensitive
-        output['negated']       = self._negate
         output['column']        = self._columnName
         output['functions']     = self._functions
         output['inverted']      = self._inverted
@@ -1667,7 +1677,6 @@ class Query(object):
         xquery.set('name', nstr(self._name))
         xquery.set('op', nstr(self._op))
         xquery.set('caseSensitive', nstr(self._caseSensitive))
-        xquery.set('negated', nstr(self._negate))
         xquery.set('column', nstr(self._columnName))
         xquery.set('functions', ','.join(map(str, self._functions)))
         xquery.set('inverted', nstr(self._inverted))
@@ -1861,9 +1870,65 @@ class Query(object):
                     |>>> q = Q('firstName') == 'Eric'
                     |>>> q &= Q('lastName') == 'Hulser'
         """
+        def safe_eval(val):
+            if val == 'True':
+                return True
+            elif val == 'False':
+                return False
+            elif val == 'None':
+                return None
+            elif re.match('\d*\.?\d+', val):
+                return eval(val)
+            else:
+                return val
+
         output = Query()
         for key, value in data.items():
-            output &= Query(key) == value
+
+            # look for data matching options
+            if type(value) in (str, unicode):
+                # process singular options
+                for value in value.split(','):
+                    or_q = Query()
+                    for value in value.split('|'):
+                        sub_q = Query(key)
+
+                        match = re.match('^(?P<negated>-|!)?(?P<op>~|>|<)?(?P<value>.*)$', value)
+                        op = match.group('op')
+                        value = match.group('value')
+                        startswith = value[-1] == '*'
+                        endswith = value[0] == '*'
+                        value = value.strip('*')
+
+                        if op == '>':
+                            sub_q.setOperatorType(Query.Op.GreaterThan)
+                        elif op == '<':
+                            sub_q.setOperatorType(Query.Op.LessThan)
+                        elif op == '~':
+                            sub_q.setOperatorType(Query.Op.Matches)
+                        elif startswith and endswith:
+                            sub_q.setOperatorType(Query.Op.Contains)
+                        elif startswith:
+                            sub_q.setOperatorType(Query.Op.Startswith)
+                        elif endswith:
+                            sub_q.setOperatorType(Query.Op.Endswith)
+                        else:
+                            sub_q.setOperatorType(Query.Op.Is)
+
+                        sub_q.setValue(safe_eval(value))
+
+                        # negate the query
+                        if match.group('negated'):
+                            sub_q = sub_q.negated()
+
+                        or_q |= sub_q
+
+                    output &= sub_q
+
+            # otherwise, set a simple value
+            else:
+                output &= Query(key) == value
+
         return output
 
     @staticmethod
@@ -1882,7 +1947,6 @@ class Query(object):
         out._name = data.get('name', '')
         out._op = int(data.get('op', '1'))
         out._caseSensitive = nstr(data.get('caseSensitive')).lower() == 'true'
-        out._negated = nstr(data.get('negated')).lower() == 'true'
         out._columnName = nstr(data.get('column'))
         out._functions = data.get('functions', [])
         out._inverted = data.get('inverted', False)
@@ -2176,7 +2240,6 @@ class Query(object):
         out._name = xquery.get('name', '')
         out._op = int(xquery.get('op', '1'))
         out._caseSensitive = xquery.get('caseSensitive') == 'True'
-        out._negated = xquery.get('negated') == 'True'
         out._columnName = xquery.get('column')
         out._inverted = xquery.get('inverted') == 'True'
         if out._columnName == 'None':

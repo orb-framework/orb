@@ -54,15 +54,18 @@
     ID = orb.system.settings().primaryField()
     key = str(len(IO))
     key_id = '%({0})s'.format(key)
-    IO[key] = SQL.datastore().store(column, value)
+
+    if query.operatorType() in (query.Op.Contains, query.Op.DoesNotContain):
+        store_value = '%{0}%'.format(value)
+    elif query.operatorType() in (query.Op.Startswith, query.Op.DoesNotStartwith):
+        store_value = '{0}%'.format(value)
+    elif query.operatorType() in (query.Op.Endswith, query.Op.DoesNotEndwith):
+        store_value = '%{0}'.format(value)
+    else:
+        store_value = value
+
+    IO[key] = SQL.datastore().store(column, store_value)
     %>
-    % if op in (orb.Query.Op.Contains, orb.Query.Op.DoesNotContain):
-    <% IO[key] = '%{0}%'.format(IO[key]) %>
-    % elif op in (orb.Query.Op.Startswith, orb.Query.Op.DoesNotStartwith):
-    <% IO[key] = '{0}%'.format(IO[key]) %>
-    % elif op in (orb.Query.Op.Endswith, orb.Query.Op.DoesNotEndwith):
-    <% IO[key] = '%{0}'.format(IO[key]) %>
-    % endif
 
     % if column.isTranslatable():
         ## check to see if this column has already been merged

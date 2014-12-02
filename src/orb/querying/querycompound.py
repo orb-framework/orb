@@ -71,7 +71,6 @@ class QueryCompound(object):
     def __init__(self, *queries, **options):
         self._queries = queries
         self._op = options.get('op', QueryCompound.Op.And)
-        self._negate = options.get('negate', False)
         self._name = nstr(options.get('name', ''))
 
     def __and__(self, other):
@@ -151,8 +150,7 @@ class QueryCompound(object):
             return other
 
         # grow this objects list if the operator types are the same
-        if self.operatorType() == QueryCompound.Op.And and \
-                not self.isNegated():
+        if self.operatorType() == QueryCompound.Op.And:
             queries = list(self._queries)
             queries.append(other)
             opts = {'op': QueryCompound.Op.And}
@@ -172,7 +170,6 @@ class QueryCompound(object):
         out = QueryCompound()
         out._queries = [q.copy() for q in self._queries]
         out._op = self._op
-        out._negate = self._negate
         return out
 
     def columns(self, schema=None):
@@ -226,14 +223,6 @@ class QueryCompound(object):
                 return success, value, 0
         return False, None, instance
 
-    def isNegated(self):
-        """
-        Returns whether or not this query is negated.
-        
-        :return <bool>
-        """
-        return self._negate
-
     def isNull(self):
         """
         Returns whether or not this join is empty or not.
@@ -258,8 +247,7 @@ class QueryCompound(object):
         :return     self
         """
         qcompound = QueryCompound(*self._queries)
-        qcompound._op = self._op
-        qcompound._negate = not self._negate
+        qcompound._op = QueryCompound.Op.And if self._op == QueryCompound.Op.Or else QueryCompound.Op.Or
         return qcompound
 
     def operatorType(self):
@@ -293,8 +281,7 @@ class QueryCompound(object):
             return other
 
         # grow this objects list if the operator types are the same
-        if ( self.operatorType() == QueryCompound.Op.Or and
-                 not self.isNegated() ):
+        if self.operatorType() == QueryCompound.Op.Or:
             queries = list(self._queries)
             queries.append(other)
             opts = {'op': QueryCompound.Op.Or}
@@ -368,8 +355,6 @@ class QueryCompound(object):
         optypestr = QueryCompound.Op[self.operatorType()]
         op_type = ' %s ' % projex.text.underscore(optypestr)
         query = '(%s)' % op_type.join([q.toString() for q in self.queries()])
-        if self.isNegated():
-            query = 'NOT ' + query
         return query
 
     def toDict(self):
@@ -386,7 +371,6 @@ class QueryCompound(object):
         output['type'] = 'compound'
         output['name'] = self.name()
         output['op'] = self.operatorType()
-        output['negated'] = self.isNegated()
 
         queries = []
         for query in self.queries():
@@ -413,7 +397,6 @@ class QueryCompound(object):
 
         xquery.set('name', nstr(self.name()))
         xquery.set('op', nstr(self.operatorType()))
-        xquery.set('negated', nstr(self.isNegated()))
 
         for query in self.queries():
             query.toXml(xquery)
@@ -533,7 +516,6 @@ class QueryCompound(object):
 
         compound = QueryCompound()
         compound.setName(data.get('name', ''))
-        compound._negated = data.get('negated') == 'True'
         compound.setOperatorType(int(data.get('op', '1')))
 
         queries = []
@@ -562,7 +544,6 @@ class QueryCompound(object):
 
         compound = QueryCompound()
         compound.setName(xquery.get('name', ''))
-        compound._negated = xquery.get('negated') == 'True'
         compound.setOperatorType(int(xquery.get('op', '1')))
 
         queries = []

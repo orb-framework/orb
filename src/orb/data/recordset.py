@@ -579,7 +579,21 @@ class RecordSet(object):
                 return self.inflateRecord(table, records[0])
             return records[0]
         return None
-        
+
+    def filter(self, **options):
+        """
+        Shortcut for refining this object set based on a dictionary based matching.  This is the same as doing
+        `self.refine(Q.build(options))`.
+
+        :param      **options | key/value pairing of options to filter by
+
+        :return     <orb.RecordSet>
+        """
+        if not options:
+            return self
+        else:
+            return self.refine(orb.Query.build(options))
+
     def groupBy(self):
         """
         Returns the grouping information for this record set.
