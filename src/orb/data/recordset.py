@@ -5,17 +5,17 @@ return result from the select mechanism that supports paging.
 """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2012, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2012, Projex Software'
+__license__ = 'LGPL'
 
 # maintenance information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 import logging
 import projex.iters
@@ -32,7 +32,7 @@ orb = LazyModule('orb')
 errors = LazyModule('orb.errors')
 
 
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 class RecordSet(object):
     """
@@ -40,61 +40,62 @@ class RecordSet(object):
     more documentation on the RecordSet, check out the 
     [[$ROOT/recordsets|record set documentation]].
     """
+
     def __init__(self, *args):
-        self._table             = None
-        
+        self._table = None
+
         # default options
-        self._grouped           = False
-        self._ordered           = False
-        self._inflated          = None
-        self._counts            = {}
-        self._empty             = {}
-        self._currentPage       = -1
-        self._pageSize          = 0
-        self._locale            = None
-        
+        self._grouped = False
+        self._ordered = False
+        self._inflated = None
+        self._counts = {}
+        self._empty = {}
+        self._currentPage = -1
+        self._pageSize = 0
+        self._locale = None
+
         # sorting options
         self._sort_cmp_callable = None
         self._sort_key_callable = None
-        self._sort_reversed     = False
-        
+        self._sort_reversed = False
+
         # record cache
-        self._all               = {}
-        self._length            = None
-        
+        self._all = {}
+        self._length = None
+
         # select information
-        self._expand            = None
-        self._start             = None
-        self._limit             = None
-        self._database          = -1
-        self._query             = None
-        self._columns           = None
-        self._groupBy           = None
-        self._order             = None
-        self._ignoreAggregates  = False
-        self._ignoreJoined      = False
-        self._namespace         = None
-        
+        self._expand = None
+        self._start = None
+        self._limit = None
+        self._database = -1
+        self._query = None
+        self._columns = None
+        self._groupBy = None
+        self._order = None
+        self._ignoreAggregates = False
+        self._ignoreJoined = False
+        self._namespace = None
+
         # join another record set as RecordSet(recordSet)
         if args:
             data = args[0]
-            
+
             if RecordSet.typecheck(data):
                 self.duplicate(data)
-                
+
             # join a list of records as RecordSet([record, record, record])
             elif type(data) in (list, tuple):
                 self._all[None] = data[:]
                 if data:
                     self._table = type(data[0])
-            
+
             # assign a table as the record set RecordSet(orb.Table)
             elif orb.Table.typecheck(data):
                 self._table = data
-                
+
                 if len(args) > 1 and type(args[1]) in (list, tuple):
                     self._all[None] = args[1][:]
-    
+
     def __len__(self):
         """
         The length of this item will be its total count.
@@ -104,17 +105,17 @@ class RecordSet(object):
         # return the length of the all records cache
         if None in self._all:
             return len(self._all[None])
-        
+
         # return 0 for null record sets
         elif self.isNull():
             return 0
-        
+
         # collect the length from the database
-        elif self._length == None:
+        elif self._length is None:
             self._length = self.count()
-            
+
         return self._length
-    
+
     def __iter__(self):
         """
         Return the fully resolved list of data.
@@ -122,7 +123,7 @@ class RecordSet(object):
         :return     <list>
         """
         return iter(self.all())
-    
+
     def __add__(self, other):
         """
         Adds two record set instances together and returns them.
@@ -130,7 +131,7 @@ class RecordSet(object):
         :param      other | <RecordSet> || <list>
         """
         return RecordSet(self).join(other)
-    
+
     def __getitem__(self, value):
         """
         Returns the item at the inputed index for this record set.
@@ -140,39 +141,39 @@ class RecordSet(object):
         # slice up this record set based on the inputed information
         if type(value) == slice:
             rset = RecordSet(self)
-            
+
             # set the start value for this record set
             if value.start is not None:
                 if self.start() is not None:
                     rset.setStart(self.start() + value.start)
                 else:
                     rset.setStart(value.start)
-            
+
             # set the limit value for this record set
             if value.stop is not None:
                 if value.start is not None:
                     rset.setLimit(value.stop - value.start)
                 else:
                     rset.setLimit(value.stop)
-            
+
             # slice up the records
             if None in rset._all:
                 rset._all[None] = rset._all[None][value]
-            
+
             return rset
-        
+
         # return the record from a given index
         else:
             return self.recordAt(value)
-        
-    def __nonzero__( self ):
+
+    def __nonzero__(self):
         """
         Returns whether or not this record set is a non-zero entry.
         
         :return     <bool>
         """
         return not self.isEmpty()
-    
+
     def _schemaBreakdown(self, **options):
         """
         Returns this recordset broken down by its schema into each record.
@@ -190,14 +191,14 @@ class RecordSet(object):
                 table = type(record)
                 output.setdefault(table, set())
                 output[table].add(record.primaryKey())
-            
-            return {table: orb.Query(table).in_(keys) \
+
+            return {table: orb.Query(table).in_(keys)
                     for table, keys in output.items()}
-        
+
         else:
             lookup = self.lookupOptions(**options)
             return {self.table(): lookup.where}
-    
+
     def all(self, **options):
         """
         Looks up all the records based on the current query information.
@@ -208,27 +209,27 @@ class RecordSet(object):
         :return     [<orb.Table>, ..]
         """
         table = self.table()
-        db  = self.database()
-        
-        lookup  = self.lookupOptions(**options)
+        db = self.database()
+
+        lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
-        
+
         key = self.cacheKey(options)
         if self.isNull():
             return []
-        
+
         # return the cached lookups
         if key in self._all:
             output = self._all[key]
         else:
             # create the lookup information
             cache = table.recordCache()
-            
+
             # grab the database backend
             backend = db.backend()
             if not backend:
                 return []
-            
+
             # cache the result for this query
             results = None
             if cache is not None and orb.system.isCachingEnabled():
@@ -242,11 +243,11 @@ class RecordSet(object):
                     else:
                         log.error('Backend error occurred.\n%s', err)
                         results = []
-            
+
             # return specific columns
             if db_opts.inflateRecords:
                 output = map(lambda x: self.inflateRecord(table, x), results)
-            
+
             elif lookup.columns and not options.get('ignoreColumns'):
                 if len(lookup.columns) == 1:
                     col = lookup.columns[0]
@@ -254,22 +255,22 @@ class RecordSet(object):
                 else:
                     output = [[r.get(col, None) for col in lookup.columns]
                               for r in results]
-            
+
             # return the raw results
             else:
                 output = results
 
             self._all[key] = output
-        
+
         # return sorted results from an in-place sort
         if self._sort_cmp_callable is not None or \
            self._sort_key_callable is not None:
-            return sorted(output, 
-                          cmp = self._sort_cmp_callable,
-                          key = self._sort_key_callable,
-                          reverse = self._sort_reversed)
+            return sorted(output,
+                          cmp=self._sort_cmp_callable,
+                          key=self._sort_key_callable,
+                          reverse=self._sort_reversed)
         return output
-    
+
     def cacheKey(self, options):
         """
         Returns the cache key for based on the inputed dictionary of
@@ -283,7 +284,7 @@ class RecordSet(object):
             return None
         else:
             return hash(orb.LookupOptions(**options))
-    
+
     def clear(self):
         """
         Clears all the cached information such as the all() records,
@@ -293,29 +294,29 @@ class RecordSet(object):
         self._length = None
         self._counts.clear()
         self._empty.clear()
-    
+
     def commit(self, **options):
         """
         Commits the records associated with this record set to the database.
         """
         db = options.pop('db', self.database())
         backend = db.backend()
-        
+
         # insert new records
         inserts = []
         updates = []
-        
+
         lookup = self.lookupOptions(**options)
         db_options = self.databaseOptions(**options)
         records = self.all(**options)
-        
+
         # run each records pre-commit logic before it is inserted to the db
         for record in records:
             record.preCommit(**options)
-        
+
         inserts = filter(lambda x: not x.isRecord(db=db), records)
         updates = filter(lambda x: x.isRecord(db=db), records)
-        
+
         try:
             if inserts:
                 backend.insert(inserts, lookup, db_options)
@@ -327,17 +328,17 @@ class RecordSet(object):
             else:
                 log.error('Backend error occurred.\n%s', err)
                 return False
-        
+
         # update the caching table information
         for table in set(map(type, records)):
             table.markTableCacheExpired()
-        
+
         # run each records pre-commit logic before it is inserted to the db
         for record in records:
             record.postCommit(**options)
-        
+
         return True
-    
+
     def count(self, **options):
         """
         Collects the count of records for this record set.  Additional options
@@ -349,17 +350,17 @@ class RecordSet(object):
         """
         table = self.table()
         db = self.database()
-        
+
         if self.isNull():
             return 0
-        
+
         key = self.cacheKey(options)
-        lookup  = self.lookupOptions(**options)
+        lookup = self.lookupOptions(**options)
         options = self.databaseOptions(**options)
-        
+
         if key in self._counts:
             return self._counts[key]
-        
+
         # retrieve the count information
         cache = table.recordCache()
         if cache is not None and orb.system.isCachingEnabled():
@@ -373,10 +374,10 @@ class RecordSet(object):
                 else:
                     log.error('Backend error occurred.\n%s', err)
                     return 0
-        
+
         self._counts[key] = count
         return count
-    
+
     def columns(self):
         """
         Returns the columns that this record set should be querying for.
@@ -401,18 +402,18 @@ class RecordSet(object):
         """
         if self._database != -1:
             return self._database
-        
+
         if self.table():
             db = self.table().getDatabase()
         else:
             db = orb.system.database()
-            
+
         if not db:
             raise errors.DatabaseNotFound()
-        
+
         self._database = db
         return db
-    
+
     def databaseOptions(self, **options):
         """
         Returns the database options for this record set.  See the
@@ -423,9 +424,9 @@ class RecordSet(object):
         options.setdefault('inflateRecords', self.isInflated())
         options.setdefault('namespace', self.namespace())
         options.setdefault('locale', self._locale)
-        
+
         return orb.DatabaseOptions(**options)
-    
+
     def duplicate(self, other):
         """
         Duplicates the data from the other record set instance.
@@ -433,38 +434,38 @@ class RecordSet(object):
         :param      other | <RecordSet>
         """
         # default options
-        self._grouped           = other._grouped
-        self._ordered           = other._ordered
-        self._inflated          = other._inflated
-        self._counts            = other._counts.copy()
-        self._empty             = other._empty.copy()
-        self._currentPage       = other._currentPage
-        self._pageSize          = other._pageSize
-        self._locale            = other._locale
+        self._grouped = other._grouped
+        self._ordered = other._ordered
+        self._inflated = other._inflated
+        self._counts = other._counts.copy()
+        self._empty = other._empty.copy()
+        self._currentPage = other._currentPage
+        self._pageSize = other._pageSize
+        self._locale = other._locale
 
         # sorting options
         self._sort_cmp_callable = other._sort_cmp_callable
         self._sort_key_callable = other._sort_key_callable
-        self._sort_reversed     = other._sort_reversed
+        self._sort_reversed = other._sort_reversed
 
         # record cache
-        self._all               = other._all.copy()
-        self._length            = other._length
+        self._all = other._all.copy()
+        self._length = other._length
 
         # select information
-        self._expand            = list(other._expand) if other._expand else None
-        self._start             = other._start
-        self._limit             = other._limit
-        self._database          = other._database
-        self._query             = other._query.copy() if other._query else None
-        self._columns           = list(other._columns) if other._columns else None
-        self._groupBy           = list(other._groupBy) if other._groupBy else None
-        self._order             = list(other._order) if other._order else None
-        self._ignoreAggregates  = other._ignoreAggregates
-        self._ignoreJoined      = other._ignoreJoined
-        self._namespace         = other._namespace
+        self._expand = list(other._expand) if other._expand else None
+        self._start = other._start
+        self._limit = other._limit
+        self._database = other._database
+        self._query = other._query.copy() if other._query else None
+        self._columns = list(other._columns) if other._columns else None
+        self._groupBy = list(other._groupBy) if other._groupBy else None
+        self._order = list(other._order) if other._order else None
+        self._ignoreAggregates = other._ignoreAggregates
+        self._ignoreJoined = other._ignoreJoined
+        self._namespace = other._namespace
 
-        self._table             = other._table
+        self._table = other._table
 
     def distinct(self, columns, **options):
         """
@@ -485,26 +486,26 @@ class RecordSet(object):
         # ensure we have a list of values
         if not type(columns) in (list, tuple):
             columns = [nstr(columns)]
-        
+
         table = self.table()
-        db  = self.database()
-        
+        db = self.database()
+
         # ensure we have a database and table class
         if self.isNull():
             if len(columns) > 1:
                 return {}
             return []
-        
+
         # return information from the database
-        cache  = table.recordCache()
+        cache = table.recordCache()
         schema = table.schema()
-        
+
         backend = db.backend()
-        lookup  = self.lookupOptions(**options)
+        lookup = self.lookupOptions(**options)
         options = self.databaseOptions(**options)
-        
+
         lookup.columns = list(columns)
-        
+
         if cache is not None and orb.system.isCachingEnabled():
             output = cache.distinct(backend, table, lookup, options)
         else:
@@ -516,7 +517,7 @@ class RecordSet(object):
                 else:
                     log.error('Backend error occurred.\n%s', err)
                     output = {}
-        
+
         if options.inflateRecords:
             for key in output.keys():
                 column = schema.column(key)
@@ -526,23 +527,23 @@ class RecordSet(object):
                         msg = '%s is not a valid model.'
                         log.error(msg, column.reference())
                         continue
-                    
+
                     ids = output[key]
                     records = []
                     if None in ids:
                         ids.remove(None)
                         records.append(None)
-                    
+
                     if ids:
                         q = orb.Query(ref_model).in_(ids)
                         records += list(ref_model.select(where=q))
-                    
+
                     output[key] = records
-        
+
         if len(columns) == 1:
             return output.get(columns[0], [])
         return output
-        
+
     def first(self, **options):
         """
         Returns the first record that matches the current query.
@@ -551,15 +552,16 @@ class RecordSet(object):
         """
         table = self.table()
         db = self.database()
-        
+
         if self.isNull():
             return None
-        
+
         options['limit'] = 1
-        
-        lookup       = self.lookupOptions(**options)
-        db_opts      = self.databaseOptions(**options)
-        
+
+        lookup = self.lookupOptions(**options)
+        db_opts = self.databaseOptions(**options)
+        lookup.order = lookup.order or [(table.primaryColumns()[0].name(), 'desc')]
+
         # retrieve the data from the cache
         cache = table.recordCache()
         if cache is not None and orb.system.isCachingEnabled():
@@ -573,7 +575,7 @@ class RecordSet(object):
                 else:
                     log.error('Backend error occurred.\n%s', err)
                     records = []
-        
+
         if records:
             if db_opts.inflateRecords:
                 return self.inflateRecord(table, records[0])
@@ -601,7 +603,7 @@ class RecordSet(object):
         :return     [<str>, ..] || None
         """
         return self._groupBy
-    
+
     def grouped(self, grouping=None, **options):
         """
         Returns the records in a particular grouping.  If the groupBy option
@@ -613,17 +615,17 @@ class RecordSet(object):
         """
         if grouping is None:
             grouping = self.groupBy()
-        
+
         if not type(grouping) in (list, tuple):
             grouping = [grouping]
-        
-        table  = self.table()
+
+        table = self.table()
         output = {}
-        
+
         if grouping:
             grp_format = grouping[0]
             remain = grouping[1:]
-            
+
             # look for advanced grouping
             if '{' in grp_format:
                 formatted = True
@@ -631,13 +633,13 @@ class RecordSet(object):
             else:
                 formatted = False
                 columns = [grp_format]
-            
+
             values = self.distinct(columns, **options)
-            
+
             for value in values:
-                lookup      = self.lookupOptions(**options)
-                db_options  = self.databaseOptions(**options)
-                
+                lookup = self.lookupOptions(**options)
+                db_options = self.databaseOptions(**options)
+
                 # generate the sub-grouping query
                 options = {}
                 if len(columns) > 1:
@@ -648,13 +650,13 @@ class RecordSet(object):
                 else:
                     sub_query = orb.Query(columns[0]) == value
                     options[columns[0]] = value
-                
+
                 # define the formatting options
                 if formatted:
                     key = grp_format.format(**options)
                 else:
                     key = value
-                
+
                 # assign or merge the output for the grouping
                 if key in output:
                     sub_set = output[key]
@@ -663,21 +665,21 @@ class RecordSet(object):
                     sub_set = RecordSet(table)
                     lookup = self.lookupOptions(**options)
                     db_options = self.databaseOptions(**options)
-                
+
                     # join the lookup options
                     if lookup.where is None:
                         lookup.where = sub_query
                     else:
                         lookup.where &= sub_query
-                    
+
                     sub_set.setLookupOptions(lookup)
                     sub_set.setDatabaseOptions(db_options)
-                    
+
                     if remain:
                         sub_set = sub_set.grouped(remain, **options)
-                    
+
                     output[key] = sub_set
-        
+
         return output
 
     def ids(self, **options):
@@ -704,7 +706,7 @@ class RecordSet(object):
         if self._namespace is not None:
             inst.setRecordNamespace(self._namespace)
         return inst
-    
+
     def index(self, record):
         """
         Returns the index of the inputed record within the all list.
@@ -719,7 +721,7 @@ class RecordSet(object):
             return self._all[None].index(record)
         else:
             return self.primaryKeys().index(record.primaryKey())
-    
+
     def indexed(self, columns=None, **options):
         """
         Returns the records in a particular grouping.  If the groupBy option
@@ -729,30 +731,30 @@ class RecordSet(object):
         
         :return     { <variant> grouping: <orb.Table>, .. }
         """
-        if columns == None:
+        if columns is None:
             return dict([(x.primaryKey(), x) for x in self.all(**options)])
-            
+
         if not type(columns) in (list, tuple):
             columns = [columns]
-        
-        table  = self.table()
+
+        table = self.table()
         output = {}
-        
+
         auto = options.pop('indexInflated', True)
-        
+
         if columns:
             for record in self.all(**options):
                 key = []
                 for column in columns:
                     key.append(record.recordValue(column, autoInflate=auto))
-                    
+
                 if len(key) == 1:
                     output[key[0]] = record
                 else:
                     output[tuple(key)] = record
-        
+
         return output
-    
+
     def insertInto(self, db, **options):
         """
         Inserts these records into another database.  This method will allow
@@ -762,11 +764,11 @@ class RecordSet(object):
         """
         if self.database() == db:
             return False
-        
+
         lookup = orb.LookupOptions(**options)
         db_opts = orb.DatabaseOptions(**options)
         db_opts.force = True
-        
+
         backend = db.backend()
         records = self.all()
         try:
@@ -805,31 +807,31 @@ class RecordSet(object):
         """
         if self.isNull():
             return True
-        
+
         if None in self._all:
             return len(self._all[None]) == 0
-        
+
         # better to assume that we're not empty on slower connections
         if orb.system.settings().optimizeDefaultEmpty():
             return False
-        
+
         table = self.table()
         db = self.database()
-        
+
         key = self.cacheKey(options)
-        lookup       = self.lookupOptions(**options)
-        db_opts      = self.databaseOptions(**options)
-        
+        lookup = self.lookupOptions(**options)
+        db_opts = self.databaseOptions(**options)
+
         if key in self._empty:
             return self._empty[key]
-        
+
         options['limit'] = 1
         options['inflated'] = False
-        
-        empty = self.first(**options) == None
+
+        empty = self.first(**options) is None
         self._empty[key] = empty
         return empty
-    
+
     def isGrouped(self):
         """
         Returns whether or not this record set is intended to be grouped.  This
@@ -839,17 +841,17 @@ class RecordSet(object):
         :return     <bool>
         """
         return self._grouped
-    
+
     def isInflated(self):
         """
         Returns whether or not this record set will be inflated.
         
         :return     <bool>
         """
-        if ( self._inflated == None ):
+        if self._inflated is None:
             return self._columns is None
         return self._inflated
-    
+
     def isLoaded(self):
         """
         Returns whether or not this record set already is loaded or not.
@@ -857,7 +859,7 @@ class RecordSet(object):
         :return     <bool>
         """
         return len(self._all) != 0
-    
+
     def isOrdered(self):
         """
         Returns whether or not this record set is intended to be ordered.  This
@@ -867,7 +869,7 @@ class RecordSet(object):
         :return     <bool>
         """
         return self._ordered
-    
+
     def isNull(self):
         """
         Returns whether or not this record set can contain valid data.
@@ -876,9 +878,9 @@ class RecordSet(object):
         """
         table = self.table()
         db = self.database()
-        
+
         return not (table and db and db.backend())
-    
+
     def isThreadEnabled(self):
         """
         Returns whether or not this record set is threadable based on its
@@ -887,10 +889,10 @@ class RecordSet(object):
         :return     <bool>
         """
         db = self.database()
-        if ( db ):
+        if db:
             return db.isThreadEnabled()
         return False
-    
+
     def join(self, records):
         """
         Joins together a list of records or another record set to this instance.
@@ -902,14 +904,26 @@ class RecordSet(object):
         if isinstance(records, RecordSet):
             self._all[None] = self.all() + records.all()
             return True
-        
+
         elif type(records) in (list, tuple):
             self._all[None] = self.all() + records
             return True
-        
+
         else:
             return False
-    
+
+    def last(self, **options):
+        """
+        Returns the last record for this set by inverting the order of the lookup.  If
+        no order has been defined, then the primary column will be used as the ordering.
+
+        :return     <orb.Table> || None
+        """
+        order = options.get('order') or self.order() or [('id', 'desc')]
+        order = [(col, 'asc' if direct == 'desc' else 'asc') for col, direct in order]
+        options['order'] = order
+        return self.first(**options)
+
     def limit(self):
         """
         Returns the limit for this record set.
@@ -917,7 +931,7 @@ class RecordSet(object):
         :return     <int>
         """
         return self._limit
-    
+
     def lookupOptions(self, **options):
         """
         Returns the lookup options for this record set.
@@ -925,25 +939,25 @@ class RecordSet(object):
         :return     <orb.LookupOptions>
         """
         kwds = options.copy()
-        
+
         if 'where' in kwds and self.query() is not None:
             kwds['where'] = self.query() & kwds['where']
         else:
             kwds.setdefault('where', self.query())
-        
+
         # initialize the options with this record sets values
-        kwds.setdefault('expand',   self._expand)
-        kwds.setdefault('columns',  self.columns())
-        kwds.setdefault('where',    self.query())
-        kwds.setdefault('order',    self.order())
-        kwds.setdefault('start',    self.start())
-        kwds.setdefault('limit',    self.limit())
+        kwds.setdefault('expand', self._expand)
+        kwds.setdefault('columns', self.columns())
+        kwds.setdefault('where', self.query())
+        kwds.setdefault('order', self.order())
+        kwds.setdefault('start', self.start())
+        kwds.setdefault('limit', self.limit())
         kwds.setdefault('inflated', self.isInflated())
         kwds.setdefault('ignoreJoined', self.ignoreJoined())
         kwds.setdefault('ignoreAggregates', self.ignoreAggregates())
-        
+
         return orb.LookupOptions(**kwds)
-    
+
     def namespace(self):
         """
         Returns the namespace for this query.
@@ -951,7 +965,7 @@ class RecordSet(object):
         :return     <str> || None
         """
         return self._namespace
-    
+
     def order(self):
         """
         Returns the ordering information for this record set.
@@ -988,21 +1002,21 @@ class RecordSet(object):
             pageSize = self.pageSize()
         else:
             pageSize = max(0, pageSize)
-        
+
         if not pageSize:
             return 1
-        
+
         # determine the number of pages in this record set
         pageFraction = self.totalCount() / float(pageSize)
-        pageCount    = int(pageFraction)
-        
+        pageCount = int(pageFraction)
+
         # determine if there is a remainder of records
         remain = pageFraction % 1
         if remain:
             pageCount += 1
-        
+
         return pageCount
-    
+
     def page(self, pageno, pageSize=None):
         """
         Returns the records for the current page, or the specified page number.
@@ -1018,24 +1032,24 @@ class RecordSet(object):
             pageSize = self.pageSize()
         else:
             pageSize = max(0, pageSize)
-        
+
         # for only 1 page of information, return all information
         if not pageSize:
             return RecordSet(self)
-        
+
         # lookup the records for the given page
         start = pageSize * (pageno - 1)
         limit = pageSize
-        
+
         # returns a new record set with this start and limit information
         output = RecordSet(self)
         output.setCurrentPage(pageno)
         output.setPageSize(pageSize)
         output.setStart(start)
         output.setLimit(limit)
-        
+
         return output
-    
+
     def paged(self, pageSize=None):
         """
         Returns a broken up set of this record set based on its paging
@@ -1047,20 +1061,20 @@ class RecordSet(object):
             pageSize = self.pageSize()
         else:
             pageSize = max(0, pageSize)
-        
+
         if not pageSize or self.isEmpty():
             return []
-        
+
         count = self.pageCount(pageSize)
         pages = []
         for i in range(count):
             page = RecordSet(self)
-            page.setStart(i*pageSize)
+            page.setStart(i * pageSize)
             page.setLimit(pageSize)
             pages.append(page)
-        
+
         return pages
-    
+
     def pages(self, pageSize=None):
         """
         Returns a range for all the pages in this record set.
@@ -1068,7 +1082,7 @@ class RecordSet(object):
         :return     [<int>, ..]
         """
         return range(1, self.pageCount(pageSize) + 1)
-    
+
     def pageSize(self):
         """
         Returns the default page size for this record set.  This can be used
@@ -1077,7 +1091,7 @@ class RecordSet(object):
         :return     <int>
         """
         return self._pageSize or orb.system.settings().defaultPageSize()
-    
+
     def primaryKeys(self, **options):
         """
         Returns a list of keys for the records defined for this recordset.
@@ -1086,14 +1100,14 @@ class RecordSet(object):
         """
         if None in self._all:
             return [record.id() for record in self._all[None]]
-        
+
         elif self.table():
             cols = self.table().schema().primaryColumns()
             cols = map(lambda x: x.fieldName(), cols)
             return self.values(cols, **options)
-        
+
         return self.values(orb.system.settings().primaryField(), **options)
-    
+
     def query(self):
         """
         Returns the query for this record set.
@@ -1101,7 +1115,7 @@ class RecordSet(object):
         :return     <Query> || <QueryCompound> || None
         """
         return self._query
-    
+
     def recordAt(self, index, **options):
         """
         Returns the record at the given index and current query information.
@@ -1113,20 +1127,20 @@ class RecordSet(object):
         """
         has_default = 'default' in options
         default = options.get('default')
-        
+
         table = self.table()
         db = self.database()
-        
+
         key = self.cacheKey(options)
-        lookup  = self.lookupOptions(**options)
+        lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
-        
+
         if self.isNull():
             if not has_default:
                 raise IndexError, index
             else:
                 return default
-        
+
         # return the cached lookups
         if key in self._all:
             try:
@@ -1138,8 +1152,8 @@ class RecordSet(object):
                     return default
         else:
             # create the lookup information
-            cache   = table.recordCache()
-            
+            cache = table.recordCache()
+
             # grab the database backend
             backend = db.backend()
             if not backend:
@@ -1147,10 +1161,10 @@ class RecordSet(object):
                     raise IndexError, index
                 else:
                     return default
-            
+
             lookup.start = index
             lookup.limit = 1
-            
+
             # cache the result for this query
             results = None
             if cache is not None and orb.system.isCachingEnabled():
@@ -1164,13 +1178,13 @@ class RecordSet(object):
                     else:
                         log.error('Backend error occurred.\n%s', err)
                         results = []
-            
+
             if not results:
                 if not has_default:
                     raise IndexError(index)
                 else:
                     return default
-            
+
             if db_opts.inflateRecords:
                 return self.inflateRecord(table, results[0])
             elif lookup.columns and not options.get('ignoreColumns'):
@@ -1180,7 +1194,7 @@ class RecordSet(object):
                     return [results[0][col] for col in lookup.columns[0]]
             else:
                 return results[0]
-    
+
     def refine(self, query):
         """
         Creates a subset of this record set with a joined query based on the 
@@ -1196,7 +1210,7 @@ class RecordSet(object):
         rset = RecordSet(self)
         rset.setQuery(query & self._query)
         return rset
-    
+
     def remove(self, **options):
         """
         Removes the records from this set based on the inputed removal mode.
@@ -1212,16 +1226,16 @@ class RecordSet(object):
         """
         if self.isNull() or self.isEmpty():
             return 0
-        
+
         try:
             backend = self.database().backend()
         except AttributeError:
             return 0
-        
+
         # include cascading records
         breakdown = self._schemaBreakdown()
         dbopts = self.databaseOptions(**options)
-        
+
         count = 0
         for table, query in breakdown.items():
             lookup = orb.LookupOptions(where=query)
@@ -1233,7 +1247,7 @@ class RecordSet(object):
                     raise
                 else:
                     log.error('Backend error ocurred.\n%s', err)
-        
+
         return count
 
     def search(self,
@@ -1254,17 +1268,17 @@ class RecordSet(object):
         """
         if not self.table():
             return RecordSet()
-        
+
         if not search_terms:
             return RecordSet(self)
-        
+
         engine = self.table().schema().searchEngine()
         terms = engine.parse(search_terms)
         output = self.refine(terms.toQuery(self.table()))
         if limit is not None:
             output.setLimit(limit)
         return output
-        
+
     def setColumns(self, columns):
         """
         Sets the columns that this record set should be querying the database
@@ -1290,7 +1304,7 @@ class RecordSet(object):
         :param      database | <Database> || None
         """
         self._database = database
-    
+
     def setGrouped(self, state):
         """
         Sets whether or not this record set is intended to be grouped.  This
@@ -1300,7 +1314,7 @@ class RecordSet(object):
         :return     state | <bool>
         """
         self._grouped = state
-    
+
     def setGroupBy(self, groupBy):
         """
         Sets the group by information that this record set will use.
@@ -1308,7 +1322,7 @@ class RecordSet(object):
         :param      groupBy | [<str>, ..] || None
         """
         self._groupBy = groupBy
-    
+
     def setDatabaseOptions(self, options):
         """
         Sets the database options for selectin to the inputed options.
@@ -1347,7 +1361,7 @@ class RecordSet(object):
         :param      state | <bool> || None
         """
         self._inflated = state
-    
+
     def setLimit(self, limit):
         """
         Sets the limit for this record set.
@@ -1355,23 +1369,23 @@ class RecordSet(object):
         :param      limit | <int>
         """
         self._limit = limit
-    
+
     def setLookupOptions(self, lookup):
         """
         Sets the lookup options for this instance to the inputed lookup data.
         
         :param      lookup | <orb.LookupOptions>
         """
-        self._expand            = lookup.expand
-        self._query             = lookup.where
-        self._columns           = lookup.columns
-        self._order             = lookup.order
-        self._ordered           = lookup.order != None
-        self._limit             = lookup.limit
-        self._start             = lookup.start
-        self._ignoreJoined      = lookup.ignoreJoined
-        self._ignoreAggregates  = lookup.ignoreAggregates
-    
+        self._expand = lookup.expand
+        self._query = lookup.where
+        self._columns = lookup.columns
+        self._order = lookup.order
+        self._ordered = lookup.order != None
+        self._limit = lookup.limit
+        self._start = lookup.start
+        self._ignoreJoined = lookup.ignoreJoined
+        self._ignoreAggregates = lookup.ignoreAggregates
+
     def setNamespace(self, namespace):
         """
         Sets the namespace information for this recordset to the given namespace
@@ -1379,7 +1393,7 @@ class RecordSet(object):
         :param      namespace | <str>
         """
         self._namespace = namespace
-    
+
     def setOrder(self, order):
         """
         Sets the field order that this record set will use.
@@ -1388,7 +1402,7 @@ class RecordSet(object):
         """
         self._order = order
         self.setOrdered(order is not None)
-    
+
     def setOrdered(self, state):
         """
         Sets whether or not this record set is intended to be grouped.  This
@@ -1398,7 +1412,7 @@ class RecordSet(object):
         :param      state | <bool>
         """
         self._ordered = state
-    
+
     def setPageSize(self, pageSize):
         """
         Sets the page size for this record set to the inputed page size.
@@ -1406,7 +1420,7 @@ class RecordSet(object):
         :param      pageSize | <int>
         """
         self._pageSize = pageSize
-    
+
     def setQuery(self, query):
         """
         Sets the query that this record set will use.  This will also clear the
@@ -1416,7 +1430,7 @@ class RecordSet(object):
         """
         self._query = query
         self.clear()
-    
+
     def setValues(self, **values):
         """
         Sets the values within this record set to the inputed value dictionary
@@ -1425,7 +1439,7 @@ class RecordSet(object):
         for record in self.all():
             for key, value in values.items():
                 record.setRecordValue(key, value)
-    
+
     def setStart(self, index):
         """
         Sets the start index for this query.
@@ -1433,7 +1447,7 @@ class RecordSet(object):
         :param      index | <int>
         """
         self._start = index
-    
+
     def sumOf(self, columnName):
         """
         Returns the sum of the values from the column name.
@@ -1441,7 +1455,7 @@ class RecordSet(object):
         :return     <int>
         """
         return sum(self.values(columnName))
-    
+
     def sort(self, cmp=None, key=None, reverse=False):
         """
         Sorts the resulted all records by the inputed arguments.
@@ -1450,8 +1464,8 @@ class RecordSet(object):
         """
         self._sort_cmp_callable = cmp
         self._sort_key_callable = key
-        self._sort_reversed     = reverse
-    
+        self._sort_reversed = reverse
+
     def start(self):
         """
         Returns the start index for this query.
@@ -1459,7 +1473,7 @@ class RecordSet(object):
         :return     <int>
         """
         return self._start
-    
+
     def table(self):
         """
         Returns the table class that this record set is associated with.
@@ -1490,10 +1504,10 @@ class RecordSet(object):
         # update the list
         if isinstance(columns, basestring):
             columns = [nstr(columns)]
-        
+
         if self.isNull():
             return []
-        
+
         key = self.cacheKey(options)
         table = self.table()
         if not table:
@@ -1533,23 +1547,23 @@ class RecordSet(object):
                 else:
                     log.error('Backend error occurred.\n%s', err)
                     records = []
-        
+
         # parse the values from the cache
         output = {}
         locale = db_opts.locale
-        
+
         for record in records:
             for orb_col in orb_columns:
                 colname = orb_col.name()
                 output.setdefault(colname, [])
                 expand = bool(orb_col.isReference() and db_opts.inflateRecords)
-                
+
                 # retreive the value
                 if orb.Table.recordcheck(record):
                     value = record.recordValue(colname, autoInflate=expand)
                 else:
                     value = record.get(colname)
-                
+
                 # grab specific locale translation options
                 if orb_col.isTranslatable() and type(value) == dict:
                     if locale != 'all':
@@ -1572,14 +1586,14 @@ class RecordSet(object):
                 # return a standard item
                 else:
                     output[colname].append(value)
-        
+
         if len(output) == 1:
             return output[orb_columns[0].name()]
         elif output:
             return zip(*[output[orb_col.name()] for orb_col in orb_columns])
         else:
             return []
-    
+
     @staticmethod
     def typecheck(value):
         """
