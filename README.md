@@ -27,4 +27,4 @@ of the code by using the `projex.xbuild` system:
 Documentation
 -----------------------
 
-Documentation can be found on (read the docs)[http://orb.readthedocs.org/en/latest/] 
+Documentation can be found on [read the docs](http://orb.readthedocs.org/en/latest/) 
