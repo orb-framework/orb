@@ -560,7 +560,7 @@ class RecordSet(object):
 
         lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
-        lookup.order = lookup.order or [(table.primaryColumns()[0].name(), 'desc')]
+        lookup.order = lookup.order or [(table.schema().primaryColumns()[0].name(), 'asc')]
 
         # retrieve the data from the cache
         cache = table.recordCache()
@@ -919,8 +919,8 @@ class RecordSet(object):
 
         :return     <orb.Table> || None
         """
-        order = options.get('order') or self.order() or [('id', 'desc')]
-        order = [(col, 'asc' if direct == 'desc' else 'asc') for col, direct in order]
+        order = options.get('order') or self.order() or [(self.table().schema().primaryColumns()[0], 'asc')]
+        order = [(col, 'asc' if direct == 'desc' else 'desc') for col, direct in order]
         options['order'] = order
         return self.first(**options)
 

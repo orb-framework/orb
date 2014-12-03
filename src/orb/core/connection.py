@@ -25,7 +25,7 @@ from projex.decorators import abstractmethod
 from projex.lazymodule import LazyModule
 
 orb = LazyModule('orb')
-errors = LazyModule('orb.errros')
+errors = LazyModule('orb.errors')
 
 log = logging.getLogger(__name__)
 

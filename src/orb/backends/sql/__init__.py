@@ -18,6 +18,4 @@ __version__        = '%i.%i.%i' % __version_info__
 
 
 # import the backend SQL implementations
-from .mysql import *
 from .postgresql import *
-from .sqlite import *
