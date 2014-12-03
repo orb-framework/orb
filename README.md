@@ -11,6 +11,10 @@ If you would like to use the latest build that has been tested and published,
 you can use the Python `setuptools` to install it to your computer or virtual
 environment:
 
+    $ pip install projex_orb
+
+or...
+
     $ easy_install projex_orb
 
 If you would like to use the latest code base, you can clone the repository
@@ -23,4 +27,4 @@ of the code by using the `projex.xbuild` system:
 Documentation
 -----------------------
 
-Coming soon.
+Documentation can be found on [read the docs](http://orb.readthedocs.org/en/latest/) 

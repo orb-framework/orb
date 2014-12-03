@@ -1,1 +1,1 @@
-recursive-include orb 
+recursive-include orb *.mako

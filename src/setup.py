@@ -26,7 +26,7 @@ setup(
     author_email = 'team@projexsoftware.com',
     maintainer = 'Projex Software',
     maintainer_email = 'team@projexsoftware.com',
-    description = '''''',
+    description = 'Database ORM and API builder.',
     license = 'LGPL',
     keywords = '',
     url = '',
