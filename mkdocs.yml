@@ -8,7 +8,5 @@ pages:
   - ['advanced/schemas.md', 'Advanced', 'Schemas']
   - ['advanced/querying.md', 'Advanced', 'Querying']
   - ['advanced/i18n.md', 'Advanced', 'Internationalization']
-  - ['api/autodoc:projex', 'API', 'projex']
-  - ['api/autodoc:orb', 'API', 'ORB']
   - ['about/license.md', 'About', 'License']
 theme: bootstrap
