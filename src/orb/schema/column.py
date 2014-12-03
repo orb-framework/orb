@@ -1532,34 +1532,40 @@ class Column(object):
         # convert the value to a string using default values
         coltype = ColumnType.base(self.columnType())
         if coltype == ColumnType.Date:
-            if extra == None:
-                extra = '%Y-%m-%d'
-
-            time_struct = time.strptime(value, extra)
-            return datetime.date(time_struct.tm_year,
-                                 time_struct.tm_month,
-                                 time_struct.tm_day)
+            try:
+                from dateutil import parser
+                return parser.parse(value).date()
+            except ImportError:
+                extra = extra or '%Y-%m-%d'
+                time_struct = time.strptime(value, extra)
+                return datetime.date(time_struct.tm_year,
+                                     time_struct.tm_month,
+                                     time_struct.tm_day)
 
         elif coltype == ColumnType.Time:
-            if extra == None:
-                extra = '%h:%m:%s'
-
-            time_struct = time.strptime(value, extra)
-            return datetime.time(time_struct.tm_hour,
-                                 time_struct.tm_min,
-                                 time_struct.tm_sec)
-
-        elif coltype == ColumnType.Datetime:
-            if extra == None:
-                extra = '%Y-%m-%d %h:%m:s'
-
-            time_struct = time.strptime(value, extra)
-            return datetime.datetime(time_struct.tm_year,
-                                     time_struct.tm_month,
-                                     time_struct.tm_day,
-                                     time_struct.tm_hour,
-                                     time_struct.tm_minute,
+            try:
+                from dateutil import parser
+                return parser.parse(value).time()
+            except ImportError:
+                extra = extra or '%h:%m:%s'
+                time_struct = time.strptime(value, extra)
+                return datetime.time(time_struct.tm_hour,
+                                     time_struct.tm_min,
                                      time_struct.tm_sec)
+
+        elif coltype in (ColumnType.Datetime, ColumnType.DatetimeWithTimezone):
+            try:
+                from dateutil import parser
+                return parser.parse(value)
+            except ImportError:
+                extra = extra or '%Y-%m-%d %h:%m:s'
+                time_struct = time.strptime(value, extra)
+                return datetime.datetime(time_struct.tm_year,
+                                         time_struct.tm_month,
+                                         time_struct.tm_day,
+                                         time_struct.tm_hour,
+                                         time_struct.tm_minute,
+                                         time_struct.tm_sec)
 
         elif coltype == ColumnType.Bool:
             return nstr(value).lower() == 'true'
