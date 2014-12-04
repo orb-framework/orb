@@ -59,6 +59,7 @@ class Table(object):
     __db_tablename__ = ''  # name of table in database
     __db_schema__ = None  # <orb.TableSchema> for direct creation
     __db_ignore__ = True  # bypass database table processing
+    __db_archive__ = False
 
     Hooks = enum('PreCommit', 'PostCommit')
 
@@ -166,14 +167,6 @@ class Table(object):
             return column_data[columnName]
 
     #----------------------------------------------------------------------
-
-    def __json__(self):
-        """
-        Converts this object to JSON.
-
-        :return     <dict>
-        """
-        return projex.rest.py2json(dict(self))
 
     def __iter__(self):
         """
@@ -426,7 +419,7 @@ class Table(object):
     #----------------------------------------------------------------------
     #                       PRIVATE METHODS
     #----------------------------------------------------------------------
-    def changeset(self, columns=None, recurse=True, flags=0):
+    def changeset(self, columns=None, recurse=True, flags=0, kind=0):
         """
         Returns a dictionary of changees that have been made 
         to the data from this record.
@@ -435,8 +428,8 @@ class Table(object):
         """
         changes = {}
         is_record = self.isRecord()
-        flags = flags or orb.Column.Flags.Field
-        columns = columns or self.schema().columns(recurse=recurse, flags=flags)
+        kind = kind or orb.Column.Kind.Field
+        columns = columns or self.schema().columns(recurse=recurse, flags=flags, kind=kind)
 
         for column in columns:
             newValue = self.__record_values.get(column)
@@ -699,7 +692,7 @@ class Table(object):
         """
         Initializes the default values for this record.
         """
-        for column in self.schema().columns(flags=orb.Column.Flags.Field):
+        for column in self.schema().columns(kind=orb.Column.Kind.Field):
             value = column.default(resolve=True)
             if column.isTranslatable():
                 value = {orb.system.locale(): value}
@@ -753,6 +746,14 @@ class Table(object):
             # make sure we have an ID and that the ID has been loaded from the database
             return self.id() is not None and self.__record_dbloaded.issuperset(self.schema().primaryColumns())
         return False
+
+    def json(self):
+        """
+        Converts this object to a JSON dataset.
+
+        :return     <str>
+        """
+        return projex.rest.jsonify(dict(self))
 
     def localCache(self, key, default=None):
         """
@@ -977,6 +978,7 @@ class Table(object):
                      autoInflate=False,
                      recurse=True,
                      flags=0,
+                     kind=0,
                      mapper=None,
                      locale=None,
                      key='name'):
@@ -996,13 +998,11 @@ class Table(object):
         """
         output = {}
         schema = self.schema()
-        all_columns = schema.columns(recurse=recurse, flags=flags)
+        all_columns = schema.columns(recurse=recurse, flags=flags, kind=kind)
         req_columns = [schema.column(col) for col in columns] if columns else None
 
         for column in all_columns:
             if req_columns is not None and column not in req_columns:
-                continue
-            elif ignorePrimary and column.primary():
                 continue
 
             if key == 'name':
@@ -1168,6 +1168,19 @@ class Table(object):
         """
         values = {k: v if type(v) != dict else v.copy() for k, v in self.__record_defaults.items()}
         self.__record_values = values
+
+    def revert(self, *columnNames, **kwds):
+        """
+        Reverts all conflicting column data from the database so that the
+        local modifictaions are up to date with what is in the database.
+
+        :sa         reload
+
+        :param      columnNames | <varg> [<str> columnName, ..]
+                    options     | <Table.ReloadOptions>
+        """
+        kwds.setdefault('options', Table.ReloadOptions.Conflicts)
+        self.reload(*columnNames, **kwds)
 
     def setDatabase(self, database):
         """
@@ -1341,19 +1354,6 @@ class Table(object):
         :param      namespace | <str> || None
         """
         self.__record_namespace = namespace
-
-    def revert(self, *columnNames, **kwds):
-        """
-        Reverts all conflicting column data from the database so that the
-        local modifictaions are up to date with what is in the database.
-        
-        :sa         reload
-        
-        :param      columnNames | <varg> [<str> columnName, ..]
-                    options     | <Table.ReloadOptions>
-        """
-        kwds.setdefault('options', Table.ReloadOptions.Conflicts)
-        self.reload(*columnNames, **kwds)
 
     def update(self, **values):
         return self.setRecordValues(**values)
@@ -1658,33 +1658,6 @@ class Table(object):
             return False
 
         return cachetime < dtime
-
-    @classmethod
-    def jsonify(cls,
-                records,
-                useFieldNames=False,
-                autoInflate=False,
-                mapper=None):
-        """
-        Converts the inputed records of this table to json format.
-        
-        :sa         Table.dictify
-        
-        :param      records         | <orb.RecordSet> || <list>
-                    useFieldNames   | <bool>
-                    autoInflate     | <bool>
-                    mapper          | <callable> || None
-        
-        :return     <str> json data
-        """
-        # convert the data to a string if nothing else to jsonify successfully
-        if mapper is None:
-            mapper = str
-
-        return projex.rest.jsonify(cls.dictify(records,
-                                               useFieldNames=useFieldNames,
-                                               autoInflate=autoInflate,
-                                               mapper=mapper))
 
     @classmethod
     def markTableCacheExpired(cls):

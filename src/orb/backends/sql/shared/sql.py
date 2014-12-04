@@ -215,7 +215,7 @@ class INSERT(SQL):
         insertions = defaultdict(list)
 
         for i, record in enumerate(records):
-            values = record.recordValues(locale=locale, key='column')
+            values = record.recordValues(locale=locale, kind=orb.Column.Kind.Field, key='column')
 
             row_all = []
             row_base = []
@@ -277,7 +277,7 @@ class INSERT(SQL):
             schema = schema.schema()
 
         if columns is None:
-            columns = schema.columns(flags=orb.Column.Flags.Field)
+            columns = schema.columns(kind=orb.Column.Kind.Field)
         else:
             columns = [schema.column(col) for col in columns]
 

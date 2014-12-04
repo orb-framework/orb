@@ -6,17 +6,17 @@ database classes.
 """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2011, Projex Software'
+__license__ = 'LGPL'
 
 # maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 import datetime
 import orb
@@ -53,7 +53,7 @@ GETTER_FKEY_DOCS = """\
                         of records at one time.
 """
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 SETTER_DOCS = """\
 Sets the value for the {name} column to the inputed value.  This will only
@@ -77,11 +77,11 @@ SETTER_I18N_DOCS = """\
 """
 
 
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 class gettermethod(object):
     """ Creates a method for tables to use as a field accessor. """
-    
+
     def __init__(self, **kwds):
         """
         Defines the getter method that will be used when accessing
@@ -90,35 +90,35 @@ class gettermethod(object):
         generating column methods on a model.
         """
         self.__dict__.update(kwds)
-        self.columnName     = kwds.get('columnName', '')
-        
-        translatable   = kwds.get('translatable', False)
-        inflatable     = kwds.get('inflatable', False)
-        
+        self.columnName = kwds.get('columnName', '')
+
+        translatable = kwds.get('translatable', False)
+        inflatable = kwds.get('inflatable', False)
+
         args = []
         optdocs = []
         optparams = []
-        
+
         if translatable:
             args.append('locale=None')
             optdocs.append(GETTER_I18N_DOCS)
             optparams.append('            locale    | None || <str> locale code')
-        
+
         if inflatable:
             args.append('inflated=True')
             optdocs.append(GETTER_FKEY_DOCS)
             optparams.append('            inflated    | <bool>')
-        
+
         default = '<variant>  (see {0} for details)'.format(self.columnName)
         returns = kwds.get('returns', default)
-        
-        self.func_name  = kwds['__name__']
-        self.func_args  = '({0})'.format(', '.join(args))
-        self.func_doc   = GETTER_DOCS.format(name=self.columnName,
-                                             optdocs='\n'.join(optdocs),
-                                             optparams='\n'.join(optparams),
-                                             returns=returns)
-        
+
+        self.func_name = kwds['__name__']
+        self.func_args = '({0})'.format(', '.join(args))
+        self.func_doc = GETTER_DOCS.format(name=self.columnName,
+                                           optdocs='\n'.join(optdocs),
+                                           optparams='\n'.join(optparams),
+                                           returns=returns)
+
         self.__dict__['__doc__'] = self.func_doc
 
     def __call__(self, record, **kwds):
@@ -128,22 +128,23 @@ class gettermethod(object):
         :param      record      <Table>
         """
         inflated = kwds.get('inflated', kwds.get('autoInflate', True))
-        
+
         val = record.recordValue(self.columnName,
-                                  locale=kwds.get('locale', None),
-                                  default=kwds.get('default', None),
-                                  autoInflate=inflated,
-                                  useMethod=False)
-        
+                                 locale=kwds.get('locale', None),
+                                 default=kwds.get('default', None),
+                                 autoInflate=inflated,
+                                 useMethod=False)
+
         if not inflated and orb.Table.recordcheck(val):
             return val.primaryKey()
         return val
+
 
 #------------------------------------------------------------------------------
 
 class settermethod(object):
     """ Defines a method for setting database fields on a Table instance. """
-    
+
     def __init__(self, **kwds):
         """
         Defines the setter method that will be used when accessing
@@ -153,32 +154,32 @@ class settermethod(object):
         """
         self.__dict__.update(kwds)
         self.columnName = kwds.get('columnName', '')
-        
+
         if kwds.get('inflatable'):
             args = ['record_or_key']
         else:
             args = ['value']
         optdocs = []
         optparams = []
-        
+
         if kwds.get('translatable'):
             args.append('locale=None')
             optdocs.append(SETTER_I18N_DOCS)
             optparams.append('            locale    | None || <str>')
-        
+
         default = '<variant>  (see {0} for details)'.format(self.columnName)
         returns = kwds.get('returns', default)
-        
-        self.func_name  = kwds['__name__']
-        self.func_args  = '({0})'.format(', '.join(args))
-        self.func_doc   = SETTER_DOCS.format(name=self.columnName,
-                                             param=args[0],
-                                             optdocs='\n'.join(optdocs),
-                                             optparams='\n'.join(optparams),
-                                             returns=returns)
-        
-        self.__dict__['__doc__']    = self.func_doc
-    
+
+        self.func_name = kwds['__name__']
+        self.func_args = '({0})'.format(', '.join(args))
+        self.func_doc = SETTER_DOCS.format(name=self.columnName,
+                                           param=args[0],
+                                           optdocs='\n'.join(optdocs),
+                                           optparams='\n'.join(optparams),
+                                           returns=returns)
+
+        self.__dict__['__doc__'] = self.func_doc
+
     def __call__(self, record, value, **kwds):
         """
         Calls the setter method for the inputed database record.
@@ -189,11 +190,12 @@ class settermethod(object):
         kwds['useMethod'] = False
         return record.setRecordValue(self.columnName, value, **kwds)
 
+
 #----------------------------------------------------------------------
 
 class reverselookupmethod(object):
     """ Defines a reverse lookup method for lookup up relations. """
-    
+
     def __init__(self, **kwds):
         """
         Defines the getter method that will be used when accessing
@@ -202,20 +204,20 @@ class reverselookupmethod(object):
         generating column methods on a model.
         """
         self.__dict__.update(kwds)
-        
-        self._cache       = {}
-        self.reference    = kwds.get('reference', '')
-        self.referenceDb  = kwds.get('referenceDatabase', None)
-        self.columnName   = kwds.get('columnName', '')
-        self.unique       = kwds.get('unique', False)
-        self.cached       = kwds.get('cached', False)
+
+        self._cache = {}
+        self.reference = kwds.get('reference', '')
+        self.referenceDb = kwds.get('referenceDatabase', None)
+        self.columnName = kwds.get('columnName', '')
+        self.unique = kwds.get('unique', False)
+        self.cached = kwds.get('cached', False)
         self.cacheExpires = kwds.get('cacheExpires', 0)
-        self.func_name    = kwds['__name__']
-        self.func_args    = '()'
-        self.func_doc     = 'Auto-generated Orb reverse lookup method'
-        
-        self.__dict__['__doc__']    = self.func_doc
-    
+        self.func_name = kwds['__name__']
+        self.func_args = '()'
+        self.func_doc = 'Auto-generated Orb reverse lookup method'
+
+        self.__dict__['__doc__'] = self.func_doc
+
     def __call__(self, record, **kwds):
         """
         Calls the getter lookup method for the database record.
@@ -223,60 +225,60 @@ class reverselookupmethod(object):
         :param      record      <Table>
         """
         reload = kwds.pop('reload', False)
-        
+
         # remove any invalid query lookups
         if 'where' in kwds and orb.Query.testNull(kwds['where']):
             kwds.pop('where')
-        
+
         # lookup the records with a specific model
         table = kwds.pop('model', None)
         if not table:
             table = record.polymorphicModel(self.reference)
-            
+
             if not table:
                 table = orb.system.model(self.reference, database=self.referenceDb)
-            
+
             if not table:
                 if self.unique:
                     return None
                 return orb.RecordSet()
-        
+
         # return from the cache when specified
         cache = self.cache(table)
         cache_key = (id(record),
                      hash(orb.LookupOptions(**kwds)),
                      id(record.database()))
-        
-        if cache and not cache.isExpired(cache_key):
+
+        if not reload and cache and not cache.isExpired(cache_key):
             return cache.value(cache_key)
-        
+
         # make sure this is a valid record
         if not record.isRecord():
             if self.unique:
                 return None
             return orb.RecordSet()
-        
+
         if 'where' in kwds:
             where = kwds['where']
             kwds['where'] = (orb.Query(self.columnName) == record) & where
         else:
             kwds['where'] = orb.Query(self.columnName) == record
-        
+
         if not 'order' in kwds and table.schema().defaultOrder():
             kwds['order'] = table.schema().defaultOrder()
-        
+
         # make sure we stay within the same database
         kwds['db'] = record.database()
-        
+
         if self.unique:
             output = table.selectFirst(**kwds)
         else:
             output = table.select(**kwds)
-        
+
         if cache and output is not None:
             cache.setValue(cache_key, output)
         return output
-    
+
     def cache(self, table):
         """
         Returns the cache for this table.
@@ -294,6 +296,7 @@ class reverselookupmethod(object):
             self._cache[table] = cache
             return cache
 
+
 #------------------------------------------------------------------------------
 
 class TableBase(type):
@@ -301,6 +304,7 @@ class TableBase(type):
     Defines the table Meta class that will be used to dynamically generate
     Table class types.
     """
+
     def __new__(mcs, name, bases, attrs):
         """
         Manages the creation of database model classes, reading
@@ -321,136 +325,127 @@ class TableBase(type):
         db_ignore = attrs.pop('__db_ignore__', False)
         if db_ignore:
             return super(TableBase, mcs).__new__(mcs, name, bases, attrs)
-        
-        # collect database and schema information
-        db_data     = {}
-        db_data['__db_name__']      = name
-        db_data['__db_columns__']   = []
-        db_data['__db_indexes__']   = []
-        db_data['__db_pipes__']     = []
-        db_data['__db_schema__']    = None
-        
-        for key, value in attrs.items():
-            if key.startswith('__db_'):
-                db_data[key] = attrs.pop(key)
-                keys_found = True
-        
-        # make sure we have are creating a new database table class
-        parents = [base for base in bases if isinstance(base, TableBase)]
-        
-        # set the database name for this table
-        if parents:
-            db_data.setdefault('__db__', parents[0].__db__)
-        else:
-            db_data.setdefault('__db__', None)
-        
-        # merge inherited information
-        for parent in parents:
-            for key, value in parent.__dict__.items():
-                # skip non-db values
-                if not key.startswith('__db_'):
-                    continue
-                
-                db_data.setdefault(key, value)
-        
-        # determine if this is a definition, or a specific schema
-        new_class   = super(TableBase, mcs).__new__(mcs, name, bases, attrs)
-        schema      = db_data.get('__db_schema__')
-        
+
+        base_tables = [base for base in bases if isinstance(base, TableBase)]
+        base_data = {key: value for base_table in base_tables
+                                for key, value in base_table.__dict__.items() if key.startswith('__db_')}
+
+        # define the default database information
+        db_data = {
+            '__db_name__': name,
+            '__db_columns__': [],
+            '__db_indexes__': [],
+            '__db_pipes__': [],
+            '__db_schema__': None,
+            '__db_abstract__': False,
+            '__db_inherits__': None,
+            '__db_autoprimary__': True,
+            '__db_archived__': False,
+            '__db__': None,
+            '__db_group': 'Default',
+            '__db_tablename__': '',
+            '__db_schema__': None
+        }
+        # override with any inherited data
+        db_data.update(base_data)
+
+        # override with any custom data
+        db_data.update({key: value for key, value in attrs.items() if key.startswith('__db_')})
+
+        if not db_data['__db_inherits__'] and base_tables and base_tables[0].schema():
+            db_data['__db_inherits__'] = base_tables[0].schema().name()
+
+        # create a new model for this table
+        return mcs.createModel(mcs, name, bases, attrs, db_data)
+
+    @staticmethod
+    def createModel(mcs, name, bases, attrs, db_data):
+        """
+        Create a new table model.
+        """
+        new_model = super(TableBase, mcs).__new__(mcs, name, bases, attrs)
+        schema = db_data['__db_schema__']
+
         if schema:
-            new_columns = db_data.get('__db_columns__', [])
-            cur_columns = schema.columns(recurse=False, flags=orb.Column.Flags.Field)
-            columns     = cur_columns + new_columns
-            indexes     = schema.indexes() + db_data.get('__db_indexes__', [])
-            pipes       = schema.pipes() + db_data.get('__db_pipes__', [])
-            tableName   = schema.tableName()
-            
-            schemaName  = schema.name()
-            schema.setColumns(columns)
-            schema.setIndexes(indexes)
-            schema.setPipes(pipes)
-            
+            db_data['__db_name__'] = schema.name()
+            db_data['__db_tablename__'] = schema.tableName()
+
+            if db_data['__db_columns__']:
+                columns = schema.columns(recurse=False) + db_data['__db_columns__']
+                schema.setColumns(columns)
+            if db_data['__db_indexes__']:
+                indexes = schema.indexes() + db_data['__db_indexes__']
+                schema.setIndexes(indexes)
+            if db_data['__db_pipes__']:
+                pipes = schema.pipes() + db_data['__db_pipes__']
+                schema.setPipes(pipes)
         else:
-            db           = db_data.get('__db__',            None)
-            abstract     = db_data.get('__db_abstract__',   False)
-            columns      = db_data.get('__db_columns__',    [])
-            indexes      = db_data.get('__db_indexes__',    [])
-            pipes        = db_data.get('__db_pipes__',      [])
-            schemaName   = db_data.get('__db_name__',       name)
-            schemaGroup  = db_data.get('__db_group__',      'Default')
-            tableName    = db_data.get('__db_tablename__',  '')
-            inherits     = db_data.get('__db_inherits__',   '')
-            autoPrimary  = db_data.get('__db_autoprimary__', True)
-            
-            if not '__db_inherits__' in db_data:
-                if parents and parents[0].schema():
-                    inherits = parents[0].schema().name()
-            
             # create the table schema
-            schema  = orb.TableSchema()
-            schema.setDatabase(db)
-            schema.setAutoPrimary(autoPrimary)
-            schema.setName(schemaName)
-            schema.setGroupName(schemaGroup)
-            schema.setTableName(tableName)
-            schema.setAbstract(abstract)
-            schema.setColumns(columns)
-            schema.setIndexes(indexes)
-            schema.setPipes(pipes)
-            schema.setInherits(inherits)
-            schema.setModel(new_class)
-            
+            schema = orb.TableSchema()
+            schema.setDatabase(db_data['__db__'])
+            schema.setAutoPrimary(db_data['__db_autoprimary__'])
+            schema.setName(db_data['__db_name__'])
+            schema.setGroupName(db_data['__db_group__'])
+            schema.setTableName(db_data['__db_tablename__'])
+            schema.setAbstract(db_data['__db_abstract__'])
+            schema.setColumns(db_data['__db_columns__'])
+            schema.setIndexes(db_data['__db_indexes__'])
+            schema.setPipes(db_data['__db_pipes__'])
+            schema.setInherits(db_data['__db_inherits__'])
+            schema.setArchived(db_data['__db_archived__'])
+            schema.setModel(new_model)
+
             orb.system.registerSchema(schema)
-        
+
         db_data['__db_schema__'] = schema
-        
+
         # add the db values to the class
         for key, value in db_data.items():
-            setattr(new_class, key, value)
-        
+            setattr(new_model, key, value)
+
         # create class methods for the index instances
-        for index in indexes:
+        for index in schema.indexes():
             iname = index.name()
-            if not hasattr(new_class, iname):
-                setattr(new_class, index.name(), classmethod(index))
-        
+            if not hasattr(new_model, iname):
+                setattr(new_model, index.name(), classmethod(index))
+
         # create instance methods for the pipe instances
-        for pipe in pipes:
+        for pipe in schema.pipes():
             pname = pipe.name()
-            if not hasattr(new_class, pname):
-                pipemethod = instancemethod(pipe, None, new_class)
-                setattr(new_class, pname, pipemethod)
-        
+            if not hasattr(new_model, pname):
+                pipemethod = instancemethod(pipe, None, new_model)
+                setattr(new_model, pname, pipemethod)
+
         # pylint: disable-msg=W0212
-        for column in columns:
+        for column in schema.columns(recurse=False):
             colname = column.name()
-            
+
             # create getter method
             gname = column.getterName()
-            if gname and not hasattr(new_class, gname):
+            if gname and not hasattr(new_model, gname):
                 gmethod = gettermethod(columnName=colname,
                                        translatable=column.isTranslatable(),
                                        inflatable=column.isReference(),
                                        returns=column.returnType(),
-                                       __name__ = gname )
-                                        
-                getter  = instancemethod(gmethod, None, new_class)
-                setattr(new_class, gname, getter)
-            
+                                       __name__=gname)
+
+                getter = instancemethod(gmethod, None, new_model)
+                setattr(new_model, gname, getter)
+
             # create setter method
             sname = column.setterName()
-            if sname and not (column.isReadOnly() or hasattr(new_class, sname)):
+            if sname and not (column.isReadOnly() or hasattr(new_model, sname)):
                 smethod = settermethod(columnName=colname,
                                        translatable=column.isTranslatable(),
                                        inflatable=column.isReference(),
                                        returns=column.returnType(),
                                        __name__=sname)
-                setter  = instancemethod(smethod, None, new_class)
-                setattr(new_class, sname, setter)
-            
+                setter = instancemethod(smethod, None, new_model)
+                setattr(new_model, sname, setter)
+
             # create an index if necessary
             iname = column.indexName()
-            if column.indexed() and iname and not hasattr(new_class, iname):
+            if column.indexed() and iname and not hasattr(new_model, iname):
                 index = orb.Index(iname,
                                   [column.name()],
                                   unique=column.unique())
@@ -458,31 +453,31 @@ class TableBase(type):
                 index.setCachedExpires(column.indexCachedExpires())
                 index.__name__ = iname
                 imethod = classmethod(index)
-                setattr(new_class, iname, imethod)
-            
+                setattr(new_model, iname, imethod)
+
             # create a reverse lookup
-            if column.isReversed() and column.schema().name() == schemaName:
-                rev_name   = column.reversedName()
+            if column.isReversed() and column.schema().name() == db_data['__db_name__']:
+                rev_name = column.reversedName()
                 rev_cached = column.reversedCached()
-                ref_name   = column.reference()
-                ref_model  = column.referenceModel()
+                ref_name = column.reference()
+                ref_model = column.referenceModel()
                 rev_cacheExpires = column.reversedCacheExpires()
-                
+
                 # create the lookup method
-                lookup = reverselookupmethod(columnName   = column.name(),
-                                             reference    = schemaName,
-                                             unique       = column.unique(),
-                                             cached       = rev_cached,
-                                             cacheExpires = rev_cacheExpires,
-                                             __name__     = rev_name)
-                
+                lookup = reverselookupmethod(columnName=column.name(),
+                                             reference=db_data['__db_name__'],
+                                             unique=column.unique(),
+                                             cached=rev_cached,
+                                             cacheExpires=rev_cacheExpires,
+                                             __name__=rev_name)
+
                 # ensure we're assigning it to the proper base module
                 while ref_model and \
                       ref_model.__module__ != 'orb.schema.dynamic' and \
                       ref_model.__bases__ and \
-                      ref_model.__bases__[0] != orb.Table:
+                      ref_model.__bases__[0] == orb.Table:
                     ref_model = ref_model.__bases__[0]
-                
+
                 # assign to an existing model
                 if ref_model:
                     ilookup = instancemethod(lookup, None, ref_model)
@@ -490,12 +485,20 @@ class TableBase(type):
                 else:
                     TEMP_REVERSE_LOOKUPS.setdefault(ref_name, [])
                     TEMP_REVERSE_LOOKUPS[ref_name].append((rev_name, lookup))
-        
+
         # assign any cached reverse lookups to this model
-        if schemaName in TEMP_REVERSE_LOOKUPS:
-            lookups = TEMP_REVERSE_LOOKUPS.pop(schemaName)
-            for rev_name, lookup in lookups:
-                ilookup = instancemethod(lookup, None, new_class)
-                setattr(new_class, rev_name, ilookup)
-                
-        return new_class
+        lookups = TEMP_REVERSE_LOOKUPS.pop(db_data['__db_name__'], [])
+        for rev_name, lookup in lookups:
+            ilookup = instancemethod(lookup, None, new_model)
+            setattr(new_model, rev_name, ilookup)
+
+        # determine if we need a new archive class
+        if schema.isArchived():
+            archive_data = db_data.copy()
+            archive_data['__db_name__'] += 'Archive'
+            if archive_data['__db_tablename__']:
+                archive_data['__db_tablename__'] += '_archives'
+
+            mcs.createModel(mcs, archive_data['__db_name__'], bases, attrs, archive_data)
+
+        return new_model

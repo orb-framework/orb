@@ -884,7 +884,7 @@ class SQLConnection(orb.Connection):
         """
         # determine the new columns
         existing = self.existingColumns(schema, options)
-        all_columns  = schema.fieldNames(recurse=False, flags=orb.Column.Flags.Field)
+        all_columns  = schema.fieldNames(recurse=False, kind=orb.Column.Kind.Field)
         missing = set(all_columns).difference(existing)
 
         

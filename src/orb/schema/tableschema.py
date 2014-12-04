@@ -101,6 +101,7 @@ class TableSchema(object):
         self._referenced = referenced
         self._searchEngine = None
         self._validators = []
+        self._archived = False
 
     def addColumn(self, column):
         """
@@ -242,7 +243,7 @@ class TableSchema(object):
         """
         return self._cacheExpireIn
 
-    def column(self, name, recurse=True, flags=0, traversal=None):
+    def column(self, name, recurse=True, flags=0, kind=0, traversal=None):
         """
         Returns the column instance based on its name.  
         If error reporting is on, then the ColumnNotFound
@@ -255,7 +256,7 @@ class TableSchema(object):
         
         :return     <orb.Column> || None
         """
-        key = (name, recurse, flags)
+        key = (name, recurse, flags, kind)
         key = hash(key)
         traversal = traversal if traversal is not None else []
 
@@ -275,7 +276,7 @@ class TableSchema(object):
         # generate the primary columns
         found = None
         traversed = []
-        for column in self.columns(recurse=recurse, flags=flags):
+        for column in self.columns(recurse=recurse, flags=flags, kind=kind):
             if column.isMatch(part):
                 found = column
                 break
@@ -289,7 +290,7 @@ class TableSchema(object):
 
                 refschema = refmodel.schema()
                 next_part = '.'.join(next_parts)
-                found = refschema.column(next_part, recurse=recurse, flags=flags, traversal=traversal)
+                found = refschema.column(next_part, recurse=recurse, flags=flags, kind=kind, traversal=traversal)
             else:
                 found = None
 
@@ -298,31 +299,34 @@ class TableSchema(object):
         traversal += traversed
         return found
 
-    def columnNames(self, recurse=True, flags=0):
+    def columnNames(self, recurse=True, flags=0, kind=0):
         """
         Returns the list of column names that are defined for 
         this table schema instance.
         
         :return     <list> [ <str> columnName, .. ]
         """
-        return sorted([x.name() for x in self.columns(recurse=recurse, flags=flags)])
+        return sorted([x.name() for x in self.columns(recurse=recurse, flags=flags, kind=kind)])
 
-    def columns(self, recurse=True, flags=0):
+    def columns(self, recurse=True, flags=0, kind=0):
         """
         Returns the list of column instances that are defined
         for this table schema instance.
         
         :param      recurse | <bool>
+                    flags   | <orb.Column.Flags>
+                    kind    | <orb.Column.Kind>
         
         :return     <list> [ <orb.Column>, .. ]
         """
         # generate the primary columns for this schema
         self.primaryColumns()
-        flags = flags or orb.ColumnFlags.all()
 
-        output = {column for column in self._columns if column.testFlag(flags)}
+        output = {column for column in self._columns if
+                  (not flags or column.testFlag(flags)) and
+                  (not kind or column.isKind(kind))}
 
-        if flags & orb.Column.Flags.Proxy:
+        if kind & orb.Column.Kind.Proxy and self._model:
             output.update(self._model.proxyColumns())
 
         if recurse and self.inherits():
@@ -330,7 +334,7 @@ class TableSchema(object):
             if not model:
                 raise errors.TableNotFound(self.inherits())
 
-            ancest_columns = model.columns(recurse=recurse, flags=flags)
+            ancest_columns = model.columns(recurse=recurse, flags=flags, kind=kind)
             dups = output.intersection(ancest_columns)
             if dups:
                 dup_names = ','.join([x.name() for x in dups])
@@ -396,7 +400,7 @@ class TableSchema(object):
             return projex.text.pretty(self.name())
         return self._displayName
 
-    def fieldNames(self, recurse=True, flags=0):
+    def fieldNames(self, recurse=True, flags=0, kind=0):
         """
         Returns the list of column instances that are defined
         for this table schema instance.
@@ -405,7 +409,7 @@ class TableSchema(object):
         
         :return     <list> [ <str>, .. ]
         """
-        return [col.fieldName() for col in self.columns(recurse=recurse, flags=flags)]
+        return [col.fieldName() for col in self.columns(recurse=recurse, flags=flags, kind=kind)]
 
     def generateModel(self):
         """
@@ -488,14 +492,14 @@ class TableSchema(object):
             return self._group.name()
         return self._groupName
 
-    def hasColumn(self, column, recurse=True, flags=0):
+    def hasColumn(self, column, recurse=True, flags=0, kind=0):
         """
         Returns whether or not this column exists within the list of columns
         for this schema.
         
         :return     <bool>
         """
-        return column in self.columns(recurse=recurse, flags=flags)
+        return column in self.columns(recurse=recurse, flags=flags, kind=kind)
 
     def hasTranslations(self):
         for col in self.columns():
@@ -553,6 +557,15 @@ class TableSchema(object):
         :return     <bool>
         """
         return self._abstract
+
+    def isArchived(self):
+        """
+        Returns whether or not this schema is archived.  Archived schema's will store additional records
+        each time a record is created or updated for historical reference.
+
+        :return     <bool>
+        """
+        return self._archived
 
     def isCacheEnabled(self):
         """
@@ -755,13 +768,13 @@ class TableSchema(object):
         else:
             return orb.system.searchEngine()
 
-    def searchableColumns(self, recurse=True, flags=0):
+    def searchableColumns(self, recurse=True, flags=0, kind=0):
         """
         Returns a list of the searchable columns for this schema.
         
         :return     <str>
         """
-        return self.columns(recurse=recurse, flags | orb.Column.Flags.Searchable)
+        return self.columns(recurse=recurse, flags=flags | orb.Column.Flags.Searchable, kind=kind)
 
     def setAbstract(self, state):
         """
@@ -780,6 +793,14 @@ class TableSchema(object):
         :return     <bool>
         """
         self._autoPrimary = state
+
+    def setArchived(self, state=True):
+        """
+        Sets the archive state for this schema.
+
+        :param      state | <bool>
+        """
+        self._archived = state
 
     def setCacheEnabled(self, state):
         """
@@ -1093,6 +1114,7 @@ class TableSchema(object):
         xschema.set('cacheExpire', nstr(self._cacheExpireIn))
         xschema.set('preloadCache', nstr(self.preloadCache()))
         xschema.set('useAdvanced', nstr(self.useAdvancedFormatting()))
+        xschema.set('archived', nstr(self.isArchived()))
 
         # save the properties
         if self._properties:
@@ -1169,6 +1191,7 @@ class TableSchema(object):
         tschema.setCacheEnabled(xschema.get('cacheEnabled') == 'True')
         tschema.setCacheExpireIn(int(xschema.get('cacheExpire', 0)))
         tschema.setPreloadCache(xschema.get('preloadCache') == 'True')
+        tschema.setArchived(xschema.get('archived') == 'True')
 
         # load the properties
         xprops = xschema.find('properties')

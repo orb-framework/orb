@@ -19,11 +19,11 @@ __email__ = 'team@projexsoftware.com'
 
 import logging
 import projex.iters
+import projex.rest
 import re
 
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
-from projex.rest import unjsonify
 
 from ..common import SearchMode
 
@@ -911,6 +911,14 @@ class RecordSet(object):
 
         else:
             return False
+
+    def json(self):
+        """
+        Returns the records for this set as a json string.
+
+        :return     <str>
+        """
+        return projex.rest.jsonify(list(self))
 
     def last(self, **options):
         """

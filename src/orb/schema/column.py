@@ -60,7 +60,6 @@ class Column(object):
     }
 
     Flags = enum('ReadOnly',
-                 'Proxy',
                  'Private',
                  'Referenced',
                  'Polymorphic',
@@ -71,11 +70,12 @@ class Column(object):
                  'Encrypted',
                  'Searchable',
                  'IgnoreByDefault',
-                 'Translatable',
-                 'Field',
-                 'Shortcut',
-                 'Joiner',
-                 'Aggregate')
+                 'Translatable')
+
+    Kind = enum('Field',
+                'Joined',
+                'Aggregate',
+                'Proxy')
 
     def __str__(self):
         return self.name() or self.fieldName() or '<< INVALID COLUMN >>'
@@ -88,6 +88,7 @@ class Column(object):
         self._engines = {}
         self._customData = {}
         self._timezone = None
+        self._shortcut = options.get('shortcut', '')
 
         # set default values
         ref = options.get('reference', '')
@@ -135,7 +136,9 @@ class Column(object):
         self._aggregator = options.get('aggregator', None)
 
         # flags options
-        flags = Column.Flags.Field  # by default, all columns are data columns
+        flags = options.get('flags', 0)
+
+        # by default, all columns are data columns
         if options.get('primary'):
             flags |= Column.Flags.Primary
         if options.get('private'):
@@ -159,21 +162,17 @@ class Column(object):
         if options.get('translatable'):
             flags |= Column.Flags.Translatable
 
-        # update special types of columns
-        if options.get('proxy'):
-            flags |= Column.Flags.Proxy  # proxy columns are not fields, they are methods
-            flags &= ~Column.Flags.Field
-        if options.get('shortcut'):
-            flags |= Column.Flags.Shortcut  # shortcut columns are not fields, they reference other columns
-            flags &= ~Column.Flags.Field
-        if self._joiner:
-            flags |= Column.Flags.Joiner  # joiner columns are not fields
-            flags &= ~Column.Flags.Field
-        if self._aggregator:
-            flags |= Column.Flags.Aggrege # aggregate columns are not fields
-            flags &= ~Column.Flags.Field
+        self._flags = flags
 
-        self._flags = options.get('flags', flags)
+        # deterimine the kind of column that this column is
+        if options.get('proxy'):
+            self._kind = Column.Kind.Proxy
+        elif self._joiner or self._shortcut:
+            self._kind = Column.Kind.Joined
+        elif self._aggregator:
+            self._kind = Column.Kind.Aggregate
+        else:
+            self._kind = Column.Kind.Field
 
     def aggregate(self):
         """
@@ -388,7 +387,7 @@ class Column(object):
         
         :return     <str>
         """
-        if ( not autoGenerate or self._displayName ):
+        if not autoGenerate or self._displayName:
             return self._displayName
 
         return projex.text.capitalizeWords(self.name())
@@ -514,6 +513,16 @@ class Column(object):
         btype = ColumnType.base(self.columnType())
         return btype in (ColumnType.Integer, ColumnType.BigInt, ColumnType.Enum)
 
+    def isKind(self, kind):
+        """
+        Returns whether or not this column is the kind of inputed type.
+
+        :param      kind | <orb.Column.Kind>
+
+        :return     <bool>
+        """
+        return bool(self._kind & kind)
+
     def isJoined(self):
         """
         Returns whether or not this column is a joined column.  Dynamic
@@ -588,7 +597,7 @@ class Column(object):
         
         :return     <bool>
         """
-        return self.testFlag(Column.Flags.Proxy)
+        return self.isKind(Column.Kind.Proxy)
 
     def isReadOnly(self):
         """
@@ -674,6 +683,14 @@ class Column(object):
         """
         return [flag for flag in Column.Flags.values() if self.testFlag(flag)]
 
+    def kind(self):
+        """
+        Returns the general kind of column this is.
+
+        :return     <orb.Column.Kind>
+        """
+        return self._kind
+
     def joiner(self):
         """
         Returns the joiner query that is used to define what this columns
@@ -682,8 +699,15 @@ class Column(object):
         :return     (<orb.Column>, <orb.Query>) || None
         """
         joiner = self._joiner
+
+        # dynamically generate a join query based on the inputed function
         if type(joiner).__name__ == 'function':
             return joiner(self)
+
+        # otherwise, if there is a shortcut, generate that
+        else:
+            return orb.Query(self.shortcut())
+
         return joiner
 
     def maxlength(self):
@@ -871,6 +895,15 @@ class Column(object):
         """
         return self._reversedName
 
+    def shortcut(self):
+        """
+        Returns the shortcut for this column.  This will traverse a relationship set
+        for the actual value as a join from another table.
+
+        :return     <str>
+        """
+        return self._shortcut
+
     def storeValue(self, value):
         """
         Converts the value to one that is safe to store on a record within
@@ -978,7 +1011,7 @@ class Column(object):
         
         :param      displayName | <str>
         """
-        if ( displayName is not None ):
+        if displayName is not None:
             self._displayName = displayName
 
     def setEngine(self, db_or_type, engine):
@@ -1053,7 +1086,7 @@ class Column(object):
         
         :param      getterName | <str>
         """
-        if ( getterName is not None ):
+        if getterName is not None:
             self._getterName = getterName
 
     def setIndexed(self, state):
@@ -1088,7 +1121,7 @@ class Column(object):
         
         :param      indexName | <str>
         """
-        if ( indexName is not None ):
+        if indexName is not None:
             self._indexName = indexName
 
     def setJoiner(self, joiner):
@@ -1099,8 +1132,9 @@ class Column(object):
         """
         self._joiner = joiner
         if joiner is not None:
+            self._kind = Column.Kind.Joined
+
             self.setFlag(Column.Flags.ReadOnly)
-            self.setFlag(Column.Flags.Joiner)
             self.setFlag(Column.Flags.Field, False)  # joiner columns are not fields
 
     def setMaxlength(self, length):
@@ -1155,6 +1189,7 @@ class Column(object):
         # defines this column as an aggregation value
         # (does not explicitly live on the Table class)
         if aggregator is not None:
+            self._kind = Column.Kind.Aggregate
             self.setFlag(Column.Flags.ReadOnly)
 
     def setReadOnly(self, state):
@@ -1252,6 +1287,18 @@ class Column(object):
         if setterName is not None:
             self._setterName = setterName
 
+    def setShortcut(self, shortcut):
+        """
+        Sets the shortcut path for this column.
+
+        :param      shortcut | <str>
+        """
+        self._shortcut = shortcut
+        if self._joiner or shortcut:
+            self._kind = Column.Kind.Joined
+        elif self._kind == Column.Kind.Joined:
+            self._kind = Column.Kind.Field
+
     def setStringFormat(self, formatter):
         """
         Sets the string formatter for this column to the inputed text.  This
@@ -1306,7 +1353,7 @@ class Column(object):
         
         :param      flag | <Column.Flags>
         """
-        return (self.flags() & flag) != 0
+        return bool(self.flags() & flag)
 
     def timezone(self):
         """
@@ -1465,6 +1512,7 @@ class Column(object):
         xcolumn.set('getter', self.getterName())
         xcolumn.set('setter', self.setterName())
         xcolumn.set('field', self._fieldName)
+        xcolumn.set('shortcut', self._shortcut)
 
         # store indexing options
         xcolumn.set('index', self.indexName())
@@ -1709,6 +1757,7 @@ class Column(object):
         column.setSetterName(xcolumn.get('setter'))
         column.setFieldName(xcolumn.get('field'))
         column.setDisplayName(xcolumn.get('display'))
+        column.setShortcut(xcolumn.get('shortcut', ''))
 
         # restore indexing options
         column.setIndexName(xcolumn.get('index'))
