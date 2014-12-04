@@ -242,13 +242,7 @@ class TableSchema(object):
         """
         return self._cacheExpireIn
 
-    def column(self,
-               name,
-               recurse=True,
-               includeProxies=True,
-               includeJoined=True,
-               includeAggregates=True,
-               traversal=None):
+    def column(self, name, recurse=True, flags=0, traversal=None):
         """
         Returns the column instance based on its name.  
         If error reporting is on, then the ColumnNotFound
@@ -257,12 +251,11 @@ class TableSchema(object):
         
         :param      name | <str>
                     recurse | <bool>
-                    includeProxies | <bool>
                     traversal | <list> | will be populated with schemas
         
         :return     <orb.Column> || None
         """
-        key = (name, recurse, includeProxies, includeJoined, includeAggregates)
+        key = (name, recurse, flags)
         key = hash(key)
         traversal = traversal if traversal is not None else []
 
@@ -280,14 +273,9 @@ class TableSchema(object):
         next_parts = parts[1:]
 
         # generate the primary columns
-        self.primaryColumns()
         found = None
         traversed = []
-        for column in self.columns(recurse,
-                                   includeProxies,
-                                   includeJoined,
-                                   includeAggregates):
-
+        for column in self.columns(recurse=recurse, flags=flags):
             if column.isMatch(part):
                 found = column
                 break
@@ -301,13 +289,7 @@ class TableSchema(object):
 
                 refschema = refmodel.schema()
                 next_part = '.'.join(next_parts)
-                found = refschema.column(next_part,
-                                         recurse=recurse,
-                                         includeProxies=includeProxies,
-                                         includeJoined=includeJoined,
-                                         includeAggregates=includeAggregates,
-                                         traversal=traversed)
-
+                found = refschema.column(next_part, recurse=recurse, flags=flags, traversal=traversal)
             else:
                 found = None
 
@@ -316,30 +298,16 @@ class TableSchema(object):
         traversal += traversed
         return found
 
-    def columnNames(self,
-                    recurse=True,
-                    includeProxies=True,
-                    includeJoined=True,
-                    includeAggregates=True):
+    def columnNames(self, recurse=True, flags=0):
         """
         Returns the list of column names that are defined for 
         this table schema instance.
         
         :return     <list> [ <str> columnName, .. ]
         """
-        cols = self.columns(recurse,
-                            includeProxies,
-                            includeJoined,
-                            includeAggregates)
-        return sorted(map(lambda x: x.name(), cols))
+        return sorted([x.name() for x in self.columns(recurse=recurse, flags=flags)])
 
-    def columns(self,
-                recurse=True,
-                includeProxies=True,
-                includeJoined=True,
-                includeAggregates=True,
-                include=None,
-                ignore=None):
+    def columns(self, recurse=True, flags=0):
         """
         Returns the list of column instances that are defined
         for this table schema instance.
@@ -350,44 +318,25 @@ class TableSchema(object):
         """
         # generate the primary columns for this schema
         self.primaryColumns()
+        flags = flags or orb.ColumnFlags.all()
 
-        output = self._columns.copy()
-        if includeProxies and self._model:
+        output = {column for column in self._columns if column.testFlag(flags)}
+
+        if flags & orb.Column.Flags.Proxy:
             output.update(self._model.proxyColumns())
 
-        if recurse:
-            for ancest in self.ancestry():
-                ancest.primaryColumns()
-                ancest_columns = ancest._columns.copy()
-                if includeProxies and ancest._model:
-                    ancest_columns.update(ancest._model.proxyColumns())
+        if recurse and self.inherits():
+            model = self.inheritsModel()
+            if not model:
+                raise errors.TableNotFound(self.inherits())
 
-                dups = output.intersection(ancest_columns)
-                if dups:
-                    dup_names = ','.join(map(lambda x: x.name(), dups))
-                    raise errors.DuplicateColumnFound(self.name(), dup_names)
+            ancest_columns = model.columns(recurse=recurse, flags=flags)
+            dups = output.intersection(ancest_columns)
+            if dups:
+                dup_names = ','.join([x.name() for x in dups])
+                raise errors.DuplicateColumnFound(self.name(), dup_names)
 
-                output.update(ancest_columns)
-
-        # filter the output based on the inputed list of names
-        if ignore is not None:
-            output = filter(lambda x: not x.name() in ignore and \
-                                      not x.fieldName() in ignore and \
-                                      not x.displayName() in ignore,
-                            output)
-
-        # filter the output based on the included list of names
-        if include is not None:
-            output = filter(lambda x: x.name() in include or \
-                                      x.fieldName() in include or \
-                                      x.displayName() in include,
-                            output)
-
-        # ignore joined columns
-        if not includeJoined:
-            output = filter(lambda x: not x.isJoined(), output)
-        if not includeAggregates:
-            output = filter(lambda x: not x.isAggregate(), output)
+            output.update(ancest_columns)
 
         return list(output)
 
@@ -447,13 +396,7 @@ class TableSchema(object):
             return projex.text.pretty(self.name())
         return self._displayName
 
-    def fieldNames(self,
-                   recurse=True,
-                   includeProxies=True,
-                   includeJoined=True,
-                   includeAggregates=True,
-                   include=None,
-                   ignore=None):
+    def fieldNames(self, recurse=True, flags=0):
         """
         Returns the list of column instances that are defined
         for this table schema instance.
@@ -462,18 +405,7 @@ class TableSchema(object):
         
         :return     <list> [ <str>, .. ]
         """
-        columns = self.columns(recurse=recurse,
-                               includeProxies=includeProxies,
-                               includeJoined=includeJoined,
-                               includeAggregates=includeAggregates)
-
-        output = []
-        for col in columns:
-            if (include is not None and not col.fieldName() in include) or \
-                    (ignore is not None and col.fieldName() in ignore):
-                continue
-            output.append(col.fieldName())
-        return output
+        return [col.fieldName() for col in self.columns(recurse=recurse, flags=flags)]
 
     def generateModel(self):
         """
@@ -556,29 +488,14 @@ class TableSchema(object):
             return self._group.name()
         return self._groupName
 
-    def hasColumn(self, column, recurse=True, includeProxies=True):
+    def hasColumn(self, column, recurse=True, flags=0):
         """
         Returns whether or not this column exists within the list of columns
         for this schema.
         
         :return     <bool>
         """
-        # generate the primary columns for this schema
-        self.primaryColumns()
-
-        if column in self._columns:
-            return True
-
-        if includeProxies and self._model:
-            if column in self._model.proxyColumns():
-                return True
-
-        if recurse:
-            for ancest in self.ancestry():
-                if ancest.hasColumn(column, recurse=False):
-                    return True
-
-        return False
+        return column in self.columns(recurse=recurse, flags=flags)
 
     def hasTranslations(self):
         for col in self.columns():
@@ -838,14 +755,13 @@ class TableSchema(object):
         else:
             return orb.system.searchEngine()
 
-    def searchableColumns(self, recurse=True, includeProxies=True):
+    def searchableColumns(self, recurse=True, flags=0):
         """
         Returns a list of the searchable columns for this schema.
         
         :return     <str>
         """
-        columns = self.columns(recurse, includeProxies)
-        return filter(lambda x: x.isSearchable(), columns)
+        return self.columns(recurse=recurse, flags | orb.Column.Flags.Searchable)
 
     def setAbstract(self, state):
         """

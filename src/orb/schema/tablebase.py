@@ -359,7 +359,7 @@ class TableBase(type):
         
         if schema:
             new_columns = db_data.get('__db_columns__', [])
-            cur_columns = schema.columns(recurse=False, includeProxies=False)
+            cur_columns = schema.columns(recurse=False, flags=orb.Column.Flags.Field)
             columns     = cur_columns + new_columns
             indexes     = schema.indexes() + db_data.get('__db_indexes__', [])
             pipes       = schema.pipes() + db_data.get('__db_pipes__', [])

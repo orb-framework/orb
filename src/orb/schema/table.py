@@ -426,7 +426,7 @@ class Table(object):
     #----------------------------------------------------------------------
     #                       PRIVATE METHODS
     #----------------------------------------------------------------------
-    def changeset(self, columns=None, recurse=True, includeProxies=False):
+    def changeset(self, columns=None, recurse=True, flags=0):
         """
         Returns a dictionary of changees that have been made 
         to the data from this record.
@@ -435,10 +435,10 @@ class Table(object):
         """
         changes = {}
         is_record = self.isRecord()
+        flags = flags or orb.Column.Flags.Field
+        columns = columns or self.schema().columns(recurse=recurse, flags=flags)
 
-        for column in self.schema().columns(recurse=recurse,
-                                            includeProxies=includeProxies,
-                                            include=columns):
+        for column in columns:
             newValue = self.__record_values.get(column)
 
             # assume all changes for a new record
@@ -699,7 +699,7 @@ class Table(object):
         """
         Initializes the default values for this record.
         """
-        for column in self.schema().columns(includeProxies=False):
+        for column in self.schema().columns(flags=orb.Column.Flags.Field):
             value = column.default(resolve=True)
             if column.isTranslatable():
                 value = {orb.system.locale(): value}
@@ -975,11 +975,8 @@ class Table(object):
     def recordValues(self,
                      columns=None,
                      autoInflate=False,
-                     ignorePrimary=False,
-                     includeProxies=True,
-                     includeAggregates=True,
-                     includeJoined=True,
                      recurse=True,
+                     flags=0,
                      mapper=None,
                      locale=None,
                      key='name'):
@@ -999,10 +996,7 @@ class Table(object):
         """
         output = {}
         schema = self.schema()
-        all_columns = schema.columns(includeProxies=includeProxies,
-                                     includeAggregates=includeAggregates,
-                                     includeJoined=includeJoined,
-                                     recurse=recurse)
+        all_columns = schema.columns(recurse=recurse, flags=flags)
         req_columns = [schema.column(col) for col in columns] if columns else None
 
         for column in all_columns:

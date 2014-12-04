@@ -277,9 +277,7 @@ class INSERT(SQL):
             schema = schema.schema()
 
         if columns is None:
-            columns = schema.columns(includeJoined=False,
-                                     includeAggregates=False,
-                                     includeProxies=False)
+            columns = schema.columns(flags=orb.Column.Flags.Field)
         else:
             columns = [schema.column(col) for col in columns]
 

@@ -71,7 +71,11 @@ class Column(object):
                  'Encrypted',
                  'Searchable',
                  'IgnoreByDefault',
-                 'Translatable')
+                 'Translatable',
+                 'Field',
+                 'Shortcut',
+                 'Joiner',
+                 'Aggregate')
 
     def __str__(self):
         return self.name() or self.fieldName() or '<< INVALID COLUMN >>'
@@ -131,11 +135,9 @@ class Column(object):
         self._aggregator = options.get('aggregator', None)
 
         # flags options
-        flags = 0
+        flags = Column.Flags.Field  # by default, all columns are data columns
         if options.get('primary'):
             flags |= Column.Flags.Primary
-        if options.get('proxy'):
-            flags |= Column.Flags.Proxy
         if options.get('private'):
             flags |= Column.Flags.Private
         if options.get('readOnly'):
@@ -156,6 +158,20 @@ class Column(object):
             flags |= Column.Flags.IgnoreByDefault
         if options.get('translatable'):
             flags |= Column.Flags.Translatable
+
+        # update special types of columns
+        if options.get('proxy'):
+            flags |= Column.Flags.Proxy  # proxy columns are not fields, they are methods
+            flags &= ~Column.Flags.Field
+        if options.get('shortcut'):
+            flags |= Column.Flags.Shortcut  # shortcut columns are not fields, they reference other columns
+            flags &= ~Column.Flags.Field
+        if self._joiner:
+            flags |= Column.Flags.Joiner  # joiner columns are not fields
+            flags &= ~Column.Flags.Field
+        if self._aggregator:
+            flags |= Column.Flags.Aggrege # aggregate columns are not fields
+            flags &= ~Column.Flags.Field
 
         self._flags = options.get('flags', flags)
 
@@ -1084,6 +1100,8 @@ class Column(object):
         self._joiner = joiner
         if joiner is not None:
             self.setFlag(Column.Flags.ReadOnly)
+            self.setFlag(Column.Flags.Joiner)
+            self.setFlag(Column.Flags.Field, False)  # joiner columns are not fields
 
     def setMaxlength(self, length):
         """

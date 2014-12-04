@@ -67,10 +67,7 @@ class Connection(AddonManager):
         db = self.database()
         data = {}
         for schema in self.database().schemas():
-            colnames = schema.columnNames(includeProxies=False,
-                                          includeJoined=False,
-                                          includeAggregates=False)
-
+            colnames = schema.columnNames(orb.Column.Flags.Field)
             values = schema.model().select(colnames,
                                            inflated=False,
                                            db=db).all()

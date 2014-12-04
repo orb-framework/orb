@@ -884,11 +884,9 @@ class SQLConnection(orb.Connection):
         """
         # determine the new columns
         existing = self.existingColumns(schema, options)
-        missing  = schema.fieldNames(recurse=False,
-                                     includeProxies=False,
-                                     includeJoined=False,
-                                     includeAggregates=False,
-                                     ignore=existing)
+        all_columns  = schema.fieldNames(recurse=False, flags=orb.Column.Flags.Field)
+        missing = set(all_columns).difference(existing)
+
         
         # if no columns are missing, return True to indicate the table is
         # up to date
