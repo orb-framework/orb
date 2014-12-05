@@ -1,1 +1,2 @@
-__toc__ = ['orb.data.converters.qt']
+__recurse__ = False
+__toc__ = [r'orb.data.converters.qt']

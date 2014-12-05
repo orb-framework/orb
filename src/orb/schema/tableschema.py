@@ -1168,7 +1168,7 @@ class TableSchema(object):
         """
         return self._useAdvancedFormatting
 
-    def toXml(self, xparent):
+    def toXml(self, xparent=None):
         """
         Saves this schema information to XML.
         
@@ -1176,7 +1176,10 @@ class TableSchema(object):
         
         :return     <xml.etree.ElementTree.Element>
         """
-        xschema = ElementTree.SubElement(xparent, 'schema')
+        if xparent is not None:
+            xschema = ElementTree.SubElement(xparent, 'schema')
+        else:
+            xschema = ElementTree.Element('schema')
 
         # save the properties
         xschema.set('name', self.name())

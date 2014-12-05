@@ -1,1 +1,19 @@
-__toc__ = []
+__recurse__ = False
+__toc__ = [r'orb.backends.sql.postgresql.statements.add_column_sql_mako',
+r'orb.backends.sql.postgresql.statements.alter_table_sql_mako',
+r'orb.backends.sql.postgresql.statements.create_table_sql_mako',
+r'orb.backends.sql.postgresql.statements.delete_sql_mako',
+r'orb.backends.sql.postgresql.statements.enable_internals_sql_mako',
+r'orb.backends.sql.postgresql.statements.inserted_keys_sql_mako',
+r'orb.backends.sql.postgresql.statements.insert_sql_mako',
+r'orb.backends.sql.postgresql.statements.quote_sql_mako',
+r'orb.backends.sql.postgresql.statements.select_aggregate_sql_mako',
+r'orb.backends.sql.postgresql.statements.select_count_sql_mako',
+r'orb.backends.sql.postgresql.statements.select_expand_sql_mako',
+r'orb.backends.sql.postgresql.statements.select_joiner_sql_mako',
+r'orb.backends.sql.postgresql.statements.select_sql_mako',
+r'orb.backends.sql.postgresql.statements.setup_db_sql_mako',
+r'orb.backends.sql.postgresql.statements.table_columns_sql_mako',
+r'orb.backends.sql.postgresql.statements.table_exists_sql_mako',
+r'orb.backends.sql.postgresql.statements.update_sql_mako',
+r'orb.backends.sql.postgresql.statements.where_sql_mako']

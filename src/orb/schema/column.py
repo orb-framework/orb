@@ -1511,7 +1511,7 @@ class Column(object):
         
         :return     <xml.etree.ElementTree.Element>
         """
-        if xparent:
+        if xparent is not None:
             xcolumn = ElementTree.SubElement(xparent, 'column')
         else:
             xcolumn = ElementTree.Element('column')
