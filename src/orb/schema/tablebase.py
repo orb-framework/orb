@@ -18,7 +18,7 @@ __email__ = 'team@projexsoftware.com'
 
 # ------------------------------------------------------------------------------
 
-import datetime
+import projex.text
 import orb
 
 from new import instancemethod
@@ -332,7 +332,10 @@ class TableBase(type):
 
         # define the default database information
         db_data = {
+            '__db__': None,
+            '__db_group__': 'Default',
             '__db_name__': name,
+            '__db_tablename__': '',
             '__db_columns__': [],
             '__db_indexes__': [],
             '__db_pipes__': [],
@@ -341,9 +344,6 @@ class TableBase(type):
             '__db_inherits__': None,
             '__db_autoprimary__': True,
             '__db_archived__': False,
-            '__db__': None,
-            '__db_group': 'Default',
-            '__db_tablename__': '',
             '__db_schema__': None
         }
         # override with any inherited data
@@ -417,7 +417,8 @@ class TableBase(type):
                 setattr(new_model, pname, pipemethod)
 
         # pylint: disable-msg=W0212
-        for column in schema.columns(recurse=False):
+        columns = schema.columns(recurse=False)
+        for column in columns:
             colname = column.name()
 
             # create getter method
@@ -494,11 +495,44 @@ class TableBase(type):
 
         # determine if we need a new archive class
         if schema.isArchived():
-            archive_data = db_data.copy()
-            archive_data['__db_name__'] += 'Archive'
-            if archive_data['__db_tablename__']:
-                archive_data['__db_tablename__'] += '_archives'
+            # create the archive column
+            archive_columns = [column.copy() for column in
+                               schema.columns(recurse=False, flags=~orb.Column.Flags.Primary)]
+            archive_columns += [
+                # primary key for the archives is a reference to the article
+                orb.Column(orb.ColumnType.ForeignKey,
+                           db_data['__db_name__'],
+                           fieldName=projex.text.underscore(db_data['__db_name__']) + '_archived_id',
+                           required=True,
+                           reference=db_data['__db_name__'],
+                           reversed=True,
+                           reversedName='archives'),
 
-            mcs.createModel(mcs, archive_data['__db_name__'], bases, attrs, archive_data)
+                # and its version
+                orb.Column(orb.ColumnType.Integer,
+                           'archiveVersion',
+                           required=True),
+
+                # created the archive at method
+                orb.Column(orb.ColumnType.DatetimeWithTimezone,
+                           'archivedAt',
+                           default='now')
+            ]
+
+            archive_data = {
+                '__db__': db_data['__db__'],
+                '__db_group__': db_data['__db_group__'],
+                '__db_name__': db_data['__db_name__'] + 'Archive',
+                '__db_tablename__': projex.text.underscore(db_data['__db_name__']) + '_archives',
+                '__db_columns__': archive_columns,
+                '__db_indexes__': [],
+                '__db_pipes__': [],
+                '__db_schema__': None,
+                '__db_abstract__': False,
+                '__db_inherits__': None,
+                '__db_autoprimary__': True,
+                '__db_archived__': False
+            }
+            mcs.createModel(mcs, archive_data['__db_name__'], (orb.Table,), {}, archive_data)
 
         return new_model

@@ -203,7 +203,7 @@ class ReferenceNotFound(OrbError):
 
 class TableNotFound(OrbError):
     def __init__(self, table):
-        super(TableNotFound, self).__init__('Cound not find `{0}` table.'.format(table))
+        super(TableNotFound, self).__init__('Could not find `{0}` table.'.format(table))
 
 # V
 #------------------------------------------------------------------------------

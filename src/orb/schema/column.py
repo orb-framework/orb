@@ -215,6 +215,14 @@ class Column(object):
             return ColumnType.base(self._type)
         return self._type
 
+    def copy(self):
+        """
+        Creates a copy of this column and returns it.
+
+        :return     <orb.Column>
+        """
+        return Column.fromXml(self.toXml())
+
     def columnTypeText(self, baseOnly=False):
         """
         Returns the column type text for this column.
@@ -521,7 +529,7 @@ class Column(object):
 
         :return     <bool>
         """
-        return bool(self._kind & kind)
+        return bool(self._kind & kind) if kind >= 0 else not bool(self._kind & ~kind)
 
     def isJoined(self):
         """
@@ -1353,7 +1361,7 @@ class Column(object):
         
         :param      flag | <Column.Flags>
         """
-        return bool(self.flags() & flag)
+        return bool(self.flags() & flag) if flag >= 0 else not bool(self.flags() & ~flag)
 
     def timezone(self):
         """
@@ -1494,7 +1502,7 @@ class Column(object):
 
         return tip.format(**opts)
 
-    def toXml(self, xparent):
+    def toXml(self, xparent=None):
         """
         Saves the data about this column out to xml as a child node for the
         inputed parent.
@@ -1503,7 +1511,10 @@ class Column(object):
         
         :return     <xml.etree.ElementTree.Element>
         """
-        xcolumn = ElementTree.SubElement(xparent, 'column')
+        if xparent:
+            xcolumn = ElementTree.SubElement(xparent, 'column')
+        else:
+            xcolumn = ElementTree.Element('column')
 
         # save the properties
         xcolumn.set('type', ColumnType[self.columnType()])

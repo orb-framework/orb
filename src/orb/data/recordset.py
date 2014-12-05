@@ -41,6 +41,14 @@ class RecordSet(object):
     [[$ROOT/recordsets|record set documentation]].
     """
 
+    def __json__(self):
+        """
+        Returns this record set as a list of records.
+
+        :return     [<orb.Record>, ..]
+        """
+        return list(self)
+
     def __init__(self, *args):
         self._table = None
 

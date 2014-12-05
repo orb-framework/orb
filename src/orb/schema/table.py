@@ -168,6 +168,18 @@ class Table(object):
 
     #----------------------------------------------------------------------
 
+    def __json__(self):
+        """
+        Iterates this object for its values.  This will return the field names from the
+        database rather than the API names.  If you want the API names, you should use
+        the recordValues method.
+
+        :sa         recordValues
+
+        :return     <iter>
+        """
+        return dict(self)
+
     def __iter__(self):
         """
         Iterates this object for its values.  This will return the field names from the
