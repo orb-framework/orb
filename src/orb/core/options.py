@@ -36,7 +36,7 @@ class DatabaseOptions(object):
                 flags           | <orb.DatabaseFlags> (default: 0)
                 dryRun          | <bool> (default: False) | When True, the database operation will only log, not actually perform any actions.
                 useCache        | <bool> (default: False)
-                inflateRecords  | <bool> (default: True) | When True, inflated <orb.Table> instances will be returned.  When False, the raw result is returned.
+                inflated        | <bool> (default: True) | When True, inflated <orb.Table> instances will be returned.  When False, the raw result is returned.
                 autoIncrement   | <bool> (default: True)
                 force           | <bool> (default: False)
                 deleteFlags     | <orb.DeleteFlags> (default: all)
@@ -46,7 +46,7 @@ class DatabaseOptions(object):
                          'flags': 0,
                          'dryRun': False,
                          'useCache': False,
-                         'inflateRecords': True,
+                         'inflated': True,
                          'autoIncrement': True,
                          'force': False,
                          'locale': orb.system.locale(),
@@ -57,8 +57,7 @@ class DatabaseOptions(object):
         self.flags              = kwds.get('flags', 0)
         self.dryRun             = kwds.get('dryRun', False)
         self.useCache           = kwds.get('useCache', False)
-        self.inflateRecords     = kwds.get('inflated', 
-                                  kwds.get('inflateRecords', True))
+        self.inflated           = kwds.get('inflated', True)
         self.autoIncrement      = kwds.get('autoIncrement', True)
         self.force              = kwds.get('force', False)
         self.deleteFlags        = kwds.get('deleteFlags', orb.DeleteFlags.all())
@@ -126,7 +125,7 @@ class DatabaseOptions(object):
             'flags': self.flags,
             'dryRun': self.dryRun,
             'useCache': self.useCache,
-            'inflateRecords': self.inflateRecords,
+            'inflated': self.inflated,
             'deleteFlags': self.deleteFlags,
             'locale': self.locale
         }

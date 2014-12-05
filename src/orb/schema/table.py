@@ -29,6 +29,7 @@ from collections import defaultdict
 from projex.enum import enum
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
+from projex.callbacks import CallbackSet
 
 from .tablebase import TableBase
 from ..common import ColumnType
@@ -61,12 +62,15 @@ class Table(object):
     __db_ignore__ = True  # bypass database table processing
     __db_archive__ = False
 
-    Hooks = enum('PreCommit', 'PostCommit')
-
     ReloadOptions = enum('Conflicts',
                          'Modified',
                          'Unmodified',
                          'IgnoreConflicts')
+
+    Signals = enum(
+        AboutToCommit='aboutToCommit(Record,LookupOptions,DatabaseOptions)',
+        CommitFinished='commitFinished(Record,LookupOptions,DatabaseOptions)'
+    )
 
     # ----------------------------------------------------------------------
     # PRIVATE CLASS METHODS
@@ -105,7 +109,7 @@ class Table(object):
                       schema,
                       grouping,
                       ref_cache,
-                      autoInflate=False,
+                      inflated=False,
                       locale=None):
         """
         Looks up the grouping key for the inputed record.  If the cache
@@ -115,7 +119,7 @@ class Table(object):
         :param      record | <orb.Table>
                     grouping | <str>
                     cache    | <dict> || None
-                    autoInflate | <bool>
+                    inflated | <bool>
         
         :return     <str>
         """
@@ -144,14 +148,14 @@ class Table(object):
             # lookup references
             if column.isReference():
                 ref_key = record.recordValue(columnName,
-                                             autoInflate=False,
+                                             inflated=False,
                                              locale=locale)
                 ref_cache_key = (column.reference(), ref_key)
 
                 # cache this record so that we only access 1 of them
                 if not ref_cache_key in ref_cache:
                     col_value = record.recordValue(columnName,
-                                                   autoInflate=autoInflate,
+                                                   inflated=inflated,
                                                    locale=locale)
                     ref_cache[ref_cache_key] = col_value
                 else:
@@ -190,7 +194,7 @@ class Table(object):
 
         :return     <iter>
         """
-        data = self.recordValues(key='field', autoInflate=False)
+        data = self.recordValues(key='field', inflated=False)
         for key, value in data.items():
             yield key, value
 
@@ -313,7 +317,7 @@ class Table(object):
         # define table properties in a way that shouldn't be accidentally
         # overwritten
         self.__local_cache = {}
-        self.__locale = None
+        self.__record_locale = None
         self.__record_defaults = {}
         self.__record_values = {}
         self.__record_dbloaded = set()
@@ -362,7 +366,10 @@ class Table(object):
         columns = [self.schema().column(column) for column in columns] if columns else self.schema().columns()
 
         for column in columns:
-            self.__record_defaults[column] = self.__record_values.get(column)
+            data = self.__record_values.get(column)
+            if type(data) == dict:
+                data = data.copy()
+            self.__record_defaults[column] = data
 
         self.__record_database = database
         self.__record_dbloaded.update(columns)
@@ -375,7 +382,7 @@ class Table(object):
         :param      data  | {<str> column_name: <variant>, ..}
         """
         if options and options.locale != 'all':
-            self.__locale = options.locale
+            self.__record_locale = options.locale
 
         schema = self.schema()
         tableName = schema.tableName()
@@ -405,7 +412,13 @@ class Table(object):
                 continue
 
             # preload a reference column
-            elif column.isReference() and type(value) == dict:
+            elif column.isReference() and type(value) == dict or \
+                                    type(value) in (str, unicode) and value.startswith('{'):
+                if type(value) in (str, unicode) and value.startswith('{'):
+                    try:
+                        value = eval(value)
+                    except StandardError:
+                        raise errors.OrbError('Invalid reference found: {0}'.format(value))
                 model = column.referenceModel()
                 value = model(db_dict=value)
 
@@ -419,7 +432,7 @@ class Table(object):
                 elif options and options.locale != 'all':
                     value = {options.locale: value}
                 else:
-                    value = {self.locale(): value}
+                    value = {self.recordLocale(): value}
 
             # map a query value to a query
             elif column.columnType() == ColumnType.Query:
@@ -545,12 +558,17 @@ class Table(object):
         
         :return     <bool> success
         """
+
+        # sync the record to the database
+        lookup = kwds.get('lookup', orb.LookupOptions(**kwds))
+        options = kwds.get('options', orb.DatabaseOptions(**kwds))
+
+        # run any pre-commit logic required for this record
+        self.callbacks().emit('aboutToCommit(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
+
         # check to see if we have any modifications to store
         if not self.isModified():
             return False
-
-        # run any pre-commit logic required for this record
-        self.preCommit(*args, **kwds)
 
         # validate the data from the software side that is about to be saved
         self.validateRecord()
@@ -571,11 +589,6 @@ class Table(object):
 
         # grab the backend
         backend = db.backend()
-
-        # sync the record to the database
-        lookup = kwds.get('lookup', orb.LookupOptions(**kwds))
-        options = kwds.get('options', orb.DatabaseOptions(**kwds))
-
         results = backend.storeRecord(self, lookup, options)
 
         # marks this table as expired
@@ -591,7 +604,8 @@ class Table(object):
 
         # run any pre-commit logic required for this record
         kwds['results'] = results
-        self.postCommit(*args, **kwds)
+
+        self.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
         return True
 
     def commitToArchive(self, *args, **kwds):
@@ -614,10 +628,18 @@ class Table(object):
         number = last_archive.archiveNumber() if last_archive else 0
 
         # create the new archive information
-        record = model(**self.recordValues())
+        values = self.recordValues(inflated=False, flags=~orb.Column.Flags.Primary)
+        locale = values.get('locale') or kwds.get('locale') or self.recordLocale()
+        record = model(**values)
         record.setArchivedAt(datetime.datetime.now())
         record.setArchiveNumber(number + 1)
         record.setRecordValue(self.schema().name(), self)
+
+        try:
+            record.setLocale(locale)  # property on archive for translatable models
+        except AttributeError:
+            pass
+
         record.commit()
         return True
 
@@ -637,7 +659,7 @@ class Table(object):
         
         :return     {<orb.Column>: (<var> db value, <var> local value, ..)
         """
-        autoInflate = options.pop('autoInflate', False)
+        inflated = options.pop('inflated', False)
         if not self.isRecord():
             return {}
 
@@ -662,7 +684,7 @@ class Table(object):
             m_default = self.__record_defaults[column]
             m_value = self.__record_values[column]
 
-            if autoInflate:
+            if inflated:
                 ref_model = column.referenceModel()
                 if ref_model:
                     if m_default is not None:
@@ -753,7 +775,7 @@ class Table(object):
         for column in self.schema().columns(kind=orb.Column.Kind.Field):
             value = column.default(resolve=True)
             if column.isTranslatable():
-                value = {self.locale(): value}
+                value = {self.recordLocale(): value}
 
             self.__record_defaults[column] = value
 
@@ -838,7 +860,7 @@ class Table(object):
                 # expand a particular column
                 if key in columns:
                     column = columns[key]
-                    reference = self.recordValue(column, autoInflate=True)
+                    reference = self.recordValue(column, inflated=True)
                     output[projex.text.underscore(column.name())] = reference.json(expand=list(addtl))
 
                 # expand a pipe
@@ -874,45 +896,6 @@ class Table(object):
                     default | <variant>
         """
         return self.__local_cache.get(key, default)
-
-    def locale(self):
-        """
-        Returns the locale that this record represents, if no locale has been defined, then the global
-        orb system locale will be used.
-
-        :return     <str>
-        """
-        return self.__locale or orb.system.locale()
-
-    def preCommit(self, *args, **kwds):
-        """
-        Virtual method to be used to define any logic that will be required
-        just before a record is committed to the database.  You can overload
-        this method to assign additional properties that will need to be
-        saved.  This method will be called from the table commit method,
-        as well as the RecordSet commit method on bulk commit.  (Individual
-        table commit methods will NOT be called during bulk commit).
-        
-        :param      *args   | <args> for commit
-                    **kwds  | <kwds> for commit
-        """
-        for hook in type(self).tableHooks(Table.Hooks.PreCommit):
-            hook(self, *args, **kwds)
-
-    def postCommit(self, *args, **kwds):
-        """
-        Virtual method to be used to define any logic that will be required
-        just after a record is committed to the database.  You can overload
-        this method to assign additional properties that will need to be
-        saved.  This method will be called from the table commit method,
-        as well as the RecordSet commit method on bulk commit.  (Individual
-        table commit methods will NOT be called during bulk commit).
-        
-        :param      *args   | <args> for commit
-                    **kwds  | <kwds> for commit
-        """
-        for hook in type(self).tableHooks(Table.Hooks.PostCommit):
-            hook(self, *args, **kwds)
 
     def primaryKey(self):
         """
@@ -990,18 +973,27 @@ class Table(object):
             return self.schema().namespace()
         return self.__record_namespace
 
+    def recordLocale(self):
+        """
+        Returns the locale that this record represents, if no locale has been defined, then the global
+        orb system locale will be used.
+
+        :return     <str>
+        """
+        return self.__record_locale or orb.system.locale()
+
     def recordValue(self,
                     column,
                     locale=None,
                     default=None,
-                    autoInflate=True,
+                    inflated=True,
                     useMethod=True):
         """
         Returns the value for the column for this record.
         
         :param      column      | <orb.Column> || <str>
                     default     | <variant>
-                    autoInflate | <bool>
+                    inflated    | <bool>
         
         :return     <variant>
         """
@@ -1017,12 +1009,16 @@ class Table(object):
                 orb_getter = False
 
             if method is not None and not orb_getter:
-                keywords = self.__getKeywords(method)
-                # make sure locale is a valid keyword for this method
+                keywords = self.__getKeywords(method).copy()
+
                 if 'locale' in keywords:
-                    return method(self, locale=locale)
-                else:
-                    return method(self)
+                    keywords['locale'] = locale
+                if 'default' in keywords:
+                    keywords['default'] = default
+                if 'inflated' in keywords:
+                    keywords['inflated'] = inflated
+
+                return method(self, **keywords)
 
         try:
             value = self.__record_values[col]
@@ -1064,14 +1060,14 @@ class Table(object):
 
             # return the current locale
             elif locale is None:
-                locale = self.locale()
+                locale = self.recordLocale()
 
             value = value.get(locale)
             if not value:
                 value = default
 
         # return none output's and non-auto inflated values immediately
-        if value is None or not (col.isReference() and autoInflate):
+        if value is None or not (col.isReference() and inflated):
             return col.restoreValue(value)
 
         # ensure we have a proper reference model
@@ -1095,7 +1091,7 @@ class Table(object):
 
     def recordValues(self,
                      columns=None,
-                     autoInflate=False,
+                     inflated=False,
                      recurse=True,
                      flags=0,
                      kind=0,
@@ -1104,14 +1100,14 @@ class Table(object):
                      key='name'):
         """
         Returns a dictionary grouping the columns and their
-        current values.  If the autoInflate value is set to True,
+        current values.  If the inflated value is set to True,
         then you will receive any foreign keys as inflated classes (if you
         have any values that are already inflated in your class, then you
         will still get back the class and not the primary key value).  Setting
         the mapper option will map the value by calling the mapper method.
         
         :param      useFieldNames | <bool>
-                    autoInflate | <bool>
+                    inflated | <bool>
                     mapper | <callable> || None
         
         :return     { <str> key: <variant>, .. }
@@ -1134,7 +1130,7 @@ class Table(object):
             else:
                 raise errors.OrbError('Invalid key request.')
 
-            value = self.recordValue(column, autoInflate=autoInflate, locale=locale)
+            value = self.recordValue(column, inflated=inflated, locale=locale)
             if mapper:
                 value = mapper(value)
 
@@ -1311,16 +1307,6 @@ class Table(object):
         """
         self.__record_database = database
 
-    def setLocale(self, locale):
-        """
-        Sets the default locale for this record to the inputed value.  This will affect what locale
-        is stored when editing and what is returned on reading.  If no locale is supplied, then
-        the default system locale will be used.
-
-        :param      locale | <str> || None
-        """
-        self.__locale = locale
-
     def setLocalCache(self, key, value):
         """
         Sets a value for the local cache to the inputed key & value.
@@ -1353,7 +1339,7 @@ class Table(object):
         # otherwise, store the column information in the defaults
         value = column.storeValue(value)
         if column.isTranslatable():
-            locale = locale or self.locale()
+            locale = locale or self.recordLocale()
 
             self.__record_defaults.setdefault(column, {})
             self.__record_values.setdefault(column, {})
@@ -1365,6 +1351,16 @@ class Table(object):
             self.__record_values[column] = value
 
         return True
+
+    def setRecordLocale(self, locale):
+        """
+        Sets the default locale for this record to the inputed value.  This will affect what locale
+        is stored when editing and what is returned on reading.  If no locale is supplied, then
+        the default system locale will be used.
+
+        :param      locale | <str> || None
+        """
+        self.__record_locale = locale
 
     def setRecordValue(self,
                        columnName,
@@ -1427,7 +1423,7 @@ class Table(object):
 
         if column.isTranslatable():
             if curr_value is None:
-                curr_value = {self.locale(): ''}
+                curr_value = {self.recordLocale(): ''}
                 self.__record_values[column] = curr_value
 
             if type(value) == dict:
@@ -1435,11 +1431,11 @@ class Table(object):
                 curr_value.update(value)
             else:
                 value = column.storeValue(value)
-                locale = locale or self.locale()
+                locale = locale or self.recordLocale()
 
                 try:
                     equals = curr_value[locale] == value
-                except UnicodeWarning:
+                except (KeyError, UnicodeWarning):
                     equals = False
 
                 curr_value[locale] = value
@@ -1532,21 +1528,6 @@ class Table(object):
     #----------------------------------------------------------------------
     #                           CLASS METHODS
     #----------------------------------------------------------------------
-
-    @classmethod
-    def addTableHook(cls, hookType, hook):
-        """
-        Returns the hooks that have been defined for this table.  If no
-        hookType is provided, then all the hooks will be returned.
-        
-        :param      hookType    | <Table.Hooks> || None
-                    hook        | <callable>
-        """
-        key = '_{0}__hooks'.format(cls.__name__)
-        hooks = getattr(cls, key, {})
-        hooks.setdefault(hookType, [])
-        hooks[hookType].append(hook)
-        setattr(cls, key, hooks)
 
     @classmethod
     def all(cls, **options):
@@ -1665,7 +1646,7 @@ class Table(object):
             return cls.schema().database()
 
     @staticmethod
-    def groupRecords(records, groupings, autoInflate=False):
+    def groupRecords(records, groupings, inflated=False):
         """
         Creates a grouping of the records based on the inputed columns.  You \
         can supply as many column values as you'd like creating nested \
@@ -1673,12 +1654,12 @@ class Table(object):
         
         :param      records     | <Table>
                     groupings     | [<str>, ..]
-                    autoInflate | <bool>
+                    inflated | <bool>
         
         :return     <dict>
         """
-        if autoInflate is None:
-            autoInflate = True
+        if inflated is None:
+            inflated = True
 
         output = {}
         ref_cache = {}  # stores the grouping options for auto-inflated vars
@@ -1693,7 +1674,7 @@ class Table(object):
                                                    schema,
                                                    groupings[i],
                                                    ref_cache,
-                                                   autoInflate)
+                                                   inflated)
 
                 data.setdefault(grouping_key, {})
                 data = data[grouping_key]
@@ -1702,7 +1683,7 @@ class Table(object):
                                                schema,
                                                groupings[-1],
                                                ref_cache,
-                                               autoInflate)
+                                               inflated)
 
             data.setdefault(grouping_key, [])
             data[grouping_key].append(record)
@@ -1845,22 +1826,6 @@ class Table(object):
         stack.append(cache)
 
     @classmethod
-    def removeTableHook(cls, hookType, hook):
-        """
-        Removes the hooks that have been defined for this table.  If no
-        hookType is provided, then all the hooks will be returned.
-        
-        :param      hookType    | <Table.Hooks> || None
-                    hook        | <callable>
-        """
-        key = '_{0}__hooks'.format(cls.__name__)
-        hooks = getattr(cls, key, {})
-        try:
-            hooks[hookType].remove(hook)
-        except (KeyError, ValueError):
-            pass
-
-    @classmethod
     def recordCache(cls):
         """
         Returns the record cache for the inputed class.  If the given class 
@@ -1979,10 +1944,12 @@ class Table(object):
         # setup the default query options
         default_q = cls.baseTableQuery()
         if default_q:
-            if lookup.where:
-                lookup.where &= default_q
-            else:
-                lookup.where = default_q
+            lookup.where = default_q & lookup.where
+
+        # determine if we should auto-add locale
+        if options.locale != 'all' and cls.schema().column('locale'):
+            if not (lookup.where and 'locale' in lookup.where):
+                lookup.where = (orb.Query('locale') == options.locale) & lookup.where
 
         # define the record set and return it
         rset = orb.RecordSet(cls)
@@ -1996,10 +1963,25 @@ class Table(object):
         if terms:
             rset = rset.search(terms)
 
-        if options.inflateRecords:
+        if options.inflated:
             return rset
         else:
             return list(rset)
+
+    @classmethod
+    def callbacks(cls):
+        """
+        Returns the callback set for this table type.
+
+        :return     <projex.callbacks.CallbackSet>
+        """
+        key = '_{0}__callbacks'.format(cls.__name__)
+        try:
+            return getattr(cls, key)
+        except AttributeError:
+            callbacks = CallbackSet()
+            setattr(cls, key, callbacks)
+            return callbacks
 
     @classmethod
     def setBaseTableQuery(cls, query):
@@ -2041,22 +2023,6 @@ class Table(object):
         """
         key = '_{0}__searchThesaurus'.format(cls.__name__)
         setattr(cls, key, thesaurus)
-
-    @classmethod
-    def tableHooks(cls, hookType=None):
-        """
-        Returns the hooks that have been defined for this table.  If no
-        hookType is provided, then all the hooks will be returned.
-        
-        :hookType   | <Table.Hooks> || None
-        
-        :return     [<callable>, ..]
-        """
-        hooks = getattr(cls, '_{0}__hooks'.format(cls.__name__), {})
-        if hookType is None:
-            return [hook for hookType in hooks for hook in hooks[hookType]]
-        else:
-            return hooks.get(hookType, [])
 
     @classmethod
     def tableSubTypes(cls):

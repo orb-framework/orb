@@ -1738,7 +1738,7 @@ class Query(object):
         :return     <bool>
         """
         if isinstance(record, orb.Table):
-            rvalue = record.recordValue(self.columnName(), autoInflate=False)
+            rvalue = record.recordValue(self.columnName(), inflated=False)
         else:
             table = table or self.table()
             if table:

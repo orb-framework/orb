@@ -70,7 +70,7 @@ class Connection(AddonManager):
             colnames = schema.columnNames(orb.Column.Flags.Field)
             values = schema.model().select(colnames,
                                            inflated=False,
-                                           db=db).all()
+                                           db=db).records()
             data[schema.name()] = [dict(zip(colnames, x)) for x in values]
 
         # save this backup to the database file

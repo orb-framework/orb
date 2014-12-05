@@ -60,7 +60,7 @@
                     columns.append(GLOBALS['join_column'])
 
         elif use_column and column.isTranslatable():
-            if options.inflateRecords or options.locale == 'all':
+            if options.inflated or options.locale == 'all':
                 # process translation logic
                 col_sql = 'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{1}"'
                 i18n_columns.append(col_sql.format(column.fieldName(), column.fieldName()))
@@ -155,7 +155,7 @@ ${'\n'.join(joined) if joined else ''}
 ${'\n'.join(GLOBALS['traversal']) if GLOBALS['traversal'] else ''}
 
 % if i18n_columns:
-% if options.inflateRecords or options.locale == 'all':
+% if options.inflated or options.locale == 'all':
 LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
     "i18n"."${table_name}_id" = "${ID}"
 )

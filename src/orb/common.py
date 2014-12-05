@@ -20,15 +20,6 @@ from projex.enum import enum
 # C
 #------------------------------------------------------------------------------
 
-CallbackType = enum(
-    'ConnectionCreated', # args: (database,)
-    'ConnectionFailed',  # args: (database,)
-    'ConnectionLost',    # args: (database,)
-    
-    # deprecated!
-    'ConnectionNotFound',   # args: (database,)
-)
-
 ColumnType = enum(
     # simple types
     'Bool',

@@ -23,8 +23,6 @@ import os
 import projex.security
 import projex.text
 
-from collections import defaultdict
-from projex.callbacks import CallbackSet
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
@@ -40,7 +38,7 @@ tzlocal = LazyModule('tzlocal')
 
 class Manager(object):
     _instance = None
-    
+
     def __init__(self):
         # system wide options
         self._environment = None    # current environment
@@ -63,7 +61,6 @@ class Manager(object):
         self._timezone = None
         
         # registry
-        self._callbacks     = CallbackSet()
         self._environments  = set()
         self._databases     = set()
         self._groups        = set()
@@ -115,15 +112,7 @@ class Manager(object):
             if not (model and schema.isCacheEnabled()):
                 continue
             model.recordCache().clear()
-    
-    def clearCallbacks(self, callbackType=None):
-        """
-        Clears out the callbacks globally or for the given callback type.
-        
-        :param      callbackType | <orb.CallbackType>
-        """
-        self._callbacks.clear(callbackType)
-    
+
     def customEngines(self, databaseType):
         """
         Returns a list of the custom engines for the database type.
@@ -602,34 +591,7 @@ class Manager(object):
         :return     <str>
         """
         return self._properties.get(propname, nstr(default))
-    
-    def runCallback(self, callbackType, *args):
-        """
-        Runs the callbacks for this system of the given callback type.
-        
-        :param      callbackType | <orb.CallbackType>
-                    *args        | arguments to be supplied to registered
-        """
-        self._callbacks.emit(callbackType, *args)
-            
-    def registerCallback(self, callbackType, callback):
-        """
-        Registers the inputed method as a callback for the given type.
-        Callbacks get thrown at various times through the ORB system to allow
-        other APIs to hook into information changes that happen.  The 
-        callback type will be defined as one of the values from the
-        CallbackType enum in the common module, and the specific arguments
-        that will be called will change on a per-callback basis.  The callback
-        itself will be registered as a weak-reference so that if it gets
-        collected externally, the internal cache will not break - however this
-        means you will need to make sure your method is persistent as long as
-        you want the callback to be run.
-        
-        :param      callbackType | <orb.CallbackType>
-                    callback     | <method> || <function>
-        """
-        self._callbacks.connect(callbackType, callback)
-        
+
     def registerDatabase(self, database, active=True):
         """
         Registers a particular database with this environment.
@@ -1010,25 +972,7 @@ class Manager(object):
                     log.error('tzlocal must be installed for local zone support.')
         
         return self._timezone
-    
-    def unregisterCallback(self, callbackType, callback):
-        """
-        Unegisters the inputed method as a callback for the given type.
-        Callbacks get thrown at various times through the ORB system to allow
-        other APIs to hook into information changes that happen.  The 
-        callback type will be defined as one of the values from the
-        CallbackType enum in the common module, and the specific arguments
-        that will be called will change on a per-callback basis.  The callback
-        itself will be registered as a weak-reference so that if it gets
-        collected externally, the internal cache will not break - however this
-        means you will need to make sure your method is persistent as long as
-        you want the callback to be run.
-        
-        :param      callbackType | <orb.CallbackType>
-                    callback     | <method> || <function>
-        """
-        return self._callbacks.disconnect(callbackType, callback)
-    
+
     def unregisterDatabase(self, database):
         """
         Un-registers a particular database with this environment.

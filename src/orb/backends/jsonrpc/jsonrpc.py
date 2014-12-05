@@ -490,7 +490,7 @@ class JSONRPC(orb.Connection):
                 
                 elif 'ids' in submit:
                     q = orb.Query(table).in_(submit['ids'])
-                    records += table.select(where=q).all()
+                    records += table.select(where=q).records()
         
         # extract value information from the call
         if 'values' in py_data:
@@ -512,7 +512,7 @@ class JSONRPC(orb.Connection):
         elif method == 'distinct':
             rset = table.select(lookup)
             rset.setDatabaseOptions(options)
-            records = rset.distinct(lookup.columns, inflateRecords=False)
+            records = rset.distinct(lookup.columns, inflated=False)
             response = {'records': records}
         
         # insert a record into the database
@@ -559,7 +559,7 @@ class JSONRPC(orb.Connection):
         elif method == 'select':
             rset = table.select(lookup)
             rset.setDatabaseOptions(options)
-            response = {'records': rset.all(inflated=False, ignoreColumns=True)}
+            response = {'records': rset.records(inflated=False, ignoreColumns=True)}
         
         # perform an update
         elif method == 'update':

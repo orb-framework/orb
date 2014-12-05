@@ -565,13 +565,11 @@ class SQLConnection(orb.Connection):
         conn = self._open(self._database)
         if conn:
             self.__threads[tid] = conn
-            orb.system.runCallback(orb.CallbackType.ConnectionCreated,
-                                       self._database)
+            self._database.callbacks().emit(self._database.Signals.Connected, self)
         else:
-            orb.system.runCallback(orb.CallbackType.ConnectionFailed,
-                                       self._database)
+            self._database.callbacks().emit(self._database.Signals.Disconnected, self)
         
-        return conn != None
+        return conn is not None
     
     def reconnect(self):
         """
@@ -582,7 +580,7 @@ class SQLConnection(orb.Connection):
         if db:
             try:
                 db.close()
-            except:
+            except StandardError:
                 pass
         
         return self.open()
@@ -626,7 +624,7 @@ class SQLConnection(orb.Connection):
     def select(self, table_or_join, lookup, options):
         if orb.Table.typecheck(table_or_join):
             # ensure the primary record information is provided for inflations
-            if lookup.columns and options.inflateRecords:
+            if lookup.columns and options.inflated:
                 lookup.columns += [col.name() for col in
                                    table_or_join.schema().primaryColumns()]
 

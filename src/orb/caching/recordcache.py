@@ -129,7 +129,7 @@ class RecordCache(object):
         
         :return     <int>
         """
-        options.inflateRecords = False
+        options.inflated = False
         return len(self.select(backend, table, lookup, options))
     
     def distinct(self, backend, table, lookup, options):

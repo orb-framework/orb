@@ -75,16 +75,6 @@ class RecordSet(object):
         self._lookupOptions = orb.LookupOptions()
         self._databaseOptions = orb.DatabaseOptions()
 
-        #self._expand = lookup.expand
-        #self._query = lookup.where
-        #self._columns = lookup.columns
-        #self._order = lookup.order
-        #self._limit = lookup.limit
-        #self._start = lookup.start
-        #self._namespace = options.namespace
-        #self._inflated = options.inflateRecords
-        #self._locale = options.locale
-
         # join another record set as RecordSet(recordSet)
         if args:
             data = args[0]
@@ -131,7 +121,9 @@ class RecordSet(object):
         
         :return     <list>
         """
-        return iter(self.all())
+        records = self.records()
+        for record in records:
+            yield record
 
     def __add__(self, other):
         """
@@ -208,7 +200,7 @@ class RecordSet(object):
             lookup = self.lookupOptions(**options)
             return {self.table(): lookup.where}
 
-    def all(self, **options):
+    def records(self, **options):
         """
         Looks up all the records based on the current query information.
         Additional options can include any options available for the 
@@ -246,7 +238,7 @@ class RecordSet(object):
                 results = backend.select(table, lookup, db_opts)
 
             # return specific columns
-            if db_opts.inflateRecords:
+            if db_opts.inflated:
                 output = [self.inflateRecord(table, x) for x in results]
 
             elif lookup.columns and not options.get('ignoreColumns'):
@@ -309,7 +301,7 @@ class RecordSet(object):
 
         lookup = self.lookupOptions(**options)
         db_options = self.databaseOptions(**options)
-        records = self.all(**options)
+        records = self.records(**options)
 
         # run each records pre-commit logic before it is inserted to the db
         for record in records:
@@ -485,7 +477,7 @@ class RecordSet(object):
         else:
             output = backend.distinct(table, lookup, options)
 
-        if options.inflateRecords:
+        if options.inflated:
             for key in output.keys():
                 column = schema.column(key)
                 if column and column.isReference():
@@ -537,7 +529,7 @@ class RecordSet(object):
             records = db.backend().select(table, lookup, db_opts)
 
         if records:
-            if db_opts.inflateRecords:
+            if db_opts.inflated:
                 return self.inflateRecord(table, records[0], db_opts.locale)
             return records[0]
         return None
@@ -663,7 +655,7 @@ class RecordSet(object):
         :return     <orb.Table>
         """
         inst = table.inflateRecord(record, record, db=self.database())
-        inst.setLocale(locale or self._databaseOptions.locale)
+        inst.setRecordLocale(locale or self._databaseOptions.locale)
         if self._databaseOptions.namespace is not None:
             inst.setRecordNamespace(self._databaseOptions.namespace)
         return inst
@@ -693,7 +685,7 @@ class RecordSet(object):
         :return     { <variant> grouping: <orb.Table>, .. }
         """
         if columns is None:
-            return dict([(x.primaryKey(), x) for x in self.all(**options)])
+            return dict([(x.primaryKey(), x) for x in self.records(**options)])
 
         if not type(columns) in (list, tuple):
             columns = [columns]
@@ -701,13 +693,13 @@ class RecordSet(object):
         table = self.table()
         output = {}
 
-        auto = options.pop('indexInflated', True)
+        indexInflated = options.pop('indexInflated', True)
 
         if columns:
-            for record in self.all(**options):
+            for record in self.records(**options):
                 key = []
                 for column in columns:
-                    key.append(record.recordValue(column, autoInflate=auto))
+                    key.append(record.recordValue(column, inflated=indexInflated))
 
                 if len(key) == 1:
                     output[key[0]] = record
@@ -731,7 +723,7 @@ class RecordSet(object):
         db_opts.force = True
 
         backend = db.backend()
-        records = self.all()
+        records = self.records()
         backend.insert(records, lookup, db_opts)
         return True
 
@@ -836,11 +828,11 @@ class RecordSet(object):
         :return     <bool>
         """
         if isinstance(records, RecordSet):
-            self._all[None] = self.all() + records.all()
+            self._all[None] = self.records() + records.records()
             return True
 
         elif type(records) in (list, tuple):
-            self._all[None] = self.all() + records
+            self._all[None] = self.records() + records
             return True
 
         else:
@@ -1111,7 +1103,7 @@ class RecordSet(object):
                 else:
                     return default
 
-            if db_opts.inflateRecords:
+            if db_opts.inflated:
                 return self.inflateRecord(table, results[0])
             elif lookup.columns and not options.get('ignoreColumns'):
                 if len(lookup.columns) == 1:
@@ -1327,7 +1319,7 @@ class RecordSet(object):
         Sets the values within this record set to the inputed value dictionary
         or keyword mapping.
         """
-        for record in self.all():
+        for record in self.records():
             for key, value in values.items():
                 record.setRecordValue(key, value)
 
@@ -1424,11 +1416,11 @@ class RecordSet(object):
 
         for record in records:
             for column in columns:
-                expand = bool(column.isReference() and db_opts.inflateRecords)
+                expand = bool(column.isReference() and db_opts.inflated)
 
                 # retreive the value
                 if orb.Table.recordcheck(record):
-                    value = record.recordValue(column, autoInflate=expand)
+                    value = record.recordValue(column, inflated=expand)
                 else:
                     value = record.get(column.fieldName())
 

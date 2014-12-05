@@ -18,12 +18,11 @@ __email__ = 'team@projexsoftware.com'
 import logging
 import tempfile
 
-from projex.decorators import deprecatedmethod
+from projex.enum import enum
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
-
-from ..decorators import transactedmethod
+from projex.callbacks import CallbackSet
 
 log = logging.getLogger(__name__)
 orb = LazyModule('orb')
@@ -32,6 +31,11 @@ errors = LazyModule('orb.errors')
 
 class Database(object):
     """ Contains all the database connectivity information. """
+
+    Signals = enum(
+        Connected='connected(Connection)',
+        Disconnected='disconnected(Connection)'
+    )
 
     def __init__(self,
                  typ='SQLite',
@@ -47,6 +51,7 @@ class Database(object):
                  maximumTimeout=5000):
 
         # define custom properties
+        self._callbacks = CallbackSet()
         self._databaseType = typ
         self._name = name
         self._databaseName = databaseName
@@ -147,6 +152,14 @@ class Database(object):
         """
         self._commandsBlocked = state
 
+    def callbacks(self):
+        """
+        Returns the callback set for this database instance.
+
+        :return     <projex.callbacks.CallbackSet>
+        """
+        return self._callbacks
+
     def cleanup(self):
         """
         Cleans up the datbase.  This should be called after large amounts
@@ -216,22 +229,6 @@ class Database(object):
         if backend:
             return backend.open()
         return False
-
-    @deprecatedmethod('0.11', 'Use the Database.backend method now.')
-    def connection(self, autoConnect=True):
-        """
-        Returns the connection class backend for this database.
-        
-        :warning    autoConnect will not do anything within this method.  The
-                    new backend method will actually create a connection to
-                    the database server, but original functionality of this
-                    method simply created the Connection backend instance.
-        
-        :param      autoConnect | <bool>
-        
-        :return     <orb.Connection>
-        """
-        return self.backend()
 
     def databaseName(self):
         """

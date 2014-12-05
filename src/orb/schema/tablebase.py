@@ -127,12 +127,11 @@ class gettermethod(object):
         
         :param      record      <Table>
         """
-        inflated = kwds.get('inflated', kwds.get('autoInflate', True))
-
+        inflated = kwds.get('inflated', True)
         val = record.recordValue(self.columnName,
                                  locale=kwds.get('locale', None),
                                  default=kwds.get('default', None),
-                                 autoInflate=inflated,
+                                 inflated=inflated,
                                  useMethod=False)
 
         if not inflated and orb.Table.recordcheck(val):
@@ -231,6 +230,7 @@ class reverselookupmethod(object):
             kwds.pop('where')
 
         # lookup the records with a specific model
+        kwds.setdefault('locale', record.recordLocale())
         table = kwds.get('table') or self.tableFor(record)
         if not table:
             return None if self.unique else orb.RecordSet()
@@ -250,16 +250,11 @@ class reverselookupmethod(object):
                 return None
             return orb.RecordSet()
 
-        if 'where' in kwds:
-            where = kwds['where']
-            kwds['where'] = (orb.Query(self.columnName) == record) & where
-        else:
-            kwds['where'] = orb.Query(self.columnName) == record
+        # generate the reverse lookup query
+        reverse_q = orb.Query(self.columnName) == record
 
-        if not 'order' in kwds and table.schema().defaultOrder():
-            kwds['order'] = table.schema().defaultOrder()
-
-        # make sure we stay within the same database
+        kwds['where'] = reverse_q & kwds.get('where')
+        kwds['order'] = kwds.get('order', table.schema().defaultOrder() or None)
         kwds['db'] = record.database()
 
         if self.unique:

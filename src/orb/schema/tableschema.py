@@ -457,8 +457,18 @@ class TableSchema(object):
         # generate archive layer
         if self.isArchived():
             # create the archive column
-            archive_columns = [column.copy() for column in
-                               self.columns(recurse=False, flags=~orb.Column.Flags.Primary)]
+            archive_columns = []
+
+            # create a duplicate of the existing columns, disabling translations since we'll store
+            # a single record per change
+            found_locale = False
+            for column in self.columns(recurse=False, flags=~orb.Column.Flags.Primary):
+                new_column = column.copy()
+                new_column.setTranslatable(False)
+                archive_columns.append(new_column)
+                if column.name() == 'locale':
+                    found_locale == True
+
             archive_columns += [
                 # primary key for the archives is a reference to the article
                 orb.Column(orb.ColumnType.ForeignKey,
@@ -482,6 +492,14 @@ class TableSchema(object):
             archive_indexes = [
                 orb.Index('byRecordAndVersion', [self.name(), 'archiveNumber'], unique=True)
             ]
+
+            # store data per locale
+            if not found_locale:
+                archive_columns.append(orb.Column(orb.ColumnType.String,
+                                                  'locale',
+                                                  fieldName='locale',
+                                                  required=True,
+                                                  maxLength=5))
 
             archive_data = {
                 '__db__': self.databaseName(),
