@@ -50,7 +50,8 @@ class DatabaseOptions(object):
                          'autoIncrement': True,
                          'force': False,
                          'locale': orb.system.locale(),
-                         'deleteFlags': orb.DeleteFlags.all()}
+                         'deleteFlags': orb.DeleteFlags.all(),
+                         'format': None}
 
         self.locale             = kwds.get('locale') or orb.system.locale()
         self.namespace          = kwds.get('namespace')
@@ -61,6 +62,7 @@ class DatabaseOptions(object):
         self.autoIncrement      = kwds.get('autoIncrement', True)
         self.force              = kwds.get('force', False)
         self.deleteFlags        = kwds.get('deleteFlags', orb.DeleteFlags.all())
+        self.format             = kwds.get('format', None)
 
     def __str__(self):
         """
@@ -127,7 +129,8 @@ class DatabaseOptions(object):
             'useCache': self.useCache,
             'inflated': self.inflated,
             'deleteFlags': self.deleteFlags,
-            'locale': self.locale
+            'locale': self.locale,
+            'format': self.format
         }
     
     @staticmethod
@@ -165,10 +168,12 @@ class LookupOptions(object):
         self.columns  = kwds.get('columns', None)
         self.where    = kwds.get('where', None)
         self.order    = kwds.get('order', None)
-        self.start    = kwds.get('start', None)
-        self.limit    = kwds.get('limit', None)
+        self._start   = kwds.get('start', None)
+        self._limit   = kwds.get('limit', None)
         self.distinct = kwds.get('distinct', False)
         self.expand   = kwds.get('expand', None)
+        self.pageSize = kwds.get('pageSize', None)
+        self.page     = kwds.get('page', -1)
 
         # ensure that the list is not modified
         if self.columns is not None:
@@ -188,9 +193,11 @@ class LookupOptions(object):
         for key in ('columns',
                     'where',
                     'order',
-                    'start',
-                    'limit',
-                    'expand'):
+                    '_start',
+                    '_limit',
+                    'expand',
+                    'pageSize',
+                    'page'):
             val = getattr(self, key)
             if val is None:
                 continue
@@ -223,10 +230,12 @@ class LookupOptions(object):
             columns=self.columns[:] if self.columns else None,
             where=self.where.copy() if self.where is not None else None,
             order=self.order[:] if self.order else None,
-            start=self.start,
-            limit=self.limit,
+            start=self._start,
+            limit=self._limit,
             distinct=self.distinct,
-            expand=self.expand[:] if self.expand else None
+            expand=self.expand[:] if self.expand else None,
+            page=self.page,
+            pageSize=self.pageSize
         )
 
     def isNull(self):
@@ -238,14 +247,34 @@ class LookupOptions(object):
         for key in ('columns',
                     'where',
                     'order',
-                    'start',
-                    'limit',
+                    '_start',
+                    '_limit',
                     'distinct',
-                    'expand'):
+                    'expand',
+                    'pageSize',
+                    'page'):
             if getattr(self, key):
                 return False
         
         return True
+
+    @property
+    def limit(self):
+        return self.pageSize or self._limit
+
+    @limit.setter
+    def limit(self, limit):
+        self._limit = limit
+
+    @property
+    def start(self):
+        if self.page > 0 and self.pageSize:
+            return self.pageSize * (self.page - 1)
+        return self._start
+
+    @start.setter
+    def start(self, start):
+        self._start = start
 
     def update(self, options):
         """
@@ -269,11 +298,15 @@ class LookupOptions(object):
         if self.order:
             out['order'] = self.order[:]
         if self.start:
-            out['start'] = self.start
+            out['start'] = self._start
         if self.limit:
-            out['limit'] = self.limit
+            out['limit'] = self._limit
         if self.expand:
             out['expand'] = self.expand[:]
+        if self.page != -1:
+            out['page'] = self.page
+        if self.pageSize:
+            out['pageSize'] = self.pageSize
         return out
     
     @staticmethod

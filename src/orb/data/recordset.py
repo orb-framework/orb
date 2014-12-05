@@ -57,8 +57,6 @@ class RecordSet(object):
         self._grouped = False
         self._counts = {}
         self._empty = {}
-        self._currentPage = -1
-        self._pageSize = 0
 
         # sorting options
         self._sort_cmp_callable = None
@@ -371,7 +369,7 @@ class RecordSet(object):
 
         :return     <int>
         """
-        return self._currentPage
+        return self._lookupOptions.page
 
     def database(self):
         """
@@ -414,8 +412,6 @@ class RecordSet(object):
         self._grouped = other._grouped
         self._counts = other._counts.copy()
         self._empty = other._empty.copy()
-        self._currentPage = other._currentPage
-        self._pageSize = other._pageSize
 
         # sorting options
         self._sort_cmp_callable = other._sort_cmp_callable
@@ -656,6 +652,8 @@ class RecordSet(object):
         """
         inst = table.inflateRecord(record, record, db=self.database())
         inst.setRecordLocale(locale or self._databaseOptions.locale)
+        inst.setLookupOptions(self.lookupOptions())
+        inst.setDatabaseOptions(self.databaseOptions())
         if self._databaseOptions.namespace is not None:
             inst.setRecordNamespace(self._databaseOptions.namespace)
         return inst
@@ -844,15 +842,15 @@ class RecordSet(object):
 
         :return     <str>
         """
-        format = options.pop('format', list)
+        options.setdefault('format', 'list')
         lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
 
         output = [record.json(lookup=lookup, options=db_opts) for record in self]
 
-        if format == list:
+        if db_opts.format == 'list':
             return output
-        elif format == unicode:
+        elif db_opts.format == 'text':
             return projex.rest.jsonify(output)
         else:
             raise errors.OrbError('Invalid JSON format.  Request needs to be either list or unicode.')
@@ -1016,7 +1014,7 @@ class RecordSet(object):
         
         :return     <int>
         """
-        return self._pageSize or orb.system.settings().defaultPageSize()
+        return self._lookupOptions.pageSize or orb.system.settings().defaultPageSize()
 
     def primaryKeys(self, **options):
         """
@@ -1218,7 +1216,7 @@ class RecordSet(object):
 
         :param      pageno | <int>
         """
-        self._currentPage = pageno
+        self._lookupOptions.page = pageno
 
     def setDatabase(self, database):
         """
@@ -1302,7 +1300,7 @@ class RecordSet(object):
         
         :param      pageSize | <int>
         """
-        self._pageSize = pageSize
+        self._lookupOptions.pageSize = pageSize
 
     def setQuery(self, query):
         """
@@ -1372,7 +1370,7 @@ class RecordSet(object):
 
         :return     <int>
         """
-        return self.count(start=0, limit=None)
+        return self.count(start=0, limit=0, page=0, pageSize=0)
 
     def values(self, columns, **options):
         """

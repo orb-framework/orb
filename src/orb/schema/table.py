@@ -325,6 +325,9 @@ class Table(object):
         self.__record_database = db = kwds.pop('db', None)
         self.__record_namespace = namespace = kwds.pop('recordNamespace', None)
 
+        self.__lookup_options = None
+        self.__database_options = None
+
         # initialize the defaults
         if 'db_dict' in kwds:
             self._updateFromDatabase(kwds.pop('db_dict'))
@@ -412,14 +415,17 @@ class Table(object):
                 continue
 
             # preload a reference column
-            elif column.isReference() and type(value) == dict or \
-                                    type(value) in (str, unicode) and value.startswith('{'):
+            elif column.isReference() and \
+                (type(value) == dict or type(value) in (str, unicode) and value.startswith('{')):
                 if type(value) in (str, unicode) and value.startswith('{'):
                     try:
                         value = eval(value)
                     except StandardError:
                         raise errors.OrbError('Invalid reference found: {0}'.format(value))
+
                 model = column.referenceModel()
+                if not model:
+                    raise errors.TableNotFound(column.reference())
                 value = model(db_dict=value)
 
             # store translatable columns
@@ -738,6 +744,17 @@ class Table(object):
             self.__record_datacache = orb.DataCache()
         return self.__record_datacache
 
+    def databaseOptions(self, **options):
+        """
+        Returns the lookup options for this record.  This will track the options that were
+        used when looking this record up from the database.
+
+        :return     <orb.LookupOptions>
+        """
+        output = self.__database_options or orb.DatabaseOptions()
+        output.update(options)
+        return output
+
     def duplicate(self):
         """
         Creates a new record based on this instance, initializing
@@ -833,13 +850,14 @@ class Table(object):
 
         :return     <dict> || <str>
         """
-        format = options.get('format', dict)
+        options.setdefault('format', 'dict')
+
         # simple json conversion
         output = dict(self)
 
         # additional options
-        lookup = options.get('lookup', orb.LookupOptions(**options))
-        db_opts = options.get('options', orb.DatabaseOptions(**options))
+        lookup = self.lookupOptions(**options)
+        db_opts = self.databaseOptions(**options)
 
         expand = lookup.expand
         if expand:
@@ -881,9 +899,9 @@ class Table(object):
                     if '' in addtl:
                         output[key] = rset.json(expand=addtl)
 
-        if format == dict:
+        if db_opts.format == 'dict':
             return output
-        elif format == unicode:
+        elif db_opts.format == 'text':
             return projex.rest.jsonify(output)
         else:
             raise errors.OrbError('Invalid JSON format request.  Needs to be either unicode or dict.')
@@ -896,6 +914,17 @@ class Table(object):
                     default | <variant>
         """
         return self.__local_cache.get(key, default)
+
+    def lookupOptions(self, **options):
+        """
+        Returns the lookup options for this record.  This will track the options that were
+        used when looking this record up from the database.
+
+        :return     <orb.LookupOptions>
+        """
+        output = self.__lookup_options or orb.LookupOptions()
+        output.update(options)
+        return output
 
     def primaryKey(self):
         """
@@ -1307,6 +1336,9 @@ class Table(object):
         """
         self.__record_database = database
 
+    def setDatabaseOptions(self, options):
+        self.__database_options = options
+
     def setLocalCache(self, key, value):
         """
         Sets a value for the local cache to the inputed key & value.
@@ -1315,6 +1347,9 @@ class Table(object):
                     value   | <variant>
         """
         self.__local_cache[key] = value
+
+    def setLookupOptions(self, lookup):
+        self.__lookup_options = lookup
 
     def setRecordDefault(self, columnName, value, locale=None):
         """

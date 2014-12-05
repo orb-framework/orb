@@ -39,10 +39,10 @@ log = logging.getLogger(__name__)
 def record_encoder(py_obj):
     # encode a record
     if orb.Table.recordcheck(py_obj):
-        return True, py_obj.__json__()
+        return True, py_obj.json()
     # encode a recordset
     elif orb.RecordSet.typecheck(py_obj):
-        return True, [record.__json__() for record in py_obj]
+        return True, [record.json() for record in py_obj]
     # encode a query
     elif orb.Query.typecheck(py_obj):
         return True, py_obj.toDict()

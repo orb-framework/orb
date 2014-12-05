@@ -1,4 +1,3 @@
-__recurse__ = False
-__toc__ = [r'orb.backends.jsonrpc',
-r'orb.backends.quickbase',
-r'orb.backends.sql']
+__toc__ = ['orb.backends.jsonrpc',
+'orb.backends.quickbase',
+'orb.backends.sql']
