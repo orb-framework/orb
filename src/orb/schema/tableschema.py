@@ -98,6 +98,7 @@ class TableSchema(object):
         self._group = None
         self._primaryColumns = None
         self._model = None
+        self._archiveModel = None
         self._referenced = referenced
         self._searchEngine = None
         self._validators = []
@@ -206,7 +207,10 @@ class TableSchema(object):
         
         :return     [<subclass of orb.Table>, ..]
         """
-        return map(lambda x: x.model(), self.ancestry())
+        return [x.model() for x in self.ancestry()]
+
+    def archiveModel(self):
+        return self._archiveModel
 
     def autoPrimary(self):
         """
@@ -449,6 +453,57 @@ class TableSchema(object):
 
         cls = TableBase(prefix + self.name(), tuple(bases), attrs)
         setattr(dynamic, cls.__name__, cls)
+
+        # generate archive layer
+        if self.isArchived():
+            # create the archive column
+            archive_columns = [column.copy() for column in
+                               self.columns(recurse=False, flags=~orb.Column.Flags.Primary)]
+            archive_columns += [
+                # primary key for the archives is a reference to the article
+                orb.Column(orb.ColumnType.ForeignKey,
+                           self.name(),
+                           fieldName='{0}_archived_id'.format(projex.text.underscore(self.name())),
+                           required=True,
+                           reference=self.name(),
+                           reversed=True,
+                           reversedName='archives'),
+
+                # and its version
+                orb.Column(orb.ColumnType.Integer,
+                           'archiveNumber',
+                           required=True),
+
+                # created the archive at method
+                orb.Column(orb.ColumnType.DatetimeWithTimezone,
+                           'archivedAt',
+                           default='now')
+            ]
+            archive_indexes = [
+                orb.Index('byRecordAndVersion', [self.name(), 'archiveNumber'], unique=True)
+            ]
+
+            archive_data = {
+                '__db__': self.databaseName(),
+                '__db_group__': self.groupName(),
+                '__db_name__': '{0}Archive'.format(self.name()),
+                '__db_tablename__': '{0}_archives'.format(projex.text.underscore(self.name())),
+                '__db_columns__': archive_columns,
+                '__db_indexes__': archive_indexes,
+                '__db_pipes__': [],
+                '__db_schema__': None,
+                '__db_abstract__': False,
+                '__db_inherits__': None,
+                '__db_autoprimary__': True,
+                '__db_archived__': False
+            }
+
+            archive_class = TableBase(archive_data['__db_name__'], (orb.Table,), archive_data)
+            archive_schema = archive_class.schema()
+            archive_schema.setDefaultOrder([('archiveNumber', 'asc')])
+            self.setArchiveModel(archive_class)
+            setattr(dynamic, archive_class.__name__, archive_class)
+
         return cls
 
     def generatePrimary(self):
@@ -801,6 +856,9 @@ class TableSchema(object):
         :param      state | <bool>
         """
         self._archived = state
+
+    def setArchiveModel(self, model):
+        self._archiveModel = model
 
     def setCacheEnabled(self, state):
         """

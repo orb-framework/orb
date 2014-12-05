@@ -231,17 +231,9 @@ class reverselookupmethod(object):
             kwds.pop('where')
 
         # lookup the records with a specific model
-        table = kwds.pop('model', None)
+        table = kwds.get('table') or self.tableFor(record)
         if not table:
-            table = record.polymorphicModel(self.reference)
-
-            if not table:
-                table = orb.system.model(self.reference, database=self.referenceDb)
-
-            if not table:
-                if self.unique:
-                    return None
-                return orb.RecordSet()
+            return None if self.unique else orb.RecordSet()
 
         # return from the cache when specified
         cache = self.cache(table)
@@ -279,7 +271,7 @@ class reverselookupmethod(object):
             cache.setValue(cache_key, output)
         return output
 
-    def cache(self, table):
+    def cache(self, table, force=False):
         """
         Returns the cache for this table.
         
@@ -287,15 +279,40 @@ class reverselookupmethod(object):
         
         :return     <orb.TableCache> || None
         """
-        if not self.cached:
-            return None
-        elif table in self._cache:
+        try:
             return self._cache[table]
-        else:
-            cache = orb.TableCache(table, self.cacheExpires)
-            self._cache[table] = cache
-            return cache
+        except KeyError:
+            if force or self.cached:
+                cache = orb.TableCache(table, self.cacheExpires)
+                self._cache[table] = cache
+                return cache
+            return None
 
+    def preload(self, record, records, options):
+        """
+        Preload a list of records from the database.
+
+        :param      record  | <orb.Table>
+                    records | [<dict>, ..]
+                    options | <orb.LookupOptions> || None
+        """
+        table = self.tableFor(record)
+        cache_key = (id(record),
+                     hash(options or orb.LookupOptions()),
+                     id(record.database()))
+
+        cache = self.cache(table, force=True)
+        rset = orb.RecordSet([table(db_dict=record) for record in records or []])
+        cache.setValue(cache_key, rset)
+
+    def tableFor(self, record):
+        """
+        Returns the table for the inputed record.
+
+        :return     <orb.Table>
+        """
+        return record.polymorphicModel(self.reference) or \
+                orb.system.model(self.reference, database=self.referenceDb)
 
 #------------------------------------------------------------------------------
 
@@ -492,47 +509,5 @@ class TableBase(type):
         for rev_name, lookup in lookups:
             ilookup = instancemethod(lookup, None, new_model)
             setattr(new_model, rev_name, ilookup)
-
-        # determine if we need a new archive class
-        if schema.isArchived():
-            # create the archive column
-            archive_columns = [column.copy() for column in
-                               schema.columns(recurse=False, flags=~orb.Column.Flags.Primary)]
-            archive_columns += [
-                # primary key for the archives is a reference to the article
-                orb.Column(orb.ColumnType.ForeignKey,
-                           db_data['__db_name__'],
-                           fieldName=projex.text.underscore(db_data['__db_name__']) + '_archived_id',
-                           required=True,
-                           reference=db_data['__db_name__'],
-                           reversed=True,
-                           reversedName='archives'),
-
-                # and its version
-                orb.Column(orb.ColumnType.Integer,
-                           'archiveVersion',
-                           required=True),
-
-                # created the archive at method
-                orb.Column(orb.ColumnType.DatetimeWithTimezone,
-                           'archivedAt',
-                           default='now')
-            ]
-
-            archive_data = {
-                '__db__': db_data['__db__'],
-                '__db_group__': db_data['__db_group__'],
-                '__db_name__': db_data['__db_name__'] + 'Archive',
-                '__db_tablename__': projex.text.underscore(db_data['__db_name__']) + '_archives',
-                '__db_columns__': archive_columns,
-                '__db_indexes__': [],
-                '__db_pipes__': [],
-                '__db_schema__': None,
-                '__db_abstract__': False,
-                '__db_inherits__': None,
-                '__db_autoprimary__': True,
-                '__db_archived__': False
-            }
-            mcs.createModel(mcs, archive_data['__db_name__'], (orb.Table,), {}, archive_data)
 
         return new_model

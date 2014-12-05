@@ -92,7 +92,7 @@ class Pipe(object):
 
         return rset
 
-    def cache(self, table):
+    def cache(self, table, force=False):
         """
         Returns the cache for the inputed table.
         
@@ -100,16 +100,15 @@ class Pipe(object):
         
         :return     <orb.TableCache> || None
         """
-        if not self.cached():
-            return None
-
-        elif not table in self._cache:
-            cache = orb.TableCache(table, self._cachedExpires)
-            self._cache[table] = cache
-            return cache
-
-        else:
+        try:
             return self._cache[table]
+        except KeyError:
+            if force or self.cached():
+                cache = orb.TableCache(table, self._cachedExpires)
+                self._cache[table] = cache
+                return cache
+            else:
+                return None
 
     def cached(self):
         """
@@ -140,6 +139,33 @@ class Pipe(object):
         :return     <str>
         """
         return self.__name__
+
+    def preload(self, record, records, options):
+        """
+        Preloads the inputed record and result values.
+
+        :param      record  | <orb.Table>
+                    records | [<dict>, ..]
+                    options | <orb.LookupOptions>
+        """
+        target_model = self.targetReferenceModel()
+        pipe_model = self.pipeReferenceModel()
+        pipe_cache = self.cache(pipe_model, force=True)
+        target_cache = self.cache(target_model, force=True)
+
+        cache_key = (id(record),
+                     hash(options or orb.LookupOptions()),
+                     id(record.database()))
+
+        records = [target_model(db_dict=record) for record in records or []]
+        pset = orb.PipeRecordSet(orb.RecordSet(records),
+                                 record,
+                                 pipe_model,
+                                 self._sourceColumn,
+                                 self._targetColumn)
+
+        pipe_cache.setValue(cache_key, pset)
+        target_cache.setValue(cache_key, pset)
 
     def pipeReference(self):
         return self._pipeReference

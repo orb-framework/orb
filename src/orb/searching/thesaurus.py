@@ -62,7 +62,7 @@ class SearchThesaurus(AddonManager):
         :param      wordset | <str> || <list> || <set>
         """
         if type(wordset) in (list, tuple, set):
-            wordset = set(map(str, wordset))
+            wordset = set([nstr(word) for word in wordset])
         else:
             wordset = set(nstr(wordset).split(','))
 

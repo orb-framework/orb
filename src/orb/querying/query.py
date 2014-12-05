@@ -1,4 +1,4 @@
-##!/usr/bin/python
+# #!/usr/bin/python
 
 """
 Defines the global query building syntzx for generating db
@@ -6,15 +6,15 @@ agnostic queries quickly and easily.
 """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2011, Projex Software'
+__license__ = 'LGPL'
 
 # maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
 import datetime
 import projex.text
@@ -37,12 +37,12 @@ class Query(object):
     """ 
     Defines the central class for the abstract query markup language.
     """
-    
+
     Op = enum(
         # equality operators
         'Is',
         'IsNot',
-        
+
         # comparison operators
         'LessThan',
         'LessThanOrEqual',
@@ -51,7 +51,7 @@ class Query(object):
         'GreaterThanOrEqual',
         'After',
         'Between',
-        
+
         # string operators
         'Contains',
         'DoesNotContain',
@@ -59,18 +59,18 @@ class Query(object):
         'Endswith',
         'Matches',
         'DoesNotMatch',
-        
+
         # list operators
         'IsIn',
         'IsNotIn',
-        
+
         #----------------------------------------------------------------------
         # added in 4.0
         #----------------------------------------------------------------------
         'DoesNotStartwith',
         'DoesNotEndwith'
     )
-    
+
     Math = enum(
         'Add',
         'Subtract',
@@ -79,14 +79,14 @@ class Query(object):
         'And',
         'Or'
     )
-    
+
     Function = enum(
         'Lower',
         'Upper',
         'Abs',
         'AsString',
     )
-    
+
     MathSymbol = {
         Math.Add: '+',
         Math.Subtract: '-',
@@ -95,27 +95,27 @@ class Query(object):
         Math.And: '&',
         Math.Or: '|'
     }
-    
+
     SyntaxPatterns = [
-        (Op.IsNotIn,            QueryPattern('%(field)s is not in %(value)s')),
-        (Op.IsIn,               QueryPattern('%(field)s is in %(value)s')),
-        (Op.IsNot,              QueryPattern('%(field)s is not %(value)s')),
-        (Op.Is,                 QueryPattern('%(field)s is %(value)s')),
-        (Op.LessThanOrEqual,    QueryPattern('%(field)s <= %(value)s')),
-        (Op.LessThan,           QueryPattern('%(field)s < %(value)s')),
-        (Op.Before,             QueryPattern('%(field)s before %(value)s')),
+        (Op.IsNotIn, QueryPattern('%(field)s is not in %(value)s')),
+        (Op.IsIn, QueryPattern('%(field)s is in %(value)s')),
+        (Op.IsNot, QueryPattern('%(field)s is not %(value)s')),
+        (Op.Is, QueryPattern('%(field)s is %(value)s')),
+        (Op.LessThanOrEqual, QueryPattern('%(field)s <= %(value)s')),
+        (Op.LessThan, QueryPattern('%(field)s < %(value)s')),
+        (Op.Before, QueryPattern('%(field)s before %(value)s')),
         (Op.GreaterThanOrEqual, QueryPattern('%(field)s >= %(value)s')),
-        (Op.GreaterThan,        QueryPattern('%(field)s > %(value)s')),
-        (Op.After,              QueryPattern('%(field)s after %(value)s')),
-        (Op.Between,            QueryPattern('%(field)s between %(value)s')),
-        (Op.Contains,           QueryPattern('%(field)s contains %(value)s')),
-        (Op.DoesNotContain,     QueryPattern('%(field)s doesnt contain %(value)s')),
-        (Op.Startswith,         QueryPattern('%(field)s startwith %(value)s')),
-        (Op.Endswith,           QueryPattern('%(field)s endswith %(value)s')),
-        (Op.Matches,            QueryPattern('%(field)s matches %(value)s')),
-        (Op.DoesNotMatch,       QueryPattern('%(field)s doesnt match %(value)s')),
+        (Op.GreaterThan, QueryPattern('%(field)s > %(value)s')),
+        (Op.After, QueryPattern('%(field)s after %(value)s')),
+        (Op.Between, QueryPattern('%(field)s between %(value)s')),
+        (Op.Contains, QueryPattern('%(field)s contains %(value)s')),
+        (Op.DoesNotContain, QueryPattern('%(field)s doesnt contain %(value)s')),
+        (Op.Startswith, QueryPattern('%(field)s startwith %(value)s')),
+        (Op.Endswith, QueryPattern('%(field)s endswith %(value)s')),
+        (Op.Matches, QueryPattern('%(field)s matches %(value)s')),
+        (Op.DoesNotMatch, QueryPattern('%(field)s doesnt match %(value)s')),
     ]
-    
+
     ColumnOps = {
         # default option
         None: (
@@ -190,19 +190,19 @@ class Query(object):
         Op.IsIn: Op.IsNotIn,
         Op.IsNotIn: Op.IsIn
     }
-    
+
     # additional option values to control query flow
-    UNDEFINED   = '__QUERY__UNDEFINED__'
-    NOT_EMPTY   = '__QUERY__NOT_EMPTY__'
-    EMPTY       = '__QUERY__EMPTY__'
-    ALL         = '__QUERY__ALL__'
+    UNDEFINED = '__QUERY__UNDEFINED__'
+    NOT_EMPTY = '__QUERY__NOT_EMPTY__'
+    EMPTY = '__QUERY__EMPTY__'
+    ALL = '__QUERY__ALL__'
 
     def __str__(self):
         return self.toString()
-    
+
     def __nonzero__(self):
         return not self.isNull()
-    
+
     def __contains__(self, value):
         """
         Returns whether or not the query defines the inputed column name.
@@ -219,7 +219,7 @@ class Query(object):
                     |False
         """
         return value == self.columnName()
-        
+
     def __init__(self, *args, **options):
         """
         Initializes the Query instance.  The only required variable
@@ -249,39 +249,39 @@ class Query(object):
         """
         # initialized with (table,column,)
         if len(args) == 2:
-            self._table      = args[0]
+            self._table = args[0]
             self._columnName = nstr(args[1])
-        
+
         # initialized with (table,)
         elif len(args) == 1 and orb.Table.typecheck(args[0]):
             # when only a table is supplied, auto-use the primary key
-            self._table      = args[0]
+            self._table = args[0]
             self._columnName = None
-        
+
         # initialized with <orb.Column>
         elif len(args) == 1 and isinstance(args[0], orb.Column):
             column = args[0]
             self._table = column.schema().model()
             self._columnName = column.name()
-        
+
         # initialized with (column,)
         elif len(args) == 1:
-            self._table      = None
+            self._table = None
             self._columnName = nstr(args[0])
-        
+
         # initialized with nothing
         else:
-            self._table      = None
+            self._table = None
             self._columnName = None
-        
-        self._name          = nstr(options.get('name', ''))
-        self._op            = options.get('op',    Query.Op.Is)
-        self._value         = options.get('value', Query.UNDEFINED)
+
+        self._name = nstr(options.get('name', ''))
+        self._op = options.get('op', Query.Op.Is)
+        self._value = options.get('value', Query.UNDEFINED)
         self._caseSensitive = options.get('caseSensitive', False)
-        self._functions     = options.get('functions', [])
-        self._math          = options.get('math', [])
-        self._inverted      = options.get('inverted', False)
-    
+        self._functions = options.get('functions', [])
+        self._math = options.get('math', [])
+        self._inverted = options.get('inverted', False)
+
     # operator methods
     def __add__(self, value):
         """
@@ -294,7 +294,7 @@ class Query(object):
         out = self.copy()
         out._math.append((Query.Math.Add, value))
         return out
-    
+
     def __abs__(self):
         """
         Creates an absolute version of this query using the standard python
@@ -305,7 +305,7 @@ class Query(object):
         q = self.copy()
         q.addFunction(Query.Function.Abs)
         return q
-    
+
     def __and__(self, other):
         """
         Creates a new compound query using the 
@@ -330,7 +330,7 @@ class Query(object):
             out = self.copy()
             out._math.append((Query.Math.And, other))
             return out
-    
+
     def __cmp__(self, other):
         """
         Use the compare method to be able to see if two query items are
@@ -342,12 +342,12 @@ class Query(object):
         """
         if not isinstance(other, Query):
             return -1
-        
+
         # returns 0 if these are the same item
         if id(self) == id(other):
             return 0
         return 1
-        
+
     def __div__(self, value):
         """
         Divides the inputed value for this query to the inputed query.
@@ -359,7 +359,7 @@ class Query(object):
         out = self.copy()
         out._math.append((Query.Math.Divide, value))
         return out
-    
+
     def __eq__(self, other):
         """
         Allows joining of values to the query by the == operator.
@@ -378,7 +378,7 @@ class Query(object):
                     |test is 1
         """
         return self.is_(other)
-    
+
     def __gt__(self, other):
         """
         Allows the joining of values to the query by the > 
@@ -397,7 +397,7 @@ class Query(object):
                     |test greater_than 1
         """
         return self.greaterThan(other)
-    
+
     def __ge__(self, other):
         """
         Allows the joining of values to the query by the >= 
@@ -416,10 +416,10 @@ class Query(object):
                     |test <= 1
         """
         return self.greaterThanOrEqual(other)
-    
+
     def __hash__(self):
         return hash(self.toXmlString())
-    
+
     def __lt__(self, other):
         """
         Allows the joining of values to the query by the < 
@@ -438,7 +438,7 @@ class Query(object):
                     |test less_than 1
         """
         return self.lessThan(other)
-    
+
     def __le__(self, other):
         """
         Allows the joining of values to the query by the <= 
@@ -457,7 +457,7 @@ class Query(object):
                     |test <= 1
         """
         return self.lessThanOrEqual(other)
-        
+
     def __mul__(self, value):
         """
         Multiplies the value with this query to the inputed query.
@@ -469,7 +469,7 @@ class Query(object):
         out = self.copy()
         out._math.append((Query.Math.Multiply, value))
         return out
-    
+
     def __ne__(self, other):
         """
         Allows joining of values to the query by the != operator.
@@ -488,7 +488,7 @@ class Query(object):
                     |test is not 1
         """
         return self.isNot(other)
-    
+
     def __neg__(self):
         """
         Negates the values within this query by using the - operator.
@@ -503,7 +503,7 @@ class Query(object):
                     |test != 1
         """
         return self.negated()
-    
+
     def __or__(self, other):
         """
         Creates a new compound query using the
@@ -526,7 +526,7 @@ class Query(object):
             out = self.copy()
             out._math.append((Query.Math.Or, other))
             return out
-        
+
     def __sub__(self, value):
         """
         Subtracts the value from this query.
@@ -538,16 +538,16 @@ class Query(object):
         out = self.copy()
         out._math.append((Query.Math.Subtract, value))
         return out
-    
+
     # private methods
     def __valueFromDict(self, data):
-        
+
         typ = data.get('value_type')
-        
+
         # restore list/tuples
         if typ in ('query', 'compound'):
-            return (Query.fromDict(data['value']), True)
-        
+            return Query.fromDict(data['value']), True
+
         # restore a list/tuple
         if typ in ('list', 'tuple'):
             value = []
@@ -555,43 +555,43 @@ class Query(object):
                 subvalue, success = self.__valueFromDict(subvalue)
                 if success:
                     value.append(subvalue)
-            return (value, True)
+            return value, True
 
         # restore date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
             dtime = datetime.datetime.strptime(data['value'],
                                                '%Y-%m-%d %H:%M:%S')
-            
+
             if typ == 'date':
-                return (dtime.date(), True)
+                return dtime.date(), True
             elif typ == 'time':
-                return (dtime.time(), True)
+                return dtime.time(), True
             else:
-                return (dtime, True)
-        
+                return dtime, True
+
         # restore timedelta objects
         elif typ == 'timedelta':
-            return (datetime.timedelta(0, float(data['value'])), True)
-        
+            return datetime.timedelta(0, float(data['value'])), True
+
         # restore base types
         elif typ not in ('str', 'unicode'):
             try:
-                return (eval(data['value']), True)
+                return eval(data['value']), True
             except:
-                return (None, False)
-        
-        return (data['value'], True)
-    
+                return None, False
+
+        return data['value'], True
+
     def __valueFromXml(self, xobject):
         if xobject is None:
-            return (None, False)
-        
+            return None, False
+
         typ = xobject.get('type')
-        
+
         # restore queries
         if typ in ('compound', 'query'):
-            return (Query.fromXml(xobject[0]), True)
-        
+            return Query.fromXml(xobject[0]), True
+
         # restore lists
         elif typ in ('list', 'tuple'):
             value = []
@@ -599,33 +599,33 @@ class Query(object):
                 subvalue, success = self.__valueFromXml(xsubvalue)
                 if success:
                     value.append(subvalue)
-            return (value, True)
+            return value, True
 
         # restore date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
             dtime = datetime.datetime.strptime(xobject.text,
                                                '%Y-%m-%d %H:%M:%S')
-            
+
             if typ == 'date':
-                return (dtime.date(), True)
+                return dtime.date(), True
             elif typ == 'time':
-                return (dtime.time(), True)
+                return dtime.time(), True
             else:
-                return (dtime, True)
-        
+                return dtime, True
+
         # restore timedelta objects
         elif typ == 'timedelta':
-            return (datetime.timedelta(0, float(xobject.text)), True)
-        
+            return datetime.timedelta(0, float(xobject.text)), True
+
         # restore base types
         elif typ not in ('str', 'unicode'):
             try:
-                return (eval(xobject.text), True)
+                return eval(xobject.text), True
             except:
-                return (None, False)
-        
-        return (xobject.text, True)
-    
+                return None, False
+
+        return xobject.text, True
+
     def __valueToDict(self, value):
         # store a record
         if orb.Table.recordcheck(value):
@@ -638,7 +638,7 @@ class Query(object):
         # store a query
         elif Query.typecheck(value):
             typ = 'query'
-        
+
         # store a query compound
         elif orb.QueryCompound.typecheck(value):
             typ = 'compound'
@@ -646,14 +646,14 @@ class Query(object):
         # store a standard python object
         else:
             typ = type(value).__name__
-        
+
         output = {}
         output['value_type'] = typ
-        
+
         # save queries
         if typ in ('query', 'compound'):
             output['value'] = value.toDict()
-        
+
         # save a list/tpule
         elif typ in ('list', 'tuple'):
             new_value = []
@@ -664,20 +664,20 @@ class Query(object):
         # save date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
             output['value'] = value.strftime('%Y-%m-%d %H:%M:%S')
-        
+
         # save timedelta objects
         elif typ == 'timedelta':
             output['value'] = value.total_seconds()
-        
+
         # save base types
         else:
             try:
                 output['value'] = nstr(value)
             except:
                 pass
-            
+
         return output
-    
+
     def __valueToXml(self, xparent, value):
         if orb.Table.recordcheck(value):
             return self.__valueToXml(xparent, value.id())
@@ -689,14 +689,14 @@ class Query(object):
             typ = 'compound'
         else:
             typ = type(value).__name__
-        
+
         xobject = ElementTree.SubElement(xparent, 'object')
         xobject.set('type', typ)
-        
+
         # save queries
         if typ in ('query', 'compound'):
             value.toXml(xobject)
-        
+
         # save lists
         elif typ in ('list', 'tuple'):
             for subvalue in value:
@@ -705,20 +705,20 @@ class Query(object):
         # save date/datetime/time objects
         elif typ in ('datetime', 'date', 'time'):
             xobject.text = value.strftime('%Y-%m-%d %H:%M:%S')
-        
+
         # save timedelta objects
         elif typ == 'timedelta':
             xobject.text = nstr(value.total_seconds())
-        
+
         # save base types
         else:
             try:
                 xobject.text = projex.text.decoded(value)
             except:
                 pass
-        
+
         return xobject
-    
+
     # public methods
     def addFunction(self, func):
         """
@@ -727,7 +727,7 @@ class Query(object):
         :param      func | <Query.Function>
         """
         self._functions.append(func)
-        
+
     def after(self, value):
         """
         Sets the operator type to Query.Op.After and sets the value to 
@@ -747,9 +747,9 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.After)
         newq.setValue(value)
-        
+
         return newq
-    
+
     def and_(self, other):
         """
         Creates a new compound query using the 
@@ -768,12 +768,12 @@ class Query(object):
         """
         if other is None or other.isNull():
             return self
-            
+
         elif self.isNull():
             return other
-        
+
         return orb.QueryCompound(self, other, op=orb.QueryCompound.Op.And)
-    
+
     def asString(self):
         """
         Returns this query with an AsString function added to it.
@@ -783,7 +783,7 @@ class Query(object):
         q = self.copy()
         q.addFunction(Query.Function.AsString)
         return q
-    
+
     def before(self, value):
         """
         Sets the operator type to Query.Op.Before and sets the value to 
@@ -803,9 +803,9 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.Before)
         newq.setValue(value)
-        
+
         return newq
-    
+
     def between(self, valueA, valueB):
         """
         Sets the operator type to Query.Op.Between and sets the
@@ -824,9 +824,9 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.Between)
         newq.setValue([valueA, valueB])
-        
+
         return newq
-    
+
     def caseSensitive(self):
         """
         Returns whether or not this query item will be case
@@ -835,7 +835,7 @@ class Query(object):
         :return     <bool>
         """
         return self._caseSensitive
-    
+
     def column(self, schema=None, traversal=None, db=None):
         """
         Returns the column instance for this query.
@@ -845,9 +845,9 @@ class Query(object):
         # lookup specifically for a given database (used in the backend
         # system when dealing with inheritance in non object-oriented
         # databases) or when no column name has yet been defined
-        
+
         table = self.table()
-        
+
         if not self._columnName and table:
             cols = table.schema().primaryColumns(db=db)
             if not cols:
@@ -860,7 +860,7 @@ class Query(object):
         elif schema:
             return schema.column(self._columnName, traversal=traversal)
         return None
-    
+
     def columns(self, schema=None):
         """
         Returns any columns used within this query.
@@ -871,19 +871,19 @@ class Query(object):
         column = self.column(schema=schema, traversal=output)
         if column:
             output.append(column)
-        
+
         # include any columns related to the value
         if type(self._value) not in (list, set, tuple):
             value = (self._value,)
         else:
             value = self._value
-        
+
         for val in value:
             if Query.typecheck(val) or orb.QueryCompound.typecheck(val):
                 output += val.columns(schema=schema)
-        
+
         return list(set(output))
-    
+
     def columnName(self):
         """
         Reutrns the column name that this query instance is
@@ -898,7 +898,7 @@ class Query(object):
                 return self.column().name()
             except AttributeError:
                 return None
-    
+
     def contains(self, value, caseSensitive=False):
         """
         Sets the operator type to Query.Op.Contains and sets the    
@@ -916,12 +916,12 @@ class Query(object):
                     |comments contains test
         """
         newq = self.copy()
-        newq.setOperatorType( Query.Op.Contains )
+        newq.setOperatorType(Query.Op.Contains)
         newq.setValue(value)
-        newq.setCaseSensitive( caseSensitive )
-        
+        newq.setCaseSensitive(caseSensitive)
+
         return newq
-    
+
     def copy(self):
         """
         Returns a duplicate of this instance.
@@ -939,7 +939,7 @@ class Query(object):
         out._math = self._math[:]
         out._inverted = self._inverted
         return out
-    
+
     def doesNotContain(self, value):
         """
         Sets the operator type to Query.Op.DoesNotContain and sets the
@@ -955,11 +955,11 @@ class Query(object):
                     |comments does_not_contain test
         """
         newq = self.copy()
-        newq.setOperatorType( Query.Op.DoesNotContain )
-        newq.setValue( value )
-        
+        newq.setOperatorType(Query.Op.DoesNotContain)
+        newq.setValue(value)
+
         return newq
-    
+
     def doesNotMatch(self, value, caseSensitive=True):
         """
         Sets the operator type to Query.Op.DoesNotMatch and sets the \
@@ -978,9 +978,9 @@ class Query(object):
         newq.setOperatorType(Query.Op.DoesNotMatch)
         newq.setValue(value)
         newq.setCaseSensitive(caseSensitive)
-        
+
         return newq
-    
+
     def endswith(self, value):
         """
         Sets the operator type to Query.Op.Endswith and sets \
@@ -999,9 +999,9 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.Endswith)
         newq.setValue(value)
-        
+
         return newq
-    
+
     def expandShortcuts(self, basetable=None):
         """
         Expands any shortcuts that were created for this query.  Shortcuts
@@ -1019,15 +1019,15 @@ class Query(object):
         # look for shortcuts
         if not '.' in self.columnName():
             return self
-        
+
         # lookup the table for this query
         table = self.table()
         if not table:
             table = basetable
-        
+
         if not table:
             raise errors.QueryInvalid('Could not traverse: {0}'.format(self.columnName()))
-        
+
         # setup the shortcut pathing
         names = self.columnName().split('.')
         compound = Query()
@@ -1035,27 +1035,27 @@ class Query(object):
             column = table.schema().column(name)
             if not column:
                 return Query()
-            
+
             # for the last column, that is the value we are trying to access
             if i == len(names) - 1:
                 final = self.copy()
                 final.setTable(table)
                 final.setColumnName(name)
-                
+
                 compound &= final
-            
+
             # otherwise, we are going through a join to access it
             else:
                 ref_table = column.referenceModel()
                 if not ref_table:
                     return Query()
-                
+
                 compound &= Query(table, name) == Query(ref_table)
-            
+
             table = ref_table
-        
+
         return compound
-    
+
     def findValue(self, column, instance=1):
         """
         Looks up the value for the inputed column name for the given instance.
@@ -1070,13 +1070,13 @@ class Query(object):
         :return     (<bool> success, <variant> value, <int> instance)
         """
         if not column == self.columnName():
-            return (False, None, instance)
-        
+            return False, None, instance
+
         elif instance > 1:
-            return (False, None, instance-1)
-        
-        return (True, self.value(), 0)
-    
+            return False, None, instance - 1
+
+        return True, self.value(), 0
+
     def functions(self):
         """
         Returns a list of the functions that are associated with this query.
@@ -1085,14 +1085,14 @@ class Query(object):
         :return     [<Query.Function>, ..]
         """
         return self._functions
-    
+
     def functionNames(self):
         """
         Returns the text for the functions associated with this query.
         
         :return     [<str>, ..]
         """
-        return map(Query.Function.__getitem__, self.functions())
+        return [Query.Function(func) for func in self.functions()]
 
     def is_(self, value):
         """
@@ -1113,7 +1113,7 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.Is)
         newq.setValue(value)
-        
+
         return newq
 
     def isInverted(self):
@@ -1143,9 +1143,9 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.GreaterThan)
         newq.setValue(value)
-        
+
         return newq
-    
+
     def greaterThanOrEqual(self, value):
         """
         Sets the operator type to Query.Op.GreaterThanOrEqual and 
@@ -1165,7 +1165,7 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.GreaterThanOrEqual)
         newq.setValue(value)
-        
+
         return newq
 
     def hasShortcuts(self):
@@ -1205,9 +1205,9 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.IsNot)
         newq.setValue(value)
-        
+
         return newq
-    
+
     def isNull(self):
         """
         Return whether or not this query contains any information.
@@ -1217,7 +1217,7 @@ class Query(object):
         if self.columnName() or self._value != Query.UNDEFINED:
             return False
         return True
-    
+
     def isUndefined(self):
         """
         Return whether or not this query contains undefined value data.
@@ -1225,7 +1225,7 @@ class Query(object):
         :return <bool>
         """
         return self._value == Query.UNDEFINED
-    
+
     def in_(self, value):
         """
         Sets the operator type to Query.Op.IsIn and sets the value
@@ -1242,20 +1242,20 @@ class Query(object):
         """
         newq = self.copy()
         newq.setOperatorType(Query.Op.IsIn)
-        
+
         # convert a set to a list
         if type(value) == set:
             value = list(value)
-        
+
         # convert value to a list
         if type(value) not in (list, tuple) and \
-           not orb.RecordSet.typecheck(value):
+                not orb.RecordSet.typecheck(value):
             value = [value]
-        
+
         newq.setValue(value)
-        
+
         return newq
-    
+
     def math(self):
         """
         Returns the mathematical operations that are being performed for
@@ -1264,7 +1264,7 @@ class Query(object):
         :return     [(<Query.Math>, <variant>), ..]
         """
         return self._math
-    
+
     def name(self):
         """
         Returns the optional name for this query.
@@ -1272,7 +1272,7 @@ class Query(object):
         :return     <str>
         """
         return self._name
-    
+
     def notIn(self, value):
         """
         Sets the operator type to Query.Op.IsNotIn and sets the value
@@ -1289,15 +1289,15 @@ class Query(object):
         """
         newq = self.copy()
         newq.setOperatorType(Query.Op.IsNotIn)
-        
+
         if type(value) == set:
             value = list(value)
-        
+
         if type(value) not in (list, tuple):
             value = [value]
-        
-        newq.setValue( value )
-        
+
+        newq.setValue(value)
+
         return newq
 
     def lessThan(self, value):
@@ -1319,9 +1319,9 @@ class Query(object):
         newq = self.copy()
         newq.setOperatorType(Query.Op.LessThan)
         newq.setValue(value)
-        
+
         return newq
-    
+
     def lessThanOrEqual(self, value):
         """
         Sets the operator type to Query.Op.LessThanOrEqual and sets 
@@ -1339,11 +1339,11 @@ class Query(object):
                     |test less_than_or_equal 1
         """
         newq = self.copy()
-        newq.setOperatorType( Query.Op.LessThanOrEqual )
+        newq.setOperatorType(Query.Op.LessThanOrEqual)
         newq.setValue(value)
-        
+
         return newq
-    
+
     def lower(self):
         """
         Returns a new query for this instance with Query.Function.Lower as
@@ -1354,7 +1354,7 @@ class Query(object):
         q = self.copy()
         q.addFunction(Query.Function.Lower)
         return q
-    
+
     def matches(self, value, caseSensitive=True):
         """
         Sets the operator type to Query.Op.Matches and sets \
@@ -1374,9 +1374,9 @@ class Query(object):
         newq.setOperatorType(Query.Op.Matches)
         newq.setValue(value)
         newq.setCaseSensitive(caseSensitive)
-        
+
         return newq
-    
+
     def negated(self):
         """
         Negates the current state for this query.
@@ -1388,7 +1388,7 @@ class Query(object):
         query.setOperatorType(self.NegativeOps.get(op, op))
         query.setValue(self.value())
         return query
-    
+
     def operatorType(self):
         """
         Returns the operator type assigned to this query
@@ -1397,7 +1397,7 @@ class Query(object):
         :return     <Query.Op>
         """
         return self._op
-    
+
     def or_(self, other):
         """
         Creates a new compound query using the 
@@ -1416,12 +1416,12 @@ class Query(object):
         """
         if other is None or other.isNull():
             return self
-            
+
         elif self.isNull():
             return other
-        
+
         return orb.QueryCompound(self, other, op=orb.QueryCompound.Op.Or)
-    
+
     def removed(self, columnName):
         """
         Removes the query containing the inputed column name from this
@@ -1434,7 +1434,7 @@ class Query(object):
         if self.columnName() == columnName:
             return Query()
         return self
-    
+
     def schema(self):
         """
         Returns the schema associated with this query.
@@ -1445,15 +1445,15 @@ class Query(object):
         if table:
             return table.schema()
         return None
-    
+
     def schemas(self):
         """
         Returns the schemas associated with this query.
         
         :return     [<orb.TableSchema>, ..]
         """
-        return map(lambda x: x.schema(), self.tables())
-    
+        return [table.schema() for table in self.tables()]
+
     def setCaseSensitive(self, state):
         """
         Sets whether or not this query will be case sensitive.
@@ -1461,7 +1461,7 @@ class Query(object):
         :param      state   <bool>
         """
         self._caseSensitive = state
-    
+
     def setColumnName(self, columnName):
         """
         Sets the column name used for this query instance.
@@ -1493,7 +1493,7 @@ class Query(object):
         :param      name | <str>
         """
         self._name = name
-    
+
     def setTable(self, table):
         """
         Sets the table instance that is being referenced for this query.
@@ -1501,7 +1501,7 @@ class Query(object):
         :param      table | <subclass of orb.Table>
         """
         self._table = table
-    
+
     def setValue(self, value):
         """
         Sets the value that will be used for this query instance.
@@ -1510,9 +1510,9 @@ class Query(object):
         """
         if type(value) == str:
             value = projex.text.decoded(value)
-        
+
         self._value = value
-    
+
     def setValueString(self, valuestring):
         """
         Sets the value for this query from the inputed string representation \
@@ -1526,7 +1526,7 @@ class Query(object):
             self.setValue(column.valueFromString(valuestring))
         else:
             self.setValue(valuestring)
-    
+
     def startswith(self, value):
         """
         Sets the operator type to Query.Op.Startswith and sets \
@@ -1543,11 +1543,11 @@ class Query(object):
                     |test startswith blah
         """
         newq = self.copy()
-        newq.setOperatorType( Query.Op.Startswith )
-        newq.setValue( value )
-        
+        newq.setOperatorType(Query.Op.Startswith)
+        newq.setValue(value)
+
         return newq
-    
+
     def table(self):
         """
         Return the table instance that this query is referencing.
@@ -1557,7 +1557,7 @@ class Query(object):
         if isinstance(self._table, basestring):
             return orb.system.model(self._table)
         return self._table
-    
+
     def tables(self):
         """
         Returns the tables that this query is referencing.
@@ -1568,16 +1568,16 @@ class Query(object):
         table = self.table()
         if table:
             output.add(table)
-        
+
         if type(self._value) not in (list, set, tuple):
             value = (self._value,)
         else:
             value = self._value
-        
+
         for val in value:
             if Query.typecheck(val) or orb.QueryCompound.typecheck(val):
                 output.update(val.tables())
-        
+
         return list(output)
 
     def toDict(self):
@@ -1587,38 +1587,38 @@ class Query(object):
         :return     <dict>
         """
         output = {}
-        
+
         if self.isNull():
             return output
-        
-        output['type']          = 'query'
-        output['name']          = self._name
-        output['op']            = self._op
+
+        output['type'] = 'query'
+        output['name'] = self._name
+        output['op'] = self._op
         output['caseSensitive'] = self._caseSensitive
-        output['column']        = self._columnName
-        output['functions']     = self._functions
-        output['inverted']      = self._inverted
-        
+        output['column'] = self._columnName
+        output['functions'] = self._functions
+        output['inverted'] = self._inverted
+
         table = self.table()
         if table:
-            output['schema']    = table.schema().name()
-            output['db']        = table.schema().databaseName()
-        
+            output['schema'] = table.schema().name()
+            output['db'] = table.schema().databaseName()
+
         value_dict = self.__valueToDict(self._value)
         output.update(value_dict)
-        
+
         # store the math information
         math = []
         for op, val in self._math:
             data = {'op': op}
             data.update(self.__valueToDict(val))
             math.append(data)
-        
+
         if math:
             output['math'] = math
-        
+
         return output
-    
+
     def toString(self):
         """
         Returns this query instance as a semi readable language
@@ -1632,14 +1632,14 @@ class Query(object):
         """
         if not self.__nonzero__():
             return ''
-            
+
         pattern = dict(Query.SyntaxPatterns)[self.operatorType()]
-        column  = self.columnName()
-        val     = self.value()
-        
+        column = self.columnName()
+        val = self.value()
+
         if self.table():
             column = '%s.%s' % (self.table().__name__, column)
-        
+
         if self._math:
             data = [self.columnName()]
             for op, value in self._math:
@@ -1648,15 +1648,15 @@ class Query(object):
                     data.append(str(value))
                 else:
                     data.append(repr(value))
-        
+
             column = '({0})'.format(''.join(data))
-        
+
         if val == Query.UNDEFINED:
             return column
-        
+
         opts = {'field': column, 'value': repr(val)}
         return pattern.syntax() % opts
-    
+
     def toXml(self, xparent=None):
         """
         Returns this query as an XML value.
@@ -1667,18 +1667,18 @@ class Query(object):
         """
         if self.isNull():
             return None
-        
+
         if xparent is None:
             xquery = ElementTree.Element('query')
         else:
             xquery = ElementTree.SubElement(xparent, 'query')
-        
+
         # save general info
         xquery.set('name', nstr(self._name))
         xquery.set('op', nstr(self._op))
         xquery.set('caseSensitive', nstr(self._caseSensitive))
         xquery.set('column', nstr(self._columnName))
-        xquery.set('functions', ','.join(map(str, self._functions)))
+        xquery.set('functions', ','.join([str(func) for func in self._functions]))
         xquery.set('inverted', nstr(self._inverted))
 
         # save table info
@@ -1686,10 +1686,10 @@ class Query(object):
         if table:
             xquery.set('schema', table.schema().name())
             xquery.set('db', table.schema().databaseName())
-        
+
         # save the value
         self.__valueToXml(xquery, self._value)
-        
+
         # save the math
         if self._math:
             xmath = ElementTree.SubElement(xquery, 'math')
@@ -1697,9 +1697,9 @@ class Query(object):
                 xentry = ElementTree.SubElement(xmath, 'entry')
                 xentry.set('operator', nstr(op))
                 self.__valueToXml(xentry, value)
-        
+
         return xquery
-    
+
     def toXmlString(self, indented=False):
         """
         Returns this query as an XML string.
@@ -1711,12 +1711,12 @@ class Query(object):
         xml = self.toXml()
         if xml is None:
             return ''
-        
+
         if indented:
             projex.text.xmlindent(xml)
-        
+
         return ElementTree.tostring(xml)
-    
+
     def upper(self):
         """
         Returns this query with the Upper function added to its list.
@@ -1726,7 +1726,7 @@ class Query(object):
         q = self.copy()
         q.addFunction(Query.Function.Upper)
         return q
-    
+
     def validate(self, record, table=None):
         """
         Validates this query's value against the inputed record.  This will 
@@ -1748,9 +1748,9 @@ class Query(object):
                 rvalue = record.get(col.name(), record.get(col.fieldName()))
             else:
                 rvalue = record.get(self.columnName())
-        
+
         mvalue = self._value
-        
+
         if orb.Table.recordcheck(mvalue):
             mvalue = mvalue.primaryKey()
         if orb.Table.recordcheck(rvalue):
@@ -1773,64 +1773,64 @@ class Query(object):
                         rvalue = abs(rvalue)
                     except:
                         pass
-        
+
         # basic operations
         if self._op == Query.Op.Is:
             return rvalue == mvalue
-        
+
         elif self._op == Query.Op.IsNot:
             return rvalue != mvalue
-        
+
         # comparison operations
         elif self._op == Query.Op.Between:
             if len(mvalue) == 2:
                 return mvalue[0] < rvalue < mvalue[1]
             return False
-        
+
         elif self._op == Query.Op.LessThan:
             return rvalue < mvalue
-        
+
         elif self._op == Query.Op.LessThanOrEqual:
             return rvalue <= mvalue
-        
+
         elif self._op == Query.Op.GreaterThan:
             return rvalue > mvalue
-        
+
         elif self._op == Query.Op.GreaterThanOrEqual:
             return rvalue >= mvalue
-        
+
         # string operations
         elif self._op == Query.Op.Contains:
             return projex.text.decoded(rvalue) in projex.text.decoded(mvalue)
-        
+
         elif self._op == Query.Op.DoesNotContain:
             return not projex.text.decoded(rvalue) in projex.text.decoded(mvalue)
-        
+
         elif self._op == Query.Op.Startswith:
             decoded = projex.text.decoded(mvalue)
             return projex.text.decoded(rvalue).startswith(decoded)
-        
+
         elif self._op == Query.Op.Endswith:
             decoded = projex.text.decoded(mvalue)
             return projex.text.decoded(rvalue).endswith(decoded)
-        
+
         elif self._op == Query.Op.Matches:
             return re.match(projex.text.decoded(mvalue),
                             projex.text.decoded(rvalue)) is not None
-        
+
         elif self._op == Query.Op.DoesNotMatch:
             return re.match(projex.text.decoded(mvalue),
                             projex.text.decoded(rvalue)) is not None
-        
+
         # list operations
         elif self._op == Query.Op.IsIn:
             return rvalue in mvalue
-        
+
         elif self._op == Query.Op.IsNotIn:
             return rvalue not in mvalue
-        
+
         return False
-    
+
     def value(self):
         """
         Returns the value for this query instance
@@ -1838,7 +1838,7 @@ class Query(object):
         :return     <variant>
         """
         return self._value
-    
+
     def valueString(self):
         """
         Converts the data for this query to a string value and returns it.  For
@@ -1850,7 +1850,7 @@ class Query(object):
         column = self.column()
         if column:
             return column.valueToString(self.value())
-        
+
         return projex.text.decoded(self.value())
 
     @staticmethod
@@ -1870,6 +1870,7 @@ class Query(object):
                     |>>> q = Q('firstName') == 'Eric'
                     |>>> q &= Q('lastName') == 'Hulser'
         """
+
         def safe_eval(val):
             if val == 'True':
                 return True
@@ -1942,7 +1943,7 @@ class Query(object):
         """
         if data.get('type') == 'compound':
             return orb.QueryCompound.fromDict(data)
-        
+
         out = Query()
         out._name = data.get('name', '')
         out._op = int(data.get('op', '1'))
@@ -1950,20 +1951,20 @@ class Query(object):
         out._columnName = nstr(data.get('column'))
         out._functions = data.get('functions', [])
         out._inverted = data.get('inverted', False)
-        
+
         if out._columnName == 'None':
             out._columnName = None
-        
+
         schema = data.get('schema', '')
         if schema:
             dbname = data.get('db', '')
             out._table = orb.system.model(schema, database=dbname)
-        
+
         # restore the value from the dictionary
         value, success = out.__valueFromDict(data)
         if success:
             out._value = value
-        
+
         # restore the old math system
         offset = data.get('offset')
         if offset is not None:
@@ -1971,7 +1972,7 @@ class Query(object):
             value, success = out.__valueFromDict(offset)
             if success:
                 out._math.append((typ, value))
-        
+
         # restore the new math system
         math = data.get('math')
         if math is not None:
@@ -1980,9 +1981,9 @@ class Query(object):
                 value, success = out.__valueFromDict(entry)
                 if success:
                     out._math.append((op, value))
-        
+
         return out
-    
+
     @staticmethod
     def fromSearch(searchstr,
                    mode=SearchMode.All,
@@ -2013,24 +2014,24 @@ class Query(object):
         """
         searchstr = projex.text.decoded(searchstr)
         search_re = re.compile('([\w\.]+):([^\s]+|"[^"]+")')
-        results   = search_re.search(searchstr)
-        query     = Query()
-        
+        results = search_re.search(searchstr)
+        query = Query()
+
         def eval_value(value):
             result = re.match('^' + projex.regex.DATETIME + '$', value)
-            
+
             # convert a datetime value
             if result:
                 data = result.groupdict()
                 if len(data['year']):
                     data['year'] = '20' + data['year']
-                
+
                 if not data['second']:
                     data['second'] = '0'
-                
+
                 if data['ap'].startswith('p'):
                     data['hour'] = 12 + int(data['hour'])
-                
+
                 try:
                     return datetime.datetime(int(data['year']),
                                              int(data['month']),
@@ -2040,144 +2041,144 @@ class Query(object):
                                              int(data['second']))
                 except AttributeError, ValueError:
                     pass
-            
+
             # convert a date value
             result = re.match('^' + projex.regex.DATE + '$', value)
             if result:
                 data = result.groupdict()
                 if len(data['year']):
                     data['year'] = '20' + data['year']
-                
+
                 try:
                     return datetime.date(int(data['year']),
                                          int(data['month']),
                                          int(data['day']))
                 except AttributeError, ValueError:
                     pass
-            
+
             # convert a time value
             result = re.match('^' + projex.regex.TIME + '$', value)
             if result:
                 data = result.groupdict()
                 if not data['second']:
                     data['second'] = '0'
-                
+
                 if data['ap'].startswith('p'):
                     data['hour'] = 12 + int(data['hour'])
-                
+
                 try:
                     return datetime.time(int(data['hour']),
                                          int(data['min']),
                                          int(data['second']))
                 except AttributeError, ValueError:
                     pass
-            
+
             try:
                 return eval(value)
             except:
                 return value
-            
+
         while results:
             column, values = results.groups()
             values = values.strip()
-            
+
             if schema:
                 col = schema.column(column)
             else:
                 col = None
-            
+
             # see if this is an exact value
             if values.startswith('"') and values.endswith('"'):
                 query &= Q(column) == values.strip('"')
-            
+
             # process multiple values
             all_values = values.split(',')
             sub_q = Query()
-            
+
             for value in all_values:
                 value = value.strip()
-                
+
                 # process a contains search (same as no asterixes)
                 if value.startswith('*') and value.endswith('*'):
                     value = value.strip('*')
-                
+
                 if not value:
                     continue
-                
+
                 negate = False
                 if value.startswith('!'):
                     negate = True
-                
+
                 if value.startswith('*'):
                     sub_q |= Query(column).startswith(value.strip('*'))
-                
+
                 elif value.endswith('*'):
                     sub_q |= Query(column).endswith(value.strip('*'))
-                
+
                 elif value.startswith('<='):
                     value = eval_value(value[2:])
                     sub_q |= Query(column) <= value
-                
+
                 elif value.startswith('<'):
                     value = eval_value(value[1:])
                     sub_q |= Query(column) < value
-                
+
                 elif value.startswith('>='):
                     value = eval_value(value[2:])
                     sub_q |= Query(column) >= value
-                
+
                 elif value.startswith('>'):
                     value = eval_value(value[1:])
                     sub_q |= Query(column) > value
-                
+
                 elif '<' in value or '-' in value:
                     try:
                         a, b = value.split('<')
                         success = True
                     except ValueError:
                         success = False
-                    
+
                     if not success:
                         try:
                             a, b = value.split('-')
                             success = True
                         except ValueError:
                             success = False
-                    
+
                     if success:
                         a = eval_value(a)
                         b = eval_value(b)
-                        
+
                         sub_q |= Query(column).between(a, b)
-                        
+
                     else:
                         sub_q |= Query(column).contains(value)
-                
+
                 else:
                     # process additional options
                     if not (col and col.isString()):
                         value = eval_value(value)
-                    
+
                     if not isinstance(value, basestring):
                         sub_q |= Query(column) == value
                     else:
                         sub_q |= Query(column).contains(value)
-            
+
             if mode == SearchMode.All:
                 query &= sub_q
             else:
                 query |= sub_q
-            
+
             # update the search values
             searchstr = searchstr[:results.start()] + searchstr[results.end():]
-            results   = search_re.search(searchstr)
-        
+            results = search_re.search(searchstr)
+
         # process the search string with the thesaurus
         if thesaurus is not None:
             return thesaurus.splitterms(searchstr), query
         else:
             return searchstr.split(), query
-    
+
     @staticmethod
     def fromString(querystr):
         """
@@ -2188,39 +2189,38 @@ class Query(object):
         :return     <Query> || <orb.QueryCompound> || None
         """
         querystr = projex.text.decoded(querystr)
-        
-        queries  = {}
+
+        queries = {}
         for op, pattern in Query.SyntaxPatterns:
             pattern = pattern.pattern()
-            match   = pattern.search(querystr)
-            
-            while ( match ):
+            match = pattern.search(querystr)
+
+            while match:
                 # extract query information
-                key  = 'QUERY_%i' % (len(queries) + 1)
-                grp  = match.group()
+                key = 'QUERY_%i' % (len(queries) + 1)
+                grp = match.group()
                 data = match.groupdict()
-                
+
                 # built the new query instance
                 value = data['value']
-                if ( op in (Query.Op.IsIn, Query.Op.IsNotIn) ):
-                    value = map(lambda x: x.strip(), 
-                                data['value'].strip('[]').split(','))
-                
-                query = Query(data['field'], op = op, value = value)
+                if op in (Query.Op.IsIn, Query.Op.IsNotIn):
+                    value = [x.strip() for x in data['value'].strip('[]').split(',')]
+
+                query = Query(data['field'], op=op, value=value)
                 queries[key] = query
-                
+
                 # replace the querystr with a pointer to this query for 
                 # future use
                 querystr = querystr.replace(grp, key)
-                match    = pattern.search(querystr)
-        
+                match = pattern.search(querystr)
+
         # if only 1 query existed, then no need to create a compound
-        if (len(queries) == 1 ):
+        if len(queries) == 1:
             return queries.values()[0]
-        
+
         # otherwise, we need to build a compound
         return orb.QueryCompound.build(querystr, queries)
-    
+
     @staticmethod
     def fromXml(xquery):
         # extract the query or compound from the given XML
@@ -2234,7 +2234,7 @@ class Query(object):
 
         if xquery.tag == 'compound':
             return orb.QueryCompound.fromXml(xquery)
-        
+
         # generate a new query
         out = Query()
         out._name = xquery.get('name', '')
@@ -2244,21 +2244,21 @@ class Query(object):
         out._inverted = xquery.get('inverted') == 'True'
         if out._columnName == 'None':
             out._columnName = None
-        
+
         try:
-            out._fuctions = map(int, xquery.get('functions', '').split(','))
+            out._fuctions = [int(x) for x in xquery.get('functions', '').split(',')]
         except ValueError:
             out._functions = []
-        
+
         schema = xquery.get('schema')
         if schema:
             dbname = xquery.get('db', '')
             out._table = orb.system.model(schema, database=dbname)
-        
+
         value, success = out.__valueFromXml(xquery.find('object'))
         if success:
             out._value = value
-        
+
         # support old math system
         xoffset = xquery.find('offset')
         if xoffset is not None:
@@ -2266,7 +2266,7 @@ class Query(object):
             value, success = out.__valueFromXml(xoffset.find('object'))
             if success:
                 out._math.append((typ, value))
-        
+
         # support new math system
         xmath = xquery.find('math')
         if xmath is not None:
@@ -2275,9 +2275,9 @@ class Query(object):
                 value, success = out.__valueFromXml(xentry.find('object'))
                 if success:
                     out._math.append((op, value))
-        
+
         return out
-    
+
     @staticmethod
     def fromXmlString(xquery_str):
         """
@@ -2289,14 +2289,14 @@ class Query(object):
         """
         if not xquery_str:
             return Query()
-        
+
         try:
             xml = ElementTree.fromstring(xquery_str)
         except ExpatError:
             return Query()
-        
+
         return Query.fromXml(xml)
-    
+
     @staticmethod
     def typecheck(obj):
         """
@@ -2307,7 +2307,7 @@ class Query(object):
         :return     <bool>
         """
         return isinstance(obj, Query)
-    
+
     @staticmethod
     def testNull(query):
         """
@@ -2319,7 +2319,7 @@ class Query(object):
         if Query.typecheck(query) or orb.QueryCompound.typecheck(query):
             return query.isNull()
         return True
-    
+
     #----------------------------------------------------------------------
     #                       QUERY AGGREGATE DEFINITIONS
     #----------------------------------------------------------------------
@@ -2335,7 +2335,7 @@ class Query(object):
         return orb.QueryAggregate(orb.QueryAggregate.Type.Count,
                                   table,
                                   **options)
-    
+
     @staticmethod
     def MAX(table, **options):
         """
@@ -2348,7 +2348,7 @@ class Query(object):
         return orb.QueryAggregate(orb.QueryAggregate.Type.Maximum,
                                   table,
                                   **options)
-    
+
     @staticmethod
     def MIN(table, **options):
         """
@@ -2361,7 +2361,7 @@ class Query(object):
         return orb.QueryAggregate(orb.QueryAggregate.Type.Minimum,
                                   table,
                                   **options)
-    
+
     @staticmethod
     def SUM(table, **options):
         """

@@ -139,7 +139,7 @@ class PSQLConnection(SQLConnection):
             raise errors.QueryFailed(command, data, nstr(err))
 
         try:
-            results = map(mapper, cursor.fetchall())
+            results = [mapper(record) for record in cursor.fetchall()]
         except pg.ProgrammingError:
             results = []
 
@@ -198,44 +198,6 @@ class PSQLConnection(SQLConnection):
             connection.cancel()
         except pg.Error:
             pass
-
-    # ----------------------------------------------------------------------
-
-    def select(self, table_or_join, lookup, options):
-        if orb.Table.typecheck(table_or_join):
-            # ensure the primary record information is provided for inflations
-            if lookup.columns and options.inflateRecords:
-                lookup.columns += [col.name() for col in \
-                                   table_or_join.schema().primaryColumns()]
-
-            SELECT = self.sql().byName('SELECT')
-
-            schema = table_or_join.schema()
-            data = {}
-            sql = SELECT(table_or_join,
-                         lookup=lookup,
-                         options=options,
-                         IO=data)
-
-            # if we don't have any command to run, just return a blank list
-            if not sql:
-                return []
-            elif options.dryRun:
-                print sql % data
-                return []
-            else:
-                records = self.execute(sql, data, autoCommit=False)[0]
-
-                store = self.sql().datastore()
-
-                for record in records:
-                    for name, value in record.items():
-                        column = schema.column(name)
-                        record[name] = store.restore(column, value)
-
-                return records
-        else:
-            raise orb.DatabaseError('JOIN NOT DEFINED')
 
     # ----------------------------------------------------------------------
 

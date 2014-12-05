@@ -622,77 +622,42 @@ class SQLConnection(orb.Connection):
             db.rollback()
             return True
         return False
-    
+
     def select(self, table_or_join, lookup, options):
-        """
-        Selects from the database for the inputed items where the
-        results match the given dataset information.
-        
-        :param      table_or_join   | <subclass of orb.Table> || <orb.Join>
-                    lookup          | <orb.LookupOptions>
-                    options         | <orb.DatabaseOptions>
-        
-        :return     [({<str> columnName: <variant> value, .., ..), ..]
-        """
-        data = {}
         if orb.Table.typecheck(table_or_join):
-            schemas = [table_or_join.schema()]
-            SELECT = self.sql('SELECT')
-            try:
-                sql = SELECT(table_or_join,
-                             lookup=lookup,
-                             options=options,
-                             IO=data)
-            except errors.QueryIsNull:
+            # ensure the primary record information is provided for inflations
+            if lookup.columns and options.inflateRecords:
+                lookup.columns += [col.name() for col in
+                                   table_or_join.schema().primaryColumns()]
+
+            SELECT = self.sql().byName('SELECT')
+
+            schema = table_or_join.schema()
+            data = {}
+            sql = SELECT(table_or_join,
+                         lookup=lookup,
+                         options=options,
+                         IO=data)
+
+            # if we don't have any command to run, just return a blank list
+            if not sql:
                 return []
-        else:
-            schemas = [table_or_join.schemas()]
-            SELECT_JOIN = self.sql('SELECT_JOIN')
-            
-            try:
-                sql = SELECT_JOIN(table_or_join,
-                                  lookup=lookup,
-                                  options=options,
-                                  IO=data)
-            except errors.QueryIsNull:
+            elif options.dryRun:
+                print sql % data
                 return []
-        
-        if not sql:
-            db_records = []
+            else:
+                records = self.execute(sql, data, autoCommit=False)[0]
+
+                store = self.sql().datastore()
+
+                for record in records:
+                    for name, value in record.items():
+                        column = schema.column(name)
+                        record[name] = store.restore(column, value)
+
+                return records
         else:
-            db_records, _ = self.execute(sql, data, autoCommit=False)
-        
-        # restore the records from the database
-        output = []
-        db = self.database()
-        for db_record in db_records:
-            records = {}
-            for db_key in db_record:
-                column = COLUMNS.get(db_key)
-                if not column:
-                    continue
-                
-                engine = column.engine(db)
-                value  = engine.unwrap(column, db_record[db_key])
-                
-                schema = column.firstMemberSchema(schemas)
-                records.setdefault(schema, {})
-                
-                _, lang = column.fieldInfo(db_key)
-                if lang is not None:
-                    records[schema].setdefault(column.name(), {})
-                    records[schema][column.name()][lang] = value
-                else:
-                    records[schema][column.name()] = value
-            
-            out_records = []
-            for schema in schemas:
-                out_records.append(records.get(schema))
-            output.append(out_records)
-        
-        if orb.Table.typecheck(table_or_join):
-            return map(lambda x: x[0], output)
-        return output
+            raise orb.DatabaseError('JOIN NOT DEFINED')
 
     def setupDatabase(self, options):
         """
@@ -893,7 +858,7 @@ class SQLConnection(orb.Connection):
         if not missing:
             return True
         
-        columns = map(schema.column, missing)
+        columns = [schema.column(col) for col in missing]
         ALTER = self.sql('ALTER_TABLE')
         data = {}
         sql = ALTER(schema, added=columns, options=options, IO=data)

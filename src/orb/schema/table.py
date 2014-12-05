@@ -18,7 +18,6 @@ __email__ = 'team@projexsoftware.com'
 
 # ------------------------------------------------------------------------------
 
-import copy
 import datetime
 import logging
 import projex.text
@@ -26,12 +25,13 @@ import projex.rest
 import projex.security
 import re
 
+from collections import defaultdict
 from projex.enum import enum
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 
 from .tablebase import TableBase
-from ..common import SearchMode, ColumnType
+from ..common import ColumnType
 from ..querying import Query as Q
 
 log = logging.getLogger(__name__)
@@ -178,7 +178,7 @@ class Table(object):
 
         :return     <iter>
         """
-        return dict(self)
+        return self.json()
 
     def __iter__(self):
         """
@@ -190,7 +190,7 @@ class Table(object):
 
         :return     <iter>
         """
-        data = self.recordValues(key='field')
+        data = self.recordValues(key='field', autoInflate=False)
         for key, value in data.items():
             yield key, value
 
@@ -313,6 +313,7 @@ class Table(object):
         # define table properties in a way that shouldn't be accidentally
         # overwritten
         self.__local_cache = {}
+        self.__locale = None
         self.__record_defaults = {}
         self.__record_values = {}
         self.__record_dbloaded = set()
@@ -373,6 +374,9 @@ class Table(object):
         
         :param      data  | {<str> column_name: <variant>, ..}
         """
+        if options and options.locale != 'all':
+            self.__locale = options.locale
+
         schema = self.schema()
         tableName = schema.tableName()
         dvalues = {}
@@ -391,22 +395,34 @@ class Table(object):
             # retrieve the column information
             column = schema.column(colname)
             if not column:
+                # preload records for reverse lookups and pipes
+                try:
+                    loader = getattr(self, colname).preload
+                except AttributeError as err:
+                    pass
+                else:
+                    loader(self, value, options)
                 continue
 
+            # preload a reference column
+            elif column.isReference() and type(value) == dict:
+                model = column.referenceModel()
+                value = model(db_dict=value)
+
             # store translatable columns
-            if column.isTranslatable():
+            elif column.isTranslatable():
                 if type(value) in (str, unicode) and value.startswith('{'):
                     try:
                         value = eval(value)
-                    except StandardError as err:
+                    except StandardError:
                         value = None
-                elif options:
+                elif options and options.locale != 'all':
                     value = {options.locale: value}
                 else:
-                    value = {orb.system.locale(): value}
+                    value = {self.locale(): value}
 
             # map a query value to a query
-            if column.columnType() == ColumnType.Query:
+            elif column.columnType() == ColumnType.Query:
                 if type(value) == dict:
                     value = orb.Query.fromDict(value)
                 elif type(value) in (str, unicode):
@@ -565,6 +581,9 @@ class Table(object):
         # marks this table as expired
         self.markTableCacheExpired()
 
+        # store the archive
+        self.commitToArchive(*args, **kwds)
+
         # clear any custom caches
         self.__local_cache.clear()
         self.__record_database = db
@@ -573,6 +592,33 @@ class Table(object):
         # run any pre-commit logic required for this record
         kwds['results'] = results
         self.postCommit(*args, **kwds)
+        return True
+
+    def commitToArchive(self, *args, **kwds):
+        """
+        Saves this record to an archive location.
+
+        :return     <bool> | success
+        """
+        if not self.schema().isArchived():
+            return False
+
+        if not self.isRecord():
+            raise errors.RecordNotFound(self)
+
+        model = self.schema().archiveModel()
+        if not model:
+            raise errors.ArchiveNotFound(self.schema().name())
+
+        last_archive = self.archives().last()
+        number = last_archive.archiveNumber() if last_archive else 0
+
+        # create the new archive information
+        record = model(**self.recordValues())
+        record.setArchivedAt(datetime.datetime.now())
+        record.setArchiveNumber(number + 1)
+        record.setRecordValue(self.schema().name(), self)
+        record.commit()
         return True
 
     def conflicts(self, *columnNames, **options):
@@ -707,7 +753,7 @@ class Table(object):
         for column in self.schema().columns(kind=orb.Column.Kind.Field):
             value = column.default(resolve=True)
             if column.isTranslatable():
-                value = {orb.system.locale(): value}
+                value = {self.locale(): value}
 
             self.__record_defaults[column] = value
 
@@ -759,13 +805,66 @@ class Table(object):
             return self.id() is not None and self.__record_dbloaded.issuperset(self.schema().primaryColumns())
         return False
 
-    def json(self):
+    def json(self, **options):
         """
-        Converts this object to a JSON dataset.
+        Converts this object to a JSON string or dictionary.
 
-        :return     <str>
+        :return     <dict> || <str>
         """
-        return projex.rest.jsonify(dict(self))
+        format = options.get('format', dict)
+        # simple json conversion
+        output = dict(self)
+
+        # additional options
+        lookup = options.get('lookup', orb.LookupOptions(**options))
+        db_opts = options.get('options', orb.DatabaseOptions(**options))
+
+        expand = lookup.expand
+        if expand:
+            # extract the items to look for
+            expanding = defaultdict(set)
+            for item in expand:
+                split = item.split('.')
+                expanding[projex.text.underscore(split[0])].add('.'.join(split[1:]))
+
+            pipes = {projex.text.underscore(pipe.name()): pipe.name()
+                     for pipe in self.schema().pipes()}
+            reverses = {projex.text.underscore(reverse.reversedName()): reverse.reversedName()
+                        for reverse in self.schema().reverseLookups()}
+            columns = {projex.text.underscore(column.name()): column
+                       for column in self.schema().columns()}
+
+            for key, addtl in expanding.items():
+                # expand a particular column
+                if key in columns:
+                    column = columns[key]
+                    reference = self.recordValue(column, autoInflate=True)
+                    output[projex.text.underscore(column.name())] = reference.json(expand=list(addtl))
+
+                # expand a pipe
+                else:
+                    if key in pipes:
+                        rset = getattr(self, pipes[key])()
+                    elif key in reverses:
+                        rset = getattr(self, reverses[key])()
+                    else:
+                        continue
+
+                    if 'ids' in addtl:
+                        output[key + '_ids'] = rset.ids()
+                        addtl.remove('ids')
+                    if 'count' in addtl:
+                        output[key + '_count'] = rset.count()
+                        addtl.remove('count')
+                    if '' in addtl:
+                        output[key] = rset.json(expand=addtl)
+
+        if format == dict:
+            return output
+        elif format == unicode:
+            return projex.rest.jsonify(output)
+        else:
+            raise errors.OrbError('Invalid JSON format request.  Needs to be either unicode or dict.')
 
     def localCache(self, key, default=None):
         """
@@ -775,6 +874,15 @@ class Table(object):
                     default | <variant>
         """
         return self.__local_cache.get(key, default)
+
+    def locale(self):
+        """
+        Returns the locale that this record represents, if no locale has been defined, then the global
+        orb system locale will be used.
+
+        :return     <str>
+        """
+        return self.__locale or orb.system.locale()
 
     def preCommit(self, *args, **kwds):
         """
@@ -956,7 +1064,7 @@ class Table(object):
 
             # return the current locale
             elif locale is None:
-                locale = orb.system.locale()
+                locale = self.locale()
 
             value = value.get(locale)
             if not value:
@@ -1203,6 +1311,16 @@ class Table(object):
         """
         self.__record_database = database
 
+    def setLocale(self, locale):
+        """
+        Sets the default locale for this record to the inputed value.  This will affect what locale
+        is stored when editing and what is returned on reading.  If no locale is supplied, then
+        the default system locale will be used.
+
+        :param      locale | <str> || None
+        """
+        self.__locale = locale
+
     def setLocalCache(self, key, value):
         """
         Sets a value for the local cache to the inputed key & value.
@@ -1235,8 +1353,7 @@ class Table(object):
         # otherwise, store the column information in the defaults
         value = column.storeValue(value)
         if column.isTranslatable():
-            if locale is None:
-                locale = orb.system.locale()
+            locale = locale or self.locale()
 
             self.__record_defaults.setdefault(column, {})
             self.__record_values.setdefault(column, {})
@@ -1310,7 +1427,7 @@ class Table(object):
 
         if column.isTranslatable():
             if curr_value is None:
-                curr_value = {orb.system.locale(): ''}
+                curr_value = {self.locale(): ''}
                 self.__record_values[column] = curr_value
 
             if type(value) == dict:
@@ -1318,8 +1435,7 @@ class Table(object):
                 curr_value.update(value)
             else:
                 value = column.storeValue(value)
-                if not locale:
-                    locale = orb.system.locale()
+                locale = locale or self.locale()
 
                 try:
                     equals = curr_value[locale] == value
@@ -1519,30 +1635,6 @@ class Table(object):
         :return     <orb.Query> || None
         """
         return getattr(cls, '_%s__baseTableQuery' % cls.__name__, None)
-
-    @classmethod
-    def dictify(cls,
-                records,
-                useFieldNames=False,
-                autoInflate=False,
-                mapper=None):
-        """
-        Converts the inputed records of this table to dictionary values.
-        
-        :sa         Table.recordValues
-        
-        :param      records         | <orb.RecordSet> || <list>
-                    useFieldNames   | <bool>
-                    autoInflate     | <bool>
-                    mapper          | <callable> || None
-        
-        :return     [{<key>: <value>, ..}, ]
-        """
-        dicter = lambda x: x.recordValues(useFieldNames=useFieldNames,
-                                          autoInflate=autoInflate,
-                                          mapper=mapper)
-
-        return map(dicter, records)
 
     @classmethod
     def generateToken(cls, column):

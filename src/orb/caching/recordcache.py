@@ -329,17 +329,10 @@ class RecordCache(object):
         elif is_simple and cache and cache.isPreloaded():
             all_lookup = orb.LookupOptions()
             all_opts   = orb.DatabaseOptions()
-            
-            try:
-                records = backend.select(table, all_lookup, all_opts)
-                cache.setValue(preload_key, records)
-            except orb.errors.OrbError, err:
-                if options.throwErrors:
-                    raise
-                else:
-                    log.error('Backend error occurred.\n%s', err)
-                    return []
-            
+
+            records = backend.select(table, all_lookup, all_opts)
+            cache.setValue(preload_key, records)
+
             records = self.preloadedRecords(table, lookup)
             cache.setValue(cache_key, records)
             return records
@@ -347,15 +340,7 @@ class RecordCache(object):
         # otherwise, search the backend for this lookup specifically and
         # cache the results
         else:
-            try:
-                records = backend.select(table, lookup, options)
-            except orb.errors.OrbError, err:
-                if options.throwErrors:
-                    raise
-                else:
-                    log.error('Backend error occurred.\n%s', nstr(err))
-                    return []
-            
+            records = backend.select(table, lookup, options)
             if cache:
                 cache.setValue(cache_key, records)
             

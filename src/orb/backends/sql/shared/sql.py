@@ -256,9 +256,9 @@ class INSERT(SQL):
             if row_all:
                 insertions['all'].append(row_all)
             if row_base:
-                insertions['base'].append(row_all)
+                insertions['base'].append(row_base)
             if row_i18n:
-                insertions['i18n'].append(row_all)
+                insertions['i18n'].append(row_i18n)
 
         return columns, insertions
 

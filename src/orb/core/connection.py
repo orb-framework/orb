@@ -71,7 +71,7 @@ class Connection(AddonManager):
             values = schema.model().select(colnames,
                                            inflated=False,
                                            db=db).all()
-            data[schema.name()] = map(lambda x: dict(zip(colnames, x)), values)
+            data[schema.name()] = [dict(zip(colnames, x)) for x in values]
 
         # save this backup to the database file
         f = open(filename, 'wb')

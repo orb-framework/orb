@@ -20,9 +20,7 @@
               return cmp(a.fieldName(), b.fieldName())
         return result
 
-    pcols = ['"{0}"."{1}"'.format(table_name, pcol.fieldName()) \
-             for pcol in schema.primaryColumns()]
-
+    pcols = [QUOTE(table_name, pcol.fieldName()) for pcol in schema.primaryColumns()]
     joined = []
     columns = []
     i18n_columns = []
@@ -86,10 +84,9 @@
                     columns.append(col_sql)
 
             # or, just return the base record
-            else:
-                columns.append('"{0}"."{1}" AS "{2}"'.format(table_name,
-                                                             column.fieldName(),
-                                                             column.fieldName()))
+            columns.append('"{0}"."{1}" AS "{2}"'.format(table_name,
+                                                         column.fieldName(),
+                                                         column.fieldName()))
 
     # include any additional expansions from pipes or reverse lookups
     if lookup.expand:

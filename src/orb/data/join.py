@@ -113,15 +113,8 @@ class Join(object):
         if not db:
             raise errors.DatabaseNotFound()
         
-        try:
-            return db.backend().selectFirst(self, lookup, options)
-        except errors.OrbError:
-            if options.throwErrors:
-                raise
-            else:
-                log.exception('Backend error occurred.')
-                return None
-        
+        return db.backend().selectFirst(self, lookup, options)
+
     def select(self, **kwds):
         """
         Selects records for the joined information based on the inputed
@@ -146,16 +139,9 @@ class Join(object):
             
         if not db:
             raise errors.DatabaseNotFound()
-        
-        try:
-            return db.backend().select(self, lookup, options)
-        except errors.OrbError:
-            if options.throwErrors:
-                raise
-            else:
-                log.exception('Backend error occurred.')
-                return []
-    
+
+        return db.backend().select(self, lookup, options)
+
     def setDatabase(self, database):
         """
         Sets the database instance that this join will use.

@@ -22,6 +22,7 @@ import projex.iters
 import projex.rest
 import re
 
+from collections import defaultdict
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 
@@ -47,20 +48,17 @@ class RecordSet(object):
 
         :return     [<orb.Record>, ..]
         """
-        return list(self)
+        return self.json()
 
     def __init__(self, *args):
         self._table = None
 
         # default options
         self._grouped = False
-        self._ordered = False
-        self._inflated = None
         self._counts = {}
         self._empty = {}
         self._currentPage = -1
         self._pageSize = 0
-        self._locale = None
 
         # sorting options
         self._sort_cmp_callable = None
@@ -72,17 +70,20 @@ class RecordSet(object):
         self._length = None
 
         # select information
-        self._expand = None
-        self._start = None
-        self._limit = None
         self._database = -1
-        self._query = None
-        self._columns = None
         self._groupBy = None
-        self._order = None
-        self._ignoreAggregates = False
-        self._ignoreJoined = False
-        self._namespace = None
+        self._lookupOptions = orb.LookupOptions()
+        self._databaseOptions = orb.DatabaseOptions()
+
+        #self._expand = lookup.expand
+        #self._query = lookup.where
+        #self._columns = lookup.columns
+        #self._order = lookup.order
+        #self._limit = lookup.limit
+        #self._start = lookup.start
+        #self._namespace = options.namespace
+        #self._inflated = options.inflateRecords
+        #self._locale = options.locale
 
         # join another record set as RecordSet(recordSet)
         if args:
@@ -239,22 +240,14 @@ class RecordSet(object):
                 return []
 
             # cache the result for this query
-            results = None
             if cache is not None and orb.system.isCachingEnabled():
                 results = cache.select(backend, table, lookup, db_opts)
             else:
-                try:
-                    results = backend.select(table, lookup, db_opts)
-                except errors.OrbError, err:
-                    if db_opts.throwErrors:
-                        raise
-                    else:
-                        log.error('Backend error occurred.\n%s', err)
-                        results = []
+                results = backend.select(table, lookup, db_opts)
 
             # return specific columns
             if db_opts.inflateRecords:
-                output = map(lambda x: self.inflateRecord(table, x), results)
+                output = [self.inflateRecord(table, x) for x in results]
 
             elif lookup.columns and not options.get('ignoreColumns'):
                 if len(lookup.columns) == 1:
@@ -325,20 +318,13 @@ class RecordSet(object):
         inserts = filter(lambda x: not x.isRecord(db=db), records)
         updates = filter(lambda x: x.isRecord(db=db), records)
 
-        try:
-            if inserts:
-                backend.insert(inserts, lookup, db_options)
-            if updates:
-                backend.update(updates, lookup, db_options)
-        except errors.OrbError, err:
-            if db_options.throwErrors:
-                raise
-            else:
-                log.error('Backend error occurred.\n%s', err)
-                return False
+        if inserts:
+            backend.insert(inserts, lookup, db_options)
+        if updates:
+            backend.update(updates, lookup, db_options)
 
         # update the caching table information
-        for table in set(map(type, records)):
+        for table in set([type(record) for record in records]):
             table.markTableCacheExpired()
 
         # run each records pre-commit logic before it is inserted to the db
@@ -374,14 +360,7 @@ class RecordSet(object):
         if cache is not None and orb.system.isCachingEnabled():
             count = cache.count(db.backend(), table, lookup, options)
         else:
-            try:
-                count = db.backend().count(table, lookup, options)
-            except errors.OrbError, err:
-                if options.throwErrors:
-                    raise
-                else:
-                    log.error('Backend error occurred.\n%s', err)
-                    return 0
+            count = db.backend().count(table, lookup, options)
 
         self._counts[key] = count
         return count
@@ -392,7 +371,7 @@ class RecordSet(object):
         
         :return     [<str>, ..] || None
         """
-        return self._columns
+        return self._lookupOptions.columns
 
     def currentPage(self):
         """
@@ -429,11 +408,9 @@ class RecordSet(object):
         
         :return     <orb.DatabaseOptions>
         """
-        options.setdefault('inflateRecords', self.isInflated())
-        options.setdefault('namespace', self.namespace())
-        options.setdefault('locale', self._locale)
-
-        return orb.DatabaseOptions(**options)
+        new_options = self._databaseOptions.copy()
+        new_options.update(options)
+        return new_options
 
     def duplicate(self, other):
         """
@@ -443,13 +420,10 @@ class RecordSet(object):
         """
         # default options
         self._grouped = other._grouped
-        self._ordered = other._ordered
-        self._inflated = other._inflated
         self._counts = other._counts.copy()
         self._empty = other._empty.copy()
         self._currentPage = other._currentPage
         self._pageSize = other._pageSize
-        self._locale = other._locale
 
         # sorting options
         self._sort_cmp_callable = other._sort_cmp_callable
@@ -461,18 +435,10 @@ class RecordSet(object):
         self._length = other._length
 
         # select information
-        self._expand = list(other._expand) if other._expand else None
-        self._start = other._start
-        self._limit = other._limit
         self._database = other._database
-        self._query = other._query.copy() if other._query else None
-        self._columns = list(other._columns) if other._columns else None
         self._groupBy = list(other._groupBy) if other._groupBy else None
-        self._order = list(other._order) if other._order else None
-        self._ignoreAggregates = other._ignoreAggregates
-        self._ignoreJoined = other._ignoreJoined
-        self._namespace = other._namespace
-
+        self._databaseOptions = other.databaseOptions().copy()
+        self._lookupOptions = other.lookupOptions().copy()
         self._table = other._table
 
     def distinct(self, columns, **options):
@@ -517,14 +483,7 @@ class RecordSet(object):
         if cache is not None and orb.system.isCachingEnabled():
             output = cache.distinct(backend, table, lookup, options)
         else:
-            try:
-                output = backend.distinct(table, lookup, options)
-            except errors.OrbError, err:
-                if options.throwErrors:
-                    raise
-                else:
-                    log.error('Backend error occurred.\n%s', err)
-                    output = {}
+            output = backend.distinct(table, lookup, options)
 
         if options.inflateRecords:
             for key in output.keys():
@@ -575,18 +534,11 @@ class RecordSet(object):
         if cache is not None and orb.system.isCachingEnabled():
             records = cache.select(db.backend(), table, lookup, db_opts)
         else:
-            try:
-                records = db.backend().select(table, lookup, db_opts)
-            except errors.OrbError, err:
-                if db_opts.throwErrors:
-                    raise
-                else:
-                    log.error('Backend error occurred.\n%s', err)
-                    records = []
+            records = db.backend().select(table, lookup, db_opts)
 
         if records:
             if db_opts.inflateRecords:
-                return self.inflateRecord(table, records[0])
+                return self.inflateRecord(table, records[0], db_opts.locale)
             return records[0]
         return None
 
@@ -700,7 +652,7 @@ class RecordSet(object):
         """
         return self.primaryKeys(**options)
 
-    def inflateRecord(self, table, record):
+    def inflateRecord(self, table, record, locale=None):
         """
         Inflates the record for the given class, applying a namespace override
         if this record set is using a particular namespace.
@@ -711,8 +663,9 @@ class RecordSet(object):
         :return     <orb.Table>
         """
         inst = table.inflateRecord(record, record, db=self.database())
-        if self._namespace is not None:
-            inst.setRecordNamespace(self._namespace)
+        inst.setLocale(locale or self._databaseOptions.locale)
+        if self._databaseOptions.namespace is not None:
+            inst.setRecordNamespace(self._databaseOptions.namespace)
         return inst
 
     def index(self, record):
@@ -779,33 +732,8 @@ class RecordSet(object):
 
         backend = db.backend()
         records = self.all()
-        try:
-            backend.insert(records, lookup, db_opts)
-            return True
-        except errors.OrbError, err:
-            if db_opts.throwErrors:
-                raise
-            else:
-                log.error('Backend error occurred.\n%s', err)
-                return False
-
-    def ignoreAggregates(self):
-        """
-        Returns whether or not aggregates should be included by default in the
-        queries.
-        
-        :return     <bool>
-        """
-        return self._ignoreAggregates
-
-    def ignoreJoined(self):
-        """
-        Returns whether or not joined columns should be included by default in
-        the queries.
-        
-        :return     <bool>
-        """
-        return self._ignoreJoined
+        backend.insert(records, lookup, db_opts)
+        return True
 
     def isEmpty(self, **options):
         """
@@ -856,9 +784,7 @@ class RecordSet(object):
         
         :return     <bool>
         """
-        if self._inflated is None:
-            return self._columns is None
-        return self._inflated
+        return self._databaseOptions.inflated or self._lookupOptions.columns is None
 
     def isLoaded(self):
         """
@@ -876,7 +802,7 @@ class RecordSet(object):
         
         :return     <bool>
         """
-        return self._ordered
+        return self._lookupOptions.order is not None
 
     def isNull(self):
         """
@@ -920,13 +846,24 @@ class RecordSet(object):
         else:
             return False
 
-    def json(self):
+    def json(self, **options):
         """
         Returns the records for this set as a json string.
 
         :return     <str>
         """
-        return projex.rest.jsonify(list(self))
+        format = options.pop('format', list)
+        lookup = self.lookupOptions(**options)
+        db_opts = self.databaseOptions(**options)
+
+        output = [record.json(lookup=lookup, options=db_opts) for record in self]
+
+        if format == list:
+            return output
+        elif format == unicode:
+            return projex.rest.jsonify(output)
+        else:
+            raise errors.OrbError('Invalid JSON format.  Request needs to be either list or unicode.')
 
     def last(self, **options):
         """
@@ -935,10 +872,7 @@ class RecordSet(object):
 
         :return     <orb.Table> || None
         """
-        order = options.get('order') or self.order() or [(self.table().schema().primaryColumns()[0], 'asc')]
-        order = [(col, 'asc' if direct == 'desc' else 'desc') for col, direct in order]
-        options['order'] = order
-        return self.first(**options)
+        return self.reversed().first(**options)
 
     def limit(self):
         """
@@ -946,7 +880,7 @@ class RecordSet(object):
         
         :return     <int>
         """
-        return self._limit
+        return self._lookupOptions.limit
 
     def lookupOptions(self, **options):
         """
@@ -954,25 +888,9 @@ class RecordSet(object):
         
         :return     <orb.LookupOptions>
         """
-        kwds = options.copy()
-
-        if 'where' in kwds and self.query() is not None:
-            kwds['where'] = self.query() & kwds['where']
-        else:
-            kwds.setdefault('where', self.query())
-
-        # initialize the options with this record sets values
-        kwds.setdefault('expand', self._expand)
-        kwds.setdefault('columns', self.columns())
-        kwds.setdefault('where', self.query())
-        kwds.setdefault('order', self.order())
-        kwds.setdefault('start', self.start())
-        kwds.setdefault('limit', self.limit())
-        kwds.setdefault('inflated', self.isInflated())
-        kwds.setdefault('ignoreJoined', self.ignoreJoined())
-        kwds.setdefault('ignoreAggregates', self.ignoreAggregates())
-
-        return orb.LookupOptions(**kwds)
+        new_options = self._lookupOptions.copy()
+        new_options.update(options)
+        return new_options
 
     def namespace(self):
         """
@@ -980,7 +898,7 @@ class RecordSet(object):
         
         :return     <str> || None
         """
-        return self._namespace
+        return self._databaseOptions.namespace
 
     def order(self):
         """
@@ -988,7 +906,7 @@ class RecordSet(object):
         
         :return     [(<str> field, <str> asc|desc), ..] || None
         """
-        return self._order
+        return self._lookupOptions.order
 
     def ordered(self, *order):
         """
@@ -1119,7 +1037,7 @@ class RecordSet(object):
 
         elif self.table():
             cols = self.table().schema().primaryColumns()
-            cols = map(lambda x: x.fieldName(), cols)
+            cols = [col.fieldName() for col in cols]
             return self.values(cols, **options)
 
         return self.values(orb.system.settings().primaryField(), **options)
@@ -1130,7 +1048,7 @@ class RecordSet(object):
         
         :return     <Query> || <QueryCompound> || None
         """
-        return self._query
+        return self._lookupOptions.where
 
     def recordAt(self, index, **options):
         """
@@ -1182,18 +1100,10 @@ class RecordSet(object):
             lookup.limit = 1
 
             # cache the result for this query
-            results = None
             if cache is not None and orb.system.isCachingEnabled():
                 results = cache.select(backend, table, lookup, db_opts)
             else:
-                try:
-                    results = backend.select(table, lookup, db_opts)
-                except errors.OrbError, err:
-                    if db_opts.throwErrors:
-                        raise
-                    else:
-                        log.error('Backend error occurred.\n%s', err)
-                        results = []
+                results = backend.select(table, lookup, db_opts)
 
             if not results:
                 if not has_default:
@@ -1224,7 +1134,7 @@ class RecordSet(object):
         :return     <RecordSet>
         """
         rset = RecordSet(self)
-        rset.setQuery(query & self._query)
+        rset.setQuery(query & self._lookupOptions.where)
         return rset
 
     def remove(self, **options):
@@ -1255,16 +1165,22 @@ class RecordSet(object):
         count = 0
         for table, query in breakdown.items():
             lookup = orb.LookupOptions(where=query)
-            try:
-                count += backend.remove(table, lookup, dbopts)
-                table.markTableCacheExpired()
-            except errors.OrbError, err:
-                if dbopts.throwErrors:
-                    raise
-                else:
-                    log.error('Backend error ocurred.\n%s', err)
+            count += backend.remove(table, lookup, dbopts)
+            table.markTableCacheExpired()
 
         return count
+
+    def reversed(self, **options):
+        """
+        Returns a recordset with the reversed order from this set.
+
+        :return     <orb.RecordSet>
+        """
+        rset = RecordSet(self)
+        order = options.get('order') or self.order() or [(self.table().schema().primaryColumns()[0], 'asc')]
+        order = [(col, 'asc' if direct == 'desc' else 'desc') for col, direct in order]
+        rset.setOrder(order)
+        return rset
 
     def search(self,
                search_terms,
@@ -1302,7 +1218,7 @@ class RecordSet(object):
         
         :param      columns | [<str>, ..] || None
         """
-        self._columns = columns
+        self._lookupOptions.columns = columns
 
     def setCurrentPage(self, pageno):
         """
@@ -1345,29 +1261,7 @@ class RecordSet(object):
         
         :param      options | <orb.DatabaseOptions>
         """
-        self._namespace = options.namespace
-        self._inflated = options.inflateRecords
-        self._locale = options.locale
-
-    def setIgnoreAggregates(self, state=True):
-        """
-        Sets whether or not aggregate columns as a whole should be ignored in
-        the results.  They can be loaded later, but by default they can
-        take a long time to load for groups of queries.
-        
-        :param      state | <bool>
-        """
-        self._ignoreAggregates = state
-
-    def setIgnoreJoined(self, state=True):
-        """
-        Sets whether or not joined columns as a whole should be ignored in
-        the results.  They can be loaded later, but by default they can
-        take a long time to load for groups of queries.
-        
-        :param      state | <bool>
-        """
-        self._ignoreJoined = state
+        self._databaseOptions = options.copy()
 
     def setInflated(self, state):
         """
@@ -1376,7 +1270,7 @@ class RecordSet(object):
         
         :param      state | <bool> || None
         """
-        self._inflated = state
+        self._databaseOptions.inflated = state
 
     def setLimit(self, limit):
         """
@@ -1384,7 +1278,7 @@ class RecordSet(object):
         
         :param      limit | <int>
         """
-        self._limit = limit
+        self._lookupOptions.limit = limit
 
     def setLookupOptions(self, lookup):
         """
@@ -1392,15 +1286,7 @@ class RecordSet(object):
         
         :param      lookup | <orb.LookupOptions>
         """
-        self._expand = lookup.expand
-        self._query = lookup.where
-        self._columns = lookup.columns
-        self._order = lookup.order
-        self._ordered = lookup.order != None
-        self._limit = lookup.limit
-        self._start = lookup.start
-        self._ignoreJoined = lookup.ignoreJoined
-        self._ignoreAggregates = lookup.ignoreAggregates
+        self._lookupOptions = lookup.copy()
 
     def setNamespace(self, namespace):
         """
@@ -1408,7 +1294,7 @@ class RecordSet(object):
         
         :param      namespace | <str>
         """
-        self._namespace = namespace
+        self._databaseOptions.namespace = namespace
 
     def setOrder(self, order):
         """
@@ -1416,18 +1302,7 @@ class RecordSet(object):
         
         :param      order | [(<str> field, <str> asc|desc), ..] || None
         """
-        self._order = order
-        self.setOrdered(order is not None)
-
-    def setOrdered(self, state):
-        """
-        Sets whether or not this record set is intended to be grouped.  This
-        method is used to share the intended default usage.  This does not force
-        a record set to be ordered or not.
-        
-        :param      state | <bool>
-        """
-        self._ordered = state
+        self._lookupOptions.order = order
 
     def setPageSize(self, pageSize):
         """
@@ -1444,7 +1319,7 @@ class RecordSet(object):
         
         :param      query | <Query> || <QueryCompound> || None
         """
-        self._query = query
+        self._lookupOptions.where = query
         self.clear()
 
     def setValues(self, **values):
@@ -1462,7 +1337,7 @@ class RecordSet(object):
         
         :param      index | <int>
         """
-        self._start = index
+        self._lookupOptions.start = index
 
     def sumOf(self, columnName):
         """
@@ -1488,7 +1363,7 @@ class RecordSet(object):
         
         :return     <int>
         """
-        return self._start
+        return self._lookupOptions.start
 
     def table(self):
         """
@@ -1517,96 +1392,73 @@ class RecordSet(object):
         
         :return     [<variant>, ..] || {<str> column: [<variant>, ..], ..}
         """
-        # update the list
-        if isinstance(columns, basestring):
-            columns = [nstr(columns)]
-
-        if self.isNull():
+        if self.isNull() or self.table() is None:
             return []
+
+        schema = self.table().schema()
+        if type(columns) not in (list, set, tuple):
+            columns = [schema.column(columns)]
+        else:
+            columns = [schema.column(col) for col in columns]
 
         key = self.cacheKey(options)
-        table = self.table()
-        if not table:
-            return []
-
-        schema = table.schema()
         db = self.database()
 
-        # ensure that we're using the field names when looking in the database
-        orb_columns = []
-        fields = []
-        for col in columns:
-            orb_col = schema.column(col) if not isinstance(col, orb.Column) else col
-            if not orb_col:
-                raise orb.errors.ColumnNotFound(schema.name(), col)
-
-            orb_columns.append(orb_col)
-            fields.append(orb_col.fieldName())
-
         # create the lookup options
-        options['columns'] = fields
+        options['columns'] = columns[:]
         lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
 
         # lookup the data
-        cache = table.recordCache()
+        cache = self.table().recordCache()
         if key in self._all:
             records = self._all[key]
         elif cache:
-            records = cache.select(db.backend(), table, lookup, db_opts)
+            records = cache.select(db.backend(), self.table(), lookup, db_opts)
         else:
-            try:
-                records = db.backend().select(table, lookup, db_opts)
-            except errors.OrbError, err:
-                if db_opts.throwErrors:
-                    raise
-                else:
-                    log.error('Backend error occurred.\n%s', err)
-                    records = []
+            records = db.backend().select(self.table(), lookup, db_opts)
 
         # parse the values from the cache
-        output = {}
+        output = defaultdict(list)
         locale = db_opts.locale
 
         for record in records:
-            for orb_col in orb_columns:
-                colname = orb_col.name()
-                output.setdefault(colname, [])
-                expand = bool(orb_col.isReference() and db_opts.inflateRecords)
+            for column in columns:
+                expand = bool(column.isReference() and db_opts.inflateRecords)
 
                 # retreive the value
                 if orb.Table.recordcheck(record):
-                    value = record.recordValue(colname, autoInflate=expand)
+                    value = record.recordValue(column, autoInflate=expand)
                 else:
-                    value = record.get(colname)
+                    value = record.get(column.fieldName())
 
                 # grab specific locale translation options
-                if orb_col.isTranslatable() and type(value) == dict:
+                if column.isTranslatable() and type(value) == dict:
                     if locale != 'all':
                         value = value.get(locale, '')
 
                 # expand a reference object if desired
                 if expand and value is not None:
-                    ref_model = orb_col.referenceModel()
+                    ref_model = column.referenceModel()
                     if not ref_model:
-                        output[colname].append(None)
+                        output[column].append(None)
                     elif not isinstance(value, ref_model):
-                        output[colname].append(ref_model(value))
+                        output[column].append(ref_model(value))
                     else:
-                        output[colname].append(value)
+                        output[column].append(value)
 
                 # de-expand an already loaded reference object if IDs are all that is wanted
                 elif not expand and orb.Table.recordcheck(value):
-                    output[colname].append(value.id())
+                    output[column].append(value.id())
 
                 # return a standard item
                 else:
-                    output[colname].append(value)
+                    output[column].append(value)
 
         if len(output) == 1:
-            return output[orb_columns[0].name()]
+            return output[columns[0]]
         elif output:
-            return zip(*[output[orb_col.name()] for orb_col in orb_columns])
+            return zip(*[output[column] for column in columns])
         else:
             return []
 

@@ -37,20 +37,16 @@ class DatabaseOptions(object):
                 dryRun          | <bool> (default: False) | When True, the database operation will only log, not actually perform any actions.
                 useCache        | <bool> (default: False)
                 inflateRecords  | <bool> (default: True) | When True, inflated <orb.Table> instances will be returned.  When False, the raw result is returned.
-                throwErrors     | <bool> (default: True)
                 autoIncrement   | <bool> (default: True)
                 force           | <bool> (default: False)
                 deleteFlags     | <orb.DeleteFlags> (default: all)
     """
     def __init__(self, **kwds):
-        throwErrors = orb.system.settings().raiseBackendErrors()
-        
         self.defaults = {'namespace': None,
                          'flags': 0,
                          'dryRun': False,
                          'useCache': False,
                          'inflateRecords': True,
-                         'throwErrors': throwErrors,
                          'autoIncrement': True,
                          'force': False,
                          'locale': orb.system.locale(),
@@ -63,7 +59,6 @@ class DatabaseOptions(object):
         self.useCache           = kwds.get('useCache', False)
         self.inflateRecords     = kwds.get('inflated', 
                                   kwds.get('inflateRecords', True))
-        self.throwErrors        = kwds.get('throwErrors', throwErrors)
         self.autoIncrement      = kwds.get('autoIncrement', True)
         self.force              = kwds.get('force', False)
         self.deleteFlags        = kwds.get('deleteFlags', orb.DeleteFlags.all())
@@ -91,7 +86,15 @@ class DatabaseOptions(object):
         :return     <hash>
         """
         return hash(nstr(self))
-    
+
+    def copy(self):
+        """
+        Reutrns a copy of this database option set.
+
+        :return     <orb.DatabaseOptions>
+        """
+        return DatabaseOptions(**self.toDict())
+
     def isNull(self):
         """
         Returns whether or not this option set has been modified.
@@ -103,23 +106,30 @@ class DatabaseOptions(object):
             if val != default:
                 return False
         return True
-    
+
+    def update(self, options):
+        """
+        Updates this lookup set with the inputed options.
+
+        :param      options | <dict>
+        """
+        self.__dict__.update(options)
+
     def toDict(self):
         """
         Returns a dictionary representation of this database option set.
         
         :return     <dict>
         """
-        out = {}
-        out['namespace']        = self.namespace
-        out['flags']            = self.flags
-        out['dryRun']           = self.dryRun
-        out['useCache']         = self.useCache
-        out['inflateRecords']   = self.inflateRecords
-        out['throwErrors']      = self.throwErrors
-        out['deleteFlags']      = self.deleteFlags
-        out['locale']           = self.locale
-        return out
+        return {
+            'namespace': self.namespace,
+            'flags': self.flags,
+            'dryRun': self.dryRun,
+            'useCache': self.useCache,
+            'inflateRecords': self.inflateRecords,
+            'deleteFlags': self.deleteFlags,
+            'locale': self.locale
+        }
     
     @staticmethod
     def fromDict(data):
@@ -151,7 +161,6 @@ class LookupOptions(object):
                 limit         | <int> || None (default: None)
                 distinct      | <bool> (default: False)
                 locale        | <str> || None | (default: None)
-                ignoreJoined  | <bool> (default: False)
     """
     def __init__(self, **kwds):
         self.columns  = kwds.get('columns', None)
@@ -161,7 +170,7 @@ class LookupOptions(object):
         self.limit    = kwds.get('limit', None)
         self.distinct = kwds.get('distinct', False)
         self.expand   = kwds.get('expand', None)
-        
+
         # ensure that the list is not modified
         if self.columns is not None:
             self.columns = list(self.columns)
@@ -169,10 +178,7 @@ class LookupOptions(object):
         # make sure we have a valid query
         if self.where is not None and self.where.isNull():
             self.where = None
-        
-        self.ignoreJoined      = kwds.get('ignoreJoined', False)
-        self.ignoreAggregates  = kwds.get('ignoreAggregates', False)
-    
+
     def __str__(self):
         """
         Returns a string for this instance.
@@ -185,8 +191,6 @@ class LookupOptions(object):
                     'order',
                     'start',
                     'limit',
-                    'ignoreJoined',
-                    'ignoreAggregates',
                     'expand'):
             val = getattr(self, key)
             if val is None:
@@ -209,7 +213,23 @@ class LookupOptions(object):
         :return     <hash>
         """
         return hash(nstr(self))
-    
+
+    def copy(self):
+        """
+        Reutrns a copy of this database option set.
+
+        :return     <orb.DatabaseOptions>
+        """
+        return LookupOptions(
+            columns=self.columns[:] if self.columns else None,
+            where=self.where.copy() if self.where is not None else None,
+            order=self.order[:] if self.order else None,
+            start=self.start,
+            limit=self.limit,
+            distinct=self.distinct,
+            expand=self.expand[:] if self.expand else None
+        )
+
     def isNull(self):
         """
         Returns whether or not this lookup option is NULL.
@@ -222,14 +242,20 @@ class LookupOptions(object):
                     'start',
                     'limit',
                     'distinct',
-                    'ignoreAggregates',
-                    'ignoreJoined',
                     'expand'):
             if getattr(self, key):
                 return False
         
         return True
-    
+
+    def update(self, options):
+        """
+        Updates this lookup set with the inputed options.
+
+        :param      options | <dict>
+        """
+        self.__dict__.update(options)
+
     def toDict(self):
         """
         Returns a dictionary representation of the lookup options.
@@ -247,10 +273,6 @@ class LookupOptions(object):
             out['start'] = self.start
         if self.limit:
             out['limit'] = self.limit
-        if self.ignoreJoined:
-            out['ignoreJoined'] = self.ignoreJoined
-        if self.ignoreAggregates:
-            out['ignoreAggregates'] = self.ignoreAggregates
         if self.expand:
             out['expand'] = self.expand[:]
         return out
