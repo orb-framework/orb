@@ -445,11 +445,15 @@ class RecordSet(object):
         
         :return     [<variant>, ..] || {<str> column: [<variant>, ..]}
         """
+        table = self.table()
+        schema = table.schema()
+
         # ensure we have a list of values
         if not type(columns) in (list, tuple):
-            columns = [nstr(columns)]
+            columns = [schema.column(columns)]
+        else:
+            columns = [schema.column(col) for col in columns]
 
-        table = self.table()
         db = self.database()
 
         # ensure we have a database and table class
@@ -466,24 +470,28 @@ class RecordSet(object):
         lookup = self.lookupOptions(**options)
         options = self.databaseOptions(**options)
 
+        inflated = options.inflated
         lookup.columns = list(columns)
+        options.inflated = False
 
         if cache is not None and orb.system.isCachingEnabled():
             output = cache.distinct(backend, table, lookup, options)
         else:
             output = backend.distinct(table, lookup, options)
 
+        output = {schema.column(k): v for k, v in output.items()}
+        options.inflated = inflated
+
         if options.inflated:
-            for key in output.keys():
-                column = schema.column(key)
-                if column and column.isReference():
+            for column in output.keys():
+                if column.isReference():
                     ref_model = column.referenceModel()
                     if not ref_model:
                         msg = '%s is not a valid model.'
                         log.error(msg, column.reference())
                         continue
 
-                    ids = output[key]
+                    ids = output[column]
                     records = []
                     if None in ids:
                         ids.remove(None)
@@ -493,7 +501,7 @@ class RecordSet(object):
                         q = orb.Query(ref_model).in_(ids)
                         records += list(ref_model.select(where=q))
 
-                    output[key] = records
+                    output[column] = records
 
         if len(columns) == 1:
             return output.get(columns[0], [])

@@ -623,7 +623,7 @@ class SQLConnection(orb.Connection):
 
     def select(self, table_or_join, lookup, options):
         if orb.Table.typecheck(table_or_join):
-            # ensure the primary record information is provided for inflations
+            # ensure the primary record information is provided for inflatorb.logger.setLevel(orb.logging.DEBUG)ions
             if lookup.columns and options.inflated:
                 lookup.columns += [col.name() for col in
                                    table_or_join.schema().primaryColumns()]

@@ -622,6 +622,7 @@ class WHERE(SQL):
             scope['column'] = column
             scope['field'] = field
             scope['value'] = value
+            scope['operator'] = query.operatorType()
             scope['op'] = op
 
             return super(WHERE, self).render(**scope)

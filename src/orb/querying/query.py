@@ -1878,7 +1878,7 @@ class Query(object):
                 return False
             elif val == 'None':
                 return None
-            elif re.match('\d*\.?\d+', val):
+            elif re.match('^-?\d*\.?\d+$', val):
                 return eval(val)
             else:
                 return val
@@ -1897,9 +1897,12 @@ class Query(object):
                         match = re.match('^(?P<negated>-|!)?(?P<op>~|>|<)?(?P<value>.*)$', value)
                         op = match.group('op')
                         value = match.group('value')
-                        startswith = value[-1] == '*'
-                        endswith = value[0] == '*'
-                        value = value.strip('*')
+                        if value:
+                            startswith = value[-1] == '*'
+                            endswith = value[0] == '*'
+                            value = value.strip('*')
+                        else:
+                            value = ''
 
                         if op == '>':
                             sub_q.setOperatorType(Query.Op.GreaterThan)
@@ -1923,7 +1926,6 @@ class Query(object):
                             sub_q = sub_q.negated()
 
                         or_q |= sub_q
-
                     output &= sub_q
 
             # otherwise, set a simple value

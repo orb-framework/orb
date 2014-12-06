@@ -15,9 +15,9 @@
     % endif
 
 % elif value is None:
-    % if op == orb.Query.Op.Is:
+    % if operator == orb.Query.Op.Is:
     ${field} IS NULL
-    % elif op == orb.Query.Op.IsNot:
+    % elif operator == orb.Query.Op.IsNot:
     ${field} IS NOT NULL
     % endif
 
@@ -48,7 +48,7 @@
 
 % else:
     <%
-    if op in (orb.Query.Op.IsIn, orb.Query.Op.IsNotIn) and not value:
+    if operator in (orb.Query.Op.IsIn, orb.Query.Op.IsNotIn) and not value:
         raise orb.errors.QueryIsNull()
 
     ID = orb.system.settings().primaryField()
