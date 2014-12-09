@@ -1,3 +1,3 @@
 DELETE FROM "${table}"
-WHERE ${WHERE(schema, query, IO=IO)}
+WHERE ${where}
 RETURNING *;

@@ -188,9 +188,13 @@ class DELETE(SQL):
 
         :return     <str>
         """
+        io = scope.get('IO', {})
+        WHERE = self.baseSQL().byName('WHERE')
+
         scope['table'] = table.schema().tableName()
         scope['schema'] = table.schema()
         scope['query'] = query
+        scope['where'] = WHERE(table.schema(), query, IO=io)
 
         return super(DELETE, self).render(**scope)
 

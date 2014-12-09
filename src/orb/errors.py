@@ -166,7 +166,7 @@ class QueryInvalid(OrbError):
 
 class QueryIsNull(OrbError):
     def __init__(self):
-        super(EmptyQuery, self).__init__('This query will result in no items.')
+        super(QueryIsNull, self).__init__('This query will result in no items.')
 
 class QueryTimeout(DatabaseError):
     def __init__(self, query, msecs):
