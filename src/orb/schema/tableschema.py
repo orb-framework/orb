@@ -1183,17 +1183,23 @@ class TableSchema(object):
 
         # save the properties
         xschema.set('name', self.name())
-        xschema.set('displayName', self.displayName())
-        xschema.set('group', self.groupName())
-        xschema.set('inherits', self.inherits())
-        xschema.set('dbname', self.tableName())
-        xschema.set('autoPrimary', nstr(self.autoPrimary()))
-        xschema.set('stringFormat', self.stringFormat())
-        xschema.set('cacheEnabled', nstr(self.isCacheEnabled()))
-        xschema.set('cacheExpire', nstr(self._cacheExpireIn))
-        xschema.set('preloadCache', nstr(self.preloadCache()))
-        xschema.set('useAdvanced', nstr(self.useAdvancedFormatting()))
-        xschema.set('archived', nstr(self.isArchived()))
+        if self.displayName() != projex.text.pretty(self.name()):
+            xschema.set('displayName', self.displayName())
+        if self.inherits():
+            xschema.set('inherits', self.inherits())
+        if self.tableName() != projex.text.underscore(projex.text.pluralize(self.name())):
+            xschema.set('dbname', self.tableName())
+        if not self.autoPrimary():
+            xschema.set('autoPrimary', nstr(self.autoPrimary()))
+        if self.isCacheEnabled():
+            xschema.set('cacheEnabled', nstr(self.isCacheEnabled()))
+            xschema.set('cacheExpire', nstr(self._cacheExpireIn))
+            xschema.set('preloadCache', nstr(self.preloadCache()))
+
+        if self.stringFormat():
+            xschema.set('stringFormat', self.stringFormat())
+        if self.isArchived():
+            xschema.set('archived', nstr(self.isArchived()))
 
         # save the properties
         if self._properties:
@@ -1266,7 +1272,6 @@ class TableSchema(object):
         tschema.setTableName(xschema.get('dbname', ''))
         tschema.setAutoPrimary(xschema.get('autoPrimary') != 'False')
         tschema.setStringFormat(xschema.get('stringFormat', ''))
-        tschema.setUseAdvancedFormatting(xschema.get('useAdvanced') == 'True')
         tschema.setCacheEnabled(xschema.get('cacheEnabled') == 'True')
         tschema.setCacheExpireIn(int(xschema.get('cacheExpire', 0)))
         tschema.setPreloadCache(xschema.get('preloadCache') == 'True')

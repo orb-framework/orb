@@ -1517,45 +1517,57 @@ class Column(object):
             xcolumn = ElementTree.Element('column')
 
         # save the properties
-        xcolumn.set('type', ColumnType[self.columnType()])
         xcolumn.set('name', self.name())
-        xcolumn.set('display', self.displayName(False))
-        xcolumn.set('getter', self.getterName())
-        xcolumn.set('setter', self.setterName())
-        xcolumn.set('field', self._fieldName)
-        xcolumn.set('shortcut', self._shortcut)
 
-        # store indexing options
-        xcolumn.set('index', self.indexName())
-        xcolumn.set('indexed', nstr(self.indexed()))
-        xcolumn.set('indexCached', nstr(self.indexCached()))
-        xcolumn.set('indexCachedExpires', nstr(self.indexCachedExpires()))
+        # store as elements
+        ElementTree.SubElement(xcolumn, 'type').text = ColumnType[self.columnType()]
+        ElementTree.SubElement(xcolumn, 'display').text = self.displayName(False)
+        ElementTree.SubElement(xcolumn, 'getter').text = self.getterName()
+        ElementTree.SubElement(xcolumn, 'setter').text = self.setterName()
+        ElementTree.SubElement(xcolumn, 'field').text = self._fieldName
 
-        if self.default() is not None:
-            xcolumn.set('default', nstr(self.default()))
+        if self._shortcut:
+            ElementTree.SubElement(xcolumn, 'shortcut').text = self._shortcut
+
+        # store string format options
+        if self._stringFormat:
+            ElementTree.SubElement(xcolumn, 'format').text = self._stringFormat
+
+        if self.default():
+            ElementTree.SubElement(xcolumn, 'default').text = nstr(self.default())
 
         # store additional options
-        xcolumn.set('maxlen', nstr(self.maxlength()))
+        if self.maxlength():
+            ElementTree.SubElement(xcolumn, 'maxlen').text = nstr(self.maxLength())
+
+        # store indexing options
+        if self.indexed():
+            xindex = ElementTree.SubElement(xcolumn, 'index')
+            xindex.text = self.indexName()
+            if self.indexCached():
+                xindex.set('cached', nstr(self.indexCached()))
+                xindex.set('expires', nstr(self.indexCachedExpires()))
 
         # store flags
+        xflags = ElementTree.SubElement(xcolumn, 'flags')
         for flag in Column.Flags.keys():
-            key = flag[0].lower() + flag[1:]
-            xcolumn.set(key, nstr(self.testFlag(Column.Flags[flag])))
+            has_flag = self.testFlag(Column.Flags[flag])
+            if has_flag:
+                ElementTree.SubElement(xflags, flag)
 
         # store referencing options
         if self.reference():
             xrelation = ElementTree.SubElement(xcolumn, 'relation')
-            xrelation.set('table', self.reference())
-            xrelation.set('reversed', nstr(self.isReversed()))
-            xrelation.set('reversedName', self.reversedName())
-            xrelation.set('removedAction', nstr(self.referenceRemovedAction()))
-            xrelation.set('cached', nstr(self.reversedCached()))
-            xrelation.set('expires', nstr(self.reversedCacheExpires()))
+            ElementTree.SubElement(xrelation, 'table').text = self.reference()
+            ElementTree.SubElement(xrelation, 'removedAction').text = nstr(self.referenceRemovedAction())
 
-        # store string format options
-        if self._stringFormat:
-            xformat = ElementTree.SubElement(xcolumn, 'format')
-            xformat.text = self._stringFormat
+            if self.isReversed():
+                xreversed = ElementTree.SubElement(xrelation, 'reversed')
+                xreversed.text = self.reversedName()
+
+                if self.reversedCached():
+                    xreversed.set('cached', nstr(self.reversedCached()))
+                    xreversed.set('expires', nstr(self.reversedCacheExpires()))
 
         return xcolumn
 
@@ -1680,19 +1692,19 @@ class Column(object):
         coltype = ColumnType.base(self.columnType())
 
         if coltype == ColumnType.Date:
-            if extra == None:
+            if extra is None:
                 extra = '%Y-%m-%d'
 
             return value.strftime(extra)
 
         elif coltype == ColumnType.Time:
-            if extra == None:
+            if extra is None:
                 extra = '%h:%m:%s'
 
             return value.strftime(extra)
 
         elif coltype == ColumnType.Datetime:
-            if extra == None:
+            if extra is None:
                 extra = '%Y-%m-%d %h:%m:s'
 
             return value.strftime(extra)
@@ -1723,7 +1735,7 @@ class Column(object):
         else:
             templ = Column.TEMPLATE_MAP.get(typ)
 
-        if templ == None:
+        if templ is None:
             return ''
 
         return projex.text.render(templ, {'name': name, 'table': reference})
@@ -1756,7 +1768,16 @@ class Column(object):
         
         :return     <Column> || None
         """
-        typ = ColumnType.get(xcolumn.get('type'))
+        try:
+            typ = xcolumn.find('type').text
+        except AttributeError:
+            typ = xcolumn.get('type')
+
+        try:
+            typ = ColumnType[typ]
+        except KeyError:
+            raise orb.errors.InvalidColumnType(typ)
+
         name = xcolumn.get('name')
         if typ is None or not name:
             return None
@@ -1764,51 +1785,109 @@ class Column(object):
         # create the column
         column = Column(typ, name, referenced=referenced)
 
-        column.setGetterName(xcolumn.get('getter'))
-        column.setSetterName(xcolumn.get('setter'))
-        column.setFieldName(xcolumn.get('field'))
-        column.setDisplayName(xcolumn.get('display'))
-        column.setShortcut(xcolumn.get('shortcut', ''))
+        try:  # as of orb 4.3
+            column.setGetterName(xcolumn.find('getter').text)
+        except AttributeError:
+            column.setGetterName(xcolumn.get('getter'))
 
-        # restore indexing options
-        column.setIndexName(xcolumn.get('index'))
-        column.setIndexed(xcolumn.get('indexed') == 'True')
-        column.setIndexCached(xcolumn.get('indexCached') == 'True')
-        column.setIndexCachedExpires(int(xcolumn.get('indexCachedExpires',
-                                                     column.indexCachedExpires())))
+        try:
+            column.setSetterName(xcolumn.find('setter').text)
+        except AttributeError:
+            column.setSetterName(xcolumn.get('setter'))
 
-        column.setDefault(xcolumn.get('default', None))
+        try:
+            column.setFieldName(xcolumn.find('field').text)
+        except AttributeError:
+            column.setFieldName(xcolumn.get('field'))
 
-        maxlen = xcolumn.get('maxlen')
-        if maxlen is not None:
-            column.setMaxlength(int(maxlen))
+        try:
+            column.setDisplayName(xcolumn.find('display').text)
+        except AttributeError:
+            column.setDisplayName(xcolumn.get('display'))
 
-        # restore flags
+        try:
+            column.setShortcut(xcolumn.find('shortcut').text)
+        except AttributeError:
+            column.setShortcut(xcolumn.get('shortcut', ''))
+
+        try:
+            column.setDefault(xcolumn.find('default').text)
+        except AttributeError:
+            column.setDefault(xcolumn.get('default', None))
+
+        try:
+            column.setDefault(int(xcolumn.find('maxlen').text))
+        except AttributeError:
+            maxlen = xcolumn.get('maxlen')
+            if maxlen is not None:
+                column.setMaxlength(int(maxlen))
+
+        # restore formatting options
+        try:
+            column._stringFormat = xcolumn.find('format').text
+        except AttributeError:
+            pass
+
+        # restore the flag information
         flags = 0
-        for flag in Column.Flags.keys():
-            state = xcolumn.get(flag[0].lower() + flag[1:]) == 'True'
-            if state:
-                flags |= Column.Flags[flag]
+        xflags = xcolumn.find('flags')
+        if xflags is not None:
+            for xchild in xflags:
+                try:
+                    flags |= Column.Flags[xchild.tag]
+                except KeyError:
+                    log.error('{0} is not a valid column flag.'.format(xchild.tag))
+        else:
+            for flag in Column.Flags.keys():
+                state = xcolumn.get(flag[0].lower() + flag[1:]) == 'True'
+                if state:
+                    try:
+                        flags |= Column.Flags[flag]
+                    except KeyError:
+                        log.error('{0} is not a valid column flag.'.format(flag))
 
         column.setFlags(flags)
+
+        # restore the index information
+        xindex = xcolumn.find('index')
+        if xindex is not None: # as of 4.3
+            column.setIndexName(xindex.text)
+            column.setIndexed(True)
+            column.setIndexCached(xindex.get('cached') == 'True')
+            column.setIndexCachedExpires(int(xcolumn.get('expires', column.indexCachedExpires())))
+        else:
+            # restore indexing options
+            column.setIndexName(xcolumn.get('index'))
+            column.setIndexed(xcolumn.get('indexed') == 'True')
+            column.setIndexCached(xcolumn.get('indexCached') == 'True')
+            column.setIndexCachedExpires(int(xcolumn.get('indexCachedExpires',
+                                                         column.indexCachedExpires())))
 
         # create relation information
         xrelation = xcolumn.find('relation')
         if xrelation is not None:
-            column.setReference(xrelation.get('table', ''))
-            column.setReversed(xrelation.get('reversed') == 'True')
-            column.setReversedName(xrelation.get('reversedName'))
-            column.setReversedCached(xrelation.get('cached') == 'True')
+            try:
+                column.setReference(xrelation.find('table').text)
+            except AttributeError:
+                column.setReference(xrelation.get('table', ''))
 
-            exp = column.reversedCacheExpires()
-            column.setReversedCacheExpires(int(xrelation.get('expires', exp)))
+            try:
+                action = int(xrelation.find('removedAction').text)
+            except StandardError:
+                action = int(xrelation.get('removedAction', 1))
 
-            action = int(xrelation.get('removedAction', 1))
             column.setReferenceRemovedAction(action)
 
-        # restore formatting options
-        xformat = xcolumn.find('format')
-        if xformat is not None:
-            column._stringFormat = xformat.text
+            xreversed = xrelation.find('reversed')
+            if xreversed is not None:
+                column.setReversed(True)
+                column.setReversedName(xreversed.text)
+                column.setReversedCached(xreversed.get('cached') == 'True')
+                column.setReversedCacheExpires(int(xreversed.get('expires', column.reversedCacheExpires())))
+            else:
+                column.setReversed(xrelation.get('reversed') == 'True')
+                column.setReversedName(xrelation.get('reversedName'))
+                column.setReversedCached(xrelation.get('cached') == 'True')
+                column.setReversedCacheExpires(int(xrelation.get('expires', column.reversedCacheExpires())))
 
         return column

@@ -286,12 +286,18 @@ class Pipe(object):
         """
         xpipe = ElementTree.SubElement(xparent, 'pipe')
         xpipe.set('name', self.name())
-        xpipe.set('pipeReference', self._pipeReference)
-        xpipe.set('sourceColumn', self._sourceColumn)
-        xpipe.set('targetReference', self._targetReference)
-        xpipe.set('targetColumn', self._targetColumn)
-        xpipe.set('cached', nstr(self.cached()))
-        xpipe.set('expires', nstr(self._cachedExpires))
+
+        if self.cached():
+            xpipe.set('cached', nstr(self.cached()))
+            xpipe.set('expires', nstr(self._cachedExpires))
+
+        ElementTree.SubElement(xpipe, 'through').text = self._pipeReference
+        ElementTree.SubElement(xpipe, 'source').text = self._sourceColumn
+        ElementTree.SubElement(xpipe, 'target').text = self._targetColumn
+
+        if self._targetReference:
+            ElementTree.SubElement(xpipe, 'table').text = self._targetReference
+
         return xpipe
 
     @staticmethod
@@ -304,11 +310,28 @@ class Pipe(object):
         :return     <Index> || None
         """
         pipe = Pipe(xpipe.get('name', ''), referenced=referenced)
-        pipe.setPipeReference(xpipe.get('pipeReference', ''))
-        pipe.setSourceColumn(xpipe.get('sourceColumn', ''))
-        pipe.setTargetReference(xpipe.get('targetReference', ''))
-        pipe.setTargetColumn(xpipe.get('targetColumn', ''))
         pipe.setCached(xpipe.get('cached') == 'True')
         pipe.setCachedExpires(int(xpipe.get('expires', pipe._cachedExpires)))
+
+        try:
+            pipe.setPipeReference(xpipe.find('through').text)
+        except AttributeError:
+            pipe.setPipeReference(xpipe.get('pipeReference', ''))
+
+        try:
+            pipe.setSourceColumn(xpipe.find('source').text)
+        except AttributeError:
+            pipe.setSourceColumn(xpipe.get('sourceColumn', ''))
+
+        try:
+            pipe.setTargetReference(xpipe.find('table').text)
+        except AttributeError:
+            pipe.setTargetReference(xpipe.get('targetReference', ''))
+
+        try:
+            pipe.setTargetColumn(xpipe.find('target').text)
+        except AttributeError:
+            pipe.setTargetColumn(xpipe.get('targetColumn', ''))
+
         return pipe
 

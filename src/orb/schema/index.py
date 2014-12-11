@@ -276,10 +276,16 @@ class Index(object):
         """
         xindex = ElementTree.SubElement(xparent, 'index')
         xindex.set('name', self.name())
-        xindex.set('columns', ','.join(self.columnNames()))
-        xindex.set('unique', nstr(self.unique()))
-        xindex.set('cached', nstr(self.cached()))
-        xindex.set('cachedExpires', nstr(self._cachedExpires))
+
+        if self.unique():
+            xindex.set('unique', 'True')
+
+        if self.cached():
+            xindex.set('cached', nstr(self.cached()))
+            xindex.set('cachedExpires', nstr(self._cachedExpires))
+
+        for name in self.columnNames():
+            ElementTree.SubElement(xindex, 'column').text = name
         
         return xindex
 
@@ -323,11 +329,18 @@ class Index(object):
         """
         index = Index(referenced=referenced)
         index.setName(xindex.get('name', ''))
-        index.setColumnNames(xindex.get('columns', '').split(','))
         index.setUnique(xindex.get('unique') == 'True')
         index.setCached(xindex.get('cached') == 'True')
         index.setCachedExpires(int(xindex.get('cachedExpires',
                                index._cachedExpires)))
-        
+
+        xcolumns = xindex.findall('column')
+        if xcolumns:
+            columns = [xcolumn.text for xcolumn in xcolumns]
+        else:
+            columns = xindex.get('columns', '').split(',')
+
+        index.setColumnNames(columns)
+
         return index
 

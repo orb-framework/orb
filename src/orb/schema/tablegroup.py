@@ -319,10 +319,14 @@ class TableGroup(object):
         if self.isReferenced():
             xgroup.set('referenced', 'True')
         else:
-            xgroup.set('dbname', self.databaseName())
-            xgroup.set('prefix', self.modelPrefix())
-            xgroup.set('namespace', self._namespace)
-            xgroup.set('usePrefix', str(self.useModelPrefix()))
+            if self.databaseName():
+                xgroup.set('db', self.databaseName())
+            if self.modelPrefix():
+                xgroup.set('prefix', self.modelPrefix())
+            if self._namespace:
+                xgroup.set('namespace', self._namespace)
+            if self.useModelPrefix():
+                xgroup.set('usePrefix', str(self.useModelPrefix()))
             
             # save the properties
             xprops = ElementTree.SubElement(xgroup, 'properties')
@@ -361,7 +365,7 @@ class TableGroup(object):
         """        
         # load schemas
         grpname = xgroup.get('name')
-        dbname  = xgroup.get('dbname')
+        dbname  = xgroup.get('db', xgroup.get('dbname'))
         modname = xgroup.get('module')
         
         # force database to import

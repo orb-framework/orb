@@ -141,6 +141,11 @@ class Interruption(StandardError):
     def __init__(self):
         StandardError.__init__(self, 'Database operation was interrupted.')
 
+class InvalidColumnType(OrbError):
+    def __init__(self, typ):
+        msg = '{0} is not a valid column type.'
+        super(InvalidColumnType, self).__init__(msg.format(typ))
+
 class InvalidResponse(OrbError):
     def __init__(self, method, err):
         msg = 'Invalid response from rest method "{0}": {1}'
