@@ -864,10 +864,7 @@ class SQLConnection(orb.Connection):
         if options.dryRun:
             print sql % data
         else:
-            log.info('Updating {0}...'.format(schema.name()))
-            
             self.execute(sql, data)
-            
             opts = (schema.name(), ','.join(missing))
             log.info('Updated {0} table: added {1}'.format(*opts))
         

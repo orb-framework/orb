@@ -19,8 +19,6 @@ class ADD_COLUMN(SQL):
             flag_sql = self.baseSQL().byName('Flag::{0}'.format(Flags(flag)))
             if flag_sql:
                 flags.append(flag_sql)
-            else:
-                log.error('Unknown flag: {0}'.format(flag))
         return flags
 
     def render(self, column, **scope):
