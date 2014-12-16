@@ -107,11 +107,7 @@ class RecordSet(object):
         elif self.isNull():
             return 0
 
-        # collect the length from the database
-        elif self._length is None:
-            self._length = self.count()
-
-        return self._length
+        return self.count()
 
     def __iter__(self):
         """
@@ -274,7 +270,7 @@ class RecordSet(object):
         if not options:
             return None
         else:
-            return hash(orb.LookupOptions(**options))
+            return hash(self.lookupOptions(**options))
 
     def clear(self):
         """
@@ -303,7 +299,7 @@ class RecordSet(object):
 
         # run each records pre-commit logic before it is inserted to the db
         for record in records:
-            record.preCommit(**options)
+            record.callbacks().emit('aboutToCommit(Record,LookupOptions,DatabaseOptions)', record, lookup, db_options)
 
         inserts = filter(lambda x: not x.isRecord(db=db), records)
         updates = filter(lambda x: x.isRecord(db=db), records)
@@ -319,7 +315,7 @@ class RecordSet(object):
 
         # run each records pre-commit logic before it is inserted to the db
         for record in records:
-            record.postCommit(**options)
+            self.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', record, lookup, options)
 
         return True
 
@@ -338,9 +334,9 @@ class RecordSet(object):
         if self.isNull():
             return 0
 
-        key = self.cacheKey(options)
         lookup = self.lookupOptions(**options)
-        options = self.databaseOptions(**options)
+        db_opts = self.databaseOptions(**options)
+        key = (hash(lookup), hash(db_opts))
 
         if key in self._counts:
             return self._counts[key]
@@ -348,9 +344,9 @@ class RecordSet(object):
         # retrieve the count information
         cache = table.recordCache()
         if cache is not None and orb.system.isCachingEnabled():
-            count = cache.count(db.backend(), table, lookup, options)
+            count = cache.count(db.backend(), table, lookup, db_opts)
         else:
-            count = db.backend().count(table, lookup, options)
+            count = db.backend().count(table, lookup, db_opts)
 
         self._counts[key] = count
         return count
@@ -398,9 +394,8 @@ class RecordSet(object):
         
         :return     <orb.DatabaseOptions>
         """
-        new_options = self._databaseOptions.copy()
-        new_options.update(options)
-        return new_options
+        options['options'] = self._databaseOptions
+        return orb.DatabaseOptions(**options)
 
     def duplicate(self, other):
         """
@@ -886,9 +881,8 @@ class RecordSet(object):
         
         :return     <orb.LookupOptions>
         """
-        new_options = self._lookupOptions.copy()
-        new_options.update(options)
-        return new_options
+        options['lookup'] = self._lookupOptions
+        return orb.LookupOptions(**options)
 
     def namespace(self):
         """

@@ -566,8 +566,8 @@ class Table(object):
         """
 
         # sync the record to the database
-        lookup = kwds.get('lookup', orb.LookupOptions(**kwds))
-        options = kwds.get('options', orb.DatabaseOptions(**kwds))
+        lookup = orb.LookupOptions(**kwds)
+        options = orb.DatabaseOptions(**kwds)
 
         # run any pre-commit logic required for this record
         self.callbacks().emit('aboutToCommit(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
@@ -1926,10 +1926,7 @@ class Table(object):
         
         :return     <cls> || None
         """
-        if 'lookup' in kwds:
-            kwds['lookup'].limit = 1
-        else:
-            kwds['limit'] = 1
+        kwds['limit'] = 1
 
         try:
             return (cls.select(*args, **kwds))[0]
@@ -1973,8 +1970,8 @@ class Table(object):
             else:
                 kwds[arg_headers[i]] = args[i]
 
-        lookup = kwds.get('lookup', orb.LookupOptions(**kwds))
-        options = kwds.get('options', orb.DatabaseOptions(**kwds))
+        lookup = orb.LookupOptions(**kwds)
+        options = orb.DatabaseOptions(**kwds)
 
         # setup the default query options
         default_q = cls.baseTableQuery()

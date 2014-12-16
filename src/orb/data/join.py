@@ -104,8 +104,8 @@ class Join(object):
         :return     (<variant>, ..)
         """
         db      = kwds.get('db')
-        lookup  = kwds.get('lookup', orb.LookupOptions(**kwds))
-        options = kwds.get('options', orb.DatabaseOptions(**kwds))
+        lookup  = orb.LookupOptions(**kwds)
+        options = orb.DatabaseOptions(**kwds)
         
         if not db:
             db = self.database()
@@ -131,8 +131,8 @@ class Join(object):
         :return     [ ( <variant>, .. ), .. ]
         """
         db      = kwds.get('db')
-        lookup  = kwds.get('lookup', orb.LookupOptions(**kwds))
-        options = kwds.get('options', orb.DatabaseOptions(**kwds))
+        lookup  = orb.LookupOptions(**kwds)
+        options = orb.DatabaseOptions(**kwds)
         
         if not db:
             db = self.database()

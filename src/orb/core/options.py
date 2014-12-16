@@ -53,6 +53,20 @@ class DatabaseOptions(object):
                          'deleteFlags': orb.DeleteFlags.all(),
                          'format': None}
 
+        # update from the other database option instance
+        if isinstance(kwds.get('options'), DatabaseOptions):
+            other = kwds['options']
+            kwds.setdefault('locale', other.locale)
+            kwds.setdefault('namespace', other.namespace)
+            kwds.setdefault('flags', other.flags)
+            kwds.setdefault('dryRun', other.dryRun)
+            kwds.setdefault('useCache', other.useCache)
+            kwds.setdefault('inflated', other.inflated)
+            kwds.setdefault('autoIncrement', other.autoIncrement)
+            kwds.setdefault('force', other.force)
+            kwds.setdefault('deleteFlags', other.deleteFlags)
+            kwds.setdefault('format', other.format)
+
         self.locale             = kwds.get('locale') or orb.system.locale()
         self.namespace          = kwds.get('namespace')
         self.flags              = kwds.get('flags', 0)
@@ -165,23 +179,42 @@ class LookupOptions(object):
                 locale        | <str> || None | (default: None)
     """
     def __init__(self, **kwds):
-        self.columns  = kwds.get('columns', None)
-        self.where    = kwds.get('where', None)
-        self.order    = kwds.get('order', None)
+        columns = kwds.get('columns') or []
+        where = kwds.get('where') or None
+        order = kwds.get('order') or []
+        expand = kwds.get('expand') or []
+
+        if isinstance(kwds.get('lookup'), LookupOptions):
+            other = kwds['lookup']
+            columns += [col for col in other.columns or [] if col not in columns]
+
+            # update where
+            if where is not None:
+                where &= other.where
+            elif other.where is not None:
+                where = other.where
+            else:
+                where = None
+
+            # update order
+            order += [item for item in other.order or [] if order not in order]
+            expand += [expanded for expanded in other.expand or [] if expanded not in expand]
+
+            kwds.setdefault('start', other.start)
+            kwds.setdefault('limit', other.limit)
+            kwds.setdefault('distinct', other.distinct)
+            kwds.setdefault('pageSize', other.pageSize)
+            kwds.setdefault('page', other.page)
+
+        self.columns  = columns or None
+        self.where    = where
+        self.order    = order or None
+        self.expand   = expand or None
         self._start   = kwds.get('start', None)
         self._limit   = kwds.get('limit', None)
         self.distinct = kwds.get('distinct', False)
-        self.expand   = kwds.get('expand', None)
         self.pageSize = kwds.get('pageSize', None)
         self.page     = kwds.get('page', -1)
-
-        # ensure that the list is not modified
-        if self.columns is not None:
-            self.columns = list(self.columns)
-        
-        # make sure we have a valid query
-        if self.where is not None and self.where.isNull():
-            self.where = None
 
     def __str__(self):
         """
