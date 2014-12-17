@@ -321,12 +321,11 @@ class TableGroup(object):
         else:
             if self.databaseName():
                 xgroup.set('db', self.databaseName())
-            if self.modelPrefix():
-                xgroup.set('prefix', self.modelPrefix())
             if self._namespace:
                 xgroup.set('namespace', self._namespace)
             if self.useModelPrefix():
                 xgroup.set('usePrefix', str(self.useModelPrefix()))
+                xgroup.set('prefix', self.modelPrefix())
             
             # save the properties
             xprops = ElementTree.SubElement(xgroup, 'properties')

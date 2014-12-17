@@ -1902,6 +1902,8 @@ class Query(object):
                             endswith = value[0] == '*'
                             value = value.strip('*')
                         else:
+                            startswith = False
+                            endswith = False
                             value = ''
 
                         if op == '>':
