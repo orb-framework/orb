@@ -224,7 +224,7 @@ class JSONRPC(orb.Connection):
             changeset.append(changes)
             table = record.schema().name()
             
-            values = dict([(x, y[1]) for x, y in changes.items()])
+            values = dict([(x.name(), y[1].id() if orb.Table.recordcheck(y[1]) else y[1]) for x, y in changes.items()])
             values = self.processValue(values)
             
             submit_records.append(record)
@@ -367,7 +367,7 @@ class JSONRPC(orb.Connection):
             
             table = record.schema().name()
             
-            values = dict([(x, y[1]) for x, y in changes.items()])
+            values = dict([(x.name(), y[1].id() if orb.Table.recordcheck(y[1]) else y[1]) for x, y in changes.items()])
             values = self.processValue(values)
             
             submit_records.append(record)
