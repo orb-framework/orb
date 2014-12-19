@@ -247,7 +247,7 @@ class TableSchema(object):
         """
         return self._cacheExpireIn
 
-    def column(self, name, recurse=True, flags=0, kind=0, traversal=None):
+    def column(self, name, recurse=True, flags=0, kind=0):
         """
         Returns the column instance based on its name.  
         If error reporting is on, then the ColumnNotFound
@@ -256,19 +256,17 @@ class TableSchema(object):
         
         :param      name | <str>
                     recurse | <bool>
-                    traversal | <list> | will be populated with schemas
+                    flags | <int>
+                    kind | <int>
         
         :return     <orb.Column> || None
         """
         key = (name, recurse, flags, kind)
         key = hash(key)
-        traversal = traversal if traversal is not None else []
 
         # lookup the existing cached record
         try:
-            found, traversed = self._columnIndex[key]
-            traversal += traversed
-            return found
+            return self._columnIndex[key]
         except KeyError:
             pass
 
@@ -279,7 +277,6 @@ class TableSchema(object):
 
         # generate the primary columns
         found = None
-        traversed = []
         for column in self.columns(recurse=recurse, flags=flags, kind=kind):
             if column.isMatch(part):
                 found = column
@@ -289,18 +286,14 @@ class TableSchema(object):
         if found is not None and next_parts:
             refmodel = found.referenceModel()
             if refmodel:
-                # include the traversal information
-                traversed.append(found)
-
                 refschema = refmodel.schema()
                 next_part = '.'.join(next_parts)
-                found = refschema.column(next_part, recurse=recurse, flags=flags, kind=kind, traversal=traversal)
+                found = refschema.column(next_part, recurse=recurse, flags=flags, kind=kind)
             else:
                 found = None
 
         # cache this lookup for the future
-        self._columnIndex[key] = (found, traversed)
-        traversal += traversed
+        self._columnIndex[key] = found
         return found
 
     def columnNames(self, recurse=True, flags=0, kind=0):
@@ -712,6 +705,17 @@ class TableSchema(object):
                 return column
         return None
 
+    def pipe(self, name):
+        """
+        Returns the pipe that matches the inputed name.
+
+        :return     <orb.Pipe> || None
+        """
+        for pipe in self._pipes:
+            if pipe.name() == name:
+                return pipe
+        return None
+
     def pipes(self, recurse=True):
         """
         Returns a list of the pipes for this instance.
@@ -819,6 +823,16 @@ class TableSchema(object):
             self._validators.remove(validator)
         except ValueError:
             pass
+
+    def reverseLookup(self, name):
+        """
+        Returns the reverse lookup that matches the inputed name.
+
+        :return     <orb.Column> || None
+        """
+        return {column.reversedName(): column for schema in orb.system.schemas()
+                       for column in schema.columns()
+                       if column.reference() == self.name() and column.isReversed()}.get(name)
 
     def reverseLookups(self):
         """

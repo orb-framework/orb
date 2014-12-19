@@ -8,14 +8,10 @@ ref_table = ref_col.schema().tableName()
 targ_col = joiner.targetColumn()
 
 query = joiner.where(column)
-traversals = GLOBALS.get('traversal', [])
-GLOBALS['traversal'] = []
 if query is not None:
     where = WHERE(ref_col.schema(), query, GLOBALS=GLOBALS, IO=IO)
 else:
     where = None
-new_traversals = GLOBALS.get('traversal', [])
-GLOBALS['traversal'] = traversals
 
 pcols = []
 for pcol in column.schema().primaryColumns():
@@ -42,9 +38,6 @@ LEFT JOIN (
     SELECT DISTINCT ON ("${ref_col.fieldName()}")
       "${ref_col.fieldName()}", "${targ_col.fieldName()}" AS "${column.name()}"
     FROM "${ref_table}"
-    % if new_traversals:
-    ${'\n'.join(new_traversals)}
-    % endif
     % if where:
     WHERE ${where}
     % endif

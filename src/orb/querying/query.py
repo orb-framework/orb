@@ -836,7 +836,7 @@ class Query(object):
         """
         return self._caseSensitive
 
-    def column(self, schema=None, traversal=None, db=None):
+    def column(self, schema=None, db=None):
         """
         Returns the column instance for this query.
         
@@ -847,7 +847,6 @@ class Query(object):
         # databases) or when no column name has yet been defined
 
         table = self.table()
-
         if not self._columnName and table:
             cols = table.schema().primaryColumns(db=db)
             if not cols:
@@ -855,10 +854,10 @@ class Query(object):
             return cols[0]
 
         elif table:
-            return table.schema().column(self._columnName, traversal=traversal)
+            return table.schema().column(self._columnName)
 
         elif schema:
-            return schema.column(self._columnName, traversal=traversal)
+            return schema.column(self._columnName)
         return None
 
     def columns(self, schema=None):
@@ -868,7 +867,7 @@ class Query(object):
         :return     [<orb.Column>, ..]
         """
         output = []
-        column = self.column(schema=schema, traversal=output)
+        column = self.column(schema=schema)
         if column:
             output.append(column)
 
@@ -1016,45 +1015,55 @@ class Query(object):
         
         :return     <orb.Query> || <orb.QueryCompound>
         """
-        # look for shortcuts
-        if not '.' in self.columnName():
+        parts = self.columnName().split('.')
+
+        # no shortcut
+        if len(parts) == 1:
             return self
 
         # lookup the table for this query
-        table = self.table()
-        if not table:
-            table = basetable
-
+        table = self.table() or basetable
         if not table:
             raise errors.QueryInvalid('Could not traverse: {0}'.format(self.columnName()))
 
-        # setup the shortcut pathing
-        names = self.columnName().split('.')
-        compound = Query()
-        for i, name in enumerate(names):
-            column = table.schema().column(name)
-            if not column:
-                return Query()
+        schema = table.schema()
+        data = schema.column(parts[0]) or schema.reverseLookup(parts[0]) or schema.pipe(parts[0])
+        if not data:
+            raise errors.QueryInvalid('Could not traverse: {0}'.format(self.columnName()))
 
-            # for the last column, that is the value we are trying to access
-            if i == len(names) - 1:
-                final = self.copy()
-                final.setTable(table)
-                final.setColumnName(name)
+        elif isinstance(data, orb.Column):
+            # non-reverse lookup
+            if data.schema() == schema:
+                rmodel = data.referenceModel()
+                sub_q = self.copy()
+                sub_q._columnName = '.'.join(parts[1:])
+                sub_q._table = rmodel
+                rset = rmodel.select(where=sub_q)
+                return orb.Query(schema.model(), parts[0]).in_(rset)
 
-                compound &= final
-
-            # otherwise, we are going through a join to access it
+            # reverse lookup
             else:
-                ref_table = column.referenceModel()
-                if not ref_table:
-                    return Query()
+                rmodel = schema.model()
+                sub_q = self.copy()
+                sub_q._columnName = '.'.join(parts[1:])
+                sub_q._table = rmodel
+                rset = rmodel.select(columns=[data], where=sub_q)
+                return orb.Query(schema.model()).in_(rset)
 
-                compound &= Query(table, name) == Query(ref_table)
+        # pipe
+        else:
+            pipe_table = data.pipeReferenceModel()
+            source_column = data.sourceColumn()
+            target_column = data.targetColumn()
+            target_table = data.targetReferenceModel()
 
-            table = ref_table
-
-        return compound
+            sub_q = self.copy()
+            sub_q._columnName = '.'.join(parts[1:])
+            sub_q._table = target_table
+            target_rset = target_table.select(where=sub_q)
+            pipe_q = orb.Query(pipe_table, target_column).in_(target_rset)
+            rset = pipe_table.select(columns=[source_column], where=pipe_q)
+            return orb.Query(schema.model()).in_(rset)
 
     def findValue(self, column, instance=1):
         """
@@ -1548,15 +1557,15 @@ class Query(object):
 
         return newq
 
-    def table(self):
+    def table(self, default=None):
         """
         Return the table instance that this query is referencing.
         
         :return     <subclass of Table> || None
         """
         if isinstance(self._table, basestring):
-            return orb.system.model(self._table)
-        return self._table
+            return orb.system.model(self._table) or default
+        return self._table or default
 
     def tables(self):
         """

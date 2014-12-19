@@ -69,8 +69,9 @@ class Pipe(object):
             return pipe_cache.value(cache_key)
 
         # create the query for the pipe
-        q = orb.Query(targetTable) == orb.Query(pipeTable, self._targetColumn)
-        q &= orb.Query(pipeTable, self._sourceColumn) == record
+        sub_q = orb.Query(pipeTable, self._sourceColumn) == record
+        rset = pipeTable.select(columns=[self._targetColumn], where=sub_q)
+        q = orb.Query(targetTable).in_(rset)
 
         if 'where' in options:
             options['where'] = q & options['where']

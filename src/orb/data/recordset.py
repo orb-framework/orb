@@ -125,7 +125,10 @@ class RecordSet(object):
         
         :param      other | <RecordSet> || <list>
         """
-        return RecordSet(self).join(other)
+        return self.union(other)
+
+    def __sub__(self, other):
+        return self.difference(other)
 
     def __getitem__(self, value):
         """
@@ -396,6 +399,29 @@ class RecordSet(object):
         """
         options['options'] = self._databaseOptions
         return orb.DatabaseOptions(**options)
+
+    def difference(self, records):
+        """
+        Joins together a list of records or another record set to this instance.
+
+        :param      records | <RecordSet> || <list> || None
+
+        :return     <bool>
+        """
+        out = RecordSet(self)
+        if isinstance(records, RecordSet):
+            out._lookupOptions.where = records.lookupOptions().where.negated() & out._lookupOptions.where
+
+        elif orb.Query.typecheck(records):
+            out._lookupOptions.where = records.negated() & out._lookupOptions.where
+
+        elif type(records) in (list, tuple):
+            out._all[None] = self.records() + records
+
+        else:
+            raise TypeError(records)
+
+        return out
 
     def duplicate(self, other):
         """
@@ -820,7 +846,7 @@ class RecordSet(object):
             return db.isThreadEnabled()
         return False
 
-    def join(self, records):
+    def union(self, records):
         """
         Joins together a list of records or another record set to this instance.
         
@@ -828,16 +854,20 @@ class RecordSet(object):
         
         :return     <bool>
         """
+        out = RecordSet(self)
         if isinstance(records, RecordSet):
-            self._all[None] = self.records() + records.records()
-            return True
+            out._lookupOptions.where = records.lookupOptions().where | out._lookupOptions.where
+
+        elif orb.Query.typecheck(records):
+            out._lookupOptions.where = records | out._lookupOptions.where
 
         elif type(records) in (list, tuple):
-            self._all[None] = self.records() + records
-            return True
+            out._all[None] = self.records() + records
 
         else:
-            return False
+            raise TypeError(records)
+
+        return out
 
     def json(self, **options):
         """

@@ -8,14 +8,10 @@ ref_table = ref_col.schema().tableName()
 targ_col = aggr.targetColumn()
 
 query = aggr.where(column)
-traversals = GLOBALS.get('traversal', [])
-GLOBALS['traversal'] = []
 if query is not None:
     where = WHERE(ref_col.schema(), query, GLOBALS=GLOBALS, IO=IO)
 else:
     where = None
-new_traversals = GLOBALS.get('traversal', [])
-GLOBALS['traversal'] = traversals
 
 pcols = []
 for pcol in column.schema().primaryColumns():
@@ -53,9 +49,6 @@ GLOBALS['field_mapper'][column] = '"{0}"."{1}"'.format(join_table, column.name()
 LEFT JOIN (
     SELECT "${ref_col.fieldName()}", ${command} AS "${column.name()}"
     FROM "${ref_table}"
-    % if new_traversals:
-    ${'\n'.join(new_traversals)}
-    % endif
     % if where:
     WHERE ${where}
     % endif

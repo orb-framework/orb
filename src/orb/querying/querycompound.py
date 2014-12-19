@@ -199,8 +199,37 @@ class QueryCompound(object):
         """
         output = self.copy()
         queries = []
+        rset = None
+
         for query in output._queries:
-            queries.append(query.expandShortcuts(basetable))
+            query = query.expandShortcuts(basetable)
+
+            # chain together joins into sub-queries
+            if isinstance(query, orb.Query) and \
+               isinstance(query.value(), orb.Query) and \
+               query.value().table(basetable) != query.table(basetable):
+                columns = [query.value().columnName()] if query.value().columnName() else ['id']
+                new_rset = query.value().table(basetable).select(columns=columns)
+                query = query.copy()
+                query.setOperatorType(query.Op.IsIn)
+                query.setValue(new_rset)
+
+                if rset is not None and rset.table() == query.table(basetable):
+                    rset.setQuery(query & rset.query())
+                else:
+                    queries.append(query)
+
+                rset = new_rset
+
+            # update the existing recordset in the chain
+            elif rset is not None and rset.table() == query.table(basetable):
+                rset.setQuery(query & rset.query())
+
+            # clear out the chain and move on to the next query set
+            else:
+                rset = None
+                queries.append(query)
+
         output._queries = queries
         return output
 

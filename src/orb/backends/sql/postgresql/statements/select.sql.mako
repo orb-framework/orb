@@ -5,9 +5,7 @@
     WHERE = SQL.byName('WHERE')
     ID = orb.system.settings().primaryField()
 
-    GLOBALS['traversal'] = []
     GLOBALS['field_mapper'] = {}
-    GLOBALS['select_tables'] = {table}
 
     schema = table.schema()
     table_name = schema.tableName()
@@ -136,24 +134,12 @@
     else:
         order_by = []
 
-    select_tables = GLOBALS['select_tables']
-    table_names = list({'"{0}"'.format(tbl.schema().tableName()) for tbl in select_tables})
-
-##    # ensure we have all selection items in our column
-##    if group_by:
-##        for col in set(query_columns):
-##            default = '"{0}"."{1}"'.format(col.schema().tableName(), col.fieldName())
-##            field = GLOBALS['field_mapper'].get(col, default)
-##            group_by.all(field)
 %>
 % if (columns or i18n_columns) and where != orb.errors.QueryIsNull:
--- select from a single table
 SELECT ${'DISTINCT' if lookup.distinct else ''}
     ${',\n    '.join(columns+i18n_columns)}
 FROM "${table_name}"
 ${'\n'.join(joined) if joined else ''}
-${'\n'.join(GLOBALS['traversal']) if GLOBALS['traversal'] else ''}
-
 % if i18n_columns:
 % if options.inflated or options.locale == 'all':
 LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
@@ -165,13 +151,7 @@ LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
 )
 % endif
 % endif
-% if where and len(select_tables) > 1:
-WHERE "${table_name}"."${ID}" IN (
-    SELECT "${table_name}"."${ID}"
-    FROM ${','.join(table_names)}
-    WHERE ${where}
-)
-% elif where:
+% if where:
 WHERE ${where}
 % endif
 % if group_by:

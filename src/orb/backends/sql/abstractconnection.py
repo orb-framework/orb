@@ -338,14 +338,14 @@ class SQLConnection(orb.Connection):
             # from a thread properly
             except errors.Interruption:
                 delta = datetime.datetime.now() - start
-                log.debug('Query took: %s' % delta)
+                log.critical('Query took: %s' % delta)
                 raise
             
             # attempt to reconnect as long as we have enough retries left
             # otherwise raise the error
             except errors.ConnectionLost:
                 delta = datetime.datetime.now() - start
-                log.debug('Query took: %s' % delta)
+                log.error('Query took: %s' % delta)
                 
                 if i != (retries - 1):
                     time.sleep(0.25)
@@ -356,7 +356,7 @@ class SQLConnection(orb.Connection):
             # handle any known a database errors with feedback information
             except errors.DatabaseError as err:
                 delta = datetime.datetime.now() - start
-                log.debug('Query took: %s' % delta)
+                log.error('Query took: %s' % delta)
                 log.error(u'{0}: \n {1}'.format(err, command))
                 
                 if self.isConnected():
@@ -374,13 +374,23 @@ class SQLConnection(orb.Connection):
             
             # always raise any unknown issues for the developer
             except StandardError as err:
-                log.error(u'{0}: \n {1}'.format(err, command))
                 delta = datetime.datetime.now() - start
-                log.debug('Query took: %s' % delta)
+                log.error('Query took: %s' % delta)
+                log.error(u'{0}: \n {1}'.format(err, command))
                 raise
         
-        delta = datetime.datetime.now() - start
-        log.debug('Query took: %s' % delta)
+        delta = (datetime.datetime.now() - start).total_seconds()
+        if delta * 1000 < 1000:
+            log.debug('Query took: %s' % delta)
+        elif delta * 1000 < 5000:
+            log.warning('Query took: %s' % delta)
+            log.warning(command)
+            log.warning(data)
+        else:
+            log.error('Query took: %s' % delta)
+            log.error(command)
+            log.error(data)
+
         return results, rowcount
         
     def insert(self, records, lookup, options):

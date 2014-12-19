@@ -48,7 +48,7 @@ class Database(object):
                  applicationToken='',
                  referenced=False,
                  manager=None,
-                 maximumTimeout=5000):
+                 maximumTimeout=10000):
 
         # define custom properties
         self._callbacks = CallbackSet()

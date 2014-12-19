@@ -343,23 +343,31 @@ class QUOTE(SQL):
 #----------------------------------------------------------------------
 
 class SELECT(SQL):
-    def render(self, table, **scope):
+    def render(self, table_or_records, **scope):
         """
         Generates the TABLE EXISTS sql for an <orb.Table>.
 
-        :param      table   | <orb.Table>
-                    lookup  | <orb.LookupOptions>
-                    options | <orb.DatabaseOptions>
-                    **scope | <dict>
+        :param      table_or_records   | <orb.Table> or <orb.RecordSet>
+                    lookup             | <orb.LookupOptions>
+                    options            | <orb.DatabaseOptions>
+                    **scope            | <dict>
 
         :return     <str>
         """
+        if orb.Table.typecheck(table_or_records):
+            new_scope = {
+                'table': table_or_records,
+                'lookup': orb.LookupOptions(**scope),
+                'options': orb.DatabaseOptions(**scope)
+            }
+        else:
+            new_scope = {
+                'table': table_or_records.table(),
+                'lookup': table_or_records.lookupOptions(**scope),
+                'options': table_or_records.databaseOptions(**scope)
+            }
 
-        new_scope = {
-            'table': table,
-            'lookup': scope.get('lookup', orb.LookupOptions(**scope)),
-            'options': scope.get('options', orb.DatabaseOptions(**scope))
-        }
+        new_scope['lookup'].columns = new_scope['lookup'].columns or scope.pop('default_columns', None)
         new_scope.update(**scope)
 
         return super(SELECT, self).render(**new_scope)
@@ -504,6 +512,7 @@ class WHERE(SQL):
                 raise errors.QueryInvalid(msg)
             else:
                 output = sql_func.format(output)
+
         return output
 
     def render(self, schema, query, **scope):
@@ -522,6 +531,7 @@ class WHERE(SQL):
         io = scope['IO']
         glbls = scope['GLOBALS']
         db = scope.get('db', orb.system.database())
+        query = query.expandShortcuts(schema.model())
 
         # create a compound query
         if orb.QueryCompound.typecheck(query):
@@ -532,49 +542,13 @@ class WHERE(SQL):
 
         # create a basic query
         else:
-            QUOTE = self.baseSQL().byName('QUOTE')
-            TRAVERSAL_JOIN = self.baseSQL().byName('TRAVERSAL_JOIN')
-
-            traversal = []
-
             glbls.setdefault('join_count', 0)
-            glbls.setdefault('select_tables', set())
-            glbls.setdefault('traversal', [])
             glbls.setdefault('field_mapper', {})
 
             # grab the column from the query
-            column = query.column(schema, traversal=traversal, db=db)
+            column = query.column(schema, db=db)
             if not column:
                 raise errors.ColumnNotFound(schema.name(), query.columnName())
-
-            if traversal:
-                last_key = None
-                traversal.append(column)
-
-                for i, curr in enumerate(traversal[1:]):
-                    glbls['join_count'] += 1
-                    join_table = u'join_{0}'.format(glbls['join_count'])
-
-                    if not last_key:
-                        last_key = QUOTE(traversal[i].schema().tableName(), traversal[i].fieldName())
-
-                    pcols = [QUOTE(join_table, pcol.fieldName()) for pcol in curr.schema().primaryColumns()]
-                    if len(pcols) > 1:
-                        curr_key = u'({0})'.format(u','.join(pcols))
-                    else:
-                        curr_key = pcols[0]
-
-                    sql = TRAVERSAL_JOIN(table=curr.schema().tableName(),
-                                         alias=join_table,
-                                         id=curr_key,
-                                         reference=last_key)
-
-                    last_key = QUOTE(join_table, curr.fieldName())
-                    glbls['field_mapper'][curr] = last_key
-                    glbls['traversal'].append(sql)
-
-            elif query.table() and query.table().schema() != schema:
-                glbls['select_tables'].add(column.schema().model())
 
             # grab the field information
             try:
@@ -603,36 +577,36 @@ class WHERE(SQL):
                         io[str(key)] = target
                         field += '%({0})s'.format(key)
 
+            # calculate the value
+            operator = query.operatorType()
+            value = query.value()
+
+            # check for a record value
+            if orb.Table.recordcheck(value):
+                value = value.primaryKey()
+
             # calculate the sql operation
-            op_name = orb.Query.Op(query.operatorType())
+            op_name = orb.Query.Op(operator)
             op = self.baseSQL().byName('Op::{0}'.format(op_name))
+            if op is None:
+                raise orb.errors.QueryInvalid('{0} is an unknown operator.'.format(op_name))
 
             if query.caseSensitive():
                 case = self.baseSQL().byName('Op::{0}::CaseSensitive'.format(op_name))
                 op = case or op
 
-            if op is None:
-                raise orb.errors.QueryInvalid('{0} is an unknown operator.'.format(op_name))
-
-            # calculate the value
-            value = query.value()
-            if orb.Table.recordcheck(value):
-                value = value.primaryKey()
-
             # update the scope
+            scope['WHERE'] = self
             scope['query'] = query
             scope['column'] = column
             scope['field'] = field
             scope['value'] = value
-            scope['operator'] = query.operatorType()
+            scope['operator'] = operator
             scope['op'] = op
 
             return super(WHERE, self).render(**scope)
 
 #----------------------------------------------------------------------
-
-# define base quote options
-SQL.registerAddon('TRAVERSAL_JOIN', SQL(u'LEFT JOIN "${table}" AS "${alias}" ON ${id}=${reference}'))
 
 # define base column types
 SQL.registerAddon('Type::BigInt', u'BIGINT')

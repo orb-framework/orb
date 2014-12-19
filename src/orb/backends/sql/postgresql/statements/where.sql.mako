@@ -2,10 +2,6 @@
     <%
         val_schema = value.table().schema()
         val_col = value.column()
-
-        if value.table():
-          GLOBALS['select_tables'].add(value.table())
-
         query_field = QUOTE(val_schema.tableName(), val_col.fieldName())
     %>
     % if query.isInverted():
@@ -22,30 +18,10 @@
     % endif
 
 % elif orb.RecordSet.typecheck(value):
-    % if value.isLoaded():
-      <%
-      if not value:
-          raise orb.errors.QueryIsNull()
-
-      key = str(len(IO))
-      key_id = '%({0})s'.format(key)
-      IO[key] = SQL.datastore().store(column, value)
-      %>
-      % if query.isInverted():
-      ${key_id} IN ${field}
-      % else:
-      ${field} IN ${key_id}
-      % endif
-    % else:
-      <% SELECT = SQL.byName('SELECT') %>
-      ${field} ${op} (
-          ${SELECT(value.table(),
-                   lookup=value.lookupOptions(columns=value.table().schema().primaryColumns()),
-                   options=value.databaseOptions(),
-                   output=IO)}
-      )
-    % endif
-
+    <% SELECT = SQL.byName('SELECT') %>
+    ${field} ${op} (
+       ${SELECT(value, default_columns=['id'], IO=IO).strip(';')}
+    )
 % else:
     <%
     if operator in (orb.Query.Op.IsIn, orb.Query.Op.IsNotIn) and not value:
