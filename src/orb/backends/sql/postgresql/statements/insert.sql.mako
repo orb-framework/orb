@@ -4,7 +4,7 @@ INSERT INTO "${table}" (
 )
 VALUES
     % for row in insertions['base'][:-1]:
-    (${','.join(row)},
+    (${','.join(row)}),
     % endfor
     (${','.join(insertions['base'][-1])})
 ;

@@ -321,7 +321,6 @@ class SQLConnection(orb.Connection):
             return [], rowcount
         
         results = []
-        delta = None
         for i in range(retries):
             start = datetime.datetime.now()
             
@@ -378,18 +377,19 @@ class SQLConnection(orb.Connection):
                 log.error('Query took: %s' % delta)
                 log.error(u'{0}: \n {1}'.format(err, command))
                 raise
-        
+
         delta = (datetime.datetime.now() - start).total_seconds()
-        if delta * 1000 < 1000:
+        if delta * 1000 < 3000:
             log.debug('Query took: %s' % delta)
-        elif delta * 1000 < 5000:
+            log.debug('{0}\n\ndata:{1}'.format(command, data))
+        elif delta * 1000 < 6000:
             log.warning('Query took: %s' % delta)
             log.warning(command)
-            log.warning(data)
+            log.warning('{0}\n\ndata:{1}'.format(command, data))
         else:
             log.error('Query took: %s' % delta)
             log.error(command)
-            log.error(data)
+            log.error('{0}\n\ndata:{1}'.format(command, data))
 
         return results, rowcount
         

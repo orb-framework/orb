@@ -367,7 +367,13 @@ class SELECT(SQL):
                 'options': table_or_records.databaseOptions(**scope)
             }
 
-        new_scope['lookup'].columns = new_scope['lookup'].columns or scope.pop('default_columns', None)
+        # use default columns
+        if not new_scope['lookup'].columns:
+            default_columns = scope.pop('default_columns', None)
+            if default_columns:
+                schema = new_scope['table'].schema()
+                new_scope['lookup'].columns = [schema.column(col) for col in default_columns]
+
         new_scope.update(**scope)
 
         return super(SELECT, self).render(**new_scope)

@@ -94,20 +94,12 @@ class PSQLConnection(SQLConnection):
         # register the json option
         register_json(cursor)
 
-        log.debug(command)
-        log.debug(data)
-
         try:
-            now = datetime.datetime.now()
             cursor.execute(command, data)
             rowcount = cursor.rowcount
 
-            delta = datetime.datetime.now() - now
-            log.debug('Query took: {0} seconds'.format(delta.total_seconds()))
-
         # look for a cancelled query
         except QueryCanceledError:
-            log.error(u'Query was cancelled:\n{0}'.format(command))
             try:
                 db.rollback()
             except StandardError as err:

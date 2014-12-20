@@ -418,7 +418,7 @@ class Query(object):
         return self.greaterThanOrEqual(other)
 
     def __hash__(self):
-        return hash(self.toXmlString())
+        return hash(str(self))
 
     def __lt__(self, other):
         """
@@ -682,7 +682,7 @@ class Query(object):
         if orb.Table.recordcheck(value):
             return self.__valueToXml(xparent, value.id())
         elif orb.RecordSet.typecheck(value):
-            return self.__valueToXml(xparent, value.ids())
+            return value.toXml(xparent)
         elif Query.typecheck(value):
             typ = 'query'
         elif orb.QueryCompound.typecheck(value):

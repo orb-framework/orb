@@ -20,6 +20,7 @@ __email__           = 'team@projexsoftware.com'
 
 from projex.text import nativestring as nstr
 from projex.lazymodule import LazyModule
+from xml.etree import ElementTree
 
 orb = LazyModule('orb')
 
@@ -146,6 +147,9 @@ class DatabaseOptions(object):
             'locale': self.locale,
             'format': self.format
         }
+
+    def toXml(self, xparent=None):
+        raise NotImplementedError
     
     @staticmethod
     def fromDict(data):
@@ -159,6 +163,10 @@ class DatabaseOptions(object):
         :return     <LookupOptions>
         """
         return DatabaseOptions(**data)
+
+    @staticmethod
+    def fromXml(xdata):
+        raise NotImplementedError
 
 #------------------------------------------------------------------------------
 
@@ -236,7 +244,7 @@ class LookupOptions(object):
                 continue
             
             if orb.Query.typecheck(val) or orb.QueryCompound.typecheck(val):
-                val = hash(val.toXmlString())
+                val = hash(val)
             
             opts.append('{0}:{1}'.format(key, val))
         
@@ -341,7 +349,10 @@ class LookupOptions(object):
         if self.pageSize:
             out['pageSize'] = self.pageSize
         return out
-    
+
+    def toXml(self, xparent=None):
+        raise NotImplementedError
+
     @staticmethod
     def fromDict(data):
         """
@@ -359,4 +370,8 @@ class LookupOptions(object):
             kwds['where'] = orb.Query.fromDict(data['where'])
         
         return LookupOptions(**kwds)
+
+    @staticmethod
+    def fromXml(xdata):
+        raise NotImplementedError
 

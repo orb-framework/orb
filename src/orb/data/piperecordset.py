@@ -158,5 +158,36 @@ class PipeRecordSet(RecordSet):
         for key, value in options.items():
             q &= orb.Query(pipe, key) == value
         
-        return pipe.select(where = q).remove()
+        return pipe.select(where=q).remove()
 
+    def setRecords(self, records):
+        """
+        Updates the linked records for this pipe by removing records not within the inputed
+        record set and addding any missing ones.
+
+        :param      records | <orb.RecordSet> || [<orb.Table>, ..] || [<int>, ..]
+
+        :return     <int> added, <int> removed
+        """
+        pipe = self._pipeTable
+        if not pipe:
+            raise orb.errors.TableNotFound(self)
+
+        # determine the records to sync
+        curr_ids = self.ids()
+        record_ids = records.ids() if isinstance(records, orb.RecordSet) else [int(record) for record in records]
+        remove_ids = set(curr_ids) - set(record_ids)
+        add_ids = set(record_ids) - set(curr_ids)
+
+        # remove old records
+        if remove_ids:
+            q = orb.Query(pipe, self._sourceColumn) == self._source
+            q &= orb.Query(pipe, self._targetColumn).in_(remove_ids)
+            pipe.select(where=q).remove()
+
+        # create new records
+        if add_ids:
+            rset = orb.RecordSet([pipe(**{self._sourceColumn: self._source, self._targetColumn: id}) for id in add_ids])
+            rset.commit()
+
+        return len(add_ids), len(remove_ids)

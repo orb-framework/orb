@@ -24,7 +24,7 @@ import re
 
 from collections import defaultdict
 from projex.lazymodule import LazyModule
-from projex.text import nativestring as nstr
+from xml.etree import ElementTree
 
 from ..common import SearchMode
 
@@ -243,7 +243,7 @@ class RecordSet(object):
                     col = lookup.columns[0]
                     output = [x[col] for x in results]
                 else:
-                    output = [[r.get(col, None) for col in lookup.columns]
+                    output = [{col: r.get(col, None) for col in lookup.columns}
                               for r in results]
 
             # return the raw results
@@ -318,7 +318,7 @@ class RecordSet(object):
 
         # run each records pre-commit logic before it is inserted to the db
         for record in records:
-            self.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', record, lookup, options)
+            record.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', record, lookup, options)
 
         return True
 
@@ -466,6 +466,10 @@ class RecordSet(object):
         
         :return     [<variant>, ..] || {<str> column: [<variant>, ..]}
         """
+        # ensure we have a database and table class
+        if self.isNull():
+            return {} if len(columns) > 1 else []
+
         table = self.table()
         schema = table.schema()
 
@@ -477,56 +481,42 @@ class RecordSet(object):
 
         db = self.database()
 
-        # ensure we have a database and table class
-        if self.isNull():
-            if len(columns) > 1:
-                return {}
-            return []
-
         # return information from the database
         cache = table.recordCache()
         schema = table.schema()
 
-        backend = db.backend()
-        lookup = self.lookupOptions(**options)
-        options = self.databaseOptions(**options)
-
-        inflated = options.inflated
-        lookup.columns = list(columns)
-        options.inflated = False
-
-        if cache is not None and orb.system.isCachingEnabled():
-            output = cache.distinct(backend, table, lookup, options)
-        else:
-            output = backend.distinct(table, lookup, options)
-
-        output = {schema.column(k): v for k, v in output.items()}
-        options.inflated = inflated
-
-        if options.inflated:
-            for column in output.keys():
+        results = {}
+        if options.get('inflated', True):
+            for column in columns:
                 if column.isReference():
                     ref_model = column.referenceModel()
-                    if not ref_model:
-                        msg = '%s is not a valid model.'
-                        log.error(msg, column.reference())
-                        continue
+                    lookup = self.lookupOptions(**options)
+                    lookup.columns = [column]
+                    lookup.distinct = True
+                    rset = orb.RecordSet(self)
+                    rset.setLookupOptions(lookup)
+                    rset.setDatabaseOptions(self.databaseOptions(**options))
+                    results[column] = ref_model.select(where=orb.Query(ref_model).in_(rset))
 
-                    ids = output[column]
-                    records = []
-                    if None in ids:
-                        ids.remove(None)
-                        records.append(None)
+            lookup_columns = list(set(columns) - set(results.keys()))
+        else:
+            lookup_columns = list(columns)
 
-                    if ids:
-                        q = orb.Query(ref_model).in_(ids)
-                        records += list(ref_model.select(where=q))
+        # perform an actual lookup
+        if lookup_columns:
+            options = self.databaseOptions(**options)
+            lookup = self.lookupOptions(**options)
+            lookup.columns = lookup_columns
+            backend = db.backend()
+            if cache is not None and orb.system.isCachingEnabled():
+                output = cache.distinct(backend, table, lookup, options)
+            else:
+                output = backend.distinct(table, lookup, options)
+        else:
+            output = {}
 
-                    output[column] = records
-
-        if len(columns) == 1:
-            return output.get(columns[0], [])
-        return output
+        results.update({schema.column(k): v for k, v in output.items()})
+        return results.get(columns[0], []) if len(columns) == 1 else results
 
     def first(self, **options):
         """
@@ -1404,6 +1394,22 @@ class RecordSet(object):
         """
         return self.count(start=0, limit=0, page=0, pageSize=0)
 
+    def toXml(self, xparent=None):
+        """
+        Converts this recordset to a representation of XML.
+
+        :param      xparent | <ElementTree.Element> || None
+
+        :return     <ElementTree.Element>
+        """
+        xset = ElementTree.SubElement(xparent, 'recordset') if xparent is not None else ElementTree.Element('recordset')
+        xset.set('table', self.schema().name())
+        xlookup = ElementTree.SubElement(xset, 'lookup')
+        xoptions = ElementTree.SubElement(xset, 'options')
+        self._lookupOptions.toXml(xlookup)
+        self._databaseOptions.toXml(xoptions)
+        return xset
+
     def values(self, columns, **options):
         """
         Returns either a list of values for all the records if the inputed arg
@@ -1494,3 +1500,17 @@ class RecordSet(object):
         :return     <bool>
         """
         return isinstance(value, RecordSet)
+
+    @staticmethod
+    def fromXml(xset):
+        """
+        Restores a recordset from XML.
+
+        :param      xset | <ElementTree.Element> || None
+
+        :return     <orb.RecordSet>
+        """
+        model = orb.system.model(xset.get('table'))
+        lookup = orb.LookupOptions.fromXml(xset.find('lookup'))
+        options = orb.DatabaseOptions.fromXml(xset.find('options'))
+        return model.select(lookup=lookup, options=options)
