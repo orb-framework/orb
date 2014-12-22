@@ -192,6 +192,9 @@ class LookupOptions(object):
         order = kwds.get('order') or []
         expand = kwds.get('expand') or []
 
+        if isinstance(order, (str, unicode)):
+            order = [(x.strip('+-'), 'desc' if x.startswith('-') else 'asc') for x in order.split(',') if x]
+
         if isinstance(kwds.get('lookup'), LookupOptions):
             other = kwds['lookup']
             columns += [col for col in other.columns or [] if col not in columns]
