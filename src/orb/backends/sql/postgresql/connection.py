@@ -104,6 +104,9 @@ class PSQLConnection(SQLConnection):
                 db.rollback()
             except StandardError as err:
                 log.error('Rollback error: {0}'.format(err))
+            log.critical(command)
+            if data:
+                log.critical(str(data))
             raise errors.Interruption()
 
         # look for a disconnection error
