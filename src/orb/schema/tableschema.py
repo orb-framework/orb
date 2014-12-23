@@ -83,7 +83,6 @@ class TableSchema(object):
         self._namespace = ''
         self._displayName = ''
         self._cacheExpireIn = 0
-        self._useAdvancedFormatting = False
         self._inheritedLoaded = False
         self._cacheEnabled = False
         self._preloadCache = True
@@ -1094,15 +1093,6 @@ class TableSchema(object):
         """
         self._timezone = timezone
 
-    def setUseAdvancedFormatting(self, state):
-        """
-        Sets whether or not to use advanced string formatting for this
-        table's string format.
-        
-        :param      state | <bool>
-        """
-        self._useAdvancedFormatting = state
-
     def setValidators(self, validators):
         """
         Sets the list of the record validators that are associated with this schema.  You
@@ -1174,13 +1164,6 @@ class TableSchema(object):
                           group=self.groupName(),
                           db_name=self.databaseName(),
                           display=self.displayName())
-
-    def useAdvancedFormatting(self):
-        """
-        Returns whether or not to use advanced string formatting vs.
-        the traditional system (%).
-        """
-        return self._useAdvancedFormatting
 
     def toXml(self, xparent=None):
         """

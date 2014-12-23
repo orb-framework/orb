@@ -235,8 +235,6 @@ class Table(object):
         # extract any inherited 
         while schema:
             sform = schema.stringFormat()
-            adv = schema.useAdvancedFormatting()
-
             if sform:
                 break
             else:
@@ -244,12 +242,8 @@ class Table(object):
 
         if not sform:
             return unicode(super(Table, self).__str__())
-
-        elif adv:
-            return unicode(sform).format(self, self=self)
-
         else:
-            return unicode(sform) % self.recordValues()
+            return unicode(sform).format(self, self=self)
 
     def __eq__(self, other):
         """
