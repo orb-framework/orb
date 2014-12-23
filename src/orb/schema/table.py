@@ -20,9 +20,10 @@ __email__ = 'team@projexsoftware.com'
 
 import datetime
 import logging
-import projex.text
+import projex.makotext
 import projex.rest
 import projex.security
+import projex.text
 import re
 
 from collections import defaultdict
@@ -243,7 +244,10 @@ class Table(object):
         if not sform:
             return unicode(super(Table, self).__str__())
         else:
-            return unicode(sform).format(self, self=self)
+            try:
+                return projex.makotext.render(sform, self=self)
+            except StandardError:
+                return unicode(sform).format(self, self=self)
 
     def __eq__(self, other):
         """
