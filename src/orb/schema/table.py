@@ -745,7 +745,7 @@ class Table(object):
 
         :return     <orb.LookupOptions>
         """
-        output = self.__database_options or orb.DatabaseOptions()
+        output = self.__database_options or orb.DatabaseOptions(locale=self.recordLocale())
         output.update(options)
         return output
 
@@ -1332,6 +1332,8 @@ class Table(object):
 
     def setDatabaseOptions(self, options):
         self.__database_options = options
+        if options:
+            self.__record_locale = options.locale
 
     def setLocalCache(self, key, value):
         """
