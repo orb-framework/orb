@@ -39,7 +39,21 @@ class PipeRecordSet(RecordSet):
         self._pipeTable = pipeTable
         self._sourceColumn = sourceColumn
         self._targetColumn = targetColumn
-    
+
+    def createRecord(self, **columns):
+        # link an existing column to this recordset
+        if self._targetColumn in columns:
+            record = self.table()(columns[self._targetColumn])
+            self.addRecord(record)
+            return record
+
+        # otherwise, create a new record based on the target table and link it
+        else:
+            record = self.table()(**columns)
+            record.commit()
+            self.addRecord(record)
+            return record
+
     def addRecord(self, record, **options):
         """
         Adds a new record for this pipe set.  The inputed record should refer

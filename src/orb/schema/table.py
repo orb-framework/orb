@@ -846,12 +846,12 @@ class Table(object):
         """
         options.setdefault('format', 'dict')
 
-        # simple json conversion
-        output = dict(self)
-
         # additional options
         lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
+
+        # simple json conversion
+        output = self.recordValues(key='field', columns=lookup.columns, inflated=False)
 
         expand = lookup.expand
         if expand:
@@ -869,20 +869,26 @@ class Table(object):
                        for column in self.schema().columns()}
 
             for key, addtl in expanding.items():
-                # expand a particular column
+                # expand a reference
                 if key in columns:
                     column = columns[key]
+                    new_key = projex.text.underscore(column.name())
                     reference = self.recordValue(column, inflated=True)
-                    output[projex.text.underscore(column.name())] = reference.json(expand=list(addtl))
 
-                # expand a pipe
+                    output.pop(column.fieldName(), None)
+                    if reference:
+                        output[new_key] = reference.json(expand=[sub_expand for sub_expand in addtl if sub_expand])
+                    else:
+                        output[new_key] = None
+
+                # expand a pipe/reverse lookup
                 else:
                     if key in pipes:
                         rset = getattr(self, pipes[key])()
                     elif key in reverses:
                         rset = getattr(self, reverses[key])()
                     else:
-                        continue
+                        raise errors.ColumnNotFound(type(self), key)
 
                     if 'ids' in addtl:
                         output[key + '_ids'] = rset.ids()
@@ -890,8 +896,8 @@ class Table(object):
                     if 'count' in addtl:
                         output[key + '_count'] = rset.count()
                         addtl.remove('count')
-                    if '' in addtl:
-                        output[key] = rset.json(expand=addtl)
+                    if addtl:
+                        output[key] = rset.json(expand=[sub_expand for sub_expand in addtl if sub_expand])
 
         if db_opts.format == 'dict':
             return output
@@ -1091,7 +1097,8 @@ class Table(object):
 
         # return none output's and non-auto inflated values immediately
         if value is None or not (col.isReference() and inflated):
-            return col.restoreValue(value)
+            out = col.restoreValue(value)
+            return out if not Table.recordcheck(out) else out.id()
 
         # ensure we have a proper reference model
         refmodel = col.referenceModel()

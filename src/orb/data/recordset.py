@@ -83,7 +83,7 @@ class RecordSet(object):
             # join a list of records as RecordSet([record, record, record])
             elif type(data) in (list, tuple):
                 self._all[None] = data[:]
-                if data:
+                if data and orb.Table.recordcheck(data[0]):
                     self._table = type(data[0])
 
             # assign a table as the record set RecordSet(orb.Table)
@@ -243,7 +243,7 @@ class RecordSet(object):
                     col = lookup.columns[0]
                     output = [x[col] for x in results]
                 else:
-                    output = [{col: r.get(col, None) for col in lookup.columns}
+                    output = [tuple([r.get(col, None) for col in lookup.columns])
                               for r in results]
 
             # return the raw results
@@ -379,11 +379,7 @@ class RecordSet(object):
         if self._database != -1:
             return self._database
 
-        if self.table():
-            db = self.table().getDatabase()
-        else:
-            db = orb.system.database()
-
+        db = self.table().getDatabase() if self.table() else orb.system.database()
         if not db:
             raise errors.DatabaseNotFound()
 
@@ -866,10 +862,11 @@ class RecordSet(object):
         :return     <str>
         """
         options.setdefault('format', 'list')
+
         lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
 
-        output = [record.json(lookup=lookup, options=db_opts) for record in self]
+        output = [record.json(lookup=lookup, options=db_opts) for record in self.records()]
 
         if db_opts.format == 'list':
             return output

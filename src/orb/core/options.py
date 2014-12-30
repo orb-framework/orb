@@ -192,6 +192,11 @@ class LookupOptions(object):
         order = kwds.get('order') or []
         expand = kwds.get('expand') or []
 
+        if type(expand) == set:
+            expand = list(expand)
+        if type(order) == set:
+            order = list(order)
+
         if isinstance(order, (str, unicode)):
             order = [(x.strip('+-'), 'desc' if x.startswith('-') else 'asc') for x in order.split(',') if x]
 
@@ -326,7 +331,38 @@ class LookupOptions(object):
 
         :param      options | <dict>
         """
-        self.__dict__.update(options)
+        if 'lookup' in options:
+            other = options['lookup']
+            options['where'] = other.where
+            options['columns'] = other.columns
+            options['order'] = other.order
+            options['start'] = other._start
+            options['limit'] = other._limit
+            options['expand'] = other.expand
+            options['pageSize'] = other.pageSize
+            options['page'] = other.page
+
+        columns = self.columns or []
+        columns += [col for col in options.get('columns') or [] if col not in columns]
+
+        # update where
+        if options.get('where') is not None:
+            self.where = options['where'] & self.where
+
+        order = options.get('order') or []
+        if isinstance(order, (str, unicode)):
+            order = [(x.strip('+-'), 'desc' if x.startswith('-') else 'asc') for x in order.split(',') if x]
+
+        expand = options.get('expand') or []
+
+        self.columns = columns or None
+        self.expand = (self.expand or [] + expand) or None
+        self.order = (self.order or [] + order) or None
+        self._start = options.get('start', self._start)
+        self._limit = options.get('limit', self._limit)
+        self.distinct = options.get('distinct', self.distinct)
+        self.pageSize = options.get('pageSize', self.pageSize)
+        self.page = options.get('page', self.page)
 
     def toDict(self):
         """

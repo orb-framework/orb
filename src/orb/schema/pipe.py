@@ -80,16 +80,21 @@ class Pipe(object):
 
         # generate the new record set
         records = targetTable.select(**options)
-        rset = orb.PipeRecordSet(records,
-                                 record,
-                                 pipeTable,
-                                 self._sourceColumn,
-                                 self._targetColumn)
 
-        if pipe_cache:
-            pipe_cache.setValue(cache_key, rset)
-        if target_cache:
-            target_cache.setValue(cache_key, rset)
+        # map this recordset to a pipe set (if the options generate a pipe set)
+        if isinstance(records, orb.RecordSet):
+            rset = orb.PipeRecordSet(records,
+                                     record,
+                                     pipeTable,
+                                     self._sourceColumn,
+                                     self._targetColumn)
+
+            if pipe_cache:
+                pipe_cache.setValue(cache_key, rset)
+            if target_cache:
+                target_cache.setValue(cache_key, rset)
+        else:
+            rset = records
 
         return rset
 
