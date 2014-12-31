@@ -7,7 +7,7 @@ VALUES
     (${','.join(row)}),
     % endfor
     (${','.join(insertions['base'][-1])})
-;
+RETURNING id;
 % endif
 
 % if insertions['i18n']:

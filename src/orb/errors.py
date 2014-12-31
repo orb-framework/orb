@@ -134,6 +134,9 @@ class DuplicateColumnFound(OrbError):
         msg = '{0}: {1} is already a column and cannot be duplicated.'
         super(DuplicateColumnFound, self).__init__(msg.format(schema, column))
 
+class DuplicateEntryFound(OrbError):
+    pass
+
 # I
 #------------------------------------------------------------------------------
 

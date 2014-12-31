@@ -67,6 +67,7 @@ class DatabaseOptions(object):
             kwds.setdefault('force', other.force)
             kwds.setdefault('deleteFlags', other.deleteFlags)
             kwds.setdefault('format', other.format)
+            kwds.setdefault('context', other.context)
 
         self.locale             = kwds.get('locale') or orb.system.locale()
         self.namespace          = kwds.get('namespace')
@@ -78,6 +79,7 @@ class DatabaseOptions(object):
         self.force              = kwds.get('force', False)
         self.deleteFlags        = kwds.get('deleteFlags', orb.DeleteFlags.all())
         self.format             = kwds.get('format', None)
+        self.context            = kwds.get('context', None)
 
     def __str__(self):
         """
@@ -145,7 +147,8 @@ class DatabaseOptions(object):
             'inflated': self.inflated,
             'deleteFlags': self.deleteFlags,
             'locale': self.locale,
-            'format': self.format
+            'format': self.format,
+            'cotext': self.context,
         }
 
     def toXml(self, xparent=None):

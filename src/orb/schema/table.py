@@ -1580,6 +1580,30 @@ class Table(object):
         return cls.select(**options)
 
     @classmethod
+    def createRecord(cls, **values):
+        """
+        Shortcut for creating a new record for this table.
+
+        :param     values | <dict>
+
+        :return    <orb.Table>
+        """
+        # extract additional options for return
+        expand = [item for item in values.pop('expand', '').split(',') if item]
+
+        # create the new record
+        record = cls()
+        record.update(**values)
+        record.commit()
+
+        if expand:
+            lookup = record.lookupOptions()
+            lookup.expand = expand
+            record.setLookupOptions(lookup)
+
+        return record
+
+    @classmethod
     def currentRecord(cls):
         """
         Returns the current record that was tagged for usage.
@@ -1999,6 +2023,8 @@ class Table(object):
             rset = rset.search(terms)
 
         if options.inflated:
+            if options.context and 'RecordSet' in options.context:
+                return options.context['RecordSet'](rset)
             return rset
         else:
             return list(rset)

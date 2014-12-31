@@ -15,9 +15,10 @@ __email__           = 'team@projexsoftware.com'
 
 #------------------------------------------------------------------------------
 
+import projex.rest
+
 from projex.lazymodule import LazyModule
-from projex.text import nativestring as nstr
-from xml.etree import ElementTree
+from orb import errors
 
 from .recordset import RecordSet
 
@@ -32,25 +33,22 @@ class PipeRecordSet(RecordSet):
                  sourceColumn='',
                  targetColumn=''):
         
-        super(PipeRecordSet, self).__init__(records)
+        super(PipeRecordSet, self).__init__(records, sourceColumn=sourceColumn, source=source)
         
         # define additional properties
-        self._source = source
         self._pipeTable = pipeTable
-        self._sourceColumn = sourceColumn
         self._targetColumn = targetColumn
 
-    def createRecord(self, **columns):
+    def createRecord(self, **values):
         # link an existing column to this recordset
-        if self._targetColumn in columns:
-            record = self.table()(columns[self._targetColumn])
+        if self._targetColumn in values:
+            record = self.table()(values[self._targetColumn])
             self.addRecord(record)
             return record
 
         # otherwise, create a new record based on the target table and link it
         else:
-            record = self.table()(**columns)
-            record.commit()
+            record = self.table().createRecord(**values)
             self.addRecord(record)
             return record
 
@@ -68,23 +66,24 @@ class PipeRecordSet(RecordSet):
         table = self.table()
         if not (table and record and record.isRecord() \
                 and isinstance(record, table)):
-            return None
+            raise errors.OrbError('Invalid arguments for creating a record.')
         
         # make sure we have a pipe table
         if not self._pipeTable:
-            return None
+            raise errors.OrbError('No pipe table defined for {0}'.format(self))
         
         pipe = self._pipeTable
         unique = options.pop('uniqueRecord', True)
         
         if unique:
-            q  = orb.Query(pipe, self._sourceColumn) == self._source
+            q  = orb.Query(pipe, self.sourceColumn()) == self.source()
             q &= orb.Query(pipe, self._targetColumn) == record
             
-            if pipe.selectFirst(where = q):
-                return None
+            if pipe.selectFirst(where=q):
+                msg = 'A record already exists for {0} and {1}'.format(self.sourceColumn(), self._targetColumn)
+                raise errors.DuplicateEntryFound(msg)
         
-        options[self._sourceColumn] = self._source
+        options[self.sourceColumn()] = self.source()
         options[self._targetColumn] = record
         
         link = pipe(**options)
@@ -103,7 +102,7 @@ class PipeRecordSet(RecordSet):
         if not pipe:
             return 0
         
-        q  = orb.Query(pipe, self._sourceColumn) == self._source
+        q  = orb.Query(pipe, self.sourceColumn()) == self.source()
         
         where = options.pop('where', None)
         q &= where
@@ -150,7 +149,7 @@ class PipeRecordSet(RecordSet):
         
         unique = options.pop('uniqueRecord', True)
         
-        q  = orb.Query(pipe, self._sourceColumn) == self._source
+        q  = orb.Query(pipe, self.sourceColumn()) == self.source()
         q &= orb.Query(pipe, self._targetColumn) == record
         
         for key, value in options.items():
@@ -167,12 +166,18 @@ class PipeRecordSet(RecordSet):
         if not pipe:
             return 0
         
-        q  = orb.Query(pipe, self._sourceColumn) == self._source
+        q  = orb.Query(pipe, self.sourceColumn()) == self.source()
         
         for key, value in options.items():
             q &= orb.Query(pipe, key) == value
         
         return pipe.select(where=q).remove()
+
+    def update(self, **values):
+        if 'ids' in values:
+            return self.setRecords(values['ids'])
+        else:
+            raise errors.OrbError('Invalid update parameters: {0}'.format(values))
 
     def setRecords(self, records):
         """
@@ -195,13 +200,13 @@ class PipeRecordSet(RecordSet):
 
         # remove old records
         if remove_ids:
-            q = orb.Query(pipe, self._sourceColumn) == self._source
+            q = orb.Query(pipe, self.sourceColumn()) == self.source()
             q &= orb.Query(pipe, self._targetColumn).in_(remove_ids)
             pipe.select(where=q).remove()
 
         # create new records
         if add_ids:
-            rset = orb.RecordSet([pipe(**{self._sourceColumn: self._source, self._targetColumn: id}) for id in add_ids])
+            rset = orb.RecordSet([pipe(**{self.sourceColumn(): self.source(), self._targetColumn: id}) for id in add_ids])
             rset.commit()
 
         return len(add_ids), len(remove_ids)

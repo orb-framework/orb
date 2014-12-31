@@ -50,8 +50,10 @@ class RecordSet(object):
         """
         return self.json()
 
-    def __init__(self, *args):
+    def __init__(self, *args, **kwds):
         self._table = None
+        self._sourceColumn = kwds.get('sourceColumn')
+        self._source = kwds.get('source')
 
         # default options
         self._grouped = False
@@ -361,6 +363,20 @@ class RecordSet(object):
         :return     [<str>, ..] || None
         """
         return self._lookupOptions.columns
+
+    def createRecord(self, **values):
+        """
+        Creates a new record for this recordset.  If this set was generated from a reverse lookup, then a pointer
+        back to the source record will automatically be generated.
+
+        :param      values | <dict>
+
+        :return     <orb.Table>
+        """
+        if self.sourceColumn():
+            values.setdefault(self.sourceColumn(), self.source())
+
+        return self.table().createRecord(**values)
 
     def currentPage(self):
         """
@@ -831,6 +847,14 @@ class RecordSet(object):
         if db:
             return db.isThreadEnabled()
         return False
+
+    def update(self, **values):
+        """
+        Updates the records within this set based on the inputed values.
+
+        :param      **values | <dict>
+        """
+        raise errors.OrbError('Bulk updating is not supported.')
 
     def union(self, records):
         """
@@ -1340,6 +1364,24 @@ class RecordSet(object):
             for key, value in values.items():
                 record.setRecordValue(key, value)
 
+    def setSourceColumn(self, column):
+        """
+        Sets the column that was used to call and generate this recordset.  This method is
+        used within the reverselookupmethod and is not needed to be called directly.
+
+        :param      column | <str>
+        """
+        self._sourceColumn = column
+
+    def setSource(self, source):
+        """
+        Sets the record that was used to call and generate this recordset.  This method is
+        used within the reverselookupmethod and is not needed to be called directly.
+
+        :param      source | <orb.Table> || None
+        """
+        self._source = source
+
     def setStart(self, index):
         """
         Sets the start index for this query.
@@ -1355,6 +1397,24 @@ class RecordSet(object):
         :return     <int>
         """
         return sum(self.values(columnName))
+
+    def sourceColumn(self):
+        """
+        When used in a reverse lookup, the source column represents the column from the record that created
+        this recordset lookup.
+
+        :return     <str> || None
+        """
+        return self._sourceColumn
+
+    def source(self):
+        """
+        When used in a reverse lookup, the source is a pointer to the record that generated this recordset
+        lookup.
+
+        :return     <orb.Table> || None
+        """
+        return self._source
 
     def sort(self, cmp=None, key=None, reverse=False):
         """

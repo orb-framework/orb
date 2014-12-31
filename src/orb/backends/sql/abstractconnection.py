@@ -458,7 +458,7 @@ class SQLConnection(orb.Connection):
             
             # for inherited schemas in non-OO tables, we'll define the
             # primary keys before insertion
-            if autoinc:
+            if autoinc and INSERTED_KEYS:
                 cmd = INSERTED_KEYS(schema, count=len(batch), IO=data)
                 cmds.append(cmd)
         

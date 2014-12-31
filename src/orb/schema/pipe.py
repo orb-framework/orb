@@ -83,11 +83,12 @@ class Pipe(object):
 
         # map this recordset to a pipe set (if the options generate a pipe set)
         if isinstance(records, orb.RecordSet):
-            rset = orb.PipeRecordSet(records,
-                                     record,
-                                     pipeTable,
-                                     self._sourceColumn,
-                                     self._targetColumn)
+            rset_cls = record.schema().context(self.__name__).get('RecordSet', orb.PipeRecordSet)
+            rset = rset_cls(records,
+                            record,
+                            pipeTable,
+                            self._sourceColumn,
+                            self._targetColumn)
 
             if pipe_cache:
                 pipe_cache.setValue(cache_key, rset)

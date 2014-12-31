@@ -256,14 +256,20 @@ class reverselookupmethod(object):
         kwds['where'] = reverse_q & kwds.get('where')
         kwds['order'] = kwds.get('order', table.schema().defaultOrder() or None)
         kwds['db'] = record.database()
+        kwds['context'] = record.schema().context(self.func_name)
 
         if self.unique:
             output = table.selectFirst(**kwds)
         else:
             output = table.select(**kwds)
 
+        if isinstance(output, orb.RecordSet):
+            output.setSource(record)
+            output.setSourceColumn(self.columnName)
+
         if cache and output is not None:
             cache.setValue(cache_key, output)
+
         return output
 
     def cache(self, table, force=False):
@@ -351,12 +357,13 @@ class TableBase(type):
             '__db_columns__': [],
             '__db_indexes__': [],
             '__db_pipes__': [],
+            '__db_contexts__': {},
             '__db_schema__': None,
             '__db_abstract__': False,
             '__db_inherits__': None,
             '__db_autoprimary__': True,
             '__db_archived__': False,
-            '__db_schema__': None
+            '__db_schema__': None,
         }
         # override with any inherited data
         db_data.update(base_data)
@@ -391,6 +398,10 @@ class TableBase(type):
             if db_data['__db_pipes__']:
                 pipes = schema.pipes() + db_data['__db_pipes__']
                 schema.setPipes(pipes)
+            if db_data['__db_contexts__']:
+                contexts = dict(schema.contexts())
+                contexts.update(db_data['__db_contexts__'])
+                schema.setContexts(contexts)
         else:
             # create the table schema
             schema = orb.TableSchema()
@@ -405,6 +416,7 @@ class TableBase(type):
             schema.setPipes(db_data['__db_pipes__'])
             schema.setInherits(db_data['__db_inherits__'])
             schema.setArchived(db_data['__db_archived__'])
+            schema.setContexts(db_data['__db_contexts__'])
             schema.setModel(new_model)
 
             orb.system.registerSchema(schema)

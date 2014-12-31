@@ -1043,7 +1043,7 @@ class Query(object):
 
             # reverse lookup
             else:
-                rmodel = schema.model()
+                rmodel = data.schema().model()
                 sub_q = self.copy()
                 sub_q._columnName = '.'.join(parts[1:])
                 sub_q._table = rmodel

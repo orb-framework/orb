@@ -91,6 +91,7 @@ class TableSchema(object):
         self._properties = {}
         self._indexes = []
         self._pipes = []
+        self._contexts = {}
         self._database = None
         self._timezone = None
         self._defaultOrder = None
@@ -339,6 +340,25 @@ class TableSchema(object):
             output.update(ancest_columns)
 
         return list(output)
+
+    def context(self, name):
+        """
+        Returns the context for this schema.  This will define different override options when a particular
+        call is made to the table within a given context.
+
+        :param      name | <str>
+
+        :return     <dict>
+        """
+        return self._contexts.get(name, {})
+
+    def contexts(self):
+        """
+        Returns the full set of contexts for this schema.
+
+        :return     {<str> context name: <dict> context, ..}
+        """
+        return self._contexts
 
     def databaseName(self):
         """
@@ -929,6 +949,24 @@ class TableSchema(object):
         for column in columns:
             if not column._schema:
                 column._schema = self
+
+    def setContext(self, name, context):
+        """
+        Sets the context for this schema.  This will define different override options when a particular
+        call is made to the table within a given context.
+
+        :param      name    | <str>
+                    context | <dict>
+        """
+        self._contexts[name] = dict(context)
+
+    def setContexts(self, contexts):
+        """
+        Sets the full context set for this table to the inputed dictionary of contexts.
+
+        :param      contexts | {<str> context name: <dict>, ..}
+        """
+        self._contexts = dict(contexts)
 
     def setDefaultOrder(self, order):
         """
