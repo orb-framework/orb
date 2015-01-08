@@ -42,6 +42,12 @@ class ValidationError(OrbError):
         super(ValidationError, self).__init__(msg)
         self.context = context
 
+# A
+# ------------------------------------------------------------------------------
+
+class ActionNotAllowed(OrbError):
+    pass
+
 # B
 # ------------------------------------------------------------------------------
 
@@ -219,3 +225,7 @@ class TableNotFound(OrbError):
 class ValueNotFound(OrbError):
     def __init__(self, record, column):
         super(ValueNotFound, self).__init__('{0} has no value for {1}'.format(record, column))
+
+class ViewNotFound(OrbError):
+    def __init__(self, table, view):
+        super(ViewNotFound, self).__init__('{0} has no view {1}.'.format(table, view))

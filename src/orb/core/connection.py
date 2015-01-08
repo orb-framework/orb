@@ -590,6 +590,15 @@ class Connection(AddonManager):
         """
         self._threadEnabled = state
 
+    @abstractmethod()
+    def schemaInfo(self, options):
+        """
+        Returns the schema information from the database.
+
+        :return     <dict>
+        """
+        return {}
+
     def storeRecord(self, record, lookup, options):
         """
         Syncs the record to the current database, checking to \

@@ -185,7 +185,7 @@ class Manager(object):
         
         return output
     
-    def databaseSchemas(self, db):
+    def databaseSchemas(self, db, base=None):
         """
         Returns a list of schemas that are mapped to the inputed database.
         
@@ -193,7 +193,8 @@ class Manager(object):
 
         :return     [<orb.TableSchema>, ..]
         """
-        return [schema for schema in self._schemas if schema.database() == db]
+        return [schema for schema in self._schemas
+                if schema.database() == db and (base is None or isinstance(schema, base))]
     
     def environment(self, name=None):
         """

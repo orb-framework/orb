@@ -2,13 +2,14 @@
     SELECT_AGGREGATE = SQL.byName('SELECT_AGGREGATE')
     SELECT_JOINER = SQL.byName('SELECT_JOINER')
     SELECT_EXPAND = SQL.byName('SELECT_EXPAND')
+    SELECT_SHORTCUT = SQL.byName('SELECT_SHORTCUT')
     WHERE = SQL.byName('WHERE')
     ID = orb.system.settings().primaryField()
 
     GLOBALS['field_mapper'] = {}
 
     schema = table.schema()
-    table_name = schema.tableName()
+    table_name = schema.dbname()
 
     def cmpcol(a, b):
         result = cmp(a.isAggregate(), b.isAggregate())
@@ -19,6 +20,9 @@
         return result
 
     pcols = [QUOTE(table_name, pcol.fieldName()) for pcol in schema.primaryColumns()]
+    expand_tree = lookup.expandtree()
+    expanded = bool(expand_tree)
+
     joined = []
     columns = []
     i18n_columns = []
@@ -30,8 +34,8 @@
 
     for column in sorted(schema.columns(), cmpcol):
         if lookup.columns and \
-           not (column.name() in lookup.columns or \
-                column.fieldName() in lookup.columns or \
+           not (column.name() in lookup.columns or
+                column.fieldName() in lookup.columns or
                 column in lookup.columns):
             use_column = False
         else:
@@ -57,6 +61,9 @@
                 if use_column:
                     columns.append(GLOBALS['join_column'])
 
+        elif use_column and column.shortcut() and not isinstance(column.schema(), orb.ViewSchema):
+            raise NotImplementedError('Shorcuts are not supported in Postgresql yet.')
+
         elif use_column and column.isTranslatable():
             if options.inflated or options.locale == 'all':
                 # process translation logic
@@ -76,8 +83,9 @@
             query_columns.append(column)
 
             # expand a reference column
-            if column.isReference() and lookup.expand and column.name() in lookup.expand:
-                col_sql = SELECT_EXPAND(column=column, lookup=lookup, options=options, GLOBALS=GLOBALS, IO=IO)
+            if column.isReference() and column.name() in expand_tree:
+                tree = expand_tree.pop(column.name())
+                col_sql = SELECT_EXPAND(column=column, lookup=lookup, options=options, tree=tree, GLOBALS=GLOBALS, IO=IO)
                 if col_sql:
                     columns.append(col_sql)
 
@@ -87,22 +95,31 @@
                                                          column.fieldName()))
 
     # include any additional expansions from pipes or reverse lookups
-    if lookup.expand:
-        # include reverse lookups
-        for reverseLookup in schema.reverseLookups():
-            name = reverseLookup.reversedName()
-            if name in lookup.expand or name + '.ids' in lookup.expand or name + '.count' in lookup.expand:
-                col_sql = SELECT_EXPAND(reverseLookup=reverseLookup, lookup=lookup, options=options, GLOBALS=GLOBALS, IO=IO)
-                if col_sql:
-                    columns.append(col_sql)
-
+    if expand_tree:
         # include pipes
         for pipe in schema.pipes():
             name = pipe.name()
-            if name in lookup.expand or name + '.ids' in lookup.expand or name + '.count' in lookup.expand:
-                col_sql = SELECT_EXPAND(pipe=pipe, lookup=lookup, options=options, GLOBALS=GLOBALS, IO=IO)
+            tree = expand_tree.pop(name, None)
+
+            if tree is not None:
+                col_sql = SELECT_EXPAND(pipe=pipe, lookup=lookup, options=options, tree=tree, GLOBALS=GLOBALS, IO=IO)
                 if col_sql:
                     columns.append(col_sql)
+            if not expand_tree:
+                break
+
+    # include reverse lookups
+    if expand_tree:
+        for reverseLookup in schema.reverseLookups():
+            name = reverseLookup.reversedName()
+            tree = expand_tree.pop(name, None)
+
+            if tree is not None:
+                col_sql = SELECT_EXPAND(reverseLookup=reverseLookup, lookup=lookup, options=options, tree=tree, GLOBALS=GLOBALS, IO=IO)
+                if col_sql:
+                    columns.append(col_sql)
+            if not expand_tree:
+                break
 
     if lookup.where:
         try:
@@ -112,23 +129,19 @@
     else:
         where = ''
 
-    order = lookup.order or table.schema().defaultOrder()
-    if order:
+    if lookup.order:
         used = set()
         order_by = []
-        for col, direction in order:
+        for col, direction in lookup.order:
             col_obj = schema.column(col)
             if not col_obj:
-              continue
+                continue
 
             default = '"{0}"."{1}"'.format(table_name, col_obj.fieldName())
             field = GLOBALS['field_mapper'].get(col_obj, default)
 
             if field != default:
-              group_by.add(field)
-
-            if lookup.columns and not col_obj.name() in lookup.columns:
-                columns.append(field)
+                group_by.add(field)
 
             order_by.append('{0} {1}'.format(field, direction.upper()))
     else:
@@ -141,30 +154,69 @@ SELECT ${'DISTINCT' if lookup.distinct else ''}
 FROM "${table_name}"
 ${'\n'.join(joined) if joined else ''}
 % if i18n_columns:
-% if options.inflated or options.locale == 'all':
-LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
-    "i18n"."${table_name}_id" = "${ID}"
-)
+    % if options.inflated or options.locale == 'all':
+    LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
+        "i18n"."${table_name}_id" = "${ID}"
+    )
+    % else:
+    LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
+        "i18n"."${table_name}_id" = "${table_name}"."${ID}" AND "i18n"."locale" = %(locale)s
+    )
+    % endif
+% endif
+% if expanded:
+    % if where or order_by or lookup.start or lookup.limit:
+    WHERE "${table_name}"."id" IN (
+        SELECT DISTINCT ON (${', '.join([order_col.split()[0] for order_col in order_by] + ['"{0}"."id"'.format(table_name)])}) "${table_name}"."id"
+        FROM "${table_name}"
+        % if i18n_columns:
+            % if options.inflated or options.locale == 'all':
+            LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
+                "i18n"."${table_name}_id" = "${ID}"
+            )
+            % else:
+            LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
+                "i18n"."${table_name}_id" = "${table_name}"."${ID}" AND "i18n"."locale" = %(locale)s
+            )
+            % endif
+        % endif
+        % if where:
+        WHERE ${where}
+        % endif
+        % if group_by:
+        GROUP BY ${',\n        '.join(group_by)}
+        % endif
+        % if order_by:
+        ORDER BY ${',\n         '.join(order_by)}
+        % endif
+        % if lookup.start:
+        OFFSET ${lookup.start}
+        % endif
+        % if lookup.limit > 0:
+        LIMIT ${lookup.limit}
+        % endif
+    )
+    % elif group_by:
+    % if group_by:
+    GROUP BY ${',\n        '.join(group_by)}
+    % endif
+    % endif
 % else:
-LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
-    "i18n"."${table_name}_id" = "${table_name}"."${ID}" AND "i18n"."locale" = %(locale)s
-)
-% endif
-% endif
-% if where:
-WHERE ${where}
-% endif
-% if group_by:
-GROUP BY ${',\n        '.join(group_by)}
-% endif
-% if order_by:
-ORDER BY ${',\n         '.join(order_by)}
-% endif
-% if lookup.start:
-OFFSET ${lookup.start}
-% endif
-% if lookup.limit > 0:
-LIMIT ${lookup.limit}
+    % if where:
+    WHERE ${where}
+    % endif
+    % if group_by:
+    GROUP BY ${',\n        '.join(group_by)}
+    % endif
+    % if order_by:
+    ORDER BY ${',\n         '.join(order_by)}
+    % endif
+    % if lookup.start:
+    OFFSET ${lookup.start}
+    % endif
+    % if lookup.limit > 0:
+    LIMIT ${lookup.limit}
+    % endif
 % endif
 ;
 % endif

@@ -210,3 +210,4 @@ class PipeRecordSet(RecordSet):
             rset.commit()
 
         return len(add_ids), len(remove_ids)
+

@@ -23,14 +23,14 @@ import projex.rest
 import re
 
 from collections import defaultdict
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from xml.etree import ElementTree
 
 from ..common import SearchMode
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 
 # ------------------------------------------------------------------------------
@@ -42,7 +42,7 @@ class RecordSet(object):
     [[$ROOT/recordsets|record set documentation]].
     """
 
-    def __json__(self):
+    def __json__(self, *args):
         """
         Returns this record set as a list of records.
 
@@ -56,18 +56,13 @@ class RecordSet(object):
         self._source = kwds.get('source')
 
         # default options
+        self._cache = defaultdict(dict)
         self._grouped = False
-        self._counts = {}
-        self._empty = {}
 
         # sorting options
         self._sort_cmp_callable = None
         self._sort_key_callable = None
         self._sort_reversed = False
-
-        # record cache
-        self._all = {}
-        self._length = None
 
         # select information
         self._database = -1
@@ -84,16 +79,16 @@ class RecordSet(object):
 
             # join a list of records as RecordSet([record, record, record])
             elif type(data) in (list, tuple):
-                self._all[None] = data[:]
-                if data and orb.Table.recordcheck(data[0]):
+                self._cache['records'][None] = data[:]
+                if data and (orb.Table.recordcheck(data[0]) or orb.View.recordcheck(data[0])):
                     self._table = type(data[0])
 
             # assign a table as the record set RecordSet(orb.Table)
-            elif orb.Table.typecheck(data):
+            elif orb.Table.typecheck(data) or orb.View.typecheck(data):
                 self._table = data
 
                 if len(args) > 1 and type(args[1]) in (list, tuple):
-                    self._all[None] = args[1][:]
+                    self._cache['records'][None] = args[1][:]
 
     def __len__(self):
         """
@@ -102,14 +97,11 @@ class RecordSet(object):
         :return     <int>
         """
         # return the length of the all records cache
-        if None in self._all:
-            return len(self._all[None])
+        if None in self._cache['records']:
+            return len(self._cache['records'][None])
 
         # return 0 for null record sets
-        elif self.isNull():
-            return 0
-
-        return self.count()
+        return 0 if self.isNull() else self.count()
 
     def __iter__(self):
         """
@@ -157,8 +149,8 @@ class RecordSet(object):
                     rset.setLimit(value.stop)
 
             # slice up the records
-            if None in rset._all:
-                rset._all[None] = rset._all[None][value]
+            if None in rset._cache['records']:
+                rset._cache['records'][None] = rset._cache['records'][None][value]
 
             return rset
 
@@ -185,9 +177,9 @@ class RecordSet(object):
         :return     [<orb.Table>: <orb.Query>, ..}
         """
         # return the breakdown from the cache
-        if not options and None in self._all:
+        if not options and None in self._cache['records']:
             output = {}
-            for record in self._all[None]:
+            for record in self._cache['records'][None]:
                 table = type(record)
                 output.setdefault(table, set())
                 output[table].add(record.primaryKey())
@@ -208,20 +200,21 @@ class RecordSet(object):
         
         :return     [<orb.Table>, ..]
         """
-        table = self.table()
-        db = self.database()
-
-        lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
-
         key = self.cacheKey(options)
-        if self.isNull():
-            return []
 
         # return the cached lookups
-        if key in self._all:
-            output = self._all[key]
-        else:
+        try:
+            return self._cache['records'][key]
+        except KeyError:
+            if self.isNull():
+                return []
+
+            table = self.table()
+            db = self.database()
+
+            lookup = self.lookupOptions(**options)
+            db_opts = self.databaseOptions(**options)
+
             # create the lookup information
             cache = table.recordCache()
 
@@ -240,19 +233,22 @@ class RecordSet(object):
             if db_opts.inflated:
                 output = [self.inflateRecord(table, x) for x in results]
 
-            elif lookup.columns and not options.get('ignoreColumns'):
-                if len(lookup.columns) == 1:
-                    col = lookup.columns[0]
-                    output = [x[col] for x in results]
+            elif lookup.columns:
+                if lookup.returning == 'values':
+                    if len(lookup.columns) == 1:
+                        col = lookup.columns[0]
+                        output = [x[col] for x in results]
+                    else:
+                        output = [[r.get(col, None) for col in lookup.columns]
+                                  for r in results]
                 else:
-                    output = [tuple([r.get(col, None) for col in lookup.columns])
-                              for r in results]
+                    output = [{col: r.get(col, None) for col in lookup.columns} for r in results]
 
             # return the raw results
             else:
                 output = results
 
-            self._all[key] = output
+            self._cache['records'][key] = output
 
         # return sorted results from an in-place sort
         if self._sort_cmp_callable is not None or \
@@ -263,6 +259,18 @@ class RecordSet(object):
                           reverse=self._sort_reversed)
         return output
 
+    def cache(self, section, data, **options):
+        """
+        Caches the given section and data value for this record set.  The cache key will be determined
+        based on the inputted option set.
+
+        :param      section | <str> | records, count, first or last
+                    data    | <variant>
+                    **options
+        """
+        key = self.cacheKey(options)
+        self._cache[section][key] = data
+
     def cacheKey(self, options):
         """
         Returns the cache key for based on the inputed dictionary of
@@ -272,6 +280,8 @@ class RecordSet(object):
         
         :return     <hash>
         """
+        options = {k: v for k, v in options.items() if k != 'expand'}
+
         if not options:
             return None
         else:
@@ -282,10 +292,7 @@ class RecordSet(object):
         Clears all the cached information such as the all() records,
         records, and total numbers.
         """
-        self._all.clear()
-        self._length = None
-        self._counts.clear()
-        self._empty.clear()
+        self._cache.clear()
 
     def commit(self, **options):
         """
@@ -293,10 +300,6 @@ class RecordSet(object):
         """
         db = options.pop('db', self.database())
         backend = db.backend()
-
-        # insert new records
-        inserts = []
-        updates = []
 
         lookup = self.lookupOptions(**options)
         db_options = self.databaseOptions(**options)
@@ -336,25 +339,33 @@ class RecordSet(object):
         table = self.table()
         db = self.database()
 
-        if self.isNull():
-            return 0
+        key = self.cacheKey(options)
+        try:
+            return self._cache['count'][key]
+        except KeyError:
+            try:
+                return len(self._cache['records'][key])
+            except KeyError:
+                if self.isNull():
+                    return 0
 
-        lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
-        key = (hash(lookup), hash(db_opts))
+                lookup = self.lookupOptions(**options)
+                db_opts = self.databaseOptions(**options)
 
-        if key in self._counts:
-            return self._counts[key]
+                # don't lookup unnecessary data
+                lookup.columns = table.schema().primaryColumns()
+                lookup.expand = None  # no need to include anything fancy
+                lookup.order = None   # it does not matter the order for counting purposes
 
-        # retrieve the count information
-        cache = table.recordCache()
-        if cache is not None and orb.system.isCachingEnabled():
-            count = cache.count(db.backend(), table, lookup, db_opts)
-        else:
-            count = db.backend().count(table, lookup, db_opts)
+                # retrieve the count information
+                cache = table.recordCache()
+                if cache is not None and orb.system.isCachingEnabled():
+                    count = cache.count(db.backend(), table, lookup, db_opts)
+                else:
+                    count = db.backend().count(table, lookup, db_opts)
 
-        self._counts[key] = count
-        return count
+                self._cache['count'][key] = count
+                return count
 
     def columns(self):
         """
@@ -375,6 +386,9 @@ class RecordSet(object):
         """
         if self.sourceColumn():
             values.setdefault(self.sourceColumn(), self.source())
+
+        if isinstance(self.table(), orb.View):
+            raise errors.ActionNotAllowed('View tables are read-only.')
 
         return self.table().createRecord(**values)
 
@@ -409,8 +423,9 @@ class RecordSet(object):
         
         :return     <orb.DatabaseOptions>
         """
-        options['options'] = self._databaseOptions
-        return orb.DatabaseOptions(**options)
+        opts = orb.DatabaseOptions(options=self._databaseOptions)
+        opts.update(options)
+        return opts
 
     def difference(self, records):
         """
@@ -428,7 +443,7 @@ class RecordSet(object):
             out._lookupOptions.where = records.negated() & out._lookupOptions.where
 
         elif type(records) in (list, tuple):
-            out._all[None] = self.records() + records
+            out._cache['records'][None] = self.records() + records
 
         else:
             raise TypeError(records)
@@ -443,17 +458,12 @@ class RecordSet(object):
         """
         # default options
         self._grouped = other._grouped
-        self._counts = other._counts.copy()
-        self._empty = other._empty.copy()
+        self._cache.update({k: v.copy() for k, v in other._cache.items()})
 
         # sorting options
         self._sort_cmp_callable = other._sort_cmp_callable
         self._sort_key_callable = other._sort_key_callable
         self._sort_reversed = other._sort_reversed
-
-        # record cache
-        self._all = other._all.copy()
-        self._length = other._length
 
         # select information
         self._database = other._database
@@ -505,6 +515,7 @@ class RecordSet(object):
                     lookup = self.lookupOptions(**options)
                     lookup.columns = [column]
                     lookup.distinct = True
+                    lookup.order = None
                     rset = orb.RecordSet(self)
                     rset.setLookupOptions(lookup)
                     rset.setDatabaseOptions(self.databaseOptions(**options))
@@ -539,27 +550,43 @@ class RecordSet(object):
         table = self.table()
         db = self.database()
 
-        if self.isNull():
-            return None
+        key = self.cacheKey(options)
+        try:
+            out = self._cache['first'][key]
+            out.updateOptions(**options)
+            return out
+        except KeyError:
+            try:
+                return self._cache['records'][key][0]
+            except KeyError:
+                options['limit'] = 1
+                lookup = self.lookupOptions(**options)
+                db_opts = self.databaseOptions(**options)
 
-        options['limit'] = 1
+                if self.isNull():
+                    return None
 
-        lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
-        lookup.order = lookup.order or [(table.schema().primaryColumns()[0].name(), 'asc')]
+                lookup.order = lookup.order or [(table.schema().primaryColumns()[0].name(), 'asc')]
 
-        # retrieve the data from the cache
-        cache = table.recordCache()
-        if cache is not None and orb.system.isCachingEnabled():
-            records = cache.select(db.backend(), table, lookup, db_opts)
-        else:
-            records = db.backend().select(table, lookup, db_opts)
+                # retrieve the data from the cache
+                cache = table.recordCache()
+                if cache is not None and orb.system.isCachingEnabled():
+                    records = cache.select(db.backend(), table, lookup, db_opts)
+                else:
+                    records = db.backend().select(table, lookup, db_opts)
 
-        if records:
-            if db_opts.inflated:
-                return self.inflateRecord(table, records[0], db_opts.locale)
-            return records[0]
-        return None
+                if records:
+                    if db_opts.inflated:
+                        record = self.inflateRecord(table, records[0], db_opts.locale)
+                        record.setLookupOptions(lookup)
+                        record.setDatabaseOptions(db_opts)
+                    else:
+                        record = records[0]
+                else:
+                    record = None
+
+                self._cache['first'][key] = record
+                return record
 
     def filter(self, **options):
         """
@@ -699,10 +726,11 @@ class RecordSet(object):
         """
         if not record:
             return -1
-        elif None in self._all:
-            return self._all[None].index(record)
         else:
-            return self.primaryKeys().index(record.primaryKey())
+            try:
+                return self._cache['records'][None].index(record)
+            except KeyError:
+                return self.ids().index(record.id())
 
     def indexed(self, columns=None, **options):
         """
@@ -765,29 +793,30 @@ class RecordSet(object):
         if self.isNull():
             return True
 
-        if None in self._all:
-            return len(self._all[None]) == 0
+        try:
+            return len(self._cache['records'][None]) == 0
+        except KeyError:
+            pass
 
         # better to assume that we're not empty on slower connections
         if orb.system.settings().optimizeDefaultEmpty():
             return False
 
-        table = self.table()
-        db = self.database()
-
         key = self.cacheKey(options)
-        lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
+        try:
+            return self._cache['empty'][key]
+        except KeyError:
+            try:
+                return len(self._cache['records'][key]) == 0
+            except KeyError:
+                # define custom options
+                options['columns'] = ['id']
+                options['limit'] = 1
+                options['inflated'] = False
 
-        if key in self._empty:
-            return self._empty[key]
-
-        options['limit'] = 1
-        options['inflated'] = False
-
-        empty = self.first(**options) is None
-        self._empty[key] = empty
-        return empty
+                is_empty = self.first(**options) is None
+                self._cache['empty'][key] = is_empty
+                return is_empty
 
     def isGrouped(self):
         """
@@ -813,7 +842,7 @@ class RecordSet(object):
         
         :return     <bool>
         """
-        return len(self._all) != 0
+        return len(self._cache['records']) != 0
 
     def isOrdered(self):
         """
@@ -854,7 +883,11 @@ class RecordSet(object):
 
         :param      **values | <dict>
         """
-        raise errors.OrbError('Bulk updating is not supported.')
+        raise errors.ActionNotAllowed('Bulk editing of records is not allowed.')
+
+    def updateOptions(self, **options):
+        self._lookupOptions.update(options)
+        self._databaseOptions.update(options)
 
     def union(self, records):
         """
@@ -872,7 +905,7 @@ class RecordSet(object):
             out._lookupOptions.where = records | out._lookupOptions.where
 
         elif type(records) in (list, tuple):
-            out._all[None] = self.records() + records
+            out._cache['records'][None] = self.records() + records
 
         else:
             raise TypeError(records)
@@ -885,19 +918,35 @@ class RecordSet(object):
 
         :return     <str>
         """
-        options.setdefault('format', 'list')
-
         lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
+        tree = lookup.expandtree()
+        output = {}
+        if 'first' in tree:
+            options['expand'] = tree.pop('first')
+            output['first'] = self.first(**options)
+        if 'last' in tree:
+            options['expand'] = tree.pop('last')
+            output['last'] = self.last(**options)
+        if 'ids' in tree:
+            tree.pop('ids')
+            output['ids'] = self.ids(**options)
+        if 'count' in tree:
+            tree.pop('count')
+            output['count'] = self.count(**options)
+        if 'records' in tree:
+            sub_tree = tree.pop('records', tree)
+            sub_tree.update(tree)
+            options['expand'] = sub_tree
+            output['records'] = [record.json(**options) for record in self.records()]
 
-        output = [record.json(lookup=lookup, options=db_opts) for record in self.records()]
+        if not output:
+            output = [record.json(**options) for record in self.records()]
 
-        if db_opts.format == 'list':
-            return output
-        elif db_opts.format == 'text':
+        if db_opts.format == 'text':
             return projex.rest.jsonify(output)
         else:
-            raise errors.OrbError('Invalid JSON format.  Request needs to be either list or unicode.')
+            return output
 
     def last(self, **options):
         """
@@ -906,7 +955,26 @@ class RecordSet(object):
 
         :return     <orb.Table> || None
         """
-        return self.reversed().first(**options)
+        key = self.cacheKey(options)
+        try:
+            out = self._cache['last'][key]
+            try:
+                updater = out.updateOptions
+            except AttributeError:
+                pass
+            else:
+                updater(**options)
+            return out
+        except KeyError:
+            try:
+                return self._cache['records'][key][-1]
+            except KeyError:
+                if self.isNull():
+                    return None
+
+                record = self.reversed().first(**options)
+                self._cache['last'][key] = record
+                return record
 
     def limit(self):
         """
@@ -922,8 +990,9 @@ class RecordSet(object):
         
         :return     <orb.LookupOptions>
         """
-        options['lookup'] = self._lookupOptions
-        return orb.LookupOptions(**options)
+        lookup = orb.LookupOptions(lookup=self._lookupOptions)
+        lookup.update(options)
+        return lookup
 
     def namespace(self):
         """
@@ -1065,10 +1134,12 @@ class RecordSet(object):
         
         :return     [<variant>, ..]
         """
-        if None in self._all:
-            return [record.id() for record in self._all[None]]
+        try:
+            return [record.id() for record in self._cache['records'][None]]
+        except KeyError:
+            pass
 
-        elif self.table():
+        if self.table():
             cols = self.table().schema().primaryColumns()
             cols = [col.fieldName() for col in cols]
             return self.values(cols, **options)
@@ -1093,82 +1164,47 @@ class RecordSet(object):
         :return     [<orb.Table>, ..]
         """
         has_default = 'default' in options
-        default = options.get('default')
-
-        table = self.table()
-        db = self.database()
+        default = options.pop('default', None)
 
         key = self.cacheKey(options)
-        lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
-
-        if self.isNull():
-            if not has_default:
-                raise IndexError, index
-            else:
-                return default
-
-        # return the cached lookups
-        if key in self._all:
-            try:
-                return self._all[key][index]
-            except IndexError:
-                if not has_default:
-                    raise
-                else:
+        try:
+            return self._cache['records'][key][index]
+        except KeyError:
+            if self.isNull():
+                if has_default:
                     return default
-        else:
-            # create the lookup information
-            cache = table.recordCache()
-
-            # grab the database backend
-            backend = db.backend()
-            if not backend:
-                if not has_default:
-                    raise IndexError, index
                 else:
-                    return default
-
-            lookup.start = index
-            lookup.limit = 1
-
-            # cache the result for this query
-            if cache is not None and orb.system.isCachingEnabled():
-                results = cache.select(backend, table, lookup, db_opts)
-            else:
-                results = backend.select(table, lookup, db_opts)
-
-            if not results:
-                if not has_default:
                     raise IndexError(index)
-                else:
-                    return default
 
-            if db_opts.inflated:
-                return self.inflateRecord(table, results[0])
-            elif lookup.columns and not options.get('ignoreColumns'):
-                if len(lookup.columns) == 1:
-                    return results[0][lookup.columns[0]]
-                else:
-                    return [results[0][col] for col in lookup.columns[0]]
+            record = self.first(**options)
+            if record is not None:
+                return record
+            elif has_default:
+                return default
             else:
-                return results[0]
+                raise IndexError(index)
 
-    def refine(self, query):
+    def refine(self, *args, **options):
         """
         Creates a subset of this record set with a joined query based on the 
         inputed search text.  The search will be applied to all columns that are
         marked as searchable.
-        
-        :sa         Column.setSearchable
-        
-        :param      search_text | <str>
-        
+
         :return     <RecordSet>
         """
         rset = RecordSet(self)
-        rset.setQuery(query & self._lookupOptions.where)
-        return rset
+
+        # backward compatibility support
+        if args and orb.Query.typecheck(args[0]):
+            options.setdefault('where', args[0])
+
+        rset.setLookupOptions(self.lookupOptions(**options))
+        rset.setDatabaseOptions(self.databaseOptions(**options))
+
+        if 'terms' in options and options['terms']:
+            return rset.search(options['terms'])
+        else:
+            return rset
 
     def remove(self, **options):
         """
@@ -1496,8 +1532,8 @@ class RecordSet(object):
 
         # lookup the data
         cache = self.table().recordCache()
-        if key in self._all:
-            records = self._all[key]
+        if key in self._cache['records']:
+            records = self._cache['records'][key]
         elif cache:
             records = cache.select(db.backend(), self.table(), lookup, db_opts)
         else:
@@ -1512,7 +1548,7 @@ class RecordSet(object):
                 expand = bool(column.isReference() and db_opts.inflated)
 
                 # retreive the value
-                if orb.Table.recordcheck(record):
+                if orb.Table.recordcheck(record) or orb.View.recordcheck(record):
                     value = record.recordValue(column, inflated=expand)
                 else:
                     value = record.get(column.fieldName())
@@ -1533,7 +1569,7 @@ class RecordSet(object):
                         output[column].append(value)
 
                 # de-expand an already loaded reference object if IDs are all that is wanted
-                elif not expand and orb.Table.recordcheck(value):
+                elif not expand and (orb.Table.recordcheck(value) or orb.View.recordcheck(value)):
                     output[column].append(value.id())
 
                 # return a standard item
@@ -1546,6 +1582,24 @@ class RecordSet(object):
             return zip(*[output[column] for column in columns])
         else:
             return []
+
+    def view(self, name):
+        """
+        Returns a set of records represented as a view that matches the inputted name.
+
+        :param      name | <str>
+
+        :return     <orb.RecordSet> || None
+        """
+        table = self.table()
+        if not table:
+            return None
+
+        view = table.schema().view(name)
+        if view:
+            return view.select(where=orb.Query(view).in_(self))
+        else:
+            return None
 
     @staticmethod
     def typecheck(value):

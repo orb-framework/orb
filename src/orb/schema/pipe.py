@@ -42,6 +42,7 @@ class Pipe(object):
         self._cached = options.get('cached', False)
         self._cachedExpires = options.get('cachedExpires', 0)
         self._referenced = options.get('referenced', False)
+        self._unique = options.get('unique', False)
         self._cache = {}
 
     def __call__(self, record, **options):
@@ -66,7 +67,9 @@ class Pipe(object):
         if not reload and \
                 pipe_cache and not pipe_cache.isExpired(cache_key) and \
                 target_cache and not target_cache.isExpired(cache_key):
-            return pipe_cache.value(cache_key)
+            out = pipe_cache.value(cache_key)
+            out.updateOptions(**options)
+            return out
 
         # create the query for the pipe
         sub_q = orb.Query(pipeTable, self._sourceColumn) == record
@@ -97,6 +100,14 @@ class Pipe(object):
         else:
             rset = records
 
+        if self._unique:
+            if isinstance(rset, orb.RecordSet):
+                return rset.first()
+            else:
+                try:
+                    return rset[0]
+                except IndexError:
+                    return None
         return rset
 
     def cache(self, table, force=False):
@@ -147,13 +158,14 @@ class Pipe(object):
         """
         return self.__name__
 
-    def preload(self, record, records, options):
+    def preload(self, record, data, options, type='records'):
         """
         Preloads the inputed record and result values.
 
-        :param      record  | <orb.Table>
-                    records | [<dict>, ..]
-                    options | <orb.LookupOptions>
+        :param      record       | <orb.Table>
+                    data         | [<dict>, ..]
+                    options      | <orb.LookupOptions>
+                    type         | <str>
         """
         target_model = self.targetReferenceModel()
         pipe_model = self.pipeReferenceModel()
@@ -164,15 +176,29 @@ class Pipe(object):
                      hash(options or orb.LookupOptions()),
                      id(record.database()))
 
-        records = [target_model(db_dict=record) for record in records or []]
-        pset = orb.PipeRecordSet(orb.RecordSet(records),
-                                 record,
-                                 pipe_model,
-                                 self._sourceColumn,
-                                 self._targetColumn)
+        # define the pipe cached value
+        pset = pipe_cache.value(cache_key)
+        if pset is None:
+            pset = orb.PipeRecordSet(orb.RecordSet(),
+                                     record,
+                                     pipe_model,
+                                     self._sourceColumn,
+                                     self._targetColumn)
 
-        pipe_cache.setValue(cache_key, pset)
-        target_cache.setValue(cache_key, pset)
+            pipe_cache.setValue(cache_key, pset)
+            target_cache.setValue(cache_key, pset)
+
+        # update teh cache for the dataset
+        if type == 'ids':
+            pset.cache('ids', data)
+        elif type == 'count':
+            pset.cache('count', data)
+        elif type == 'first':
+            pset.cache('first', target_model(db_dict=data) if data else None)
+        elif type == 'last':
+            pset.cache('last', target_model(db_dict=data) if data else None)
+        elif type == 'records':
+            pset.cache('records', [target_model(db_dict=record) for record in data or []])
 
     def pipeReference(self):
         return self._pipeReference
@@ -204,6 +230,9 @@ class Pipe(object):
         :param      seconds | <int>
         """
         self._cachedExpires = seconds
+
+    def setUnique(self, unique):
+        self._unique = unique
 
     def setName(self, name):
         """
@@ -294,6 +323,9 @@ class Pipe(object):
         xpipe = ElementTree.SubElement(xparent, 'pipe')
         xpipe.set('name', self.name())
 
+        if self._unique:
+            xpipe.set('unique', 'True')
+
         if self.cached():
             xpipe.set('cached', nstr(self.cached()))
             xpipe.set('expires', nstr(self._cachedExpires))
@@ -307,6 +339,9 @@ class Pipe(object):
 
         return xpipe
 
+    def unique(self):
+        return self._unique
+
     @staticmethod
     def fromXml(xpipe, referenced=False):
         """
@@ -317,6 +352,7 @@ class Pipe(object):
         :return     <Index> || None
         """
         pipe = Pipe(xpipe.get('name', ''), referenced=referenced)
+        pipe.setUnique(xpipe.get('unique') == 'True')
         pipe.setCached(xpipe.get('cached') == 'True')
         pipe.setCachedExpires(int(xpipe.get('expires', pipe._cachedExpires)))
 

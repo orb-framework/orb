@@ -1,5 +1,5 @@
 <%
-table_name = schema.tableName()
+table_name = schema.dbname()
 pcols = ['"{0}"'.format(pcol.fieldName()) for pcol in schema.primaryColumns()]
 %>
 % for record, columns in changes:

@@ -8,21 +8,20 @@ will map to one of the classes defined in this module.
 """
 
 # define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+__authors__ = ['Eric Hulser']
+__author__ = ','.join(__authors__)
+__credits__ = []
+__copyright__ = 'Copyright (c) 2011, Projex Software'
+__license__ = 'LGPL'
 
 # maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
+__maintainer__ = 'Projex Software'
+__email__ = 'team@projexsoftware.com'
 
 from projex.text import nativestring as nstr
-from projex.lazymodule import LazyModule
-from xml.etree import ElementTree
+from projex.lazymodule import lazy_import
 
-orb = LazyModule('orb')
+orb = lazy_import('orb')
 
 
 class DatabaseOptions(object):
@@ -42,6 +41,7 @@ class DatabaseOptions(object):
                 force           | <bool> (default: False)
                 deleteFlags     | <orb.DeleteFlags> (default: all)
     """
+
     def __init__(self, **kwds):
         self.defaults = {'namespace': None,
                          'flags': 0,
@@ -52,7 +52,7 @@ class DatabaseOptions(object):
                          'force': False,
                          'locale': orb.system.locale(),
                          'deleteFlags': orb.DeleteFlags.all(),
-                         'format': None}
+                         'format': 'object'}
 
         # update from the other database option instance
         if isinstance(kwds.get('options'), DatabaseOptions):
@@ -66,20 +66,20 @@ class DatabaseOptions(object):
             kwds.setdefault('autoIncrement', other.autoIncrement)
             kwds.setdefault('force', other.force)
             kwds.setdefault('deleteFlags', other.deleteFlags)
-            kwds.setdefault('format', other.format)
             kwds.setdefault('context', other.context)
+            kwds.setdefault('format', 'object')
 
-        self.locale             = kwds.get('locale') or orb.system.locale()
-        self.namespace          = kwds.get('namespace')
-        self.flags              = kwds.get('flags', 0)
-        self.dryRun             = kwds.get('dryRun', False)
-        self.useCache           = kwds.get('useCache', False)
-        self.inflated           = kwds.get('inflated', True)
-        self.autoIncrement      = kwds.get('autoIncrement', True)
-        self.force              = kwds.get('force', False)
-        self.deleteFlags        = kwds.get('deleteFlags', orb.DeleteFlags.all())
-        self.format             = kwds.get('format', None)
-        self.context            = kwds.get('context', None)
+        self.locale = kwds.get('locale') or orb.system.locale()
+        self.namespace = kwds.get('namespace')
+        self.flags = kwds.get('flags', 0)
+        self.dryRun = kwds.get('dryRun', False)
+        self.useCache = kwds.get('useCache', False)
+        self.inflated = kwds.get('inflated', True)
+        self.autoIncrement = kwds.get('autoIncrement', True)
+        self.force = kwds.get('force', False)
+        self.deleteFlags = kwds.get('deleteFlags', orb.DeleteFlags.all())
+        self.format = kwds.get('format', 'object')
+        self.context = kwds.get('context', None)
 
     def __str__(self):
         """
@@ -92,11 +92,11 @@ class DatabaseOptions(object):
             val = getattr(self, key)
             if val == default:
                 continue
-            
+
             opts.append('{0}:{1}'.format(key, val))
-        
+
         return '<DatabaseOptions {0}>'.format(' '.join(opts))
-    
+
     def __hash__(self):
         """
         Returns a hash representation for this instance.
@@ -147,13 +147,13 @@ class DatabaseOptions(object):
             'inflated': self.inflated,
             'deleteFlags': self.deleteFlags,
             'locale': self.locale,
-            'format': self.format,
-            'cotext': self.context,
+            'context': self.context,
+            'format': self.format
         }
 
     def toXml(self, xparent=None):
         raise NotImplementedError
-    
+
     @staticmethod
     def fromDict(data):
         """
@@ -171,7 +171,8 @@ class DatabaseOptions(object):
     def fromXml(xdata):
         raise NotImplementedError
 
-#------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
 
 class LookupOptions(object):
     """
@@ -189,6 +190,7 @@ class LookupOptions(object):
                 distinct      | <bool> (default: False)
                 locale        | <str> || None | (default: None)
     """
+
     def __init__(self, **kwds):
         columns = kwds.get('columns') or []
         where = kwds.get('where') or None
@@ -197,11 +199,18 @@ class LookupOptions(object):
 
         if type(expand) == set:
             expand = list(expand)
+        if type(expand) == dict:
+            def expand_string(key, children):
+                return [key] + [key + '.' + child
+                                for value in [expand_string(k, v) for k, v in children.items()]
+                                for child in value]
+
+            expand = [entry for item in [expand_string(k, v) for k, v in expand.items()] for entry in item]
         if type(order) == set:
             order = list(order)
 
         if isinstance(order, (str, unicode)):
-            order = [(x.strip('+-'), 'desc' if x.startswith('-') else 'asc') for x in order.split(',') if x]
+            order = [(x.strip('+-').strip(), 'desc' if x.startswith('-') else 'asc') for x in order.split(',') if x]
 
         if isinstance(kwds.get('lookup'), LookupOptions):
             other = kwds['lookup']
@@ -216,24 +225,26 @@ class LookupOptions(object):
                 where = None
 
             # update order
-            order += [item for item in other.order or [] if order not in order]
-            expand += [expanded for expanded in other.expand or [] if expanded not in expand]
+            order = order or [item for item in other.order or []]
+            expand = expand or [expanded for expanded in other.expand or []]
 
             kwds.setdefault('start', other.start)
             kwds.setdefault('limit', other.limit)
             kwds.setdefault('distinct', other.distinct)
             kwds.setdefault('pageSize', other.pageSize)
             kwds.setdefault('page', other.page)
+            kwds.setdefault('returning', other.returning)
 
-        self.columns  = columns or None
-        self.where    = where
-        self.order    = order or None
-        self.expand   = expand or None
-        self._start   = kwds.get('start', None)
-        self._limit   = kwds.get('limit', None)
+        self.columns = columns or None
+        self.where = where
+        self.order = order or None
+        self.expand = expand or None
+        self._start = kwds.get('start', None)
+        self._limit = kwds.get('limit', None)
         self.distinct = kwds.get('distinct', False)
         self.pageSize = kwds.get('pageSize', None)
-        self.page     = kwds.get('page', -1)
+        self.page = kwds.get('page', -1)
+        self.returning = kwds.get('returning', 'records')
 
     def __str__(self):
         """
@@ -247,23 +258,22 @@ class LookupOptions(object):
                     'order',
                     '_start',
                     '_limit',
-                    'expand',
                     'pageSize',
                     'page'):
             val = getattr(self, key)
             if val is None:
                 continue
-            
-            if orb.Query.typecheck(val) or orb.QueryCompound.typecheck(val):
+
+            if orb.Query.typecheck(val):
                 val = hash(val)
-            
+
             opts.append('{0}:{1}'.format(key, val))
-        
+
         if self.distinct:
             opts.append('distinct:True')
-        
+
         return '<LookupOptions {0}>'.format(' '.join(opts))
-    
+
     def __hash__(self):
         """
         Returns a hash representation for this instance.
@@ -287,8 +297,32 @@ class LookupOptions(object):
             distinct=self.distinct,
             expand=self.expand[:] if self.expand else None,
             page=self.page,
-            pageSize=self.pageSize
+            pageSize=self.pageSize,
+            returning=self.returning,
         )
+
+    def expandtree(self):
+        """
+        Returns a dictionary of nested expansions for this option set.  This will inflate the dot notted
+        paths for each expanded column.
+
+        :return     <dict>
+        """
+        if not self.expand:
+            return {}
+
+        def build_tree(tree, name):
+            name, _, remain = name.partition('.')
+
+            tree.setdefault(name, {})
+            if remain:
+                build_tree(tree[name], remain)
+
+        output = {}
+        for path in self.expand:
+            build_tree(output, path)
+
+        return output
 
     def isNull(self):
         """
@@ -307,7 +341,7 @@ class LookupOptions(object):
                     'page'):
             if getattr(self, key):
                 return False
-        
+
         return True
 
     @property
@@ -336,14 +370,15 @@ class LookupOptions(object):
         """
         if 'lookup' in options:
             other = options['lookup']
-            options['where'] = other.where
-            options['columns'] = other.columns
-            options['order'] = other.order
-            options['start'] = other._start
-            options['limit'] = other._limit
-            options['expand'] = other.expand
-            options['pageSize'] = other.pageSize
-            options['page'] = other.page
+            options.setdefault('where', other.where)
+            options.setdefault('columns', other.columns)
+            options.setdefault('order', other.order)
+            options.setdefault('start', other._start)
+            options.setdefault('limit', other._limit)
+            options.setdefault('expand', other.expand)
+            options.setdefault('pageSize', other.pageSize)
+            options.setdefault('page', other.page)
+            options.setdefault('returning', other.returning)
 
         columns = self.columns or []
         columns += [col for col in options.get('columns') or [] if col not in columns]
@@ -354,9 +389,16 @@ class LookupOptions(object):
 
         order = options.get('order') or []
         if isinstance(order, (str, unicode)):
-            order = [(x.strip('+-'), 'desc' if x.startswith('-') else 'asc') for x in order.split(',') if x]
+            order = [(x.strip('+-').strip(), 'desc' if x.startswith('-') else 'asc') for x in order.split(',') if x]
 
         expand = options.get('expand') or []
+        if type(expand) == dict:
+            def expand_string(key, children):
+                return [key] + [key + '.' + child
+                                for value in [expand_string(k, v) for k, v in children.items()]
+                                for child in value]
+
+            expand = [entry for item in [expand_string(k, v) for k, v in expand.items()] for entry in item]
 
         self.columns = columns or None
         self.expand = (self.expand or [] + expand) or None
@@ -366,6 +408,7 @@ class LookupOptions(object):
         self.distinct = options.get('distinct', self.distinct)
         self.pageSize = options.get('pageSize', self.pageSize)
         self.page = options.get('page', self.page)
+        self.returning = options.get('returning', self.returning)
 
     def toDict(self):
         """
@@ -390,6 +433,8 @@ class LookupOptions(object):
             out['page'] = self.page
         if self.pageSize:
             out['pageSize'] = self.pageSize
+        if self.returning != 'records':
+            out['returning'] = self.returning
         return out
 
     def toXml(self, xparent=None):
@@ -410,7 +455,7 @@ class LookupOptions(object):
         kwds.update(data)
         if 'where' in data:
             kwds['where'] = orb.Query.fromDict(data['where'])
-        
+
         return LookupOptions(**kwds)
 
     @staticmethod

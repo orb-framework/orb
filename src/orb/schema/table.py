@@ -25,13 +25,12 @@ import projex.security
 import projex.text
 import re
 
-from collections import defaultdict
 from projex.enum import enum
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 from projex.callbacks import CallbackSet
 
-from .tablebase import TableBase
+from .meta.metatable import MetaTable
 from ..common import ColumnType
 from ..querying import Query as Q
 
@@ -51,7 +50,7 @@ class Table(object):
     Defines the base class type that all database records should inherit from.
     """
     # define the table meta class
-    __metaclass__ = TableBase
+    __metaclass__ = MetaTable
 
     # meta database information
     __db__ = ''  # name of DB in Environment for this model
@@ -172,7 +171,7 @@ class Table(object):
 
     #----------------------------------------------------------------------
 
-    def __json__(self):
+    def __json__(self, *args):
         """
         Iterates this object for its values.  This will return the field names from the
         database rather than the API names.  If you want the API names, you should use
@@ -333,7 +332,7 @@ class Table(object):
         # initialize from the database
         else:
             # extract the primary key for initializing from a record
-            if len(args) == 1 and Table.recordcheck(args[0]):
+            if len(args) == 1 and (Table.recordcheck(args[0]) or orb.View.recordcheck(args[0])):
                 record = args[0]
                 args = record.id()
                 self._updateFromDatabase(dict(record))
@@ -341,9 +340,14 @@ class Table(object):
             elif len(args) == 1:
                 args = args[0]
 
-            lookup = Q(type(self)) == args
-            data = self.selectFirst(where=lookup, db=db, namespace=namespace,
-                                    inflated=False)
+            cache = self.tableCache()
+            try:
+                data = cache[('record', args)]
+            except KeyError:
+                lookup = Q(type(self)) == args
+                data = self.selectFirst(where=lookup, db=db, namespace=namespace, inflated=False)
+                cache[('record', args)] = data
+
             if data:
                 self._updateFromDatabase(data)
             else:
@@ -382,7 +386,7 @@ class Table(object):
             self.__record_locale = options.locale
 
         schema = self.schema()
-        tableName = schema.tableName()
+        dbname = schema.dbname()
         dvalues = {}
 
         for column_name, value in data.items():
@@ -390,22 +394,28 @@ class Table(object):
                 tname, colname = column_name.split('.')
             except ValueError:
                 colname = column_name
-                tname = tableName
+                tname = dbname
 
             # make sure this value is from the database
-            if tname != tableName:
+            if tname != dbname:
                 continue
 
             # retrieve the column information
             column = schema.column(colname)
+
+            # use the expanded option when possible
+            if column in dvalues and (orb.Table.recordcheck(dvalues[column]) or orb.View.recordcheck(dvalues[column])):
+                continue
+
             if not column:
                 # preload records for reverse lookups and pipes
                 try:
                     loader = getattr(self, colname).preload
-                except AttributeError as err:
+                except AttributeError:
                     pass
                 else:
-                    loader(self, value, options)
+                    for preload_type, preload_value in value.items():
+                        loader(self, preload_value, options, type=preload_type)
                 continue
 
             # preload a reference column
@@ -492,10 +502,7 @@ class Table(object):
                 continue
 
             # compare two queries
-            if orb.Query.typecheck(newValue) or \
-                    orb.Query.typecheck(oldValue) or \
-                    orb.QueryCompound.typecheck(newValue) or \
-                    orb.QueryCompound.typecheck(oldValue):
+            if orb.Query.typecheck(newValue) or orb.Query.typecheck(oldValue):
                 equals = hash(oldValue) == hash(newValue)
 
             # compare two datetimes
@@ -604,6 +611,9 @@ class Table(object):
 
         # run any pre-commit logic required for this record
         kwds['results'] = results
+
+        cache = self.tableCache()
+        cache.expire(('record', self.id()))
 
         self.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
         return True
@@ -844,8 +854,6 @@ class Table(object):
 
         :return     <dict> || <str>
         """
-        options.setdefault('format', 'dict')
-
         # additional options
         lookup = self.lookupOptions(**options)
         db_opts = self.databaseOptions(**options)
@@ -853,58 +861,27 @@ class Table(object):
         # simple json conversion
         output = self.recordValues(key='field', columns=lookup.columns, inflated=False)
 
-        expand = lookup.expand
-        if expand:
-            # extract the items to look for
-            expanding = defaultdict(set)
-            for item in expand:
-                split = item.split('.')
-                expanding[projex.text.underscore(split[0])].add('.'.join(split[1:]))
-
-            pipes = {projex.text.underscore(pipe.name()): pipe.name()
-                     for pipe in self.schema().pipes()}
-            reverses = {projex.text.underscore(reverse.reversedName()): reverse.reversedName()
-                        for reverse in self.schema().reverseLookups()}
-            columns = {projex.text.underscore(column.name()): column
-                       for column in self.schema().columns()}
-
-            for key, addtl in expanding.items():
-                # expand a reference
-                if key in columns:
-                    column = columns[key]
-                    new_key = projex.text.underscore(column.name())
-                    reference = self.recordValue(column, inflated=True)
-
-                    output.pop(column.fieldName(), None)
-                    if reference:
-                        output[new_key] = reference.json(expand=[sub_expand for sub_expand in addtl if sub_expand])
-                    else:
-                        output[new_key] = None
-
-                # expand a pipe/reverse lookup
+        expand_tree = lookup.expandtree()
+        if expand_tree:
+            for key, subtree in expand_tree.items():
+                try:
+                    getter = getattr(self, key)
+                except AttributeError:
+                    continue
                 else:
-                    if key in pipes:
-                        rset = getattr(self, pipes[key])()
-                    elif key in reverses:
-                        rset = getattr(self, reverses[key])()
+                    value = getter()
+                    try:
+                        updater = value.updateOptions
+                    except AttributeError:
+                        pass
                     else:
-                        raise errors.ColumnNotFound(type(self), key)
+                        updater(expand=subtree)
+                    output[key] = value
 
-                    if 'ids' in addtl:
-                        output[key + '_ids'] = rset.ids()
-                        addtl.remove('ids')
-                    if 'count' in addtl:
-                        output[key + '_count'] = rset.count()
-                        addtl.remove('count')
-                    if addtl:
-                        output[key] = rset.json(expand=[sub_expand for sub_expand in addtl if sub_expand])
-
-        if db_opts.format == 'dict':
-            return output
-        elif db_opts.format == 'text':
+        if db_opts.format == 'text':
             return projex.rest.jsonify(output)
         else:
-            raise errors.OrbError('Invalid JSON format request.  Needs to be either unicode or dict.')
+            return output
 
     def localCache(self, key, default=None):
         """
@@ -1110,8 +1087,7 @@ class Table(object):
             return value
 
         # inflate the value to the class value
-        inst = refmodel.selectFirst(where=Q(refmodel) == value,
-                                    db=self.database())
+        inst = refmodel(value, db=self.database())
         if value == self.__record_defaults.get(col):
             self.__record_defaults[col] = inst
 
@@ -1481,10 +1457,7 @@ class Table(object):
             value = column.storeValue(value)
 
             # test comparison for queries
-            if orb.Query.typecheck(value) or \
-                    orb.Query.typecheck(curr_value) or \
-                    orb.QueryCompound.typecheck(value) or \
-                    orb.QueryCompound.typecheck(curr_value):
+            if orb.Query.typecheck(value) or orb.Query.typecheck(curr_value):
                 equals = hash(value) == hash(curr_value)
             else:
                 try:
@@ -1519,6 +1492,10 @@ class Table(object):
 
     def update(self, **values):
         return self.setRecordValues(**values)
+
+    def updateOptions(self, **options):
+        self.setLookupOptions(self.lookupOptions(**options))
+        self.setDatabaseOptions(self.databaseOptions(**options))
 
     def updateFromRecord(self, record):
         """
@@ -1792,7 +1769,7 @@ class Table(object):
         return record
 
     @classmethod
-    def isTableCacheExpired(cls, cachetime):
+    def isModelCacheExpired(cls, cachetime):
         """
         Returns whether or not the table's cache is expired based on the
         inputed cache time.
@@ -1902,12 +1879,10 @@ class Table(object):
 
         # checks to see if the schema defines a cache
         schema = cls.schema()
-        if not schema.isCacheEnabled():
-            return None
 
         # define the cache for the first time
         cache = orb.RecordCache(cls)
-        cache.setExpires(cls, schema.cacheExpireIn())
+        cache.setExpires(cls, schema.cacheExpireIn() if schema.isCacheEnabled() else 0.5)
         cls.pushRecordCache(cache)
 
         return cache
@@ -1953,12 +1928,14 @@ class Table(object):
         
         :return     <cls> || None
         """
-        kwds['limit'] = 1
-
-        try:
-            return (cls.select(*args, **kwds))[0]
-        except IndexError:
-            return None
+        results = cls.select(*args, **kwds)
+        if isinstance(results, orb.RecordSet):
+            return results.first()
+        else:
+            try:
+                return results[0]
+            except IndexError:
+                return None
 
     @classmethod
     def select(cls, *args, **kwds):
@@ -1998,6 +1975,7 @@ class Table(object):
                 kwds[arg_headers[i]] = args[i]
 
         lookup = orb.LookupOptions(**kwds)
+        lookup.order = lookup.order or cls.schema().defaultOrder()
         options = orb.DatabaseOptions(**kwds)
 
         # setup the default query options
@@ -2027,7 +2005,17 @@ class Table(object):
                 return options.context['RecordSet'](rset)
             return rset
         else:
-            return list(rset)
+            return rset.records()
+
+    @classmethod
+    def tableCache(cls):
+        key = '_{0}__cache'.format(cls.__name__)
+        try:
+            return getattr(cls, key)
+        except AttributeError:
+            cache = orb.TableCache(cls, expires=cls.schema().cacheExpireIn() * 60)  # expire in is in minutes
+            setattr(cls, key, cache)
+            return cache
 
     @classmethod
     def callbacks(cls):

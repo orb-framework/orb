@@ -140,7 +140,7 @@ class DataStore(AddonManager):
             return py_value.primaryKeys()
         
         # save a record
-        elif orb.Table.recordcheck(py_value):
+        elif orb.Table.recordcheck(py_value) or orb.View.recordcheck(py_value):
             return py_value.primaryKey() if py_value.isRecord() else None
         
         # save a list/tuple/set

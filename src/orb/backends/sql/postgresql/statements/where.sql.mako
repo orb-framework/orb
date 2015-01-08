@@ -2,7 +2,7 @@
     <%
         val_schema = value.table().schema()
         val_col = value.column()
-        query_field = QUOTE(val_schema.tableName(), val_col.fieldName())
+        query_field = QUOTE(val_schema.dbname(), val_col.fieldName())
     %>
     % if query.isInverted():
         ${query_field} ${op} ${field}
@@ -48,7 +48,7 @@
         % if column in GLOBALS['field_mapper']:
         ${field} ${op} %(${key})s
         % else:
-        <% table_name = column.schema().tableName() %>
+        <% table_name = column.schema().dbname() %>
         "${table_name}"."${ID}" IN (
             SELECT "${table_name}_id"
             FROM "${table_name}_i18n"

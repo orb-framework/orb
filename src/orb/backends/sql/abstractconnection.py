@@ -139,7 +139,7 @@ class SQLConnection(orb.Connection):
         
         :return     <int>
         """
-        if orb.Table.typecheck(table_or_join):
+        if orb.Table.typecheck(table_or_join) or orb.View.typecheck(table_or_join):
             SELECT_COUNT = self.sql('SELECT_COUNT')
         else:
             SELECT_COUNT = self.sql('SELECT_COUNT_JOIN')
@@ -183,6 +183,7 @@ class SQLConnection(orb.Connection):
         actually executed in the database.
         
         :param      schema    | <orb.TableSchema>
+                    info      | <dict>
                     options   | <orb.DatabaseOptions>
         
         :return     <bool> success
@@ -199,7 +200,7 @@ class SQLConnection(orb.Connection):
         
         if not options.dryRun:
             self.execute(cmd, data)
-            log.info('Created {0} table.'.format(schema.tableName()))
+            log.info('Created {0} table.'.format(schema.dbname()))
         else:
             print cmd % data
         
@@ -410,7 +411,7 @@ class SQLConnection(orb.Connection):
             records = list(records)
         
         # wrap the record in a list
-        elif orb.Table.recordcheck(records):
+        elif orb.Table.recordcheck(records) or orb.View.recordcheck(records):
             records = [records]
         
         # determine the proper records for insertion
@@ -631,8 +632,15 @@ class SQLConnection(orb.Connection):
             return True
         return False
 
+    def schemaInfo(self, options):
+        SCHEMA_INFO = self.sql('SCHEMA_INFO')
+        data = {}
+        sql = SCHEMA_INFO(options=options, IO=data)
+        info = self.execute(sql, data, autoCommit=False)[0]
+        return {table['name']: table for table in info}
+
     def select(self, table_or_join, lookup, options):
-        if orb.Table.typecheck(table_or_join):
+        if orb.Table.typecheck(table_or_join) or orb.View.typecheck(table_or_join):
             # ensure the primary record information is provided for inflatorb.logger.setLevel(orb.logging.DEBUG)ions
             if lookup.columns and options.inflated:
                 lookup.columns += [col.name() for col in
@@ -770,7 +778,7 @@ class SQLConnection(orb.Connection):
             records = list(records)
         
         # wrap the record in a list
-        elif orb.Table.recordcheck(records):
+        elif orb.Table.recordcheck(records) or orb.View.recordcheck(records):
             records = [records]
         
         updater = defaultdict(list)
@@ -833,7 +841,7 @@ class SQLConnection(orb.Connection):
             return changes[0]
         return changes
     
-    def updateTable(self, schema, options):
+    def updateTable(self, schema, info, options):
         """
         Determines the difference between the inputed schema
         and the table in the database, creating new columns
@@ -856,17 +864,27 @@ class SQLConnection(orb.Connection):
         :return     <bool> success
         """
         # determine the new columns
-        existing = self.existingColumns(schema, options)
+        existing_columns = info['columns']
         all_columns  = schema.fieldNames(recurse=False, kind=orb.Column.Kind.Field)
-        missing = set(all_columns).difference(existing)
+        missing_columns = set(all_columns).difference(existing_columns)
+
+        # determine new indexes
+        table_name = schema.dbname()
+        existing_indexes = info['indexes']
+        all_indexes = [table_name + '_' + projex.text.underscore(index.name().lstrip('by')) + '_idx'
+                       for index in schema.indexes(recurse=False)]
+        all_indexes += [table_name + '_' + projex.text.underscore(column.indexName().lstrip('by')) + '_idx'
+                        for column in schema.columns(recurse=False, kind=orb.Column.Kind.Field)
+                        if column.indexed() and not column.primary()]
+        missing_indexes = set(all_indexes).difference(existing_indexes)
 
         
         # if no columns are missing, return True to indicate the table is
         # up to date
-        if not missing:
+        if not (missing_columns or missing_indexes):
             return True
         
-        columns = [schema.column(col) for col in missing]
+        columns = [schema.column(col) for col in missing_columns]
         ALTER = self.sql('ALTER_TABLE')
         data = {}
         sql = ALTER(schema, added=columns, options=options, IO=data)
@@ -875,8 +893,8 @@ class SQLConnection(orb.Connection):
             print sql % data
         else:
             self.execute(sql, data)
-            opts = (schema.name(), ','.join(missing))
-            log.info('Updated {0} table: added {1}'.format(*opts))
+            opts = (schema.name(), ','.join(missing_columns), ','.join(missing_indexes))
+            log.info('Updated {0} table, added {1} columns and {2} indexes.'.format(*opts))
         
         return True
 

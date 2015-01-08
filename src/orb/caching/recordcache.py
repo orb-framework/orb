@@ -18,7 +18,6 @@ __email__           = 'team@projexsoftware.com'
 import logging
 
 from projex.lazymodule import LazyModule
-from projex.text import nativestring as nstr
 
 log = logging.getLogger(__name__)
 orb = LazyModule('orb')
@@ -81,7 +80,7 @@ class RecordCache(object):
             tables = orb.system.models()
         
         expires = kwds.get('expires', 0)
-        self._caches = dict([(table, orb.TableCache(table, expires)) \
+        self._caches = dict([(table, orb.TableCache(table, expires))
                              for table in tables])
     
     def __enter__(self):
@@ -96,8 +95,8 @@ class RecordCache(object):
         """
         for table in self._caches:
             table.pushRecordCache(self)
-    
-    def cache(self, table):
+
+    def cache(self, table, autocreate=False):
         """
         Returns the cache associated with this record cache for the given
         table.
@@ -254,7 +253,7 @@ class RecordCache(object):
                            lookup,
                            db_opts)
     
-    def setExpires(self, table, minutes):
+    def setExpires(self, table, seconds):
         """
         Sets the length of time in minutes to hold onto this cache before 
         re-querying the database.
@@ -264,9 +263,9 @@ class RecordCache(object):
         """
         cache = self.cache(table)
         if cache:
-            expires = minutes * 60
-            table_expires = table.schema().cacheExpireIn() * 60
-            max_expires = orb.system.maxCacheTimeout() * 60
+            expires = seconds
+            table_expires = table.schema().cacheExpireIn()
+            max_expires = orb.system.maxCacheTimeout()
             opts = [expires, table_expires, max_expires]
             expires = min(filter(lambda x: x > 0, opts))
             

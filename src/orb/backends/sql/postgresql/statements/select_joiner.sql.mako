@@ -2,9 +2,9 @@
 WHERE = SQL.byName('WHERE')
 
 joiner = column.joiner()
-src_table = column.schema().tableName()
+src_table = column.schema().dbname()
 ref_col = joiner.referenceColumn()
-ref_table = ref_col.schema().tableName()
+ref_table = ref_col.schema().dbname()
 targ_col = joiner.targetColumn()
 
 query = joiner.where(column)

@@ -70,7 +70,8 @@ class Column(object):
                  'Encrypted',
                  'Searchable',
                  'IgnoreByDefault',
-                 'Translatable')
+                 'Translatable',
+                 'CaseSensitive')
 
     Kind = enum('Field',
                 'Joined',
@@ -550,10 +551,12 @@ class Column(object):
         if name == self:
             return True
 
-        opts = [self.name(),
+        opts = (self.name(),
                 self.name().strip('_'),
+                projex.text.camelHump(self.name()),     # support both styles for string lookup
+                projex.text.underscore(self.name()),
                 self.displayName(),
-                self.fieldName()]
+                self.fieldName())
 
         return name in opts
 
@@ -787,7 +790,7 @@ class Column(object):
         if not self.isReference():
             return None
 
-        dbname = self.schema().databaseName()
+        dbname = self.schema().databaseName() or None
         return orb.system.model(self.reference(), database=dbname)
 
     def restoreValue(self, value):

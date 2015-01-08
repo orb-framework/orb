@@ -437,14 +437,14 @@ class Database(object):
             return backend.restore(filename, **options)
         return False
 
-    def schemas(self):
+    def schemas(self, base=None):
         """
         Looks up all the table schemas in the manager that are mapped to \
         this database.
         
         :return     [<TableSchema>, ..]
         """
-        return orb.system.databaseSchemas(self)
+        return orb.system.databaseSchemas(self, base)
 
     def setApplicationToken(self, token):
         """
@@ -612,27 +612,31 @@ class Database(object):
         """
         # collect the information for this database
         con = self.backend()
-        schemas = self.schemas()
+        schemas = self.schemas(orb.TableSchema)
         schemas.sort()
 
         options = kwds.get('options', orb.DatabaseOptions(**kwds))
 
         # initialize the database
         con.setupDatabase(options)
+        info = con.schemaInfo(options)
 
         # first pass will add columns and default columns, but may miss
         # certain foreign key references since one table may not exist before
         # another yet
         with orb.Transaction():
             for schema in schemas:
-                if not con.tableExists(schema, options):
+                if not schema.dbname() in info:
                     con.createTable(schema, options)
+
+        # update after any newly created tables get generated
+        info = con.schemaInfo(options)
 
         # second pass will ensure that all columns, including foreign keys
         # will be generated
         with orb.Transaction():
             for schema in schemas:
-                con.updateTable(schema, options)
+                con.updateTable(schema, info[schema.dbname()], options)
 
         # third pass will generate all the proper value information
         with orb.Transaction():

@@ -82,15 +82,15 @@ class Index(object):
             value = values[i]
             column = table.schema().column(col)
             
-            if orb.Table.recordcheck(value) and not value.isRecord():
+            if (orb.Table.recordcheck(value) or orb.View.recordcheck(value)) and not value.isRecord():
                 if self._unique:
                     return None
                 
                 return orb.RecordSet()
             
             if not column:
-                tableName = table.schema().name()
-                raise errors.ColumnNotFound(tableName, col)
+                name = table.schema().name()
+                raise errors.ColumnNotFound(name, col)
             
             if column.isEncrypted():
                 value = projex.security.encrypt(value)

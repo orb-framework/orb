@@ -38,11 +38,11 @@ log = logging.getLogger(__name__)
 # assign record encode/decoders
 def record_encoder(py_obj):
     # encode a record
-    if orb.Table.recordcheck(py_obj):
+    if orb.Table.recordcheck(py_obj) or orb.View.recordcheck(py_obj):
         return True, py_obj.json()
     # encode a recordset
     elif orb.RecordSet.typecheck(py_obj):
-        return True, [record.json() for record in py_obj]
+        return True, py_obj.json()
     # encode a query
     elif orb.Query.typecheck(py_obj):
         return True, py_obj.toDict()
@@ -299,9 +299,6 @@ class JSONRPC(orb.Connection):
         
         :return     [<variant> result, ..]
         """
-        if not lookup.order and orb.Table.typecheck(table_or_join):
-            lookup.order = table_or_join.schema().defaultOrder()
-        
         # ensure we're working with a valid table
         if not orb.Table.typecheck(table_or_join):
             log.debug('JSONRPC backend only supports table lookups.')

@@ -98,7 +98,7 @@ class Quickbase(orb.Connection):
             field_ids = {}
             col_map = dict([(c.displayName(), c.fieldName())
                             for c in schema.columns(includeProxies=False)])
-            table_id = schema.tableName()
+            table_id = schema.dbname()
             xresp = self.request(table_id + '?a=td', 'GetSchema')
             xtable = xresp.find('table')
             xfields = xtable.find('fields')
@@ -153,7 +153,7 @@ class Quickbase(orb.Connection):
         qb_options = '.'.join(qb_opts)
         output = []
         for schema, columns in schemas:
-            table_id = schema.tableName()
+            table_id = schema.dbname()
             field_ids = self._fieldIds(schema)
 
             # generate the request parameters
@@ -174,9 +174,6 @@ class Quickbase(orb.Connection):
                 request['query'] = self.queryCommand(schema, where)
 
             # convert the sorting keys
-            if not lookup.order and orb.Table.typecheck(table_or_join):
-                lookup.order = table_or_join.schema().defaultOrder()
-
             if lookup.order:
                 sort = []
                 direc = 'sortorder-A'
@@ -280,7 +277,7 @@ class Quickbase(orb.Connection):
             return []
 
         schema = table_or_join.schema()
-        table_id = schema.tableName()
+        table_id = schema.dbname()
         if not lookup.where:
             xresponse = self.request(table_id + '?a=td', 'GetNumRecords')
             return int(xresponse.find('num_records').text)
@@ -369,16 +366,16 @@ class Quickbase(orb.Connection):
             raise errors.QueryInvalid(query)
 
         value = query.value()
-        tableName = schema.tableName()
+        dbname = schema.dbname()
         op = query.operatorType()
         colname = query.columnName()
         col = schema.column(colname)
 
         if not col:
-            raise errors.ColumnNotFound(tableName, colname)
+            raise errors.ColumnNotFound(dbname, colname)
 
         # extract the primary key information
-        if orb.Table.recordcheck(value):
+        if orb.Table.recordcheck(value) or orb.View.recordcheck(value):
             value = self.recordCommand(col, value)
 
         # extract the primary key information for a list of items
@@ -410,7 +407,7 @@ class Quickbase(orb.Connection):
         """
         # handle conversions of non record values to mongo object ids when
         # necessary
-        if not orb.Table.recordcheck(value):
+        if not (orb.Table.recordcheck(value) or orb.View.recordcheck(value)):
             return value
 
         pkey = value.primaryKey()
@@ -426,7 +423,7 @@ class Quickbase(orb.Connection):
         return nstr(pkey)
 
     def request(self,
-                tableName,
+                dbname,
                 action,
                 request=None,
                 required=None,
@@ -443,7 +440,7 @@ class Quickbase(orb.Connection):
         :return     [<str>, ..] | response
         """
         # generate the URL for the database
-        url = self.database().host() + '/db/' + tableName
+        url = self.database().host() + '/db/' + dbname
 
         if request is None:
             request = {}

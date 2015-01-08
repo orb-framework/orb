@@ -253,7 +253,7 @@ class Query(object):
             self._columnName = nstr(args[1])
 
         # initialized with (table,)
-        elif len(args) == 1 and orb.Table.typecheck(args[0]):
+        elif len(args) == 1 and (orb.Table.typecheck(args[0]) or orb.View.typecheck(args[0])):
             # when only a table is supplied, auto-use the primary key
             self._table = args[0]
             self._columnName = None
@@ -324,7 +324,7 @@ class Query(object):
         """
         if other is None:
             return self
-        if Query.typecheck(other) or orb.QueryCompound.typecheck(other):
+        if Query.typecheck(other):
             return self.and_(other)
         else:
             out = self.copy()
@@ -520,7 +520,7 @@ class Query(object):
                     |>>> print query
                     |(test is not 1 or name is Eric)
         """
-        if Query.typecheck(other) or orb.QueryCompound.typecheck(other):
+        if Query.typecheck(other):
             return self.or_(other)
         else:
             out = self.copy()
@@ -628,7 +628,7 @@ class Query(object):
 
     def __valueToDict(self, value):
         # store a record
-        if orb.Table.recordcheck(value):
+        if orb.Table.recordcheck(value) or orb.View.recordcheck(value):
             return self.__valueToDict(value.id())
 
         # store a recordset
@@ -636,11 +636,11 @@ class Query(object):
             return self.__valueToDict(value.ids())
 
         # store a query
-        elif Query.typecheck(value):
+        elif isinstance(value, orb.Query):
             typ = 'query'
 
         # store a query compound
-        elif orb.QueryCompound.typecheck(value):
+        elif isinstance(value, orb.QueryCompount):
             typ = 'compound'
 
         # store a standard python object
@@ -679,13 +679,13 @@ class Query(object):
         return output
 
     def __valueToXml(self, xparent, value):
-        if orb.Table.recordcheck(value):
+        if orb.Table.recordcheck(value) or orb.View.recordcheck(value):
             return self.__valueToXml(xparent, value.id())
         elif orb.RecordSet.typecheck(value):
             return value.toXml(xparent)
-        elif Query.typecheck(value):
+        elif isinstance(value, orb.Query):
             typ = 'query'
-        elif orb.QueryCompound.typecheck(value):
+        elif isinstance(value, orb.QueryCompound):
             typ = 'compound'
         else:
             typ = type(value).__name__
@@ -878,7 +878,7 @@ class Query(object):
             value = self._value
 
         for val in value:
-            if Query.typecheck(val) or orb.QueryCompound.typecheck(val):
+            if Query.typecheck(val):
                 output += val.columns(schema=schema)
 
         return list(set(output))
@@ -1015,18 +1015,24 @@ class Query(object):
         
         :return     <orb.Query> || <orb.QueryCompound>
         """
-        parts = self.columnName().split('.')
-
-        # no shortcut
-        if len(parts) == 1:
-            return self
-
         # lookup the table for this query
         table = self.table() or basetable
         if not table:
             raise errors.QueryInvalid('Could not traverse: {0}'.format(self.columnName()))
 
         schema = table.schema()
+
+        # lookup a shortcut column first
+        col = schema.column(self.columnName())
+        if col and col.shortcut() and not isinstance(col.schema(), orb.ViewSchema):
+            parts = col.shortcut().split('.')
+        else:
+            parts = self.columnName().split('.')
+
+        # no shortcut
+        if len(parts) == 1:
+            return self
+
         data = schema.column(parts[0]) or schema.reverseLookup(parts[0]) or schema.pipe(parts[0])
         if not data:
             raise errors.QueryInvalid('Could not traverse: {0}'.format(self.columnName()))
@@ -1584,7 +1590,7 @@ class Query(object):
             value = self._value
 
         for val in value:
-            if Query.typecheck(val) or orb.QueryCompound.typecheck(val):
+            if Query.typecheck(val):
                 output.update(val.tables())
 
         return list(output)
@@ -1653,7 +1659,7 @@ class Query(object):
             data = [self.columnName()]
             for op, value in self._math:
                 data.append(Query.MathSymbol.get(op))
-                if Query.typecheck(value) or orb.QueryCompound.typecheck(value):
+                if Query.typecheck(value):
                     data.append(str(value))
                 else:
                     data.append(repr(value))
@@ -1760,9 +1766,9 @@ class Query(object):
 
         mvalue = self._value
 
-        if orb.Table.recordcheck(mvalue):
+        if orb.Table.recordcheck(mvalue) or orb.View.recordcheck(mvalue):
             mvalue = mvalue.primaryKey()
-        if orb.Table.recordcheck(rvalue):
+        if orb.Table.recordcheck(rvalue) or orb.View.recordcheck(rvalue):
             rvalue = rvalue.primaryKey()
         else:
             # apply functions to the value
@@ -2319,7 +2325,7 @@ class Query(object):
         
         :return     <bool>
         """
-        return isinstance(obj, Query)
+        return isinstance(obj, (orb.Query, orb.QueryCompound))
 
     @staticmethod
     def testNull(query):
@@ -2329,7 +2335,7 @@ class Query(object):
         
         :param      query | <orb.Query> || <orb.QueryCompound> || <variant>
         """
-        if Query.typecheck(query) or orb.QueryCompound.typecheck(query):
+        if Query.typecheck(query):
             return query.isNull()
         return True
 

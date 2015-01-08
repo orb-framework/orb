@@ -41,7 +41,7 @@ class ADD_COLUMN(SQL):
         new_scope = {
             'column': column,
             'field': column.fieldName(),
-            'reference': column.referenceModel().schema().tableName() if column.reference() else '',
+            'reference': column.referenceModel().schema().dbname() if column.reference() else '',
             'type': sql_type,
             'flags': self.collectFlags(column),
             'max_length': column.maxlength() or self.baseSQL().byName('Length::{0}'.format(type_name))
@@ -90,19 +90,27 @@ class ALTER_TABLE(SQL):
 
         :return     <str>
         """
+        if not isinstance(schema, orb.TableSchema):
+            return ''
+
         db = scope.get('db', orb.system.database())
+
+        new_columns = self.collectColumns(schema, added)
+        old_columns = self.collectColumns(schema, removed)
 
         # define the new scope
         new_scope = {
-            'table': schema.tableName(),
-            'added': self.collectColumns(schema, added),
-            'removed': self.collectColumns(schema, removed),
+            'schema': schema,
+            'table': schema.dbname(),
+            'added': new_columns,
+            'removed': old_columns,
             'owner': db.username(),
-            'inherits': schema.inheritsModel().schema().tableName() if schema.inherits() else '',
+            'inherits': schema.inheritsModel().schema().dbname() if schema.inherits() else '',
 
             # define some useful sql queries by default
             'ADD_COLUMN': self.baseSQL().byName('ADD_COLUMN'),
-            'ADD_CONSTRAINT': self.baseSQL().byName('ADD_CONSTRAINT')
+            'ADD_CONSTRAINT': self.baseSQL().byName('ADD_CONSTRAINT'),
+            'CREATE_INDEX': self.baseSQL().byName('CREATE_INDEX')
         }
 
         # update any user overrides
@@ -148,19 +156,26 @@ class CREATE_TABLE(SQL):
 
         :return     <str>
         """
+        # ensure this is infact a table type
+        if not orb.Table.typecheck(table):
+            return ''
+
         schema = table.schema()
         db = db or orb.system.database()
+        new_columns = self.collectColumns(table)
 
         # define the new scope
         new_scope = {
-            'table': schema.tableName(),
-            'columns': self.collectColumns(table),
+            'schema':schema,
+            'table': schema.dbname(),
+            'columns': new_columns,
             'owner': db.username(),
-            'inherits': schema.inheritsModel().schema().tableName() if schema.inherits() else '',
+            'inherits': schema.inheritsModel().schema().dbname() if schema.inherits() else '',
 
             # define some useful sql queries by default
             'ADD_COLUMN': self.baseSQL().byName('ADD_COLUMN'),
-            'ADD_CONSTRAINT': self.baseSQL().byName('ADD_CONSTRAINT')
+            'ADD_CONSTRAINT': self.baseSQL().byName('ADD_CONSTRAINT'),
+            'CREATE_INDEX': self.baseSQL().byName('CREATE_INDEX'),
         }
 
         if not new_scope['columns']['primary']:
@@ -171,6 +186,17 @@ class CREATE_TABLE(SQL):
 
         return super(CREATE_TABLE, self).render(**new_scope)
 
+class CREATE_INDEX(SQL):
+    def render(self, index_or_column, **scope):
+        # create an index here
+        if isinstance(index_or_column, orb.Index):
+            scope['index'] = index_or_column
+            scope['column'] = None
+        else:
+            scope['column'] = index_or_column
+            scope['index'] = None
+
+        return super(CREATE_INDEX, self).render(**scope)
 
 # D
 #----------------------------------------------------------------------
@@ -189,7 +215,7 @@ class DELETE(SQL):
         io = scope.get('IO', {})
         WHERE = self.baseSQL().byName('WHERE')
 
-        scope['table'] = table.schema().tableName()
+        scope['table'] = table.schema().dbname()
         scope['schema'] = table.schema()
         scope['query'] = query
         scope['where'] = WHERE(table.schema(), query, IO=io)
@@ -203,7 +229,7 @@ class DELETE(SQL):
 class ENABLE_INTERNALS(SQL):
     def render(self, enabled, schema=None, **scope):
         scope['enabled'] = enabled
-        scope['table'] = schema.tableName() if schema else ''
+        scope['table'] = schema.dbname() if schema else ''
 
         return super(ENABLE_INTERNALS, self).render(**scope)
 
@@ -277,6 +303,8 @@ class INSERT(SQL):
         """
         if orb.Table.typecheck(schema):
             schema = schema.schema()
+        elif orb.View.typecheck(schema):
+            raise errors.QueryFailed('Views are read-only.')
 
         if columns is None:
             columns = schema.columns(kind=orb.Column.Kind.Field)
@@ -290,7 +318,7 @@ class INSERT(SQL):
         columns, insertions = self.collectInsertions(records, columns, io, locale)
 
         new_scope = {
-            'table': schema.tableName(),
+            'table': schema.dbname(),
             'schema': schema,
             'records': records,
             'columns': columns,
@@ -315,10 +343,12 @@ class INSERTED_KEYS(SQL):
         """
         if orb.Table.typecheck(schema):
             schema = schema.schema()
+        elif orb.View.typecheck(schema):
+            raise errors.QueryFailed('Views are read-only.')
 
         scope['schema'] = schema
         scope['field'] = schema.primaryColumns()[0].fieldName()
-        scope['table'] = schema.tableName()
+        scope['table'] = schema.dbname()
         scope['count'] = count
 
         return super(INSERTED_KEYS, self).render(**scope)
@@ -342,6 +372,17 @@ class QUOTE(SQL):
 # S
 #----------------------------------------------------------------------
 
+class SCHEMA_INFO(SQL):
+    def render(self, **scope):
+        try:
+            namespace = scope['options'].namespace or 'public'
+        except (KeyError, AttributeError):
+            namespace = 'public'
+
+        scope['namespace'] = namespace
+
+        return super(SCHEMA_INFO, self).render(**scope)
+
 class SELECT(SQL):
     def render(self, table_or_records, **scope):
         """
@@ -354,7 +395,7 @@ class SELECT(SQL):
 
         :return     <str>
         """
-        if orb.Table.typecheck(table_or_records):
+        if orb.Table.typecheck(table_or_records) or orb.View.typecheck(table_or_records):
             new_scope = {
                 'table': table_or_records,
                 'lookup': orb.LookupOptions(**scope),
@@ -378,7 +419,6 @@ class SELECT(SQL):
 
         return super(SELECT, self).render(**new_scope)
 
-
 class SELECT_AGGREGATE(SQL):
     def render(self, column, **scope):
         """
@@ -392,7 +432,6 @@ class SELECT_AGGREGATE(SQL):
         scope['column'] = column
 
         return super(SELECT_AGGREGATE, self).render(**scope)
-
 
 class SELECT_COUNT(SQL):
     def render(self, table, **scope):
@@ -412,16 +451,22 @@ class SELECT_COUNT(SQL):
 
         return super(SELECT_COUNT, self).render(**scope)
 
-
 class SELECT_EXPAND(SQL):
     def render(self, **scope):
         # define optional arguments
+        scope.setdefault('source_alias', '')
         scope.setdefault('column', None)
         scope.setdefault('pipe', None)
         scope.setdefault('reverseLookup', None)
+        scope.setdefault('SELECT_EXPAND', self)
 
         return super(SELECT_EXPAND, self).render(**scope)
 
+class SELECT_SHORTCUT(SQL):
+    def render(self, column, **scope):
+        scope['column'] = column
+
+        return super(SELECT_SHORTCUT, self).render(**scope)
 
 class SELECT_JOINER(SQL):
     def render(self, column, **scope):
@@ -436,47 +481,6 @@ class SELECT_JOINER(SQL):
         scope['column'] = column
 
         return super(SELECT_JOINER, self).render(**scope)
-
-
-# T
-#----------------------------------------------------------------------
-
-class TABLE_COLUMNS(SQL):
-    def render(self, schema, **scope):
-        """
-        Generates the TABLE COLUMNS sql for an <orb.Table>.
-
-        :param      schema  | <orb.Table> || <orb.TableSchema>
-                    **scope | <dict>
-
-        :return     <str>
-        """
-        if orb.Table.typecheck(schema):
-            schema = schema.schema()
-
-        scope['schema'] = schema
-
-        return super(TABLE_COLUMNS, self).render(**scope)
-
-
-class TABLE_EXISTS(SQL):
-    def render(self, schema, **scope):
-        """
-        Generates the TABLE EXISTS sql for an <orb.Table>.
-
-        :param      schema  | <orb.TableSchema> || <orb.Table>
-                    **scope | <dict>
-
-        :return     <str>
-        """
-        if orb.Table.typecheck(schema):
-            schema = schema.schema()
-
-        scope['schema'] = schema
-        scope['table'] = schema.tableName()
-
-        return super(TABLE_EXISTS, self).render(**scope)
-
 
 # U
 #----------------------------------------------------------------------
@@ -494,6 +498,8 @@ class UPDATE(SQL):
         """
         if orb.Table.typecheck(schema):
             schema = schema.schema()
+        elif orb.View.typecheck(schema):
+            raise errors.QueryFailed('Views are read-only.')
 
         scope['schema'] = schema
         scope['changes'] = changes
@@ -508,7 +514,7 @@ class WHERE(SQL):
         QUOTE = self.baseSQL().byName('QUOTE')
 
         column = query.column(schema)
-        output = QUOTE(column.schema().tableName(), column.fieldName())
+        output = QUOTE(column.schema().dbname(), column.fieldName())
 
         # process any functions on the query
         for func in query.functions():
@@ -588,7 +594,7 @@ class WHERE(SQL):
             value = query.value()
 
             # check for a record value
-            if orb.Table.recordcheck(value):
+            if orb.Table.recordcheck(value) or orb.View.recordcheck(value):
                 value = value.primaryKey()
 
             # calculate the sql operation

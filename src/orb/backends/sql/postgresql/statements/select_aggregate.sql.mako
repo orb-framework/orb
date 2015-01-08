@@ -2,9 +2,9 @@
 WHERE = SQL.byName('WHERE')
 
 aggr = column.aggregator()
-src_table = column.schema().tableName()
+src_table = column.schema().dbname()
 ref_col = aggr.referenceColumn()
-ref_table = ref_col.schema().tableName()
+ref_table = ref_col.schema().dbname()
 targ_col = aggr.targetColumn()
 
 query = aggr.where(column)

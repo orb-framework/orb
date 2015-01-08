@@ -28,3 +28,13 @@ ALTER TABLE "${table}_i18n"
     % endfor
     ${ADD_COLUMN(added['i18n'][-1])}
 % endif
+
+## create any indexes for this new table
+% for column in schema.columns():
+% if column.indexed() and not column.primary():
+${CREATE_INDEX(column, checkExists=True, GLOBALS=GLOBALS, IO=IO)}
+% endif
+% endfor
+% for index in schema.indexes():
+${CREATE_INDEX(index, checkExists=True, GLOBALS=GLOBALS, IO=IO)}
+% endfor

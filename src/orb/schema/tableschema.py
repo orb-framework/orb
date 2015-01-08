@@ -22,7 +22,7 @@ from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
 
-from .tablebase import TableBase
+from .meta.metatable import MetaTable
 from . import dynamic
 
 log = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class TableSchema(object):
         self._name = ''
         self._databaseName = ''
         self._groupName = ''
-        self._tableName = ''
+        self._dbname = ''
         self._inherits = ''
         self._stringFormat = ''
         self._namespace = ''
@@ -85,9 +85,10 @@ class TableSchema(object):
         self._cacheExpireIn = 0
         self._inheritedLoaded = False
         self._cacheEnabled = False
-        self._preloadCache = True
+        self._preloadCache = False
         self._columns = set()
         self._columnIndex = {}
+        self._views = {}
         self._properties = {}
         self._indexes = []
         self._pipes = []
@@ -107,7 +108,7 @@ class TableSchema(object):
     def addColumn(self, column):
         """
         Adds the inputed column to this table schema.
-        
+
         :param      column  | <orb.Column>
         """
         self._columns.add(column)
@@ -117,7 +118,7 @@ class TableSchema(object):
     def addIndex(self, index):
         """
         Adds the inputed index to this table schema.
-        
+
         :param      index   | <orb.Index>
         """
         if index in self._indexes:
@@ -129,7 +130,7 @@ class TableSchema(object):
     def addPipe(self, pipe):
         """
         Adds the inputed pipe reference to this table schema.
-        
+
         :param      pipe | <orb.Pipe>
         """
         if pipe in self._pipes:
@@ -463,7 +464,7 @@ class TableSchema(object):
         if grp:
             prefix = grp.modelPrefix()
 
-        cls = TableBase(prefix + self.name(), tuple(bases), attrs)
+        cls = MetaTable(prefix + self.name(), tuple(bases), attrs)
         setattr(dynamic, cls.__name__, cls)
 
         # generate archive layer
@@ -517,7 +518,7 @@ class TableSchema(object):
                 '__db__': self.databaseName(),
                 '__db_group__': self.groupName(),
                 '__db_name__': '{0}Archive'.format(self.name()),
-                '__db_tablename__': '{0}_archives'.format(projex.text.underscore(self.name())),
+                '__db_dbname__': '{0}_archives'.format(projex.text.underscore(self.name())),
                 '__db_columns__': archive_columns,
                 '__db_indexes__': archive_indexes,
                 '__db_pipes__': [],
@@ -528,7 +529,7 @@ class TableSchema(object):
                 '__db_archived__': False
             }
 
-            archive_class = TableBase(archive_data['__db_name__'], (orb.Table,), archive_data)
+            archive_class = MetaTable(archive_data['__db_name__'], (orb.Table,), archive_data)
             archive_schema = archive_class.schema()
             archive_schema.setDefaultOrder([('archiveNumber', 'asc')])
             self.setArchiveModel(archive_class)
@@ -1111,15 +1112,15 @@ class TableSchema(object):
         """
         self._stringFormat = nstr(text)
 
-    def setTableName(self, tableName):
+    def setDbName(self, dbname):
         """
         Sets the name that will be used in the actual database.  If the \
         name supplied is blank, then the default database name will be \
         used based on the group and name for this schema.
         
-        :param      tableName  | <str>
+        :param      dbname  | <str>
         """
-        self._tableName = tableName
+        self._dbname = dbname
 
     def setTimezone(self, timezone):
         """
@@ -1141,6 +1142,16 @@ class TableSchema(object):
         """
         self._validators = validators
 
+    def setView(self, name, view):
+        """
+        Adds a new view to this schema.  Views provide pre-built dynamically joined tables that can
+        give additional information to a table.
+
+        :param      name | <str>
+                    view | <orb.View>
+        """
+        self._views[name] = view
+
     def stringFormat(self):
         """
         Returns the string format style for this schema.
@@ -1149,17 +1160,17 @@ class TableSchema(object):
         """
         return self._stringFormat
 
-    def tableName(self):
+    def dbname(self):
         """
         Returns the name that will be used for the table in the database.
         
         :return     <str>
         """
-        if not self._tableName:
+        if not self._dbname:
             grp = self.group()
             prefix = grp.modelPrefix() if grp and grp.useModelPrefix() else ''
-            self._tableName = self.defaultTableName(self.name(), prefix)
-        return self._tableName
+            self._dbname = self.defaultDbName(self.name(), prefix)
+        return self._dbname
 
     def timezone(self):
         """
@@ -1222,8 +1233,8 @@ class TableSchema(object):
             xschema.set('displayName', self.displayName())
         if self.inherits():
             xschema.set('inherits', self.inherits())
-        if self.tableName() != projex.text.underscore(projex.text.pluralize(self.name())):
-            xschema.set('dbname', self.tableName())
+        if self.dbname() != projex.text.underscore(projex.text.pluralize(self.name())):
+            xschema.set('dbname', self.dbname())
         if not self.autoPrimary():
             xschema.set('autoPrimary', nstr(self.autoPrimary()))
         if self.isCacheEnabled():
@@ -1269,8 +1280,16 @@ class TableSchema(object):
         """
         return self._validators
 
+    def view(self, name):
+        """
+        Returns the view for this schema that matches the given name.
+
+        :return     <orb.View> || None
+        """
+        return self._views.get(name)
+
     @staticmethod
-    def defaultTableName(name, prefix=''):
+    def defaultDbName(name, prefix=''):
         """
         Returns the default database table name for the inputed name \
         and prefix.
@@ -1304,7 +1323,7 @@ class TableSchema(object):
         tschema.setDisplayName(xschema.get('displayName', ''))
         tschema.setGroupName(xschema.get('group', ''))
         tschema.setInherits(xschema.get('inherits', ''))
-        tschema.setTableName(xschema.get('dbname', ''))
+        tschema.setDbName(xschema.get('dbname', ''))
         tschema.setAutoPrimary(xschema.get('autoPrimary') != 'False')
         tschema.setStringFormat(xschema.get('stringFormat', ''))
         tschema.setCacheEnabled(xschema.get('cacheEnabled') == 'True')

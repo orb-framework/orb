@@ -24,10 +24,10 @@ orb = LazyModule('orb')
 class TableCache(DataCache):
     """" Base class for referencing orb Table cache information """
     
-    def __init__(self, table, expires=0):
+    def __init__(self, table=None, expires=0):
         # determine the expire information
-        table_expires = table.schema().cacheExpireIn() * 60
-        max_expires = orb.system.maxCacheTimeout() * 60
+        table_expires = table.schema().cacheExpireIn() * 60 if table else 0
+        max_expires = orb.system.maxCacheTimeout() * 60 # in minutes
         opts = [expires, table_expires, max_expires]
         expires = min(filter(lambda x: x > 0, opts))
         
@@ -36,7 +36,8 @@ class TableCache(DataCache):
         
         # define custom properties
         self._table = table
-        self._preloaded = table.schema().preloadCache()
+        if table:
+            self._preloaded = table.schema().preloadCache()
     
     def isExpired(self, key):
         """
@@ -52,7 +53,7 @@ class TableCache(DataCache):
         if cachedAt is None:
             return True
         
-        if self.table().isTableCacheExpired(cachedAt):
+        if self.table() and self.table().isModelCacheExpired(cachedAt):
             return True
         
         return super(TableCache, self).isExpired(key)
@@ -72,7 +73,11 @@ class TableCache(DataCache):
         :param      state | <bool>
         """
         self._preloaded = state
-    
+
+    def setTable(self, table):
+        self._table = table
+        self._expires = max(self._expires, table.schema().cacheExpireIn() * 60 if table else 0)
+
     def table(self):
         """
         Returns the table associated with this cache instance.

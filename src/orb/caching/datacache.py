@@ -16,6 +16,7 @@ __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
 import datetime
+import threading
 
 from projex.lazymodule import LazyModule
 
@@ -25,26 +26,47 @@ orb = LazyModule('orb')
 class DataCache(object):
     """ Base caching object for tracking data caches """
     def __init__(self, expires=0):
-        self._expires = expires # seconds
+        self._expires = expires  # seconds
         self._enabled = True
+        self._cacheLock = threading.Lock()
         self._cache = {}
         self._cachedAt = {}
-    
+
+    def __getitem__(self, key):
+        if not self.isExpired(key):
+            return self.value(key)
+        else:
+            raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self.setValue(key, value)
+
     def cachedAt(self, key):
         """
         Returns when the inputed key was last cached for this instance.
         
         :param      key | <hashable>
         """
-        return self._cachedAt.get(key)
+        with self._cacheLock:
+            return self._cachedAt.get(key)
     
     def clear(self):
         """
         Clears out all the caching information for this instance.
         """
-        self._cachedAt.clear()
-        self._cache.clear()
-    
+        with self._cacheLock:
+            self._cachedAt.clear()
+            self._cache.clear()
+
+    def expire(self, key):
+        with self._cacheLock:
+            if key:
+                self._cache.pop(key, None)
+                self._cachedAt.pop(key, None)
+            else:
+                self._cache.clear()
+                self._cachedAt.clear()
+
     def expires(self):
         """
         Returns the number of seconds that this cache will store its
@@ -62,7 +84,8 @@ class DataCache(object):
         
         :return     <bool>
         """
-        return key in self._cache
+        with self._cacheLock:
+            return key in self._cache
     
     def isEnabled(self):
         """
@@ -128,8 +151,9 @@ class DataCache(object):
         :param      key     | <hashable>
                     value   | <variant>
         """
-        self._cache[key] = value
-        self._cachedAt[key] = datetime.datetime.now()
+        with self._cacheLock:
+            self._cache[key] = value
+            self._cachedAt[key] = datetime.datetime.now()
     
     def value(self, key, default=None):
         """
@@ -137,5 +161,6 @@ class DataCache(object):
         
         :return     <variant>
         """
-        return self._cache.get(key)
+        with self._cacheLock:
+            return self._cache.get(key)
 

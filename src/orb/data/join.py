@@ -158,7 +158,7 @@ class Join(object):
         """
         output = []
         for option in self._options:
-            if ( Table.typecheck(option) ):
+            if Table.typecheck(option) or orb.View.typecheck(option):
                 output.append(option)
             else:
                 output += option.tables()
