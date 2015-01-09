@@ -167,7 +167,7 @@ ${'\n'.join(joined) if joined else ''}
 % if expanded:
     % if where or order_by or lookup.start or lookup.limit:
     WHERE "${table_name}"."id" IN (
-        SELECT DISTINCT ON (${', '.join([order_col.split()[0] for order_col in order_by] + ['"{0}"."id"'.format(table_name)])}) "${table_name}"."id"
+        SELECT DISTINCT ${'ON ({0}) '.format(', '.join([col.split(' ')[0] for col in order_by])) if order_by else ''}"${table_name}"."id"
         FROM "${table_name}"
         % if i18n_columns:
             % if options.inflated or options.locale == 'all':
@@ -184,10 +184,10 @@ ${'\n'.join(joined) if joined else ''}
         WHERE ${where}
         % endif
         % if group_by:
-        GROUP BY ${',\n        '.join(group_by)}
+        GROUP BY ${', '.join(list(group_by) + [col.split(' ')[0] for col in order_by])}
         % endif
         % if order_by:
-        ORDER BY ${',\n         '.join(order_by)}
+        ORDER BY ${', '.join(order_by)}
         % endif
         % if lookup.start:
         OFFSET ${lookup.start}
@@ -196,20 +196,19 @@ ${'\n'.join(joined) if joined else ''}
         LIMIT ${lookup.limit}
         % endif
     )
-    % elif group_by:
-    % if group_by:
-    GROUP BY ${',\n        '.join(group_by)}
     % endif
+    % if group_by:
+    GROUP BY ${', '.join(group_by)}
     % endif
 % else:
     % if where:
     WHERE ${where}
     % endif
     % if group_by:
-    GROUP BY ${',\n        '.join(group_by)}
+    GROUP BY ${', '.join(group_by)}
     % endif
     % if order_by:
-    ORDER BY ${',\n         '.join(order_by)}
+    ORDER BY ${', '.join(order_by)}
     % endif
     % if lookup.start:
     OFFSET ${lookup.start}

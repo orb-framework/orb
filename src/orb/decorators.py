@@ -47,14 +47,14 @@ def lookupmethod(cache=None, permits=None):
         method.cache = orb.TableCache(expires=cache) if cache else None
 
         def caller(source, *args, **options):
-            if orb.Table.recordcheck(source) or orb.View.recordcheck(source):
-                method.cache.setTable(type(source))
-            elif orb.Table.typecheck(source) or orb.View.typecheck(source):
-                method.cache.setTable(source)
-            else:
-                raise StandardError('Invalid type for a lookupmethod: {0}'.format(source))
-
             if cache:
+                if orb.Table.recordcheck(source) or orb.View.recordcheck(source):
+                    method.cache.setTable(type(source))
+                elif orb.Table.typecheck(source) or orb.View.typecheck(source):
+                    method.cache.setTable(source)
+                else:
+                    raise StandardError('Invalid type for a lookupmethod: {0}'.format(source))
+
                 key = hash(args), hash(orb.LookupOptions(**options)), hash(orb.DatabaseOptions(**options))
                 try:
                     return method.cache[key]

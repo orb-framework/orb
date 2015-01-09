@@ -269,7 +269,10 @@ class RecordSet(object):
                     **options
         """
         key = self.cacheKey(options)
-        self._cache[section][key] = data
+        if data is not None:
+            self._cache[section][key] = data
+        else:
+            self._cache[section].pop(key, None)
 
     def cacheKey(self, options):
         """
@@ -696,7 +699,17 @@ class RecordSet(object):
 
         :return     [<variant>, ..]
         """
-        return self.primaryKeys(**options)
+        try:
+            return [record.id() if isinstance(record, orb.Table) else record for record in self._cache['ids'][None]]
+        except KeyError:
+            pass
+
+        if self.table():
+            cols = self.table().schema().primaryColumns()
+            cols = [col.fieldName() for col in cols]
+            return self.values(cols, **options)
+
+        return self.values(orb.system.settings().primaryField(), **options)
 
     def inflateRecord(self, table, record, locale=None):
         """
@@ -1134,17 +1147,7 @@ class RecordSet(object):
         
         :return     [<variant>, ..]
         """
-        try:
-            return [record.id() for record in self._cache['records'][None]]
-        except KeyError:
-            pass
-
-        if self.table():
-            cols = self.table().schema().primaryColumns()
-            cols = [col.fieldName() for col in cols]
-            return self.values(cols, **options)
-
-        return self.values(orb.system.settings().primaryField(), **options)
+        return self.ids(**options)
 
     def query(self):
         """

@@ -15,8 +15,6 @@ __email__           = 'team@projexsoftware.com'
 
 #------------------------------------------------------------------------------
 
-import projex.rest
-
 from projex.lazymodule import LazyModule
 from orb import errors
 

@@ -88,7 +88,10 @@ class ColumnAggregator(object):
         
         :return     <orb.Table> || None
         """
-        return orb.system.model(self._reference)
+        table = orb.system.model(self._reference)
+        if not table:
+            raise orb.errors.TableNotFound(self._reference)
+        return table
 
     def referenceColumn(self):
         """

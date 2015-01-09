@@ -48,7 +48,7 @@ class Database(object):
                  applicationToken='',
                  referenced=False,
                  manager=None,
-                 maximumTimeout=10000):
+                 maximumTimeout=20000):
 
         # define custom properties
         self._callbacks = CallbackSet()
@@ -629,20 +629,22 @@ class Database(object):
                 if not schema.dbname() in info:
                     con.createTable(schema, options)
 
-        # update after any newly created tables get generated
-        info = con.schemaInfo(options)
+            # update after any newly created tables get generated
+            info = con.schemaInfo(options)
 
-        # second pass will ensure that all columns, including foreign keys
-        # will be generated
-        with orb.Transaction():
+            # second pass will ensure that all columns, including foreign keys
+            # will be generated
             for schema in schemas:
                 con.updateTable(schema, info[schema.dbname()], options)
 
-        # third pass will generate all the proper value information
-        with orb.Transaction():
+            # third pass will generate all the proper value information
             for schema in schemas:
                 model = schema.model()
                 model.__syncdatabase__()
+
+            # create the views
+            for schema in self.schemas(orb.ViewSchema):
+                con.createView(schema, options)
 
     def toXml(self, xparent):
         """

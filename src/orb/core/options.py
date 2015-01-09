@@ -400,6 +400,9 @@ class LookupOptions(object):
 
             expand = [entry for item in [expand_string(k, v) for k, v in expand.items()] for entry in item]
 
+        if type(expand) in (str, unicode):
+            expand = expand.split(',')
+
         self.columns = columns or None
         self.expand = (self.expand or [] + expand) or None
         self.order = (self.order or [] + order) or None

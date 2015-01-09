@@ -369,14 +369,17 @@ class MetaView(type):
             '__db_name__': name,
             '__db_viewname__': '',
             '__db_columns__': [],
+            '__db_cached__': False,
             '__db_indexes__': [],
             '__db_pipes__': [],
             '__db_contexts__': {},
             '__db_views__': {},
+            '__db_cache__': {},
             '__db_schema__': None,
             '__db_abstract__': False,
             '__db_inherits__': None,
             '__db_archived__': False,
+            '__db_static__': False,
             '__db_schema__': None,
         }
         # override with any inherited data
@@ -434,6 +437,10 @@ class MetaView(type):
             schema.setInherits(db_data['__db_inherits__'])
             schema.setArchived(db_data['__db_archived__'])
             schema.setContexts(db_data['__db_contexts__'])
+            schema.setStatic(db_data['__db_static__'])
+            schema.setCacheEnabled(db_data['__db_cache__'].get('enabled', db_data['__db_cache__'].get('preload')))
+            schema.setPreloadCache(db_data['__db_cache__'].get('preload'))
+            schema.setCacheExpireIn(db_data['__db_cache__'].get('expires', 0))
 
             for name, view in db_data['__db_views__'].items():
                 schema.setView(name, view)

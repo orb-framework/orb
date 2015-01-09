@@ -86,6 +86,7 @@ class ViewSchema(object):
         self._inheritedLoaded = False
         self._cacheEnabled = False
         self._preloadCache = False
+        self._static = False
         self._columns = set()
         self._columnIndex = {}
         self._views = {}
@@ -656,6 +657,9 @@ class ViewSchema(object):
         """
         return self._referenced
 
+    def isStatic(self):
+        return self._static
+
     def model(self, autoGenerate=False):
         """
         Returns the default View class that is associated with this \
@@ -1062,6 +1066,9 @@ class ViewSchema(object):
         :param      engine | <orb.SearchEngine>
         """
         self._searchEngine = engine
+
+    def setStatic(self, static):
+        self._static = static
 
     def setStringFormat(self, text):
         """

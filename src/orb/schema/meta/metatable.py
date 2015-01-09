@@ -18,7 +18,6 @@ __email__ = 'team@projexsoftware.com'
 
 # ------------------------------------------------------------------------------
 
-import projex.text
 import orb
 
 from new import instancemethod
@@ -77,7 +76,7 @@ SETTER_I18N_DOCS = """\
 """
 
 
-# ------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 class gettermethod(object):
     """ Creates a method for tables to use as a field accessor. """
@@ -508,7 +507,12 @@ class MetaTable(type):
                 rev_name = column.reversedName()
                 rev_cached = column.reversedCached()
                 ref_name = column.reference()
-                ref_model = column.referenceModel()
+
+                try:
+                    ref_model = column.referenceModel()
+                except orb.errors.TableNotFound:
+                    ref_model = None
+
                 rev_cacheExpires = column.reversedCacheExpires()
 
                 # create the lookup method

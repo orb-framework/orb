@@ -186,6 +186,16 @@ class CREATE_TABLE(SQL):
 
         return super(CREATE_TABLE, self).render(**new_scope)
 
+class CREATE_VIEW(SQL):
+    def render(self, view, db=None, **scope):
+        # ensure this is infact a table type
+        if not orb.View.typecheck(view):
+            return ''
+
+        schema = view.schema()
+        scope['schema'] = schema
+        return super(CREATE_VIEW, self).render(**scope)
+
 class CREATE_INDEX(SQL):
     def render(self, index_or_column, **scope):
         # create an index here

@@ -17,6 +17,7 @@ __email__ = 'team@projexsoftware.com'
 
 import projex.text
 
+from orb import errors
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
@@ -211,6 +212,8 @@ class Pipe(object):
                 self._targetReference = col.reference()
 
             self._pipeTable = pipeTable
+            if not self._pipeTable:
+                raise errors.TableNotFound(self._pipeReference)
 
         return self._pipeTable
 
@@ -285,6 +288,8 @@ class Pipe(object):
     def targetReferenceModel(self):
         if self._targetTable is None:
             self._targetTable = orb.system.model(self.targetReference())
+            if not self._targetTable:
+                raise errors.TableNotFound(self.targetReference())
         return self._targetTable
 
     def toolTip(self, context='pipe'):

@@ -1830,12 +1830,18 @@ class Query(object):
             return projex.text.decoded(rvalue).endswith(decoded)
 
         elif self._op == Query.Op.Matches:
+            flags = 0
+            if not self.column(table).testFlag(orb.Column.Flags.CaseSensitive):
+                flags = re.IGNORECASE
             return re.match(projex.text.decoded(mvalue),
-                            projex.text.decoded(rvalue)) is not None
+                            projex.text.decoded(rvalue), flags) is not None
 
         elif self._op == Query.Op.DoesNotMatch:
+            flags = 0
+            if not self.column(table).testFlag(orb.Column.Flags.CaseSensitive):
+                flags = re.IGNORECASE
             return re.match(projex.text.decoded(mvalue),
-                            projex.text.decoded(rvalue)) is not None
+                            projex.text.decoded(rvalue), flags) is not None
 
         # list operations
         elif self._op == Query.Op.IsIn:

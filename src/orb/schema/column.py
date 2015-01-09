@@ -791,7 +791,10 @@ class Column(object):
             return None
 
         dbname = self.schema().databaseName() or None
-        return orb.system.model(self.reference(), database=dbname)
+        model = orb.system.model(self.reference(), database=dbname)
+        if not model:
+            raise errors.TableNotFound(self.reference())
+        return model
 
     def restoreValue(self, value):
         """

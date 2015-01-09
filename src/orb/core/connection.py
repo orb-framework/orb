@@ -219,6 +219,18 @@ class Connection(AddonManager):
         """
         return False
 
+    @abstractmethod()
+    def createView(self, view, options):
+        """
+        Creates a new view in the database based off the inputted schema information.
+
+        :param      schema  | <orb.ViewSchema>
+                    options | <orb.DatabaseOptions>
+
+        :return     <bool> | success
+        """
+        return False
+
     def columnEngine(self, columnType):
         """
         Returns the data engine associated with this backend for the given

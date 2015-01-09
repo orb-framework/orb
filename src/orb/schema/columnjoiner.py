@@ -50,7 +50,10 @@ class ColumnJoiner(object):
         
         :return     subclass of <orb.Table>
         """
-        return orb.system.model(self._reference)
+        model = orb.system.model(self._reference)
+        if not model:
+            raise orb.errors.TableNotFound(self._reference)
+        return model
 
     def referenceColumn(self):
         """
