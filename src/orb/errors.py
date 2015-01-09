@@ -183,9 +183,13 @@ class QueryIsNull(OrbError):
         super(QueryIsNull, self).__init__('This query will result in no items.')
 
 class QueryTimeout(DatabaseError):
-    def __init__(self, query, msecs):
-        msg = 'Query took longer than {0} seconds:\n{1}'.format(msecs, query)
-        super(QueryTimeout, self).__init__(msecs)
+    def __init__(self, query=None, msecs=None, msg=None):
+        msg = msg or 'The server cancelled the query because it was taking too long.'
+
+        self.query = query
+        self.msecs = msecs
+
+        super(QueryTimeout, self).__init__(msg)
 
 # P
 #------------------------------------------------------------------------------

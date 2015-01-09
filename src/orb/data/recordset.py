@@ -230,19 +230,21 @@ class RecordSet(object):
                 results = backend.select(table, lookup, db_opts)
 
             # return specific columns
-            if db_opts.inflated:
+            if db_opts.inflated and lookup.returning != 'values':
                 output = [self.inflateRecord(table, x) for x in results]
 
             elif lookup.columns:
                 if lookup.returning == 'values':
-                    if len(lookup.columns) == 1:
-                        col = lookup.columns[0]
-                        output = [x[col] for x in results]
+                    cols = lookup.schemaColumns(self.table().schema())
+                    if len(cols) == 1:
+                        col = cols[0]
+                        output = [x[col.fieldName()] for x in results]
                     else:
-                        output = [[r.get(col, None) for col in lookup.columns]
+                        output = [[r.get(col.fieldName(), None) for col in cols]
                                   for r in results]
                 else:
-                    output = [{col: r.get(col, None) for col in lookup.columns} for r in results]
+                    cols = lookup.schemaColumns(self.table().schema())
+                    output = [{col.fieldName(): r.get(col.fieldName(), None) for col in cols} for r in results]
 
             # return the raw results
             else:
@@ -579,7 +581,7 @@ class RecordSet(object):
                     records = db.backend().select(table, lookup, db_opts)
 
                 if records:
-                    if db_opts.inflated:
+                    if db_opts.inflated and lookup.returning != 'values':
                         record = self.inflateRecord(table, records[0], db_opts.locale)
                         record.setLookupOptions(lookup)
                         record.setDatabaseOptions(db_opts)
@@ -847,7 +849,7 @@ class RecordSet(object):
         
         :return     <bool>
         """
-        return self._databaseOptions.inflated or self._lookupOptions.columns is None
+        return self._lookupOptions.returning != 'values' and self._databaseOptions.inflated
 
     def isLoaded(self):
         """
@@ -951,10 +953,17 @@ class RecordSet(object):
             sub_tree = tree.pop('records', tree)
             sub_tree.update(tree)
             options['expand'] = sub_tree
-            output['records'] = [record.json(**options) for record in self.records()]
+
+            if lookup.returning != 'values':
+                output['records'] = [record.json(**options) for record in self.records()]
+            else:
+                output['records'] = self.records()
 
         if not output:
-            output = [record.json(**options) for record in self.records()]
+            if lookup.returning != 'values':
+                output = [record.json(**options) for record in self.records()]
+            else:
+                output = self.records()
 
         if db_opts.format == 'text':
             return projex.rest.jsonify(output)
@@ -1546,9 +1555,11 @@ class RecordSet(object):
         output = defaultdict(list)
         locale = db_opts.locale
 
+        inflated = db_opts.inflated and lookup.returning != 'values'
+
         for record in records:
             for column in columns:
-                expand = bool(column.isReference() and db_opts.inflated)
+                expand = bool(column.isReference() and inflated)
 
                 # retreive the value
                 if orb.Table.recordcheck(record) or orb.View.recordcheck(record):

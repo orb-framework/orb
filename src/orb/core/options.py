@@ -18,6 +18,7 @@ __license__ = 'LGPL'
 __maintainer__ = 'Projex Software'
 __email__ = 'team@projexsoftware.com'
 
+from collections import OrderedDict
 from projex.text import nativestring as nstr
 from projex.lazymodule import lazy_import
 
@@ -343,6 +344,9 @@ class LookupOptions(object):
                 return False
 
         return True
+
+    def schemaColumns(self, schema):
+        return OrderedDict([(schema.column(col), 1) for col in self.columns]).keys()
 
     @property
     def limit(self):

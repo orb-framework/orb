@@ -861,6 +861,7 @@ class Table(object):
         # simple json conversion
         output = self.recordValues(key='field', columns=lookup.columns, inflated=False)
 
+        # expand any references we need
         expand_tree = lookup.expandtree()
         if expand_tree:
             for key, subtree in expand_tree.items():
@@ -875,8 +876,14 @@ class Table(object):
                     except AttributeError:
                         pass
                     else:
-                        updater(expand=subtree)
+                        updater(expand=subtree, returning=lookup.returning)
                     output[key] = value
+
+        # don't include the column names
+        if lookup.returning == 'values':
+            output = [output[column.fieldName()] for column in lookup.schemaColumns(self.schema())]
+            if len(output) == 1:
+                output = output[0]
 
         if db_opts.format == 'text':
             return projex.rest.jsonify(output)

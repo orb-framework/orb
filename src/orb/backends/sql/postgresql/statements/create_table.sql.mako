@@ -35,7 +35,7 @@ ALTER TABLE "${table}_i18n" OWNER TO "${owner}";
 
 ## create any indexes for this new table
 % for column in schema.columns():
-% if column.indexed() and not column.primary():
+% if column.indexed() and not column.primary() and not column.isReference():
 ${CREATE_INDEX(column, checkExists=False, GLOBALS=GLOBALS, IO=IO)}
 % endif
 % endfor

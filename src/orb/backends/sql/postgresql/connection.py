@@ -93,13 +93,14 @@ class PSQLConnection(SQLConnection):
 
         # register the json option
         register_json(cursor)
+        start = datetime.datetime.now()
 
         try:
             cursor.execute(command, data)
             rowcount = cursor.rowcount
 
         # look for a cancelled query
-        except QueryCanceledError:
+        except QueryCanceledError as cancelled:
             try:
                 db.rollback()
             except StandardError as err:
@@ -107,7 +108,13 @@ class PSQLConnection(SQLConnection):
             log.critical(command)
             if data:
                 log.critical(str(data))
-            raise errors.Interruption()
+
+            # raise more useful errors
+            if 'statement timeout' in str(cancelled):
+                raise errors.QueryTimeout(command, (datetime.datetime.now() - start).total_seconds())
+            else:
+                print str(cancelled)
+                raise errors.Interruption()
 
         # look for a disconnection error
         except pg.InterfaceError:
