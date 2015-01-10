@@ -34,6 +34,8 @@ import time
 from collections import defaultdict
 from orb import errors
 from projex.decorators import abstractmethod
+from projex.contexts import MultiContext
+from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
 from projex.text import nativestring as nstr
 
 log = logging.getLogger(__name__)
@@ -54,6 +56,7 @@ class SQLConnection(orb.Connection):
         # define custom properties
         self.__insertBatchSize = 500
         self.__threads = {}
+        self.__concurrencyLocks = defaultdict(ReadWriteLock)
 
         # set standard properties
         self.setThreadEnabled(True)
@@ -463,6 +466,7 @@ class SQLConnection(orb.Connection):
         INSERTED_KEYS = self.sql('INSERTED_KEYS')
 
         engine = self.engine()
+        locks = []
         for schema, schema_records in inserter.items():
             if not schema_records:
                 continue
@@ -481,6 +485,9 @@ class SQLConnection(orb.Connection):
                               IO=data)
                 if icmd:
                     cmds.append(icmd)
+
+            if cmds:
+                locks.append(WriteLocker(self.__concurrencyLocks[schema.name()], delay=0.1))
 
             # for inherited schemas in non-OO tables, we'll define the
             # primary keys before insertion
@@ -501,7 +508,8 @@ class SQLConnection(orb.Connection):
             else:
                 return []
         else:
-            results, _ = self.execute(cmd, data, autoCommit=False)
+            with MultiContext(*locks):
+                results, _ = self.execute(cmd, data, autoCommit=False)
 
         if not self.commit():
             if len(changes) == 1:
@@ -633,17 +641,19 @@ class SQLConnection(orb.Connection):
         if not remove:
             return 0
 
+
         # include various schema records to remove
         count = 0
         DELETE = self.sql('DELETE')
         for table, queries in remove.items():
-            for query in queries:
-                data = {}
-                sql = DELETE(table, query, options=options, IO=data)
-                if options.dryRun:
-                    print sql % data
-                else:
-                    count += self.execute(sql, data)[1]
+            with WriteLocker(self.__concurrencyLocks[table.schema().name()], delay=0.1):
+                for query in queries:
+                    data = {}
+                    sql = DELETE(table, query, options=options, IO=data)
+                    if options.dryRun:
+                        print sql % data
+                    else:
+                        count += self.execute(sql, data)[1]
 
         return count
 
@@ -687,7 +697,8 @@ class SQLConnection(orb.Connection):
                 print sql % data
                 return []
             else:
-                records = self.execute(sql, data, autoCommit=False)[0]
+                with ReadLocker(self.__concurrencyLocks[schema.name()]):
+                    records = self.execute(sql, data, autoCommit=False)[0]
 
                 store = self.sql().datastore()
 
@@ -834,10 +845,12 @@ class SQLConnection(orb.Connection):
 
         cmds = []
         data = {}
+        locks = []
 
         UPDATE = self.sql('UPDATE')
 
         for schema, changes in updater.items():
+            locks.append(WriteLocker(self.__concurrencyLocks[schema.name()], delay=0.1))
             icmd = UPDATE(schema, changes, options=options, IO=data)
             cmds.append(icmd)
 
@@ -850,7 +863,8 @@ class SQLConnection(orb.Connection):
             else:
                 return []
         else:
-            results, _ = self.execute(cmd, data, autoCommit=False)
+            with MultiContext(*locks):
+                results, _ = self.execute(cmd, data, autoCommit=False)
 
         if not self.commit():
             if len(changes) == 1:
