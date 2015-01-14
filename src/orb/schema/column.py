@@ -21,7 +21,6 @@ import logging
 import projex.regex
 import projex.security
 import projex.text
-import re
 import time
 
 from projex.enum import enum
@@ -929,6 +928,10 @@ class Column(object):
         """
         coltype = ColumnType.base(self.columnType())
 
+        # ensure we have a value
+        if isinstance(value, (str, unicode)):
+            value = self.valueFromString(value)
+
         if value is None:
             return value
 
@@ -1671,7 +1674,7 @@ class Column(object):
                          ColumnType.BigInt,
                          ColumnType.Enum):
             try:
-                value = eval(value)
+                value = projex.text.safe_eval(value)
             except ValueError:
                 value = 0
 

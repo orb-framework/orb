@@ -358,7 +358,7 @@ class QueryCompound(object):
         """
         self._op = op
 
-    def tables(self):
+    def tables(self, base=None):
         """
         Returns the tables that this query is referencing.
         
@@ -366,7 +366,7 @@ class QueryCompound(object):
         """
         output = []
         for query in self._queries:
-            output += query.tables()
+            output += query.tables(base=base)
 
         return list(set(output))
 

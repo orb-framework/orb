@@ -1573,16 +1573,20 @@ class Query(object):
             return orb.system.model(self._table) or default
         return self._table or default
 
-    def tables(self):
+    def tables(self, base=None):
         """
         Returns the tables that this query is referencing.
         
         :return     [ <subclass of Table>, .. ]
         """
         output = set()
-        table = self.table()
+        table = self.table(base)
         if table:
             output.add(table)
+
+            column = self.column(table.schema())
+            if column:
+                output.add(column.schema().model())
 
         if type(self._value) not in (list, set, tuple):
             value = (self._value,)

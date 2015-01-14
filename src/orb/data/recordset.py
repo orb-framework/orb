@@ -532,14 +532,14 @@ class RecordSet(object):
 
         # perform an actual lookup
         if lookup_columns:
-            options = self.databaseOptions(**options)
+            db_opts = self.databaseOptions(**options)
             lookup = self.lookupOptions(**options)
             lookup.columns = lookup_columns
             backend = db.backend()
             if cache is not None and orb.system.isCachingEnabled():
-                output = cache.distinct(backend, table, lookup, options)
+                output = cache.distinct(backend, table, lookup, db_opts)
             else:
-                output = backend.distinct(table, lookup, options)
+                output = backend.distinct(table, lookup, db_opts)
         else:
             output = {}
 

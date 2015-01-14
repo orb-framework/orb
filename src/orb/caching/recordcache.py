@@ -190,7 +190,8 @@ class RecordCache(object):
         
         records = cache.value('preloaded_records', [])
         if lookup.order:
-            records = sorted(records, OrderCompare(lookup.order))
+            schema = table.schema()
+            records = sorted(records, OrderCompare([(schema.column(x).fieldName(), y) for x, y in lookup.order]))
 
         start = lookup.start or 0
         offset = 0
@@ -309,7 +310,7 @@ class RecordCache(object):
         # preloaded records.  If it is not (joined tables) we need to
         # actually query the database and cache the results for this query
         if lookup.where is not None:
-            is_simple = len(lookup.where.tables()) <= 1
+            is_simple = len(lookup.where.tables(table)) <= 1
         else:
             is_simple = not (bool(lookup.expand) or options.locale != orb.system.locale())
         
