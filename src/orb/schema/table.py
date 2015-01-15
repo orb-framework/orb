@@ -346,7 +346,8 @@ class Table(object):
             except KeyError:
                 lookup = Q(type(self)) == args
                 data = self.selectFirst(where=lookup, db=db, namespace=namespace, inflated=False)
-                cache[('record', args)] = data
+                if data is not None:
+                    cache[('record', args)] = data
 
             if data:
                 self._updateFromDatabase(data)

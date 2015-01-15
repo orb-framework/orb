@@ -26,7 +26,7 @@ orb = LazyModule('orb')
 class DataCache(object):
     """ Base caching object for tracking data caches """
     def __init__(self, expires=0):
-        self._expires = expires  # seconds
+        self._expires = expires  # seconds or None
         self._enabled = True
         self._cacheLock = threading.Lock()
         self._cache = {}
@@ -117,7 +117,7 @@ class DataCache(object):
         # grab the maximum number of seconds to store a cache within the
         # system (it is stored as minutes)
         max_expires = orb.system.maxCacheTimeout() * 60
-        if self.expires() == 0:
+        if self.expires() is None:
             expires = max_expires
         else:
             expires = min(self.expires(), max_expires)

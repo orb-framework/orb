@@ -25,11 +25,12 @@ class TableCache(DataCache):
     """" Base class for referencing orb Table cache information """
     
     def __init__(self, table=None, expires=0):
-        # determine the expire information
-        table_expires = table.schema().cacheExpireIn() * 60 if table else 0
-        max_expires = orb.system.maxCacheTimeout() * 60 # in minutes
-        opts = [expires, table_expires, max_expires]
-        expires = min(filter(lambda x: x > 0, opts))
+        if expires is not None:
+            # determine the expire information
+            table_expires = table.schema().cacheExpireIn() * 60 if table else 0
+            max_expires = orb.system.maxCacheTimeout() * 60 # in minutes
+            opts = [expires, table_expires, max_expires]
+            expires = min(filter(lambda x: x > 0, opts))
         
         # initialize the table cache
         super(TableCache, self).__init__(expires)
