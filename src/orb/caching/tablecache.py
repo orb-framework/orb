@@ -30,7 +30,7 @@ class TableCache(DataCache):
             table_expires = table.schema().cacheExpireIn() * 60 if table else 0
             max_expires = orb.system.maxCacheTimeout() * 60 # in minutes
             opts = [expires, table_expires, max_expires]
-            expires = min(filter(lambda x: x > 0, opts))
+            expires = min(opts)
         
         # initialize the table cache
         super(TableCache, self).__init__(expires)
