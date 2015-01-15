@@ -32,13 +32,3 @@ CREATE TABLE "${table}_i18n" (
 WITH (OIDS=FALSE);
 ALTER TABLE "${table}_i18n" OWNER TO "${owner}";
 % endif
-
-## create any indexes for this new table
-% for column in schema.columns():
-% if column.indexed() and not column.primary() and not column.isReference():
-${CREATE_INDEX(column, checkExists=False, GLOBALS=GLOBALS, IO=IO)}
-% endif
-% endfor
-% for index in schema.indexes():
-${CREATE_INDEX(index, checkExists=False, GLOBALS=GLOBALS, IO=IO)}
-% endfor

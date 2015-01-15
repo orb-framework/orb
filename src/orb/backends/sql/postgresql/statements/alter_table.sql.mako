@@ -27,6 +27,7 @@ ALTER TABLE "${table}_i18n"
     ${ADD_COLUMN(column)},
     % endfor
     ${ADD_COLUMN(added['i18n'][-1])}
+;
 % endif
 
 ## create any indexes for this new table

@@ -222,7 +222,9 @@ class QueryCompound(object):
                 rset = new_rset
 
             # update the existing recordset in the chain
-            elif rset is not None and rset.table() == query.table(basetable):
+            elif rset is not None and \
+                    ((isinstance(query, orb.Query) and rset.table() == query.table(basetable)) or
+                     (isinstance(query, orb.QueryCompound) and rset.table() in query.tables(basetable))):
                 rset.setQuery(query & rset.query())
 
             # clear out the chain and move on to the next query set
