@@ -1668,7 +1668,16 @@ class Table(object):
         q = Q()
 
         for key, value in kwds.items():
-            q &= Q(key) == value
+            column = self.column(key)
+            if not column:
+                raise orb.errors.ColumnNotFound(cls.schema().name(), key)
+
+            if column.isString() and \
+                    not column.testFlag(column.Flags.CaseSensitive) and \
+                    isinstance(value, (str, unicode)):
+                q &= Q(column.name()).lower() == value.lower()
+            else:
+                q &= Q(key) == value
 
         record = cls.select(where=q, db=db).first()
         if not record:
