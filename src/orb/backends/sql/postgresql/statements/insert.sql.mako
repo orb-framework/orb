@@ -20,5 +20,5 @@ VALUES
     (LASTVAL() - ${count - (i+1)}, %(locale)s, ${','.join(row)}),
     %endfor
     (LASTVAL(), %(locale)s, ${','.join(insertions['i18n'][-1])})
-;
+RETURNING "${table}_id" AS "id";
 % endif
