@@ -16,8 +16,8 @@ __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
 import datetime
-import threading
 
+from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import LazyModule
 
 orb = LazyModule('orb')
@@ -28,7 +28,7 @@ class DataCache(object):
     def __init__(self, expires=0):
         self._expires = expires  # seconds or None
         self._enabled = True
-        self._cacheLock = threading.Lock()
+        self._cacheLock = ReadWriteLock()
         self._cache = {}
         self._cachedAt = {}
 
@@ -47,19 +47,19 @@ class DataCache(object):
         
         :param      key | <hashable>
         """
-        with self._cacheLock:
+        with ReadLocker(self._cacheLock):
             return self._cachedAt.get(key)
     
     def clear(self):
         """
         Clears out all the caching information for this instance.
         """
-        with self._cacheLock:
+        with WriteLocker(self._cacheLock):
             self._cachedAt.clear()
             self._cache.clear()
 
     def expire(self, key):
-        with self._cacheLock:
+        with WriteLocker(self._cacheLock):
             if key:
                 self._cache.pop(key, None)
                 self._cachedAt.pop(key, None)
@@ -84,7 +84,7 @@ class DataCache(object):
         
         :return     <bool>
         """
-        with self._cacheLock:
+        with ReadLocker(self._cacheLock):
             return key in self._cache
     
     def isEnabled(self):
@@ -151,7 +151,7 @@ class DataCache(object):
         :param      key     | <hashable>
                     value   | <variant>
         """
-        with self._cacheLock:
+        with WriteLocker(self._cacheLock):
             self._cache[key] = value
             self._cachedAt[key] = datetime.datetime.now()
     
@@ -161,6 +161,6 @@ class DataCache(object):
         
         :return     <variant>
         """
-        with self._cacheLock:
+        with ReadLocker(self._cacheLock):
             return self._cache.get(key)
 

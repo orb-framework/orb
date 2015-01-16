@@ -26,6 +26,7 @@ import projex.text
 import re
 
 from projex.enum import enum
+from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import LazyModule
 from projex.text import nativestring as nstr
 from projex.callbacks import CallbackSet
@@ -309,9 +310,11 @@ class Table(object):
         """
         # define table properties in a way that shouldn't be accidentally
         # overwritten
+        self.__local_cache_lock = ReadWriteLock()
         self.__local_cache = {}
         self.__record_locale = None
         self.__record_defaults = {}
+        self.__record_value_lock = ReadWriteLock()
         self.__record_values = {}
         self.__record_dbloaded = set()
         self.__record_datacache = None
@@ -367,14 +370,15 @@ class Table(object):
         """
         columns = [self.schema().column(column) for column in columns] if columns else self.schema().columns()
 
-        for column in columns:
-            data = self.__record_values.get(column)
-            if type(data) == dict:
-                data = data.copy()
-            self.__record_defaults[column] = data
+        with WriteLocker(self.__record_value_lock):
+            for column in columns:
+                data = self.__record_values.get(column)
+                if type(data) == dict:
+                    data = data.copy()
+                self.__record_defaults[column] = data
 
-        self.__record_database = database
-        self.__record_dbloaded.update(columns)
+            self.__record_database = database
+            self.__record_dbloaded.update(columns)
 
     def _updateFromDatabase(self, data, options=None):
         """
@@ -456,8 +460,9 @@ class Table(object):
             self.__record_dbloaded.add(column)
 
         # pylint: disable-msg=W0142
-        self.__record_values.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
-        self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
+        with WriteLocker(self.__record_value_lock):
+            self.__record_values.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
+            self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
 
     def _removedFromDatabase(self):
         """
@@ -483,60 +488,61 @@ class Table(object):
         kind = kind or orb.Column.Kind.Field
         columns = columns or self.schema().columns(recurse=recurse, flags=flags, kind=kind)
 
-        for column in columns:
-            newValue = self.__record_values.get(column)
+        with ReadLocker(self.__record_value_lock):
+            for column in columns:
+                newValue = self.__record_values.get(column)
 
-            # assume all changes for a new record
-            if not is_record:
-                oldValue = None
+                # assume all changes for a new record
+                if not is_record:
+                    oldValue = None
 
-                # ignore read only columns for initial insert
-                if column.isReadOnly():
+                    # ignore read only columns for initial insert
+                    if column.isReadOnly():
+                        continue
+
+                # only look for changes from loaded columns
+                elif column in self.__record_dbloaded:
+                    oldValue = self.__record_defaults.get(column)
+
+                # otherwise, ignore the change
+                else:
                     continue
 
-            # only look for changes from loaded columns
-            elif column in self.__record_dbloaded:
-                oldValue = self.__record_defaults.get(column)
+                # compare two queries
+                if orb.Query.typecheck(newValue) or orb.Query.typecheck(oldValue):
+                    equals = hash(oldValue) == hash(newValue)
 
-            # otherwise, ignore the change
-            else:
-                continue
+                # compare two datetimes
+                elif isinstance(newValue, datetime.datetime) and \
+                        isinstance(oldValue, datetime.datetime):
+                    try:
+                        equals = newValue == oldValue
 
-            # compare two queries
-            if orb.Query.typecheck(newValue) or orb.Query.typecheck(oldValue):
-                equals = hash(oldValue) == hash(newValue)
+                    # compare against non timezoned values
+                    except TypeError:
+                        norm_new = newValue.replace(tzinfo=None)
+                        norm_old = oldValue.replace(tzinfo=None)
+                        equals = norm_new == norm_old
 
-            # compare two datetimes
-            elif isinstance(newValue, datetime.datetime) and \
-                    isinstance(oldValue, datetime.datetime):
-                try:
-                    equals = newValue == oldValue
+                # compare a table against a non-table
+                elif Table.recordcheck(newValue) or \
+                        Table.recordcheck(oldValue):
+                    if type(newValue) == int:
+                        equals = oldValue.primaryKey() == newValue
+                    elif type(oldValue) == int:
+                        equals = newValue.primaryKey() == newValue
+                    else:
+                        equals = newValue == oldValue
 
-                # compare against non timezoned values
-                except TypeError:
-                    norm_new = newValue.replace(tzinfo=None)
-                    norm_old = oldValue.replace(tzinfo=None)
-                    equals = norm_new == norm_old
-
-            # compare a table against a non-table
-            elif Table.recordcheck(newValue) or \
-                    Table.recordcheck(oldValue):
-                if type(newValue) == int:
-                    equals = oldValue.primaryKey() == newValue
-                elif type(oldValue) == int:
-                    equals = newValue.primaryKey() == newValue
+                # compare all other types
                 else:
-                    equals = newValue == oldValue
+                    try:
+                        equals = newValue == oldValue
+                    except UnicodeWarning:
+                        equals = False
 
-            # compare all other types
-            else:
-                try:
-                    equals = newValue == oldValue
-                except UnicodeWarning:
-                    equals = False
-
-            if not equals:
-                changes[column] = (oldValue, newValue)
+                if not equals:
+                    changes[column] = (oldValue, newValue)
 
         return changes
 
@@ -606,8 +612,10 @@ class Table(object):
         self.commitToArchive(*args, **kwds)
 
         # clear any custom caches
-        self.__local_cache.clear()
-        self.__record_database = db
+        with WriteLocker(self.__local_cache_lock):
+            self.__local_cache.clear()
+            self.__record_database = db
+
         self.clearCustomCache()
 
         # run any pre-commit logic required for this record
@@ -685,44 +693,45 @@ class Table(object):
 
         # look for clashing changes
         conflicts = {}
-        for colname, d_value in values.items():
-            column = self.schema().column(colname)
+        with ReadLocker(self.__record_value_lock):
+            for colname, d_value in values.items():
+                column = self.schema().column(colname)
 
-            # don't care about non-loaded columns
-            if not (column and column in self.__record_dbloaded):
-                continue
+                # don't care about non-loaded columns
+                if not (column and column in self.__record_dbloaded):
+                    continue
 
-            m_default = self.__record_defaults[column]
-            m_value = self.__record_values[column]
+                m_default = self.__record_defaults[column]
+                m_value = self.__record_values[column]
 
-            if inflated:
-                ref_model = column.referenceModel()
-                if ref_model:
-                    if m_default is not None:
-                        m_default = ref_model(m_default)
-                    if m_value is not None:
-                        m_value = ref_model(m_value)
-                    if d_value is not None:
-                        d_value = ref_model(d_value)
-            else:
-                # always do a primary key comparison since we won't be inflated
-                # values from the database
-                if Table.recordcheck(m_value):
-                    m_value = m_value.primaryKey()
-                if Table.recordcheck(m_default):
-                    m_default = m_default.primaryKey()
+                if inflated:
+                    ref_model = column.referenceModel()
+                    if ref_model:
+                        if m_default is not None:
+                            m_default = ref_model(m_default)
+                        if m_value is not None:
+                            m_value = ref_model(m_value)
+                        if d_value is not None:
+                            d_value = ref_model(d_value)
+                else:
+                    # always do a primary key comparison since we won't be inflated
+                    # values from the database
+                    if Table.recordcheck(m_value):
+                        m_value = m_value.primaryKey()
+                    if Table.recordcheck(m_default):
+                        m_default = m_default.primaryKey()
 
-            # ignore unchanged values, we can update without issue
-            if m_value == m_default:
-                continue
+                # ignore unchanged values, we can update without issue
+                if m_value == m_default:
+                    continue
 
-            # ignore unchaged values from the database, we can save without
-            # conflict
-            elif d_value in (m_default, m_value):
-                continue
+                # ignore unchaged values from the database, we can save without
+                # conflict
+                elif d_value in (m_default, m_value):
+                    continue
 
-            # otherwise, mark the conflict
-            conflicts[column] = (d_value, m_value)
+                # otherwise, mark the conflict
+                conflicts[column] = (d_value, m_value)
 
         return conflicts
 
@@ -768,9 +777,12 @@ class Table(object):
         :return     <Table>
         """
         pcols = self.schema().primaryColumns()
-        db_values = {col: value for col, value in self.__record_values.items() if col not in pcols}
+        with ReadLocker(self.__record_value_lock):
+            db_values = {col: value for col, value in self.__record_values.items() if col not in pcols}
+
         inst = self.__class__()
-        inst._Table__record_values = db_values
+        with WriteLocker(inst._Table__record_values):
+            inst._Table__record_values = db_values
         return inst
 
     def findAllRelatedRecords(self):
@@ -898,7 +910,8 @@ class Table(object):
         :param      key     | <str>
                     default | <variant>
         """
-        return self.__local_cache.get(key, default)
+        with ReadLocker(self.__local_cache_lock):
+            return self.__local_cache.get(key, default)
 
     def lookupOptions(self, **options):
         """
@@ -1035,7 +1048,8 @@ class Table(object):
                 return method(self, **keywords)
 
         try:
-            value = self.__record_values[col]
+            with ReadLocker(self.__record_value_lock):
+                value = self.__record_values[col]
         except KeyError:
             proxy = self.proxyColumn(column)
             if proxy and proxy.getter():
@@ -1100,7 +1114,8 @@ class Table(object):
             self.__record_defaults[col] = inst
 
         # cache the record value
-        self.__record_values[col] = inst
+        with WriteLocker(self.__record_value_lock):
+            self.__record_values[col] = inst
         return inst
 
     def recordValues(self,
@@ -1160,7 +1175,10 @@ class Table(object):
         """
         translatable = [col for col in self.schema().columns() if col.isTranslatable()]
         output = set()
-        for column, value in self.__record_values.items():
+        with ReadLocker(self.__record_value_lock):
+            values = self.__record_values.items()
+
+        for column, value in values:
             if column in translatable and type(value) == dict:
                 output.update(value.keys())
         return output
@@ -1193,21 +1211,22 @@ class Table(object):
 
         # only update unmodified columns
         if reload_options & (opts.Modified | opts.Unmodified):
-            for column in self.__record_values:
-                m_value = self.__record_values[column]
-                m_default = self.__record_defaults[column]
+            with WriteLocker(self.__record_value_lock):
+                for column in self.__record_values:
+                    m_value = self.__record_values[column]
+                    m_default = self.__record_defaults[column]
 
-                if reload_options & opts.Unmodified and m_value != m_default:
-                    try:
-                        columns.remove(column)
-                    except ValueError:
-                        continue
+                    if reload_options & opts.Unmodified and m_value != m_default:
+                        try:
+                            columns.remove(column)
+                        except ValueError:
+                            continue
 
-                elif reload_options & opts.Modified and m_value == m_default:
-                    try:
-                        columns.remove(column)
-                    except ValueError:
-                        continue
+                    elif reload_options & opts.Modified and m_value == m_default:
+                        try:
+                            columns.remove(column)
+                        except ValueError:
+                            continue
 
         # don't look anything up if there are no values
         if not columns:
@@ -1221,34 +1240,35 @@ class Table(object):
         # look for clashing changes
         conflicts = {}
         updates = {}
-        for colname, d_value in values.items():
-            column = self.schema().column(colname)
-            if not reload_options & opts.IgnoreConflicts:
-                updates[column] = d_value
+        with WriteLocker(self.__record_value_lock):
+            for colname, d_value in values.items():
+                column = self.schema().column(colname)
+                if not reload_options & opts.IgnoreConflicts:
+                    updates[column] = d_value
 
-            # don't care about non-loaded columns
-            if not column in self.__record_dbloaded:
-                continue
+                # don't care about non-loaded columns
+                if not column in self.__record_dbloaded:
+                    continue
 
-            m_default = self.__record_defaults[column]
-            m_value = self.__record_values[column]
+                m_default = self.__record_defaults[column]
+                m_value = self.__record_values[column]
 
-            # ignore unchanged values, we can update without issue
-            if m_value == m_default:
-                continue
+                # ignore unchanged values, we can update without issue
+                if m_value == m_default:
+                    continue
 
-            # ignore unchaged values from the database, we can save without
-            # conflict
-            elif d_value == m_default:
-                continue
+                # ignore unchaged values from the database, we can save without
+                # conflict
+                elif d_value == m_default:
+                    continue
 
-            # otherwise, mark the conflict
-            conflicts[column] = (d_value, m_value)
+                # otherwise, mark the conflict
+                conflicts[column] = (d_value, m_value)
 
-        # update the record internals
-        self.__record_dbloaded.update(values.keys())
-        self.__record_defaults.update(values)
-        self.__record_values.update(values)
+            # update the record internals
+            self.__record_dbloaded.update(values.keys())
+            self.__record_defaults.update(values)
+            self.__record_values.update(values)
 
         return conflicts
 
@@ -1296,8 +1316,9 @@ class Table(object):
         
         :sa     reload
         """
-        values = {k: v if type(v) != dict else v.copy() for k, v in self.__record_defaults.items()}
-        self.__record_values = values
+        with WriteLocker(self.__record_value_lock):
+            values = {k: v if type(v) != dict else v.copy() for k, v in self.__record_defaults.items()}
+            self.__record_values = values
 
     def revert(self, *columnNames, **kwds):
         """
@@ -1333,7 +1354,8 @@ class Table(object):
         :param      key     | <str>
                     value   | <variant>
         """
-        self.__local_cache[key] = value
+        with WriteLocker(self.__local_cache_lock):
+            self.__local_cache[key] = value
 
     def setLookupOptions(self, lookup):
         self.__lookup_options = lookup
@@ -1360,17 +1382,18 @@ class Table(object):
 
         # otherwise, store the column information in the defaults
         value = column.storeValue(value)
-        if column.isTranslatable():
-            locale = locale or self.recordLocale()
+        locale = locale or self.recordLocale()
 
-            self.__record_defaults.setdefault(column, {})
-            self.__record_values.setdefault(column, {})
+        with WriteLocker(self.__record_value_lock):
+            if column.isTranslatable():
+                self.__record_defaults.setdefault(column, {})
+                self.__record_values.setdefault(column, {})
 
-            self.__record_defaults[column][locale] = value
-            self.__record_values[column][locale] = value
-        else:
-            self.__record_defaults[column] = value
-            self.__record_values[column] = value
+                self.__record_defaults[column][locale] = value
+                self.__record_values[column][locale] = value
+            else:
+                self.__record_defaults[column] = value
+                self.__record_values[column] = value
 
         return True
 
@@ -1441,39 +1464,40 @@ class Table(object):
         column.validate(value)
 
         # store the new value
-        curr_value = self.__record_values.get(column)
+        with WriteLocker(self.__record_value_lock):
+            curr_value = self.__record_values.get(column)
 
-        if column.isTranslatable():
-            if curr_value is None:
-                curr_value = {self.recordLocale(): ''}
-                self.__record_values[column] = curr_value
+            if column.isTranslatable():
+                if curr_value is None:
+                    curr_value = {self.recordLocale(): ''}
+                    self.__record_values[column] = curr_value
 
-            if type(value) == dict:
-                equals = False
-                curr_value.update(value)
+                if type(value) == dict:
+                    equals = False
+                    curr_value.update(value)
+                else:
+                    value = column.storeValue(value)
+                    locale = locale or self.recordLocale()
+
+                    try:
+                        equals = curr_value[locale] == value
+                    except (KeyError, UnicodeWarning):
+                        equals = False
+
+                    curr_value[locale] = value
             else:
                 value = column.storeValue(value)
-                locale = locale or self.recordLocale()
 
-                try:
-                    equals = curr_value[locale] == value
-                except (KeyError, UnicodeWarning):
-                    equals = False
+                # test comparison for queries
+                if orb.Query.typecheck(value) or orb.Query.typecheck(curr_value):
+                    equals = hash(value) == hash(curr_value)
+                else:
+                    try:
+                        equals = curr_value == value
+                    except UnicodeWarning:
+                        equals = False
 
-                curr_value[locale] = value
-        else:
-            value = column.storeValue(value)
-
-            # test comparison for queries
-            if orb.Query.typecheck(value) or orb.Query.typecheck(curr_value):
-                equals = hash(value) == hash(curr_value)
-            else:
-                try:
-                    equals = curr_value == value
-                except UnicodeWarning:
-                    equals = False
-
-            self.__record_values[column] = value
+                self.__record_values[column] = value
         return not equals
 
     def setRecordValues(self, **data):
@@ -1530,9 +1554,10 @@ class Table(object):
         :return     <bool>
         """
         schema = self.schema()
-        values = {k: v if type(v) != dict else v.copy() for k, v in self.__record_values.items()}
-        overrides = overrides or {}
-        values.update({schema.column(col): v for col, v in overrides.items() if schema.column(col)})
+        with ReadLocker(self.__record_value_lock):
+            values = {k: v if type(v) != dict else v.copy() for k, v in self.__record_values.items()}
+            overrides = overrides or {}
+            values.update({schema.column(col): v for col, v in overrides.items() if schema.column(col)})
 
         # validate the columns
         for column, value in values.items():

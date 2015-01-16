@@ -84,10 +84,7 @@ class PipeRecordSet(RecordSet):
         options[self.sourceColumn()] = self.source()
         options[self._targetColumn] = record
         
-        link = pipe(**options)
-        link.commit()
-        
-        return link
+        return pipe.createRecord(**options)
     
     def clear(self, **options):
         """
