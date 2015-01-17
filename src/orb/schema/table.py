@@ -1668,7 +1668,7 @@ class Table(object):
         q = Q()
 
         for key, value in kwds.items():
-            column = self.column(key)
+            column = cls.schema().column(key)
             if not column:
                 raise orb.errors.ColumnNotFound(cls.schema().name(), key)
 

@@ -186,6 +186,8 @@ class PipeRecordSet(RecordSet):
         pipe = self._pipeTable
         if not pipe:
             raise orb.errors.TableNotFound(self)
+        elif not isinstance(records, (orb.RecordSet, list, tuple)):
+            records = [records]
 
         # determine the records to sync
         curr_ids = self.ids()
