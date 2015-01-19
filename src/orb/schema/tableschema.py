@@ -1043,6 +1043,8 @@ class TableSchema(object):
         :param      indexes     | [<orb.Index>, ..]
         """
         self._indexes = indexes[:]
+        for index in self._indexes:
+            index.setSchema(self)
 
     def setInherits(self, name):
         """

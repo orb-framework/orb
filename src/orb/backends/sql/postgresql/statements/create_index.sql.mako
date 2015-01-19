@@ -12,6 +12,7 @@
         else:
             columns.append('"{0}"'.format(column.fieldName()))
     else:
+        print index, index.name(), index.schema()
         index_name = projex.text.underscore(index.name().lstrip('by')) + '_idx'
         table_name = index.schema().dbname()
         unique = index.unique()

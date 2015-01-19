@@ -488,9 +488,6 @@ class ViewSchema(object):
                            'archivedAt',
                            default='now')
             ]
-            archive_indexes = [
-                orb.Index('byRecordAndVersion', [self.name(), 'archiveNumber'], unique=True)
-            ]
 
             # store data per locale
             if not found_locale:
@@ -506,7 +503,6 @@ class ViewSchema(object):
                 '__db_name__': '{0}Archive'.format(self.name()),
                 '__db_dbname__': '{0}_archives'.format(projex.text.underscore(self.name())),
                 '__db_columns__': archive_columns,
-                '__db_indexes__': archive_indexes,
                 '__db_pipes__': [],
                 '__db_schema__': None,
                 '__db_abstract__': False,
