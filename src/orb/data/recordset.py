@@ -83,12 +83,21 @@ class RecordSet(object):
                 if data and (orb.Table.recordcheck(data[0]) or orb.View.recordcheck(data[0])):
                     self._table = type(data[0])
 
-            # assign a table as the record set RecordSet(orb.Table)
+            # assign a table as the record set RecordSet(orb.Table) (blank record set for a given table)
             elif orb.Table.typecheck(data) or orb.View.typecheck(data):
                 self._table = data
 
-                if len(args) > 1 and type(args[1]) in (list, tuple):
+                # define a blank recordset
+                if len(args) == 1:
+                    self._cache['records'][None] = []
+
+                # define a cache for this recordset
+                elif type(args[1]) in (list, tuple):
                     self._cache['records'][None] = args[1][:]
+
+                # define a recordset that should lookup in the future
+                elif args[1] == None:
+                    pass
 
     def __len__(self):
         """
@@ -563,6 +572,8 @@ class RecordSet(object):
         except KeyError:
             try:
                 return self._cache['records'][key][0]
+            except IndexError:
+                return None
             except KeyError:
                 options['limit'] = 1
                 lookup = self.lookupOptions(**options)
@@ -673,7 +684,7 @@ class RecordSet(object):
                     sub_set = output[key]
                     sub_set.setQuery(sub_set.query() | sub_query)
                 else:
-                    sub_set = RecordSet(table)
+                    sub_set = RecordSet(table, None)
                     lookup = self.lookupOptions(**options)
                     db_options = self.databaseOptions(**options)
 
@@ -1611,7 +1622,10 @@ class RecordSet(object):
 
         view = table.schema().view(name)
         if view:
-            return view.select(where=orb.Query(view).in_(self))
+            if not self.isEmpty():
+                return view.select(where=orb.Query(view).in_(self))
+            else:
+                return orb.RecordSet(view)
         else:
             return None
 

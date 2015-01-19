@@ -2003,7 +2003,7 @@ class View(object):
                 lookup.where = (orb.Query('locale') == options.locale) & lookup.where
 
         # define the record set and return it
-        rset = orb.RecordSet(cls)
+        rset = orb.RecordSet(cls, None)
         rset.setLookupOptions(lookup)
         rset.setDatabaseOptions(options)
 
