@@ -704,6 +704,26 @@ class RecordSet(object):
 
         return output
 
+    def hasRecord(self, record, **options):
+        """
+        Returns whether or not this record set contains the inputed record.
+
+        :param      record | <orb.Table>
+
+        :return     <bool>
+        """
+        try:
+            id = record.id()
+            if type(record) != self.table():
+                return False
+        except AttributeError:
+            try:
+                id = record['id']
+            except KeyError:
+                id = record
+
+        return id in self.ids()
+
     def ids(self, **options):
         """
         Returns a list of the ids that are associated with this record set.

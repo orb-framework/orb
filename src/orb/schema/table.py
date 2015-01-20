@@ -347,8 +347,7 @@ class Table(object):
             try:
                 data = cache[('record', args)]
             except KeyError:
-                lookup = Q(type(self)) == args
-                data = self.selectFirst(where=lookup, db=db, namespace=namespace, inflated=False)
+                data = self.getRecord(args, db=db, namespace=namespace, inflated=False)
                 if data is not None:
                     cache[('record', args)] = data
 
@@ -1725,6 +1724,17 @@ class Table(object):
             return orb.system.database(db)
         else:
             return cls.schema().database()
+
+    @classmethod
+    def getRecord(cls, key, **options):
+        if not 'where' in options:
+            if type(key) in (str, unicode):
+                try:
+                    key = int(key)
+                except StandardError:
+                    raise orb.errors.RecordNotFound(cls, key)
+            options['where'] = Q(cls) == key
+        return cls.selectFirst(**options)
 
     @staticmethod
     def groupRecords(records, groupings, inflated=False):
