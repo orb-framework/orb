@@ -460,7 +460,8 @@ class Table(object):
 
         # pylint: disable-msg=W0142
         with WriteLocker(self.__record_value_lock):
-            self.__record_values.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
+            column_values = {k: v if type(v) != dict else v.copy() for k, v in dvalues.items()}
+            self.__record_values.update(column_values)
             self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
 
     def _removedFromDatabase(self):
@@ -475,7 +476,7 @@ class Table(object):
     #----------------------------------------------------------------------
     #                       PRIVATE METHODS
     #----------------------------------------------------------------------
-    def changeset(self, columns=None, recurse=True, flags=0, kind=0):
+    def changeset(self, columns=None, recurse=True, flags=0, kind=0, inflated=False):
         """
         Returns a dictionary of changees that have been made 
         to the data from this record.
@@ -524,12 +525,11 @@ class Table(object):
                         equals = norm_new == norm_old
 
                 # compare a table against a non-table
-                elif Table.recordcheck(newValue) or \
-                        Table.recordcheck(oldValue):
-                    if type(newValue) == int:
+                elif Table.recordcheck(newValue) or Table.recordcheck(oldValue):
+                    if isinstance(newValue, (int, long)):
                         equals = oldValue.primaryKey() == newValue
-                    elif type(oldValue) == int:
-                        equals = newValue.primaryKey() == newValue
+                    elif isinstance(oldValue, (int, long)):
+                        equals = newValue.primaryKey() == oldValue
                     else:
                         equals = newValue == oldValue
 
@@ -541,6 +541,12 @@ class Table(object):
                         equals = False
 
                 if not equals:
+                    if inflated and column.isReference():
+                        model = column.referenceModel()
+                        if not isinstance(oldValue, model):
+                            oldValue = model(oldValue) if oldValue else None
+                        if not isinstance(newValue, model):
+                            newValue = model(newValue) if newValue else None
                     changes[column] = (oldValue, newValue)
 
         return changes

@@ -547,6 +547,9 @@ class WHERE(SQL):
 
         :return     <str>
         """
+        if query is None:
+            return ''
+
         scope.setdefault('IO', {})
         scope.setdefault('GLOBALS', {})
 

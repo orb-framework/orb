@@ -641,7 +641,6 @@ class SQLConnection(orb.Connection):
         if not remove:
             return 0
 
-
         # include various schema records to remove
         count = 0
         DELETE = self.sql('DELETE')

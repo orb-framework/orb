@@ -112,8 +112,6 @@ class Connection(AddonManager):
 
         # define the base lookup query
         query = lookup.where
-        if query is None:
-            query = orb.Query()
 
         # add the base collection data
         collection.setdefault(table, [])
@@ -168,7 +166,7 @@ class Connection(AddonManager):
                                               options,
                                               collection)
 
-        if query:
+        if query is None or not query.isNull():
             collection[table].append(query)
 
         return collection

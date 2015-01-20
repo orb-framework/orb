@@ -191,7 +191,7 @@ class PipeRecordSet(RecordSet):
 
         # determine the records to sync
         curr_ids = self.ids()
-        record_ids = records.ids() if isinstance(records, orb.RecordSet) else [int(record) for record in records]
+        record_ids = records.ids() if isinstance(records, orb.RecordSet) else [int(r) for r in records if r]
         remove_ids = set(curr_ids) - set(record_ids)
         add_ids = set(record_ids) - set(curr_ids)
 
