@@ -350,7 +350,7 @@ class SQLConnection(orb.Connection):
             return [], rowcount
 
         results = []
-        for i in range(retries):
+        for i in xrange(retries):
             start = datetime.datetime.now()
 
             try:

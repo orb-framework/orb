@@ -88,11 +88,15 @@ class PSQLConnection(SQLConnection):
         # register the hstore option
         try:
             register_hstore(cursor, unicode=True)
-        except StandardError:
-            pass
+        except pg.ProgrammingError:
+            log.warning('HSTORE is not supported in this version of Postgres!')
 
         # register the json option
-        register_json(cursor)
+        try:
+            register_json(cursor)
+        except pg.ProgrammingError:
+            log.warning('JSON is not supported in this version of Postgres!')
+
         start = datetime.datetime.now()
 
         try:
