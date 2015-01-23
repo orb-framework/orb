@@ -322,8 +322,8 @@ class View(object):
         self.__database_options = None
 
         # initialize the defaults
-        if 'db_dict' in kwds:
-            self._updateFromDatabase(kwds.pop('db_dict'))
+        if '__values' in kwds:
+            self._updateFromDatabase(kwds.pop('__values'))
 
         elif not args:
             self.initRecord()
@@ -430,7 +430,7 @@ class View(object):
                 model = column.referenceModel()
                 if not model:
                     raise errors.TableNotFound(column.reference())
-                value = model(db_dict=value)
+                value = model(__values=value)
 
             # store translatable columns
             elif column.isTranslatable():
@@ -1779,7 +1779,7 @@ class View(object):
                     record = morph_cls(*pkeys, db=db)
 
         if record is None:
-            record = cls(db_dict=values, db=db)
+            record = cls(__values=values, db=db)
 
         return record
 

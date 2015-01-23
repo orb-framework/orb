@@ -814,7 +814,15 @@ class Column(object):
 
             if tz is not None:
                 if value.tzinfo is None:
-                    value = tz.fromutc(value)
+                    base_tz = orb.system.baseTimezone()
+
+                    # the machine timezone and preferred tiemzone match, so create off utc time
+                    if base_tz == tz:
+                        value = tz.fromutc(value)
+
+                    # convert the server timezone to a preferred timezone
+                    else:
+                        value = base_tz.fromutc(value).astimezone(tz)
                 else:
                     value = value.astimezone(tz)
             else:
@@ -936,27 +944,22 @@ class Column(object):
             return value
 
         # store timezone information
-        elif coltype == ColumnType.DatetimeWithTimezone and \
-                isinstance(value, datetime.datetime):
+        elif coltype == ColumnType.DatetimeWithTimezone:
+            if isinstance(value, datetime.datetime):
+                # match the server information
+                tz = orb.system.baseTimezone() or self.timezone()
+                if tz is not None:
+                    # ensure we have some timezone information before converting to UTC time
+                    if value.tzinfo is None:
+                        value = tz.localize(value, is_dst=None)
 
-            tz = self.timezone()
-            if tz is not None:
-                # ensure we have some timezone information before converting
-                # to UTC time
-                if value.tzinfo is None:
-                    value = tz.localize(value, is_dst=None)
-
-                value = value.astimezone(pytz.utc).replace(tzinfo=None)
-            else:
-                log.warning('No local timezone defined.')
+                    value = value.astimezone(pytz.utc).replace(tzinfo=None)
+                else:
+                    log.warning('No local timezone defined.')
 
         # encrypt the value if necessary
         elif self.isEncrypted():
             return projex.security.encrypt(value)
-
-        # convert standard string values to ascii for the database
-        elif self.isString():
-            text = projex.text.decoded(value)
 
         return value
 

@@ -1913,47 +1913,54 @@ class Query(object):
 
             # look for data matching options
             if type(value) in (str, unicode):
-                # process singular options
-                for value in value.split(','):
+                # use a regex
+                if value.startswith('~'):
+                    output &= Query(key).matches(value[1:])
+                # use a negated regex
+                elif value.startswith('!~'):
+                    output &= Query(key).matches(value[2:])
+                # use a common syntax
+                else:
                     or_q = Query()
-                    for value in value.split('|'):
-                        sub_q = Query(key)
+                    # process or'd queries
+                    for value in value.split(','):
+                        and_q = Query()
+                        # process and'd queries
+                        for value in value.split('+'):
+                            sub_q = Query(key)
+                            match = re.match('^(?P<negated>-|!)?(?P<op>>|<)?(?P<value>.*)$', value)
+                            op = match.group('op')
+                            value = match.group('value')
+                            if value:
+                                startswith = value[-1] == '*'
+                                endswith = value[0] == '*'
+                                value = value.strip('*')
+                                negated = bool(match.group('negated'))
+                            else:
+                                value = ''
 
-                        match = re.match('^(?P<negated>-|!)?(?P<op>~|>|<)?(?P<value>.*)$', value)
-                        op = match.group('op')
-                        value = match.group('value')
-                        if value:
-                            startswith = value[-1] == '*'
-                            endswith = value[0] == '*'
-                            value = value.strip('*')
-                        else:
-                            startswith = False
-                            endswith = False
-                            value = ''
+                            if op == '>':
+                                sub_q.setOperatorType(Query.Op.GreaterThan)
+                            elif op == '<':
+                                sub_q.setOperatorType(Query.Op.LessThan)
+                            elif startswith and endswith:
+                                sub_q.setOperatorType(Query.Op.Contains)
+                            elif startswith:
+                                sub_q.setOperatorType(Query.Op.Startswith)
+                            elif endswith:
+                                sub_q.setOperatorType(Query.Op.Endswith)
+                            else:
+                                sub_q.setOperatorType(Query.Op.Is)
 
-                        if op == '>':
-                            sub_q.setOperatorType(Query.Op.GreaterThan)
-                        elif op == '<':
-                            sub_q.setOperatorType(Query.Op.LessThan)
-                        elif op == '~':
-                            sub_q.setOperatorType(Query.Op.Matches)
-                        elif startswith and endswith:
-                            sub_q.setOperatorType(Query.Op.Contains)
-                        elif startswith:
-                            sub_q.setOperatorType(Query.Op.Startswith)
-                        elif endswith:
-                            sub_q.setOperatorType(Query.Op.Endswith)
-                        else:
-                            sub_q.setOperatorType(Query.Op.Is)
+                            sub_q.setValue(safe_eval(value))
 
-                        sub_q.setValue(safe_eval(value))
+                            # negate the query
+                            if negated:
+                                sub_q = sub_q.negated()
 
-                        # negate the query
-                        if match.group('negated'):
-                            sub_q = sub_q.negated()
-
-                        or_q |= sub_q
-                    output &= sub_q
+                            and_q &= value_q
+                        or_q |= and_q
+                    output &= or_q
 
             # otherwise, set a simple value
             else:

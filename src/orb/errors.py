@@ -59,8 +59,7 @@ class BackendNotFound(OrbError):
 # ------------------------------------------------------------------------------
 
 class CannotDelete(OrbError):
-    def __init__(self, msg, tablename):
-        super(CannotDelete, self).__init__(msg, tablename)
+    pass
 
 class ColumnNotFound(OrbError):
     def __init__(self, table, column):

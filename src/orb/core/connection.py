@@ -20,6 +20,7 @@ import cPickle
 import logging
 import projex.iters
 
+from collections import OrderedDict
 from projex.addon import AddonManager
 from projex.decorators import abstractmethod
 from projex.lazymodule import LazyModule
@@ -108,13 +109,10 @@ class Connection(AddonManager):
         :return     {<orb.Table>: [<orb.Query>, ..], ..} | cascaded
         """
         if collection is None:
-            collection = {}
+            collection = OrderedDict()
 
         # define the base lookup query
         query = lookup.where
-
-        # add the base collection data
-        collection.setdefault(table, [])
 
         # lookup cascading removal
         def load_keys(table, query):
@@ -154,9 +152,8 @@ class Connection(AddonManager):
                     found = ref_table.select(where=ref_query)
                     if not found.isEmpty():
                         msg = 'Could not remove records, there are still ' \
-                              'references to the %s model.'
-                        tblname = ref_table.__name__
-                        raise errors.CannotDelete(msg, tblname)
+                              'references to the {0} model.'.format(ref_table.__name__)
+                        raise errors.CannotDelete(msg)
 
                 # cascade additional removals
                 elif flags & orb.DeleteFlags.Cascaded and action == orb.RemovedAction.Cascade:
@@ -167,6 +164,7 @@ class Connection(AddonManager):
                                               collection)
 
         if query is None or not query.isNull():
+            collection.setdefault(table, [])
             collection[table].append(query)
 
         return collection
@@ -436,8 +434,9 @@ class Connection(AddonManager):
         """
         removals = self.collectRemoveRecords(table, lookup, options)
         count = self.removeRecords(removals, options)
-        for rem_table in removals:
-            rem_table.markTableCacheExpired()
+        with orb.Transaction():
+            for rem_table in removals:
+                rem_table.markTableCacheExpired()
         return count
 
     @abstractmethod

@@ -195,11 +195,11 @@ class Pipe(object):
         elif type == 'count':
             pset.cache('count', data)
         elif type == 'first':
-            pset.cache('first', target_model(db_dict=data) if data else None)
+            pset.cache('first', target_model(__values=data) if data else None)
         elif type == 'last':
-            pset.cache('last', target_model(db_dict=data) if data else None)
+            pset.cache('last', target_model(__values=data) if data else None)
         elif type == 'records':
-            pset.cache('records', [target_model(db_dict=record) for record in data or []])
+            pset.cache('records', [target_model(__values=record) for record in data or []])
 
     def pipeReference(self):
         return self._pipeReference

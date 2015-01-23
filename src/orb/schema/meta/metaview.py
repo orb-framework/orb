@@ -314,11 +314,11 @@ class reverselookupmethod(object):
         elif type == 'count':
             rset.cache('count', data)
         elif type == 'first':
-            rset.cache('first', view(db_dict=data) if data else None)
+            rset.cache('first', view(__values=data) if data else None)
         elif type == 'last':
-            rset.cache('last', view(db_dict=data) if data else None)
+            rset.cache('last', view(__values=data) if data else None)
         else:
-            rset.cache('records', [view(db_dict=record) for record in data or []])
+            rset.cache('records', [view(__values=record) for record in data or []])
 
     def viewFor(self, record):
         """

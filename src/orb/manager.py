@@ -58,6 +58,7 @@ class Manager(object):
         
         # i18n options
         self._locale = os.environ.get('ORB_LOCALE', 'en_US')
+        self._baseTimezone = None
         self._timezone = None
         
         # registry
@@ -79,7 +80,22 @@ class Manager(object):
         if not self._tableclass:
             return orb.Table
         return self._tableclass
-    
+
+    def baseTimezone(self):
+        if self._baseTimezone == None:
+            default = self.settings().defaultTimezone()
+            if default:
+                try:
+                    self._timezone = pytz.timezone(default)
+                except ImportError:
+                    log.error('pytz must be installed for timezone support.')
+            else:
+                try:
+                    self._timezone = tzlocal.get_localzone()
+                except ImportError:
+                    log.error('tzlocal must be installed for local zone support.')
+        return self._baseTimezone
+
     def clear(self):
         """
         Clears out all the current data from this orb instance.
@@ -345,6 +361,8 @@ class Manager(object):
         
         :return     <str>
         """
+        if callable(self._locale):
+            return self._locale()
         return self._locale
 
     def load(self, filename = '', includeReferences=False):
@@ -583,7 +601,25 @@ class Manager(object):
         :return     <str>
         """
         return self._namespace
-    
+
+    def now(self):
+        """
+        Return a timezone mapped representation of now.
+
+        :return     <datetime.datetime>
+        """
+        now = datetime.datetime.now()
+        tz = self.timezone()
+        base_tz = self.baseTimezone() or tz
+
+        if tz is None or base_tz is None:
+            log.warning('No local timezone defined.')
+            return now
+        elif base_tz == tz:
+            return tz.localize(now, is_dst=None)
+        else:
+            return base_tz.localize(now, is_dst=None).astimezone(tz)
+
     def property(self, propname, default=''):
         """
         Returns the property value for this manager from the given name.  \
@@ -778,7 +814,15 @@ class Manager(object):
         :param      tableType | <subclass of Table> || None
         """
         self._tableclass = tableType
-    
+
+    def setBaseTimezone(self, timezone):
+        """
+        Defines the timezone for this machine.
+
+        :param      timezone | <pytz.Timezone>
+        """
+        self._baseTimezone = timezone
+
     def setCachingEnabled(self, state):
         """
         Sets globally whether or not to allow caching.
@@ -960,18 +1004,9 @@ class Manager(object):
         :return     <pytz.tzfile> || None
         """
         if self._timezone is None:
-            default = self.settings().defaultTimezone()
-            if default:
-                try:
-                    self._timezone = pytz.timezone(default)
-                except ImportError:
-                    log.error('pytz must be installed for timezone support.')
-            else:
-                try:
-                    self._timezone = tzlocal.get_localzone()
-                except ImportError:
-                    log.error('tzlocal must be installed for local zone support.')
-        
+            return self.baseTimezone()
+        elif callable(self._timezone):
+            return self._timezone()
         return self._timezone
 
     def unregisterDatabase(self, database):

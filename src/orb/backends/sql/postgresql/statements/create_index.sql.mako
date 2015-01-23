@@ -34,11 +34,10 @@
 DO $$
 BEGIN
 IF NOT EXISTS (
-    SELECT  COUNT(*)
+    SELECT  1
     FROM    pg_indexes
     WHERE   schemaname = 'public'
-    AND     tablename = '${table_name}'
-    AND     indexname = '${index_name}'
+    AND     indexname = '${table_name}_${index_name}'
 ) THEN CREATE ${'UNIQUE' if unique else ''} INDEX ${table_name}_${index_name} ON "${table_name}" (${', '.join(columns)});
 END IF;
 END$$;

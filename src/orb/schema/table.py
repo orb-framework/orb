@@ -325,8 +325,8 @@ class Table(object):
         self.__database_options = None
 
         # initialize the defaults
-        if 'db_dict' in kwds:
-            self._updateFromDatabase(kwds.pop('db_dict'))
+        if '__values' in kwds:
+            self._updateFromDatabase(kwds.pop('__values'))
 
         elif not args:
             self.initRecord()
@@ -434,9 +434,9 @@ class Table(object):
                 model = column.referenceModel()
                 if not model:
                     raise errors.TableNotFound(column.reference())
-                value = model(db_dict=value)
+                value = model(__values=value)
 
-            # store translatable columns
+            # restore translatable columns
             elif column.isTranslatable():
                 if type(value) in (str, unicode) and value.startswith('{'):
                     try:
@@ -454,6 +454,10 @@ class Table(object):
                     value = orb.Query.fromDict(value)
                 elif type(value) in (str, unicode):
                     value = orb.Query.fromXmlString(value)
+
+            # restore the value from teh database
+            else:
+                value = column.restoreValue(value)
 
             dvalues[column] = value
             self.__record_dbloaded.add(column)
@@ -1101,8 +1105,7 @@ class Table(object):
 
         # return none output's and non-auto inflated values immediately
         if value is None or not (col.isReference() and inflated):
-            out = col.restoreValue(value)
-            return out if not Table.recordcheck(out) else out.id()
+            return value if not Table.recordcheck(value) else value.id()
 
         # ensure we have a proper reference model
         refmodel = col.referenceModel()
@@ -1304,11 +1307,6 @@ class Table(object):
             return self.database().backend().remove(cls, lookup, opts)
         except AttributeError:
             return 0
-        except errors.OrbError, err:
-            if opts.throwErrors:
-                raise
-            else:
-                log.error('Backend error occurred.\n%s', err)
 
         return 0
 
@@ -1822,7 +1820,7 @@ class Table(object):
                     record = morph_cls(*pkeys, db=db)
 
         if record is None:
-            record = cls(db_dict=values, db=db)
+            record = cls(__values=values, db=db)
 
         return record
 
@@ -2042,9 +2040,9 @@ class Table(object):
             lookup.where = default_q & lookup.where
 
         # determine if we should auto-add locale
-        if options.locale != 'all' and cls.schema().column('locale'):
-            if not (lookup.where and 'locale' in lookup.where):
-                lookup.where = (orb.Query('locale') == options.locale) & lookup.where
+        # if options.locale != 'all' and cls.schema().column('locale'):
+        #     if not (lookup.where and 'locale' in lookup.where):
+        #         lookup.where = (orb.Query('locale') == options.locale) & lookup.where
 
         # define the record set and return it
         rset = orb.RecordSet(cls, None)

@@ -24,6 +24,7 @@ import datetime
 import logging
 import os
 import orb
+import re
 import traceback
 
 from orb import errors
@@ -131,6 +132,27 @@ class PSQLConnection(SQLConnection):
             except StandardError:
                 pass
 
+            # look for a duplicate error
+            duplicate_error = re.search('Key (.*) already exists.', nstr(err))
+            if duplicate_error:
+                key = duplicate_error.group(1)
+                result = re.match('^\(lower\((?P<column>[^\)]+)::text\)\)=\((?P<value>[^\)]+)\)$', key)
+                if not result:
+                    result = re.match('^(?P<column>\w+)=(?P<value>\w+', key)
+
+                if result:
+                    msg = '{value} is already being used.'.format(**result.groupdict())
+                    raise errors.DuplicateEntryFound(msg)
+                else:
+                    raise errors.DuplicateEntryFound(duplicate_error)
+
+            # look for a reference error
+            reference_error = re.search('Key .* is still referenced from table ".*"', nstr(err))
+            if reference_error:
+                msg = 'Cannot remove this record, it is still being referenced.'
+                raise errors.CannotDelete(msg)
+
+            # unknown error
             log.debug(traceback.print_exc())
             raise errors.QueryFailed(command, data, nstr(err))
 
