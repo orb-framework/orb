@@ -68,7 +68,19 @@ class Manager(object):
         self._schemas       = set()
         self._properties    = {}
         self._customEngines = {}
-    
+
+    def asutc(self, dtime):
+        tz = self.baseTimezone() or self.timezone()
+        if tz is not None:
+            # ensure we have some timezone information before converting to UTC time
+            if dtime.tzinfo is None:
+                dtime = tz.localize(dtime, is_dst=None)
+
+            return dtime.astimezone(pytz.utc).replace(tzinfo=None)
+        else:
+            log.warning('No timezone is defined.')
+            return dtime
+
     def baseTableType(self):
         """
         Returns the base table type that all other tables will inherit from.

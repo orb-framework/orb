@@ -1958,7 +1958,7 @@ class Query(object):
                             if negated:
                                 sub_q = sub_q.negated()
 
-                            and_q &= value_q
+                            and_q &= sub_q
                         or_q |= and_q
                     output &= or_q
 
