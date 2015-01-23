@@ -52,6 +52,8 @@ class ActionNotAllowed(OrbError):
 # ------------------------------------------------------------------------------
 
 class BackendNotFound(OrbError):
+    code = 404
+
     def __init__(self, backend):
         super(BackendNotFound, self).__init__('Could not find %s backend', backend)
 
@@ -62,6 +64,8 @@ class CannotDelete(OrbError):
     pass
 
 class ColumnNotFound(OrbError):
+    code = 404
+
     def __init__(self, table, column):
         super(ColumnNotFound, self).__init__('Did not find {0} column on {1}.'.format(column, table))
 
@@ -123,10 +127,14 @@ class ConnectionLost(OrbError):
 # ------------------------------------------------------------------------------
 
 class DatabaseNotFound(OrbError):
+    code = 404
+
     def __init__(self):
         super(DatabaseNotFound, self).__init__('No database was found.')
 
 class DependencyNotFound(OrbError):
+    code = 404
+
     def __init__(self, package):
         msg = 'Required package `{0}` is not installed.'.format(package)
         super(DependencyNotFound, self).__init__(msg)
@@ -201,11 +209,15 @@ class PrimaryKeyNotDefined(OrbError):
 #------------------------------------------------------------------------------
 
 class RecordNotFound(OrbError):
+    code = 404
+
     def __init__(self, model, pk):
         msg = 'Could not find record {0}({1}).'.format(model.schema().name(), pk)
         super(RecordNotFound, self).__init__(msg)
 
 class ReferenceNotFound(OrbError):
+    code = 404
+
     def __init__(self, column):
         try:
             text = column.name()
@@ -219,6 +231,8 @@ class ReferenceNotFound(OrbError):
 #------------------------------------------------------------------------------
 
 class TableNotFound(OrbError):
+    code = 404
+
     def __init__(self, table):
         super(TableNotFound, self).__init__('Could not find `{0}` table.'.format(table))
 
@@ -226,9 +240,13 @@ class TableNotFound(OrbError):
 #------------------------------------------------------------------------------
 
 class ValueNotFound(OrbError):
+    code = 404
+
     def __init__(self, record, column):
         super(ValueNotFound, self).__init__('{0} has no value for {1}'.format(record, column))
 
 class ViewNotFound(OrbError):
+    code = 404
+
     def __init__(self, table, view):
         super(ViewNotFound, self).__init__('{0} has no view {1}.'.format(table, view))

@@ -1499,7 +1499,7 @@ class Table(object):
                         equals = curr_value == value
                     except TypeError:
                         # compare timezone agnostic values
-                        if isinstance(curr_value, datetime) and isinstance(value, datetime):
+                        if isinstance(curr_value, datetime.datetime) and isinstance(value, datetime.datetime):
                             equals = orb.system.asutc(curr_value) == orb.system.asutc(value)
                     except UnicodeWarning:
                         equals = False
