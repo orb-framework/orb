@@ -138,7 +138,7 @@ class PSQLConnection(SQLConnection):
                 key = duplicate_error.group(1)
                 result = re.match('^\(lower\((?P<column>[^\)]+)::text\)\)=\((?P<value>[^\)]+)\)$', key)
                 if not result:
-                    result = re.match('^(?P<column>\w+)=(?P<value>\w+', key)
+                    result = re.match('^(?P<column>\w+)=(?P<value>\w+)', key)
 
                 if result:
                     msg = '{value} is already being used.'.format(**result.groupdict())
