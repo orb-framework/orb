@@ -2044,9 +2044,9 @@ class Table(object):
             lookup.where = default_q & lookup.where
 
         # determine if we should auto-add locale
-        # if options.locale != 'all' and cls.schema().column('locale'):
-        #     if not (lookup.where and 'locale' in lookup.where):
-        #         lookup.where = (orb.Query('locale') == options.locale) & lookup.where
+        if options.locale != 'all' and cls.schema().column('locale') and cls.schema().autoLocalize():
+            if not (lookup.where and 'locale' in lookup.where):
+                lookup.where = (orb.Query('locale') == options.locale) & lookup.where
 
         # define the record set and return it
         rset = orb.RecordSet(cls, None)

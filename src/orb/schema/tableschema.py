@@ -74,6 +74,7 @@ class TableSchema(object):
     def __init__(self, referenced=False):
         self._abstract = False
         self._autoPrimary = True
+        self._autoLocalize = False
         self._name = ''
         self._databaseName = ''
         self._groupName = ''
@@ -212,6 +213,16 @@ class TableSchema(object):
 
     def archiveModel(self):
         return self._archiveModel
+
+    def autoLocalize(self):
+        """
+        Specifies whether or not this table should automatically localize the search results.
+        When this is on, and the table has a `locale` column, it will automatically be filtered
+        out for the lookup results.  By default, this option will be off.
+
+        :return         <bool>
+        """
+        return self._autoLocalize
 
     def autoPrimary(self):
         """
@@ -526,6 +537,7 @@ class TableSchema(object):
                 '__db_abstract__': False,
                 '__db_inherits__': None,
                 '__db_autoprimary__': True,
+                '__db_autolocalize__': False,
                 '__db_archived__': False
             }
 
@@ -891,6 +903,15 @@ class TableSchema(object):
         """
         self._abstract = state
 
+    def setAutoLocalize(self, state):
+        """
+        Sets whether or not this schema will automatically filter our localized results.  This
+        will filter records based on the locale lookup if a `locale` column is defined.
+
+        :param      state | <bool>
+        """
+        self._autoLocalize = state
+
     def setAutoPrimary(self, state):
         """
         Sets whether or not this schema will use auto-generated primary keys.
@@ -1239,6 +1260,8 @@ class TableSchema(object):
             xschema.set('dbname', self.dbname())
         if not self.autoPrimary():
             xschema.set('autoPrimary', nstr(self.autoPrimary()))
+        if self.autoLocalize():
+            xschema.set('autoLocalize', str(self.autoLocalize()))
         if self.isCacheEnabled():
             xschema.set('cacheEnabled', nstr(self.isCacheEnabled()))
             xschema.set('cacheExpire', nstr(self._cacheExpireIn))
@@ -1327,6 +1350,7 @@ class TableSchema(object):
         tschema.setInherits(xschema.get('inherits', ''))
         tschema.setDbName(xschema.get('dbname', ''))
         tschema.setAutoPrimary(xschema.get('autoPrimary') != 'False')
+        tschema.setAutoLocalize(xschema.get('autoLocalize') == 'True')
         tschema.setStringFormat(xschema.get('stringFormat', ''))
         tschema.setCacheEnabled(xschema.get('cacheEnabled') == 'True')
         tschema.setCacheExpireIn(int(xschema.get('cacheExpire', 0)))
