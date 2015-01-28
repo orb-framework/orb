@@ -377,6 +377,7 @@ class MetaTable(type):
             '__db_abstract__': False,
             '__db_inherits__': None,
             '__db_autoprimary__': True,
+            '__db_autolocalize__': False,
             '__db_archived__': False,
             '__db_schema__': None,
         }
@@ -425,6 +426,7 @@ class MetaTable(type):
             schema = orb.TableSchema()
             schema.setDatabase(db_data['__db__'])
             schema.setAutoPrimary(db_data['__db_autoprimary__'])
+            schema.setAutoLocalize(db_data['__db_autolocalize__'])
             schema.setName(db_data['__db_name__'] or name)
             schema.setGroupName(db_data['__db_group__'])
             schema.setDbName(db_data['__db_dbname__'])

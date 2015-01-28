@@ -537,7 +537,7 @@ class TableSchema(object):
                 '__db_abstract__': False,
                 '__db_inherits__': None,
                 '__db_autoprimary__': True,
-                '__db_autolocalize__': False,
+                '__db_autolocalize__': self.autoLocalize(),
                 '__db_archived__': False
             }
 
