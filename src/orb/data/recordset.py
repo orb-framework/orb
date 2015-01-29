@@ -575,7 +575,6 @@ class RecordSet(object):
             except IndexError:
                 return None
             except KeyError:
-                options['limit'] = 1
                 lookup = self.lookupOptions(**options)
                 db_opts = self.databaseOptions(**options)
 
@@ -857,7 +856,6 @@ class RecordSet(object):
             except KeyError:
                 # define custom options
                 options['columns'] = ['id']
-                options['limit'] = 1
                 options['inflated'] = False
 
                 is_empty = self.first(**options) is None
