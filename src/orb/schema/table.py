@@ -172,6 +172,13 @@ class Table(object):
 
     #----------------------------------------------------------------------
 
+    def __getitem__(self, key):
+        column = self.schema().column(key)
+        if column:
+            return self.recordValue(column)
+        else:
+            raise KeyError(key)
+
     def __json__(self, *args):
         """
         Iterates this object for its values.  This will return the field names from the
