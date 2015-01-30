@@ -538,6 +538,9 @@ class Connection(AddonManager):
         
         :return     <Table> || None
         """
+        # limit the lookup information to 1
+        lookup.limit = 1
+
         # load the results
         results = self.select(table, query_options, options)
 

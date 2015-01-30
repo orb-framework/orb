@@ -283,6 +283,7 @@ class RecordCache(object):
         
         :return     <dict> record || None
         """
+        lookup.limit = 1
         results = self.select(backend, table, lookup, options)
         if results:
             return results[0]

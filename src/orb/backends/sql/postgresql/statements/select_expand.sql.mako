@@ -71,6 +71,7 @@
                     SELECT DISTINCT ON (j."${target_column.fieldName()}") j."${target_column.fieldName()}"
                     FROM "${join_table.schema().dbname()}" AS j
                     WHERE j."${source_column.fieldName()}" = "${source_table_name}".id
+                    ${'LIMIT 1' if pipe.unique() else ''}
                 )
             ) ${records_alias}
         ) ${col_name}_row
@@ -112,6 +113,7 @@
                 % endfor
                 FROM "${source_schema.dbname()}" AS "${alias}"
                 WHERE "${alias}"."${source_column.fieldName()}" = "${ref_table_name}".id
+                ${'LIMIT 1' if source_column.unique() else ''}
             ) ${records_alias}
         ) ${col_name}_row
     ) AS "${colname}"
