@@ -160,7 +160,7 @@ class SQLConnection(orb.Connection):
             print cmd % data
             return 0
         else:
-            rows, _ = self.execute(cmd, data, autoCommit=False)
+            rows, _ = self.execute(cmd, data)
             return sum([row['count'] for row in rows])
 
     def commit(self):
@@ -250,7 +250,7 @@ class SQLConnection(orb.Connection):
         data = {}
         sql = ENABLE_INTERNALS(False, options=options, IO=data)
 
-        self.execute(sql, data, autoCommit=False)
+        self.execute(sql, data)
 
     def distinct(self, table_or_join, lookup, options):
         """
@@ -286,7 +286,7 @@ class SQLConnection(orb.Connection):
         data = {}
         sql = ENABLE_INTERNALS(True, IO=data)
 
-        self.execute(sql, data, autoCommit=False)
+        self.execute(sql, data)
 
         super(SQLConnection, self).enableInternals()
 
@@ -303,7 +303,7 @@ class SQLConnection(orb.Connection):
         TABLE_COLUMNS = self.sql('TABLE_COLUMNS')
         data = {}
         sql = TABLE_COLUMNS(schema, options=options, IO=data)
-        result = self.execute(sql, data, autoCommit=False)[0]
+        result = self.execute(sql, data)[0]
         return [x['column_name'] for x in result]
 
     def execute(self,
@@ -670,7 +670,7 @@ class SQLConnection(orb.Connection):
         SCHEMA_INFO = self.sql('SCHEMA_INFO')
         data = {}
         sql = SCHEMA_INFO(options=options, IO=data)
-        info = self.execute(sql, data, autoCommit=False)[0]
+        info = self.execute(sql, data)[0]
         return {table['name']: table for table in info}
 
     def select(self, table_or_join, lookup, options):
@@ -697,10 +697,9 @@ class SQLConnection(orb.Connection):
                 return []
             else:
                 with ReadLocker(self.__concurrencyLocks[schema.name()]):
-                    records = self.execute(sql, data, autoCommit=False)[0]
+                    records = self.execute(sql, data)[0]
 
                 store = self.sql().datastore()
-
                 for record in records:
                     for name, value in record.items():
                         column = schema.column(name)
@@ -794,7 +793,7 @@ class SQLConnection(orb.Connection):
         TABLE_EXISTS = self.sql('TABLE_EXISTS')
         data = {}
         sql = TABLE_EXISTS(schema, options=options, IO=data)
-        return bool(self.execute(sql, data, autoCommit=False)[0])
+        return bool(self.execute(sql, data)[0])
 
     def update(self, records, lookup, options):
         """

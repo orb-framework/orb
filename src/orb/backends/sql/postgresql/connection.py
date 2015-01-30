@@ -118,7 +118,6 @@ class PSQLConnection(SQLConnection):
             if 'statement timeout' in str(cancelled):
                 raise errors.QueryTimeout(command, (datetime.datetime.now() - start).total_seconds())
             else:
-                print str(cancelled)
                 raise errors.Interruption()
 
         # look for a disconnection error

@@ -10,8 +10,14 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software, LLC'
 __email__           = 'team@projexsoftware.com'
 
+import threading
+from collections import defaultdict
+from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
+
+
 class Transaction(object):
-    _stack = []
+    _stack = defaultdict(list)
+    _stackLock = ReadWriteLock()
     
     def __init__(self):
         self._connections  = set()
@@ -57,18 +63,17 @@ class Transaction(object):
         """
         return self._errors
     
-    def end(self):
+    def end(self, threadId=None):
         """
         Commits all the changes for the database connections that have been
         processed while this transaction is active.
         """
-        try:
-            Transaction._stack.remove(self)
-        except ValueError:
-            pass
-        
         if not self.isErrored():
             self.commit()
+        else:
+            self.rollback()
+
+        self.pop(self, threadId)
     
     def rollback(self, error):
         """
@@ -93,34 +98,46 @@ class Transaction(object):
         self._connections.add(connection)
     
     @staticmethod
-    def current():
+    def current(threadId=None):
         """
         Returns the current transaction for the system.
         
         :return     <Transaction> || None
         """
-        if Transaction._stack:
-            return Transaction._stack[-1]
-        return None
+        threadId = threadId or threading.current_thread().ident
+        with ReadLocker(Transaction._stackLock):
+            stack = Transaction._stack.get(threadId)
+            return stack[-1] if stack else None
     
     @staticmethod
-    def push(transaction):
+    def push(transaction, threadId=None):
         """
         Pushes a new transaction onto the stack.
         
         :param     transaction | <Transaction>
         """
-        Transaction._stack.append(transaction)
+        threadId = threadId or threading.current_thread().ident
+        with WriteLocker(Transaction._stackLock):
+            Transaction._stack[threadId].append(transaction)
     
     @staticmethod
-    def pop():
+    def pop(transaction=None, threadId=None):
         """
         Removes the latest transaction from the stack.
         
         :return     <Transaction> || None
         """
-        try:
-            return Transaction._stack.pop()
-        except IndexError:
-            return None
+        threadId = threadId or threading.current_thread().ident
+        with WriteLocker(Transaction._stackLock):
+            if transaction:
+                try:
+                    Transaction._stack[threadId].remove(transaction)
+                except (KeyError, ValueError):
+                    return None
+            else:
+                try:
+                    Transaction._stack[threadId].pop()
+                except IndexError:
+                    return None
+
 
