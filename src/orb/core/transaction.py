@@ -36,8 +36,7 @@ class Transaction(object):
         for connection in self._connections:
             try:
                 connection.commit()
-            
-            except Exception, err:
+            except StandardError:
                 connection.rollback()
     
     def begin(self):
@@ -68,12 +67,13 @@ class Transaction(object):
         Commits all the changes for the database connections that have been
         processed while this transaction is active.
         """
+        # remove the transaction first, or the connection will not commit properly
+        self.pop(self, threadId)
+
         if not self.isErrored():
             self.commit()
         else:
             self.rollback()
-
-        self.pop(self, threadId)
     
     def rollback(self, error):
         """
