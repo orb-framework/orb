@@ -779,6 +779,7 @@ class SQLConnection(orb.Connection):
         # enable the table keys
         cmd, dat = engine.enableInternalsCommand(schema)
         self.execute(cmd, dat)
+        self.commit()
 
     def tableExists(self, schema, options):
         """
@@ -793,7 +794,7 @@ class SQLConnection(orb.Connection):
         TABLE_EXISTS = self.sql('TABLE_EXISTS')
         data = {}
         sql = TABLE_EXISTS(schema, options=options, IO=data)
-        return bool(self.execute(sql, data)[0])
+        return bool(self.execute(sql, data, autoCommit=False)[0])
 
     def update(self, records, lookup, options):
         """

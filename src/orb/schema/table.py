@@ -1052,16 +1052,17 @@ class Table(object):
                 orb_getter = False
 
             if method is not None and not orb_getter:
-                keywords = self.__getKeywords(method).copy()
+                keywords = list(self.__getKeywords(method))
+                kwds = {}
 
                 if 'locale' in keywords:
-                    keywords['locale'] = locale
+                    kwds['locale'] = locale
                 if 'default' in keywords:
-                    keywords['default'] = default
+                    kwds['default'] = default
                 if 'inflated' in keywords:
-                    keywords['inflated'] = inflated
+                    kwds['inflated'] = inflated
 
-                return method(self, **keywords)
+                return method(self, **kwds)
 
         try:
             with ReadLocker(self.__record_value_lock):
@@ -1460,7 +1461,7 @@ class Table(object):
                 orb_setter = False
 
             if method is not None and not orb_setter:
-                keywords = self.__getKeywords(method)
+                keywords = list(self.__getKeywords(method))
                 if 'locale' in keywords:
                     return method(self, value, locale=locale)
                 else:
