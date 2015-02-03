@@ -44,7 +44,7 @@ def cachedmethod(*tables):
 def lookupmethod(cache=None, permits=None):
     def wrapped(method):
         method.permits = permits
-        method.cache = orb.TableCache(expires=cache) if cache else None
+        method.cache = orb.TableCache(timeout=cache) if cache else None
 
         def caller(source, *args, **options):
             if cache:

@@ -60,9 +60,9 @@ class Pipe(object):
         # update the caching information
         pipe_cache = self.cache(pipeTable)
         target_cache = self.cache(targetTable)
-        cache_key = (id(record),
+        cache_key = (record.id() if record else 0,
                      hash(orb.LookupOptions(**options)),
-                     id(options.get('db', record.database())))
+                     options.get('db', record.database()).name())
 
         # ensure neither the pipe nor target table have expired their caches
         if not reload and \
@@ -173,9 +173,9 @@ class Pipe(object):
         pipe_cache = self.cache(pipe_model, force=True)
         target_cache = self.cache(target_model, force=True)
 
-        cache_key = (id(record),
+        cache_key = (record.id() or 0,
                      hash(options or orb.LookupOptions()),
-                     id(record.database()))
+                     record.database().name())
 
         # define the pipe cached value
         pset = pipe_cache.value(cache_key)

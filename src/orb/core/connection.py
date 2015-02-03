@@ -708,7 +708,7 @@ class Connection(AddonManager):
 
 
 # register the addon module
-from orb.backends import __plugins__
+from orb.core.backends import __plugins__
 
 Connection.registerAddonModule(__plugins__)
 

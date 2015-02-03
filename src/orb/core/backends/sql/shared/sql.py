@@ -3,7 +3,7 @@ import orb
 
 from collections import defaultdict
 from orb import errors
-from orb.backends.sql.abstractsql import SQL
+from orb.core.backends.sql.abstractsql import SQL
 
 log = logging.getLogger(__name__)
 

@@ -70,7 +70,7 @@ class Index(object):
         data = tuple(hash(value) for value in values)
         cache_key = (data,
                      hash(orb.LookupOptions(**options)),
-                     id(options.get('db')))
+                     options.get('db').name() if options.get('db') else '')
         cache = self.cache(table)
         
         if cache and not cache.isExpired(cache_key):

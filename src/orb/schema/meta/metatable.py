@@ -237,9 +237,9 @@ class reverselookupmethod(object):
 
         # return from the cache when specified
         cache = self.cache(table)
-        cache_key = (id(record),
+        cache_key = (record.id(),
                      hash(orb.LookupOptions(**kwds)),
-                     id(record.database()))
+                     record.database().name())
 
         if not reload and cache and not cache.isExpired(cache_key):
             out = cache.value(cache_key)
@@ -290,18 +290,18 @@ class reverselookupmethod(object):
                 return cache
             return None
 
-    def preload(self, record, data, options, type='records'):
+    def preload(self, record, data, lookup, type='records'):
         """
         Preload a list of records from the database.
 
         :param      record  | <orb.Table>
                     data    | [<dict>, ..]
-                    options | <orb.LookupOptions> || None
+                    lookup | <orb.LookupOptions> || None
         """
         table = self.tableFor(record)
-        cache_key = (id(record),
-                     hash(options or orb.LookupOptions()),
-                     id(record.database()))
+        cache_key = (record.id(),
+                     hash(lookup or orb.LookupOptions()),
+                     record.database().name())
 
         cache = self.cache(table, force=True)
         rset = cache.value(cache_key)

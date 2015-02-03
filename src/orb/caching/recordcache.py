@@ -79,8 +79,8 @@ class RecordCache(object):
         if not tables:
             tables = orb.system.models()
         
-        expires = kwds.get('expires', 0)
-        self._caches = dict([(table, orb.TableCache(table, expires))
+        timeout = kwds.get('timeout', 0)
+        self._caches = dict([(table, orb.TableCache(table, timeout))
                              for table in tables])
     
     def __enter__(self):
@@ -254,7 +254,7 @@ class RecordCache(object):
                            lookup,
                            db_opts)
     
-    def setExpires(self, table, seconds):
+    def setTimeout(self, table, seconds):
         """
         Sets the length of time in minutes to hold onto this cache before 
         re-querying the database.
@@ -264,13 +264,14 @@ class RecordCache(object):
         """
         cache = self.cache(table)
         if cache:
-            expires = seconds
+            timeout = seconds
             table_expires = table.schema().cacheExpireIn()
             max_expires = orb.system.maxCacheTimeout()
-            opts = [expires, table_expires, max_expires]
-            expires = min(filter(lambda x: x > 0, opts))
-            
-            cache.setExpires(expires)
+            opts = [timeout, table_expires, max_expires]
+            timeout = min(filter(lambda x: x > 0, opts))
+
+            # set the timeout in seconds
+            cache.setTimeout(timeout * 60)
     
     def selectFirst(self, backend, table, lookup, options):
         """
@@ -302,7 +303,7 @@ class RecordCache(object):
         :return     [<dict> record, ..]
         """
         cache = self.cache(table)
-        cache_key = (hash(lookup), hash(options), id(backend.database()))
+        cache_key = (hash(lookup), hash(options), backend.database().name() if backend.database() else '')
         preload_key = 'preloaded_records'
         
         # determine if the query is simple (only involving a simple table)

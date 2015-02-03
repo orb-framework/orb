@@ -45,6 +45,8 @@ class Manager(object):
         self._database = None       # current database
         self._tableclass = None     # base table class (default: orb.Table)
         self._namespace = ''        # current namespace
+
+        self._cacheFactory = None
         self._cacheExpired = datetime.datetime.now()
         self._searchEngine = orb.SearchEngine()
         
@@ -107,6 +109,15 @@ class Manager(object):
                 except ImportError:
                     log.error('tzlocal must be installed for local zone support.')
         return self._baseTimezone
+
+    def cacheFactory(self):
+        """
+        Returns a callable that accepts a single argument for creating a new cache
+        instance given a timeout.
+
+        :return     <callable> || None
+        """
+        return self._cacheFactory
 
     def clear(self):
         """
@@ -834,6 +845,15 @@ class Manager(object):
         :param      timezone | <pytz.Timezone>
         """
         self._baseTimezone = timezone
+
+    def setCacheFactory(self, factory):
+        """
+        Assigns a callable to use as the factory that accepts a single argument for creating a new cache
+        instance given a timeout.
+
+        :param     factory | <callable> || None
+        """
+        self._cacheFactory = factory
 
     def setCachingEnabled(self, state):
         """

@@ -745,7 +745,7 @@ class View(object):
         :return     <orb.DataCache>
         """
         if not self.__record_datacache:
-            self.__record_datacache = orb.DataCache()
+            self.__record_datacache = orb.DataCache.create()
         return self.__record_datacache
 
     def databaseOptions(self, **options):
@@ -1897,7 +1897,7 @@ class View(object):
 
         # define the cache for the first time
         cache = orb.RecordCache(cls)
-        cache.setExpires(cls, schema.cacheExpireIn() if schema.isCacheEnabled() else 0.5)
+        cache.setTimeout(cls)
         cls.pushRecordCache(cache)
 
         return cache
@@ -2027,7 +2027,7 @@ class View(object):
         try:
             return getattr(cls, key)
         except AttributeError:
-            cache = orb.TableCache(cls, expires=cls.schema().cacheExpireIn() * 60)  # expire in is in minutes
+            cache = orb.TableCache(cls)
             setattr(cls, key, cache)
             return cache
 
