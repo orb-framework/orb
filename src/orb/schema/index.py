@@ -52,9 +52,10 @@ class Index(object):
         self._columnNames = columns
         self._unique = unique
         self._order = order
+        self._local_cache = {}
         self._cache = {}
         self._cached = cached
-        self._cachedExpires = 0
+        self._cacheTimeout = 0
         self._referenced = referenced
     
     def __call__(self, table, *values, **options):
@@ -73,8 +74,10 @@ class Index(object):
                      options.get('db').name() if options.get('db') else '')
         cache = self.cache(table)
         
-        if cache and not cache.isExpired(cache_key):
-            return cache.value(cache_key)
+        if cache and cache_key in self._local_cache and cache.isCached(cache_key):
+            return self._local_cache[cache_key]
+
+        self._local_cache.pop(cache_key, None)
 
         # create the lookup query
         query = orb.Query()
@@ -114,7 +117,8 @@ class Index(object):
         
         # cache the results
         if cache and results is not None:
-            cache.setValue(cache_key, results)
+            self._local_cache[cache_key] = results
+            cache.setValue(cache_key, True, timeout=self._cacheTimeout)
         
         return results
     
@@ -128,8 +132,7 @@ class Index(object):
             return None
         
         if not table in self._cache:
-            cache = orb.TableCache(table, self._cachedExpires)
-            self._cache[table] = cache
+            self._cache[table] = table.tableCache()
         
         return self._cache[table]
     
@@ -141,14 +144,14 @@ class Index(object):
         """
         return self._cached
     
-    def cachedExpires(self):
+    def cacheTimeout(self):
         """
         Returns the number of seconds that this index will keep its cache
         before reloading.
         
         :return     <int> | seconds
         """
-        return self._cachedExpires
+        return self._cacheTimeout
     
     def columnNames(self):
         """
@@ -184,7 +187,7 @@ class Index(object):
         """
         self._cached = state
     
-    def setCachedExpires(self, seconds):
+    def setCacheTimeout(self, seconds):
         """
         Sets the time in seconds that this index will hold onto a client
         side cache.  If the value is 0, then the cache will never expire, 
@@ -192,7 +195,7 @@ class Index(object):
         
         :param     seconds | <int>
         """
-        self._cachedExpires = seconds
+        self._cacheTimeout = seconds
     
     def setColumnNames(self, columnNames):
         """
@@ -282,7 +285,7 @@ class Index(object):
 
         if self.cached():
             xindex.set('cached', nstr(self.cached()))
-            xindex.set('cachedExpires', nstr(self._cachedExpires))
+            xindex.set('cacheTimeout', nstr(self._cacheTimeout))
 
         for name in self.columnNames():
             ElementTree.SubElement(xindex, 'column').text = name
@@ -331,8 +334,8 @@ class Index(object):
         index.setName(xindex.get('name', ''))
         index.setUnique(xindex.get('unique') == 'True')
         index.setCached(xindex.get('cached') == 'True')
-        index.setCachedExpires(int(xindex.get('cachedExpires',
-                               index._cachedExpires)))
+        index.setCacheTimeout(int(xindex.get('cacheTimeout',
+                                  xindex.get('cachedExpires', index._cacheTimeout))))
 
         xcolumns = xindex.findall('column')
         if xcolumns:

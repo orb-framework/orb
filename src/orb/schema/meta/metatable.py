@@ -205,12 +205,13 @@ class reverselookupmethod(object):
         self.__lookup__ = True
 
         self._cache = {}
+        self._local_cache = {}
         self.reference = kwds.get('reference', '')
         self.referenceDb = kwds.get('referenceDatabase', None)
         self.columnName = kwds.get('columnName', '')
         self.unique = kwds.get('unique', False)
         self.cached = kwds.get('cached', False)
-        self.cacheExpires = kwds.get('cacheExpires', 0)
+        self.cacheTimeout = kwds.get('cacheTimeout', 0)
         self.func_name = kwds['__name__']
         self.func_args = '()'
         self.func_doc = 'Auto-generated Orb reverse lookup method'
@@ -241,10 +242,12 @@ class reverselookupmethod(object):
                      hash(orb.LookupOptions(**kwds)),
                      record.database().name())
 
-        if not reload and cache and not cache.isExpired(cache_key):
-            out = cache.value(cache_key)
+        if not reload and cache and cache_key in self._local_cache and cache.isCached(cache_key):
+            out = self._local_cache[cache_key]
             out.updateOptions(**kwds)
             return out
+
+        self._local_cache.pop(cache_key, None)
 
         # make sure this is a valid record
         if not record.isRecord():
@@ -269,7 +272,8 @@ class reverselookupmethod(object):
             output.setSourceColumn(self.columnName)
 
         if cache and output is not None:
-            cache.setValue(cache_key, output)
+            self._locale_cache[cache_key] = output
+            cache.setValue(cache_key, True, timeout=self.cacheTimeout)
 
         return output
 
@@ -285,7 +289,7 @@ class reverselookupmethod(object):
             return self._cache[table]
         except KeyError:
             if force or self.cached:
-                cache = orb.TableCache(table, self.cacheExpires)
+                cache = table.tableCache() or orb.TableCache(table, table.schema().cache(), timeout=self.cacheTimeout)
                 self._cache[table] = cache
                 return cache
             return None
@@ -304,10 +308,11 @@ class reverselookupmethod(object):
                      record.database().name())
 
         cache = self.cache(table, force=True)
-        rset = cache.value(cache_key)
+        rset = self._local_cache.get(cache_key)
         if rset is None:
             rset = orb.RecordSet()
-            cache.setValue(cache_key, rset)
+            self._local_cache[cache_key] = rset
+            cache.setValue(cache_key, True, timeout=self.cacheTimeout)
 
         if type == 'ids':
             rset.cache('ids', data)
@@ -506,7 +511,7 @@ class MetaTable(type):
                                   [column.name()],
                                   unique=column.unique())
                 index.setCached(column.indexCached())
-                index.setCachedExpires(column.indexCachedExpires())
+                index.setCacheTimeout(column.indexCacheTimeout())
                 index.__name__ = iname
                 imethod = classmethod(index)
                 setattr(new_model, iname, imethod)
@@ -522,14 +527,14 @@ class MetaTable(type):
                 except orb.errors.TableNotFound:
                     ref_model = None
 
-                rev_cacheExpires = column.reversedCacheExpires()
+                rev_cacheTimeout = column.reversedCacheTimeout()
 
                 # create the lookup method
                 lookup = reverselookupmethod(columnName=column.name(),
                                              reference=db_data['__db_name__'],
                                              unique=column.unique(),
                                              cached=rev_cached,
-                                             cacheExpires=rev_cacheExpires,
+                                             cacheTimeout=rev_cacheTimeout,
                                              __name__=rev_name)
 
                 # ensure we're assigning it to the proper base module

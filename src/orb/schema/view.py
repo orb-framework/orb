@@ -1784,28 +1784,14 @@ class View(object):
         return record
 
     @classmethod
-    def isModelCacheExpired(cls, cachetime):
-        """
-        Returns whether or not the view's cache is expired based on the
-        inputed cache time.
-        
-        :param      cachetime | <datetime.datetime>
-        """
-        key = '_{0}__cache_expired'.format(cls.__name__)
-        dtime = getattr(cls, key, None)
-        if dtime is None:
-            return False
-
-        return cachetime < dtime
-
-    @classmethod
     def markViewCacheExpired(cls):
         """
         Marks the current date time as the latest time that the cache
         needs to be updated from.
         """
-        key = '_{0}__cache_expired'.format(cls.__name__)
-        setattr(cls, key, datetime.datetime.now())
+        cache = cls.viewCache()
+        if cache:
+            cache.expire()
 
     @classmethod
     def polymorphicModel(cls, key, default=None):
@@ -1897,7 +1883,7 @@ class View(object):
 
         # define the cache for the first time
         cache = orb.RecordCache(cls)
-        cache.setTimeout(cls)
+        cache.setTimeout(cls, schema.cacheTimeout())
         cls.pushRecordCache(cache)
 
         return cache
@@ -2023,13 +2009,19 @@ class View(object):
 
     @classmethod
     def viewCache(cls):
-        key = '_{0}__cache'.format(cls.__name__)
+        """
+        Returns the cache for this view from its schema.
+
+        :return     <orb.caching.TableCache>
+        """
+        key = '_{0}__table_cache'.format(cls.__name__)
         try:
             return getattr(cls, key)
         except AttributeError:
-            cache = orb.TableCache(cls)
-            setattr(cls, key, cache)
-            return cache
+            if cls.schema().isCacheEnabled():
+                cache = orb.TableCache(cls, cls.schema().cache(), timeout=cls.schema().cacheTimeout())
+                setattr(cls, key, cache)
+                return cache
 
     @classmethod
     def callbacks(cls):

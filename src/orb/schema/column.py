@@ -121,13 +121,13 @@ class Column(object):
         self._reversed = options.get('reversed', bool(options.get('reversedName')))
         self._reversedName = options.get('reversedName', '')
         self._reversedCached = options.get('reversedCached', False)
-        self._reversedCacheExpires = options.get('reversedCachedExpires', 0)
+        self._reversedCacheTimeout = options.get('reversedCacheTimeout', options.get('reversedCachedExpires', 0))
 
         # indexing options
         self._indexed = options.get('indexed', False)
         self._indexCached = options.get('indexCached', False)
         self._indexName = options.get('indexName')
-        self._indexCachedExpires = options.get('indexCachedExpires', 0)
+        self._indexCacheTimeout = options.get('indexCacheTimeout', options.get('indexCachedExpires', 0))
 
         # additional properties
         self._default = options.get('default', None)
@@ -478,14 +478,14 @@ class Column(object):
         """
         return self._indexCached
 
-    def indexCachedExpires(self):
+    def indexCacheTimeout(self):
         """
         Returns the time in seconds for how long to store a client side cache
         of the results for the index on this column.
         
-        :return     <int>
+        :return     <int> | seconds
         """
-        return self._indexCachedExpires
+        return self._indexCacheTimeout
 
     def indexName(self):
         """
@@ -898,14 +898,14 @@ class Column(object):
         """
         return self._reversedCached
 
-    def reversedCacheExpires(self):
+    def reversedCacheTimeout(self):
         """
         Returns the time in seconds that the cache should expire within.  If
         the value is 0, then the cache will never expire
         
-        :return     <int>
+        :return     <int> | seconds
         """
-        return self._reversedCacheExpires
+        return self._reversedCacheTimeout
 
     def reversedName(self):
         """
@@ -1126,14 +1126,14 @@ class Column(object):
         """
         self._indexCached = cached
 
-    def setIndexCachedExpires(self, seconds):
+    def setIndexCacheTimeout(self, seconds):
         """
         Sets the time in seconds for how long to store a client side cache
         of the results for the index on this column.
         
         :param     seconds | <int>
         """
-        self._indexCachedExpires = seconds
+        self._indexCacheTimeout = seconds
 
     def setIndexName(self, indexName):
         """
@@ -1268,7 +1268,7 @@ class Column(object):
         """
         self._reversedCached = state
 
-    def setReversedCacheExpires(self, seconds):
+    def setReversedCacheTimeout(self, seconds):
         """
         Sets the time in seconds that the cache will remain on the client side
         before needing to request an update from the server.  If the seconds
@@ -1276,7 +1276,7 @@ class Column(object):
         
         :param      seconds | <int>
         """
-        self._reversedCacheExpires = seconds
+        self._reversedCacheTimeout = seconds
 
     def setReversedName(self, reversedName):
         """
@@ -1558,7 +1558,7 @@ class Column(object):
             xindex.text = self.indexName()
             if self.indexCached():
                 xindex.set('cached', nstr(self.indexCached()))
-                xindex.set('expires', nstr(self.indexCachedExpires()))
+                xindex.set('timeout', nstr(self.indexCacheTimeout()))
 
         # store flags
         xflags = ElementTree.SubElement(xcolumn, 'flags')
@@ -1579,7 +1579,7 @@ class Column(object):
 
                 if self.reversedCached():
                     xreversed.set('cached', nstr(self.reversedCached()))
-                    xreversed.set('expires', nstr(self.reversedCacheExpires()))
+                    xreversed.set('timeout', nstr(self.reversedCacheTimeout()))
 
         return xcolumn
 
@@ -1866,14 +1866,15 @@ class Column(object):
             column.setIndexName(xindex.text)
             column.setIndexed(True)
             column.setIndexCached(xindex.get('cached') == 'True')
-            column.setIndexCachedExpires(int(xcolumn.get('expires', column.indexCachedExpires())))
+            column.setIndexCacheTimeout(int(xcolumn.get('timeout',
+                                            xcolumn.get('expires', column.indexCacheTimeout()))))
         else:
             # restore indexing options
             column.setIndexName(xcolumn.get('index'))
             column.setIndexed(xcolumn.get('indexed') == 'True')
             column.setIndexCached(xcolumn.get('indexCached') == 'True')
-            column.setIndexCachedExpires(int(xcolumn.get('indexCachedExpires',
-                                                         column.indexCachedExpires())))
+            column.setIndexCacheTimeout(int(xcolumn.get('indexCachedExpires',
+                                            column.indexCacheTimeout())))
 
         # create relation information
         xrelation = xcolumn.find('relation')
@@ -1895,11 +1896,12 @@ class Column(object):
                 column.setReversed(True)
                 column.setReversedName(xreversed.text)
                 column.setReversedCached(xreversed.get('cached') == 'True')
-                column.setReversedCacheExpires(int(xreversed.get('expires', column.reversedCacheExpires())))
+                column.setReversedCacheTimeout(int(xreversed.get('timeout',
+                                                   xreversed.get('expires', column.reversedCacheTimeout()))))
             else:
                 column.setReversed(xrelation.get('reversed') == 'True')
                 column.setReversedName(xrelation.get('reversedName'))
                 column.setReversedCached(xrelation.get('cached') == 'True')
-                column.setReversedCacheExpires(int(xrelation.get('expires', column.reversedCacheExpires())))
+                column.setReversedCacheTimeout(int(xrelation.get('expires', column.reversedCacheTimeout())))
 
         return column

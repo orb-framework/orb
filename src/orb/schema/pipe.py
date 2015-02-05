@@ -40,8 +40,9 @@ class Pipe(object):
         self._targetReference = options.get('targetReference', '')
         self._targetTable = None
         self._targetColumn = options.get('targetColumn', options.get('target', ''))
+        self._local_cache = {}
         self._cached = options.get('cached', False)
-        self._cachedExpires = options.get('cachedExpires', 0)
+        self._cacheTimeout = options.get('cacheTimeout', 0)
         self._referenced = options.get('referenced', False)
         self._unique = options.get('unique', False)
         self._cache = {}
@@ -64,13 +65,16 @@ class Pipe(object):
                      hash(orb.LookupOptions(**options)),
                      options.get('db', record.database()).name())
 
-        # ensure neither the pipe nor target table have expired their caches
+        # ensure neither the pipe nor target table have timeout their caches
         if not reload and \
-                pipe_cache and not pipe_cache.isExpired(cache_key) and \
-                target_cache and not target_cache.isExpired(cache_key):
-            out = pipe_cache.value(cache_key)
+                cache_key in self._local_cache and \
+                pipe_cache and pipe_cache.isCached(cache_key) and \
+                target_cache and target_cache.isCached(cache_key):
+            out = self._local_cache[cache_key]
             out.updateOptions(**options)
             return out
+
+        self._local_cache.pop(cache_key, None)
 
         # create the query for the pipe
         sub_q = orb.Query(pipeTable, self._sourceColumn) == record
@@ -94,10 +98,12 @@ class Pipe(object):
                             self._sourceColumn,
                             self._targetColumn)
 
+            self._local_cache[cache_key] = rset
+
             if pipe_cache:
-                pipe_cache.setValue(cache_key, rset)
+                pipe_cache.setValue(cache_key, True, timeout=self._cacheTimeout)
             if target_cache:
-                target_cache.setValue(cache_key, rset)
+                target_cache.setValue(cache_key, True, timeout=self._cacheTimeout)
         else:
             rset = records
 
@@ -123,7 +129,7 @@ class Pipe(object):
             return self._cache[table]
         except KeyError:
             if force or self.cached():
-                cache = orb.TableCache(table, self._cachedExpires)
+                cache = table.tableCache() or orb.TableCache(table, orb.system.cache(), timeout=self._cacheTimeout)
                 self._cache[table] = cache
                 return cache
             else:
@@ -137,13 +143,13 @@ class Pipe(object):
         """
         return self._cached
 
-    def cachedExpires(self):
+    def cacheTimeout(self):
         """
         Returns the time in seconds to store the cached results for this pipe.
         
         :return     <int>
         """
-        return self._cachedExpires
+        return self._cacheTimeout
 
     def isReferenced(self):
         """
@@ -178,7 +184,7 @@ class Pipe(object):
                      record.database().name())
 
         # define the pipe cached value
-        pset = pipe_cache.value(cache_key)
+        pset = self._local_cache.get(cache_key)
         if pset is None:
             pset = orb.PipeRecordSet(orb.RecordSet(),
                                      record,
@@ -186,8 +192,10 @@ class Pipe(object):
                                      self._sourceColumn,
                                      self._targetColumn)
 
-            pipe_cache.setValue(cache_key, pset)
-            target_cache.setValue(cache_key, pset)
+            self._local_cache[cache_key] = pset
+
+            pipe_cache.setValue(cache_key, True, timeout=self._cacheTimeout)
+            target_cache.setValue(cache_key, True, timeout=self._cacheTimeout)
 
         # update teh cache for the dataset
         if type == 'ids':
@@ -225,14 +233,14 @@ class Pipe(object):
         """
         self._cached = state
 
-    def setCachedExpires(self, seconds):
+    def setCacheTimeout(self, seconds):
         """
         Sets the time in seconds to store the cached results for this pipe
         set.
         
         :param      seconds | <int>
         """
-        self._cachedExpires = seconds
+        self._cacheTimeout = seconds
 
     def setUnique(self, unique):
         self._unique = unique
@@ -333,7 +341,7 @@ class Pipe(object):
 
         if self.cached():
             xpipe.set('cached', nstr(self.cached()))
-            xpipe.set('expires', nstr(self._cachedExpires))
+            xpipe.set('timeout', nstr(self._cacheTimeout))
 
         ElementTree.SubElement(xpipe, 'through').text = self._pipeReference
         ElementTree.SubElement(xpipe, 'source').text = self._sourceColumn
@@ -359,7 +367,7 @@ class Pipe(object):
         pipe = Pipe(xpipe.get('name', ''), referenced=referenced)
         pipe.setUnique(xpipe.get('unique') == 'True')
         pipe.setCached(xpipe.get('cached') == 'True')
-        pipe.setCachedExpires(int(xpipe.get('expires', pipe._cachedExpires)))
+        pipe.setCacheTimeout(int(xpipe.get('timeout', xpipe.get('expires', pipe._cacheTimeout))))
 
         try:
             pipe.setPipeReference(xpipe.find('through').text)

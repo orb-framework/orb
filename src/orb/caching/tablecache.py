@@ -15,27 +15,19 @@ __license__         = 'LGPL'
 __maintainer__      = 'Projex Software'
 __email__           = 'team@projexsoftware.com'
 
-from projex.lazymodule import LazyModule
-from .datacache import DataCache
+from projex.lazymodule import lazy_import
 
-orb = LazyModule('orb')
+orb = lazy_import('orb')
 
 
 class TableCache(object):
     """" Base class for referencing orb Table cache information """
     
-    def __init__(self, table=None, timeout=0):
-        if timeout is not None:
-            # determine the expire information
-            table_expires = table.schema().cacheExpireIn()
-            max_expires = orb.system.maxCacheTimeout()
-            opts = [timeout, table_expires, max_expires]
-            timeout = min(opts) * 60
-
-        self._cache = DataCache.create(timeout)
+    def __init__(self, table, cache, timeout=None):
+        self._cache = cache
         self._table = table
-        if table:
-            self._preloaded = table.schema().preloadCache()
+        self._timeout = timeout
+        self._preloaded = table.schema().preloadCache()
 
     def __getitem__(self, key):
         return self._cache[self.__key(key)]
@@ -49,7 +41,15 @@ class TableCache(object):
 
         :param      key | <str>
         """
-        return 'TableCache', self.table().schema().name() if self.table() else 'Table', key
+        return '{0}({1})'.format(self.table().schema().name(), key)
+
+    def cache(self):
+        """
+        Returns the cache object associated with this table.
+
+        :return     <orb.caching.DataCache> || None
+        """
+        return self._cache
 
     def cachedAt(self, key):
         """
@@ -83,18 +83,6 @@ class TableCache(object):
         """
         return self._cache.isEnabled()
 
-    def isExpired(self, key):
-        """
-        Returns whether or not the given key is expired for this
-        caching instance.  This will also take into account any table
-        record changes that will affect caching.
-        
-        :sa     Table.markTableCacheExpired
-        
-        :param      key | <hashable>
-        """
-        return self._cache.isExpired(self.__key(key))
-
     def isPreloaded(self):
         """
         Returns whether or not the cache is preloaded.
@@ -125,26 +113,24 @@ class TableCache(object):
 
         :param      table | <orb.Table> || None
         """
-        timeout = table.schema().cacheExpireIn() * 60 if table else 0
-        self._cache.setTimeout(max(self._cache.timeout(), timeout))
         self._table = table
 
-    def setTimeout(self, timeout):
+    def setTimeout(self, seconds):
         """
         Sets the timeout length for this table cache to the inputted amount.
 
-        :param      timeout | <int> || None
+        :param      seconds | <int> || None
         """
-        self._cache.setTimeout(timeout)
+        self._timeout = seconds
 
-    def setValue(self, key, value):
+    def setValue(self, key, value, timeout=None):
         """
         Stores the given key as the given value.
 
         :param      key     | <hashable>
                     value   | <variant>
         """
-        self._cache.setValue(self.__key(key), value)
+        self._cache.setValue(self.__key(key), value, timeout=timeout or self.timeout())
 
     def table(self):
         """
@@ -167,6 +153,6 @@ class TableCache(object):
         """
         Returns the timeout for this cache.
 
-        :return     <int> | milliseconds
+        :return     <int> | seconds
         """
-        return self._cache.timeout()
+        return self._timeout

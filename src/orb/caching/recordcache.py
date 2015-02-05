@@ -78,9 +78,9 @@ class RecordCache(object):
     def __init__(self, *tables, **kwds):
         if not tables:
             tables = orb.system.models()
-        
-        timeout = kwds.get('timeout', 0)
-        self._caches = dict([(table, orb.TableCache(table, timeout))
+
+        timeout = kwds.get('timeout', None)
+        self._caches = dict([(table, orb.TableCache(table, table.schema().cache(), timeout=timeout))
                              for table in tables])
     
     def __enter__(self):
@@ -158,22 +158,6 @@ class RecordCache(object):
         """
         for table in self._caches:
             table.popRecordCache()
-
-    def isExpired(self, table, key):
-        """
-        Returns whether or not this cache is expired for the given table
-        and key.
-        
-        :param      table | subclass of <orb.Table>
-                    key   | <hashable>
-        
-        :return     <bool>
-        """
-        cache = self._caches.get(table)
-        if not cache:
-            return True
-        
-        return cache.isExpired(key)
 
     def preloadedRecords(self, table, lookup):
         """
@@ -260,18 +244,18 @@ class RecordCache(object):
         re-querying the database.
         
         :param      table   | subclass of <orb.Table>
-                    minutes | <int> || <float>
+                    seconds | <int> || <float>
         """
         cache = self.cache(table)
         if cache:
             timeout = seconds
-            table_expires = table.schema().cacheExpireIn()
-            max_expires = orb.system.maxCacheTimeout()
-            opts = [timeout, table_expires, max_expires]
+            table_timeout = table.schema().cacheTimeout()
+            max_timeout = orb.system.maxCacheTimeout()
+            opts = [timeout, table_timeout, max_timeout]
             timeout = min(filter(lambda x: x > 0, opts))
 
             # set the timeout in seconds
-            cache.setTimeout(timeout * 60)
+            cache.setTimeout(timeout)
     
     def selectFirst(self, backend, table, lookup, options):
         """
@@ -316,11 +300,11 @@ class RecordCache(object):
             is_simple = not (bool(lookup.expand) or options.locale != orb.system.locale())
         
         # return an exact cached match
-        if cache and not cache.isExpired(cache_key):
+        if cache and cache.isCached(cache_key):
             return cache.value(cache_key)
         
         # return a parsed match from preloaded records
-        elif is_simple and cache and not cache.isExpired(preload_key):
+        elif is_simple and cache and cache.isCached(preload_key):
             records = self.preloadedRecords(table, lookup)
             cache.setValue(cache_key, records)
             return records

@@ -82,8 +82,9 @@ class ViewSchema(object):
         self._stringFormat = ''
         self._namespace = ''
         self._displayName = ''
-        self._cacheExpireIn = 0
         self._inheritedLoaded = False
+        self._cache = None
+        self._cacheTimeout = 0
         self._cacheEnabled = False
         self._preloadCache = False
         self._static = False
@@ -240,14 +241,22 @@ class ViewSchema(object):
             return ancestry[0]
         return self
 
-    def cacheExpireIn(self):
+    def cache(self):
         """
-        Returns the number of minutes that the caching system will use before
+        Returns the table cache associated with this schema.
+
+        :return     <orb.caching.TableCache>
+        """
+        return self._cache or self.database().cache()
+
+    def cacheTimeout(self):
+        """
+        Returns the number of seconds that the caching system will use before
         clearing its cache data.
 
-        :return     <int> | <float>
+        :return     <int> | seconds
         """
-        return self._cacheExpireIn
+        return self._cacheTimeout
 
     def column(self, name, recurse=True, flags=0, kind=0):
         """
@@ -873,6 +882,14 @@ class ViewSchema(object):
     def setArchiveModel(self, model):
         self._archiveModel = model
 
+    def setCache(self, cache):
+        """
+        Sets the table cache for this instance.
+
+        :param      cache | <orb.caching.TableCache>
+        """
+        self._cache = cache
+
     def setCacheEnabled(self, state):
         """
         Sets whether or not to enable caching on the View instance this schema
@@ -883,21 +900,23 @@ class ViewSchema(object):
         often (such as a Status or Type view) and are referenced frequently.
 
         To have the cache clear automatically after a number of minutes, set the
-        cacheExpireIn method.
+        cacheTimeout method.
 
         :param      state | <bool>
         """
         self._cacheEnabled = state
+        if self._cache:
+            self._cache.setEnabled(state)
 
-    def setCacheExpireIn(self, minutes):
+    def setCacheTimeout(self, seconds):
         """
-        Sets the number of minutes that the view should clear its cached
+        Sets the number of seconds that the view should clear its cached
         results from memory and re-query the database.  If the value is 0, then
         the cache will have to be manually cleared.
 
-        :param      minutes | <int> || <float>
+        :param      seconds | <int> || <float>
         """
-        self._cacheExpireIn = minutes
+        self._cacheTimeout = seconds
 
     def setColumns(self, columns):
         """
@@ -1203,7 +1222,7 @@ class ViewSchema(object):
             xschema.set('autoPrimary', nstr(self.autoPrimary()))
         if self.isCacheEnabled():
             xschema.set('cacheEnabled', nstr(self.isCacheEnabled()))
-            xschema.set('cacheExpire', nstr(self._cacheExpireIn))
+            xschema.set('cacheTimeout', nstr(self._cacheTimeout))
             xschema.set('preloadCache', nstr(self.preloadCache()))
 
         if self.stringFormat():
@@ -1291,7 +1310,11 @@ class ViewSchema(object):
         tschema.setAutoPrimary(xschema.get('autoPrimary') != 'False')
         tschema.setStringFormat(xschema.get('stringFormat', ''))
         tschema.setCacheEnabled(xschema.get('cacheEnabled') == 'True')
-        tschema.setCacheExpireIn(int(xschema.get('cacheExpire', 0)))
+
+        # support the cacheExpire key that was stored as minutes, as of ORB 4.4.0, all cache
+        # timeouts are in seconds
+        tschema.setCacheTimeout(int(xschema.get('cacheTimeout', int(xschema.get('cacheExpire', 0)) * 60)))
+
         tschema.setPreloadCache(xschema.get('preloadCache') == 'True')
         tschema.setArchived(xschema.get('archived') == 'True')
 

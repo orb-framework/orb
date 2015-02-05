@@ -46,8 +46,7 @@ class Manager(object):
         self._tableclass = None     # base table class (default: orb.Table)
         self._namespace = ''        # current namespace
 
-        self._cacheFactory = None
-        self._cacheExpired = datetime.datetime.now()
+        self._cache = None          # global cache manager
         self._searchEngine = orb.SearchEngine()
         
         # orb file loading/merging
@@ -110,14 +109,15 @@ class Manager(object):
                     log.error('tzlocal must be installed for local zone support.')
         return self._baseTimezone
 
-    def cacheFactory(self):
+    def cache(self):
         """
-        Returns a callable that accepts a single argument for creating a new cache
-        instance given a timeout.
+        Returns the global cache store for this manager.
 
-        :return     <callable> || None
+        :return     <orb.caching.DataCache> || None
         """
-        return self._cacheFactory
+        if self._cache is None:
+            self._cache = orb.DataCache.byName('Basic')()
+        return self._cache
 
     def clear(self):
         """
@@ -141,16 +141,6 @@ class Manager(object):
         self._databases.clear()
         self._schemas.clear()
         self._properties.clear()
-    
-    def clearCache(self):
-        """
-        Force clears all the cached data from the various schemas.
-        """
-        for schema in self.schemas():
-            model = schema.model()
-            if not (model and schema.isCacheEnabled()):
-                continue
-            model.recordCache().clear()
 
     def customEngines(self, databaseType):
         """
@@ -360,15 +350,7 @@ class Manager(object):
             if smodel and issubclass(smodel, model):
                 out.append(smodel)
         return out
-    
-    def isCacheExpired(self, cachetime):
-        """
-        Returns whether or not the cache is expired against the global
-        cache time.
-        
-        :param      cachetime | <datetime.datetime>
-        """
-        return cachetime < self._cacheExpired
+
     
     def isCachingEnabled(self):
         """
@@ -453,12 +435,6 @@ class Manager(object):
         :return     <int>
         """
         return self.settings().maxCacheTimeout()
-    
-    def markCacheExpired(self):
-        """
-        Marks the current time as the time the global cache system expired.
-        """
-        self._cacheExpired = datetime.datetime.now()
     
     def merge(self,
               filename_or_xml,
@@ -846,14 +822,13 @@ class Manager(object):
         """
         self._baseTimezone = timezone
 
-    def setCacheFactory(self, factory):
+    def setCache(self, cache):
         """
-        Assigns a callable to use as the factory that accepts a single argument for creating a new cache
-        instance given a timeout.
+        Sets the global cache store for this manager.
 
-        :param     factory | <callable> || None
+        :param     cache | <orb.caching.DataCache> || None
         """
-        self._cacheFactory = factory
+        self._cache = cache
 
     def setCachingEnabled(self, state):
         """
@@ -1004,7 +979,8 @@ class Manager(object):
         :param          thesaurus | <orb.SearchThesaurus>
         """
         self._searchEngine.setThesaurus(thesaurus)
-        self.markCacheExpired()
+        if self._cache:
+            self._cache.expire()
     
     def setTimezone(self, timezone):
         """

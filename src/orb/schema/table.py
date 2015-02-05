@@ -352,11 +352,11 @@ class Table(object):
 
             cache = self.tableCache()
             try:
-                data = cache[('record', args)]
-            except KeyError:
+                data = cache[args]
+            except (TypeError, KeyError):
                 data = self.getRecord(args, db=db, namespace=namespace, inflated=False)
                 if data is not None:
-                    cache[('record', args)] = data
+                    cache[args] = data
 
             if data:
                 self._updateFromDatabase(data)
@@ -638,7 +638,8 @@ class Table(object):
         kwds['results'] = results
 
         cache = self.tableCache()
-        cache.expire(('record', self.id()))
+        if cache:
+            cache.expire(self.id())
 
         self.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
         return True
@@ -1837,28 +1838,14 @@ class Table(object):
         return record
 
     @classmethod
-    def isModelCacheExpired(cls, cachetime):
-        """
-        Returns whether or not the table's cache is expired based on the
-        inputed cache time.
-        
-        :param      cachetime | <datetime.datetime>
-        """
-        key = '_{0}__cache_expired'.format(cls.__name__)
-        dtime = getattr(cls, key, None)
-        if dtime is None:
-            return False
-
-        return cachetime < dtime
-
-    @classmethod
     def markTableCacheExpired(cls):
         """
         Marks the current date time as the latest time that the cache
         needs to be updated from.
         """
-        key = '_{0}__cache_expired'.format(cls.__name__)
-        setattr(cls, key, datetime.datetime.now())
+        cache = cls.tableCache()
+        if cache:
+            cache.expire()
 
     @classmethod
     def polymorphicModel(cls, key, default=None):
@@ -1950,7 +1937,7 @@ class Table(object):
 
         # define the cache for the first time
         cache = orb.RecordCache(cls)
-        cache.setTimeout(cls, schema.cacheExpireIn() if schema.isCacheEnabled() else 0.5)
+        cache.setTimeout(cls, schema.cacheTimeout() if schema.isCacheEnabled() else 1)
         cls.pushRecordCache(cache)
 
         return cache
@@ -2077,13 +2064,19 @@ class Table(object):
 
     @classmethod
     def tableCache(cls):
-        key = '_{0}__cache'.format(cls.__name__)
+        """
+        Returns the cache for this table from its schema.
+
+        :return     <orb.caching.TableCache>
+        """
+        key = '_{0}__table_cache'.format(cls.__name__)
         try:
             return getattr(cls, key)
         except AttributeError:
-            cache = orb.TableCache(cls)
-            setattr(cls, key, cache)
-            return cache
+            if cls.schema().isCacheEnabled():
+                cache = orb.TableCache(cls, cls.schema().cache(), timeout=cls.schema().cacheTimeout())
+                setattr(cls, key, cache)
+                return cache
 
     @classmethod
     def callbacks(cls):
