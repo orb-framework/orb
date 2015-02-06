@@ -21,8 +21,8 @@ __email__           = 'team@projexsoftware.com'
 # define version information (major,minor,maintanence)
 __depends__     = ['projex', 'mako']
 __major__       = 4
-__minor__       = 3
-__revision__    = 6
+__minor__       = 4
+__revision__    = 0
 
 __version_info__   = (__major__, __minor__, __revision__)
 __version__        = '{0}.{1}.{2}'.format(*__version_info__)
