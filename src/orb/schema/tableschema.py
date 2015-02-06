@@ -352,7 +352,7 @@ class TableSchema(object):
             if not model:
                 raise errors.TableNotFound(self.inherits())
 
-            ancest_columns = model.columns(recurse=recurse, flags=flags, kind=kind)
+            ancest_columns = model.schema().columns(recurse=recurse, flags=flags, kind=kind)
             dups = output.intersection(ancest_columns)
             if dups:
                 dup_names = ','.join([x.name() for x in dups])
@@ -535,6 +535,7 @@ class TableSchema(object):
                                                   maxLength=5))
 
             archive_data = {
+                '__module__': 'orb.schema.dynamic',
                 '__db__': self.databaseName(),
                 '__db_group__': self.groupName(),
                 '__db_name__': '{0}Archive'.format(self.name()),
@@ -550,7 +551,7 @@ class TableSchema(object):
                 '__db_archived__': False
             }
 
-            archive_class = MetaTable(archive_data['__db_name__'], (orb.Table,), archive_data)
+            archive_class = MetaTable(archive_data['__db_name__'], tuple(bases), archive_data)
             archive_schema = archive_class.schema()
             archive_schema.setDefaultOrder([('archiveNumber', 'asc')])
             self.setArchiveModel(archive_class)
