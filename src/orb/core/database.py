@@ -53,6 +53,7 @@ class Database(object):
         # define custom properties
         self._callbacks = CallbackSet()
         self._databaseType = typ
+        self._cache = None
         self._name = name
         self._databaseName = databaseName
         self._host = host
@@ -151,6 +152,14 @@ class Database(object):
         :param      state   <bool>
         """
         self._commandsBlocked = state
+
+    def cache(self):
+        """
+        Returns the data cache for this database.
+
+        :return     <orb.caching.DataCache> || None
+        """
+        return self._cache or orb.system.cache()
 
     def callbacks(self):
         """
@@ -454,6 +463,14 @@ class Database(object):
         """
         self._applicationToken = token
 
+    def setCache(self, cache):
+        """
+        Sets the data cache for this database.
+
+        :param      cache | <orb.caching.DataCache> || None
+        """
+        self._cache = cache
+
     def setCurrent(self):
         """
         Makes this database the current default database
@@ -635,7 +652,8 @@ class Database(object):
             # second pass will ensure that all columns, including foreign keys
             # will be generated
             for schema in schemas:
-                con.updateTable(schema, info[schema.dbname()], options)
+                if schema.dbname() in info:
+                    con.updateTable(schema, info[schema.dbname()], options)
 
             # third pass will generate all the proper value information
             for schema in schemas:

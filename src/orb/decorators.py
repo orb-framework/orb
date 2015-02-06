@@ -44,27 +44,27 @@ def cachedmethod(*tables):
 def lookupmethod(cache=None, permits=None):
     def wrapped(method):
         method.permits = permits
-        method.cache = orb.TableCache(timeout=cache) if cache else None
+        method.cache_timeout = cache
 
         def caller(source, *args, **options):
-            if cache:
-                if orb.Table.recordcheck(source) or orb.View.recordcheck(source):
-                    method.cache.setTable(type(source))
-                elif orb.Table.typecheck(source) or orb.View.typecheck(source):
-                    method.cache.setTable(source)
-                else:
+            cache = None
+            if method.cache_timeout:
+                try:
+                    cache = source.tableCache()
+                except AttributeError:
                     raise StandardError('Invalid type for a lookupmethod: {0}'.format(source))
 
                 key = hash(args), hash(orb.LookupOptions(**options)), hash(orb.DatabaseOptions(**options))
-                try:
-                    return method.cache[key]
-                except KeyError:
-                    pass
+                if cache:
+                    try:
+                        return cache[key]
+                    except KeyError:
+                        pass
 
             options.setdefault('context', method.__name__)
             output = method(source, *args, **options)
             if cache:
-                method.cache[key] = output
+                cache.setValue(key, output, timeout=method.cache_timeout)
 
             return output
 

@@ -83,8 +83,9 @@ class TableSchema(object):
         self._stringFormat = ''
         self._namespace = ''
         self._displayName = ''
-        self._cacheExpireIn = 0
         self._inheritedLoaded = False
+        self._cache = None
+        self._cacheTimeout = 0
         self._cacheEnabled = False
         self._preloadCache = False
         self._columns = set()
@@ -250,14 +251,22 @@ class TableSchema(object):
             return ancestry[0]
         return self
 
-    def cacheExpireIn(self):
+    def cache(self):
         """
-        Returns the number of minutes that the caching system will use before
-        clearing its cache data.
+        Returns the table cache associated with this schema.
+
+        :return     <orb.caching.TableCache>
+        """
+        return self._cache or self.database().cache()
+
+    def cacheTimeout(self):
+        """
+        Returns the number of seconds that the caching system will use before
+        clearing its cache data for this table.
         
-        :return     <int> | <float>
+        :return     <int>
         """
-        return self._cacheExpireIn
+        return self._cacheTimeout
 
     def column(self, name, recurse=True, flags=0, kind=0):
         """
@@ -343,7 +352,7 @@ class TableSchema(object):
             if not model:
                 raise errors.TableNotFound(self.inherits())
 
-            ancest_columns = model.columns(recurse=recurse, flags=flags, kind=kind)
+            ancest_columns = model.schema().columns(recurse=recurse, flags=flags, kind=kind)
             dups = output.intersection(ancest_columns)
             if dups:
                 dup_names = ','.join([x.name() for x in dups])
@@ -526,6 +535,7 @@ class TableSchema(object):
                                                   maxLength=5))
 
             archive_data = {
+                '__module__': 'orb.schema.dynamic',
                 '__db__': self.databaseName(),
                 '__db_group__': self.groupName(),
                 '__db_name__': '{0}Archive'.format(self.name()),
@@ -541,7 +551,7 @@ class TableSchema(object):
                 '__db_archived__': False
             }
 
-            archive_class = MetaTable(archive_data['__db_name__'], (orb.Table,), archive_data)
+            archive_class = MetaTable(archive_data['__db_name__'], tuple(bases), archive_data)
             archive_schema = archive_class.schema()
             archive_schema.setDefaultOrder([('archiveNumber', 'asc')])
             self.setArchiveModel(archive_class)
@@ -933,6 +943,14 @@ class TableSchema(object):
     def setArchiveModel(self, model):
         self._archiveModel = model
 
+    def setCache(self, cache):
+        """
+        Sets the table cache for this instance.
+
+        :param      cache | <orb.caching.TableCache>
+        """
+        self._cache = cache
+
     def setCacheEnabled(self, state):
         """
         Sets whether or not to enable caching on the Table instance this schema
@@ -943,21 +961,23 @@ class TableSchema(object):
         often (such as a Status or Type table) and are referenced frequently.
         
         To have the cache clear automatically after a number of minutes, set the
-        cacheExpireIn method.
+        cacheTimeout method.
         
         :param      state | <bool>
         """
         self._cacheEnabled = state
+        if self._cache:
+            self._cache.setEnabled(state)
 
-    def setCacheExpireIn(self, minutes):
+    def setCacheTimeout(self, seconds):
         """
-        Sets the number of minutes that the table should clear its cached
+        Sets the number of seconds that the table should clear its cached
         results from memory and re-query the database.  If the value is 0, then
         the cache will have to be manually cleared.
         
-        :param      minutes | <int> || <float>
+        :param      seconds | <int>
         """
-        self._cacheExpireIn = minutes
+        self._cacheTimeout = seconds
 
     def setColumns(self, columns):
         """
@@ -1264,7 +1284,7 @@ class TableSchema(object):
             xschema.set('autoLocalize', str(self.autoLocalize()))
         if self.isCacheEnabled():
             xschema.set('cacheEnabled', nstr(self.isCacheEnabled()))
-            xschema.set('cacheExpire', nstr(self._cacheExpireIn))
+            xschema.set('cacheTimeout', nstr(self._cacheTimeout))
             xschema.set('preloadCache', nstr(self.preloadCache()))
 
         if self.stringFormat():
@@ -1353,7 +1373,11 @@ class TableSchema(object):
         tschema.setAutoLocalize(xschema.get('autoLocalize') == 'True')
         tschema.setStringFormat(xschema.get('stringFormat', ''))
         tschema.setCacheEnabled(xschema.get('cacheEnabled') == 'True')
-        tschema.setCacheExpireIn(int(xschema.get('cacheExpire', 0)))
+
+        # support the old cacheExpire parameter which stored the timeout in minutes.
+        # as of 4.4.0, all the timeouts will be stored as seconds
+        tschema.setCacheTimeout(int(xschema.get('cacheTimeout', int(xschema.get('cacheExpire', 0)) * 60)))
+
         tschema.setPreloadCache(xschema.get('preloadCache') == 'True')
         tschema.setArchived(xschema.get('archived') == 'True')
 

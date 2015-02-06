@@ -19,16 +19,26 @@ class Transaction(object):
     _stack = defaultdict(list)
     _stackLock = ReadWriteLock()
     
-    def __init__(self):
-        self._connections  = set()
-        self._errors       = []
+    def __init__(self, dryRun=False):
+        self._dryRun = dryRun
+        self._connections = set()
+        self._errors = []
     
     def __enter__(self):
         self.begin()
     
     def __exit__(self, *args):
+        if self._dryRun:
+            self.cancel()
         self.end()
-    
+
+    def cancel(self):
+        """
+        Cancels all the current submissions.
+        """
+        for connection in self._connections:
+            connection.rollback()
+
     def commit(self):
         """
         Commits the changes for this transaction.
@@ -38,7 +48,7 @@ class Transaction(object):
                 connection.commit()
             except StandardError:
                 connection.rollback()
-    
+
     def begin(self):
         """
         Begins a new transaction for this instance.

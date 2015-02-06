@@ -32,7 +32,7 @@ class DataCache(AddonManager):
         self._enabled = True
 
     def __getitem__(self, key):
-        if not self.isExpired(key):
+        if self.isCached(key):
             return self.value(key)
         else:
             raise KeyError(key)
@@ -87,15 +87,6 @@ class DataCache(AddonManager):
         """
         return self._enabled and orb.system.isCachingEnabled()
 
-    @abstractmethod()
-    def isExpired(self, key):
-        """
-        Returns whether or not the current cache is expired.
-        
-        :return     <bool>
-        """
-        return False
-    
     def setEnabled(self, state):
         """
         Sets whether or not the caching for this instance is enabled.
@@ -114,7 +105,7 @@ class DataCache(AddonManager):
         self._timeout = timeout
 
     @abstractmethod()
-    def setValue(self, key, value):
+    def setValue(self, key, value, timeout=0):
         """
         Caches the inputed key and value to this instance.
         
@@ -130,7 +121,7 @@ class DataCache(AddonManager):
 
         :return     <int> | seconds
         """
-        return self._timeout
+        return self._timeout or orb.system.maxCacheTimeout()
 
     @abstractmethod()
     def value(self, key, default=None):

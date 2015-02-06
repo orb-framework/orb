@@ -9,39 +9,39 @@ orb = lazy_import('orb')
 
 class BasicCache(DataCache):
     """ Base caching object for tracking data caches """
+
     def __init__(self, timeout=0):
         super(BasicCache, self).__init__(timeout)
 
         # define custom properties
         self._cacheLock = ReadWriteLock()
         self._cache = {}
-        self._cachedAt = {}
+        self._expiresAt = {}
 
-    def cachedAt(self, key):
+    def _cleanup(self):
         """
-        Returns when the inputed key was last cached for this instance.
+        Cleans up any expired keys from the cache.
+        """
+        now = datetime.datetime.now()
+        with WriteLocker(self._cacheLock):
+            for key, expires in self._expiresAt.items():
+                if expires < now:
+                    self._expiresAt.pop(key, None)
+                    self._cache.pop(key, None)
+
+    def expire(self, key=None):
+        """
+        Expires the given key from the local cache.
 
         :param      key | <hashable>
         """
-        with ReadLocker(self._cacheLock):
-            return self._cachedAt.get(key)
-
-    def clear(self):
-        """
-        Clears out all the caching information for this instance.
-        """
-        with WriteLocker(self._cacheLock):
-            self._cachedAt.clear()
-            self._cache.clear()
-
-    def expire(self, key):
         with WriteLocker(self._cacheLock):
             if key:
                 self._cache.pop(key, None)
-                self._cachedAt.pop(key, None)
+                self._expiresAt.pop(key, None)
             else:
                 self._cache.clear()
-                self._cachedAt.clear()
+                self._expiresAt.clear()
 
     def isCached(self, key):
         """
@@ -51,49 +51,29 @@ class BasicCache(DataCache):
 
         :return     <bool>
         """
+        if not self.isEnabled():
+            return False
+
+        self._cleanup()
+
         with ReadLocker(self._cacheLock):
             return key in self._cache
 
-    def isExpired(self, key):
-        """
-        Returns whether or not the current cache is expired.
-
-        :return     <bool>
-        """
-        if not self.isEnabled():
-            return True
-
-        cachedAt = self.cachedAt(key)
-        if cachedAt is None:
-            return True
-
-        # check to see if the cache is expired against the global expire time
-        if orb.system.isCacheExpired(cachedAt):
-            return True
-
-        # grab the maximum number of seconds to store a cache within the
-        # system (it is stored as minutes)
-        max_timeout = orb.system.maxCacheTimeout() * 60
-        if self.timeout() is None:
-            timeout = max_timeout
-        else:
-            timeout = min(self.timeout(), max_timeout)
-
-        now  = datetime.datetime.now()
-        secs = int((now - cachedAt).total_seconds())
-
-        return timeout < secs
-
-    def setValue(self, key, value):
+    def setValue(self, key, value, timeout=None):
         """
         Caches the inputed key and value to this instance.
 
         :param      key     | <hashable>
                     value   | <variant>
         """
+        if not self.isEnabled():
+            return
+
+        timeout = timeout or self.timeout()
+
         with WriteLocker(self._cacheLock):
             self._cache[key] = value
-            self._cachedAt[key] = datetime.datetime.now()
+            self._expiresAt[key] = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
 
     def value(self, key, default=None):
         """

@@ -1,4 +1,4 @@
-import projex.rest
+import cPickle
 
 from projex.lazymodule import lazy_import
 from orb.caching.datacache import DataCache
@@ -15,11 +15,25 @@ class RedisCache(DataCache):
         # define custom properties
         self._client = redis.StrictRedis(host=host, port=port)
 
-    def expire(self, key):
+    def __key(self, key):
+        return 'ORB({0})'.format(key or '*')
+
+    def expire(self, key=None):
+        """
+        Expires out all the ORB related keys from the redis cache.
+
+        :param      key | <hashable>
+        """
         if key:
-            self._client.delete(key)
+            key = self.__key(key)
+            self._client.delete(self.__key(key))
         else:
-            self._client.flushall()
+            keys = self._client.keys(self.__key(key))
+            with self._client.pipeline() as pipe:
+                pipe.multi()
+                for key in keys:
+                    pipe.delete(key)
+                pipe.execute()
 
     def isCached(self, key):
         """
@@ -29,25 +43,18 @@ class RedisCache(DataCache):
 
         :return     <bool>
         """
-        return self._client.exists(key)
+        return self._client.exists(self.__key(key))
 
-    def isExpired(self, key):
-        """
-        Returns whether or not the current cache is expired.
-
-        :return     <bool>
-        """
-        return self._client.get(key) is None
-
-    def setValue(self, key, value):
+    def setValue(self, key, value, timeout=None):
         """
         Caches the inputed key and value to this instance.
 
         :param      key     | <hashable>
                     value   | <variant>
         """
-        self._client.set(key, projex.rest.jsonify(value))
-        self._client.expire(key, int(self.timeout()))
+        key = self.__key(key)
+        self._client.set(key, cPickle.dumps(value))
+        self._client.expire(key, int(timeout or self.timeout()))
 
     def value(self, key, default=None):
         """
@@ -55,9 +62,10 @@ class RedisCache(DataCache):
 
         :return     <variant>
         """
+        key = self.__key(key)
         value = self._client.get(key)
         if value is not None:
-            return projex.rest.unjsonify(value)
+            return cPickle.loads(value)
         else:
             return default
 

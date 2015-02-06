@@ -433,10 +433,13 @@ class Connection(AddonManager):
         :return     <int> | number of rows removed
         """
         removals = self.collectRemoveRecords(table, lookup, options)
-        count = self.removeRecords(removals, options)
         with orb.Transaction():
-            for rem_table in removals:
-                rem_table.markTableCacheExpired()
+            count = self.removeRecords(removals, options)
+
+        # mark the tables caches expired
+        for rem_table in removals:
+            rem_table.markTableCacheExpired()
+
         return count
 
     @abstractmethod

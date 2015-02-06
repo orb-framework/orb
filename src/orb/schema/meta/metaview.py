@@ -210,7 +210,7 @@ class reverselookupmethod(object):
         self.columnName = kwds.get('columnName', '')
         self.unique = kwds.get('unique', False)
         self.cached = kwds.get('cached', False)
-        self.cacheExpires = kwds.get('cacheExpires', 0)
+        self.cacheTimeout = kwds.get('cacheTimeout', 0)
         self.func_name = kwds['__name__']
         self.func_args = '()'
         self.func_doc = 'Auto-generated Orb reverse lookup method'
@@ -241,7 +241,7 @@ class reverselookupmethod(object):
                      hash(orb.LookupOptions(**kwds)),
                      id(record.database()))
 
-        if not reload and cache and not cache.isExpired(cache_key):
+        if not reload and cache and cache.isCached(cache_key):
             out = cache.value(cache_key)
             out.updateOptions(**kwds)
             return out
@@ -285,7 +285,7 @@ class reverselookupmethod(object):
             return self._cache[view]
         except KeyError:
             if force or self.cached:
-                cache = orb.ViewCache(view, self.cacheExpires)
+                cache = orb.ViewCache(view, self.cacheTimeout)
                 self._cache[view] = cache
                 return cache
             return None
@@ -440,7 +440,7 @@ class MetaView(type):
             schema.setStatic(db_data['__db_static__'])
             schema.setCacheEnabled(db_data['__db_cache__'].get('enabled', db_data['__db_cache__'].get('preload')))
             schema.setPreloadCache(db_data['__db_cache__'].get('preload'))
-            schema.setCacheExpireIn(db_data['__db_cache__'].get('expires', 0))
+            schema.setCacheTimeout(db_data['__db_cache__'].get('timeout', 0))
 
             for name, view in db_data['__db_views__'].items():
                 schema.setView(name, view)
@@ -503,7 +503,7 @@ class MetaView(type):
                                   [column.name()],
                                   unique=column.unique())
                 index.setCached(column.indexCached())
-                index.setCachedExpires(column.indexCachedExpires())
+                index.setCachedTimeout(column.indexCacheTimeout())
                 index.__name__ = iname
                 imethod = classmethod(index)
                 setattr(new_model, iname, imethod)
@@ -514,14 +514,14 @@ class MetaView(type):
                 rev_cached = column.reversedCached()
                 ref_name = column.reference()
                 ref_model = column.referenceModel()
-                rev_cacheExpires = column.reversedCacheExpires()
+                rev_cacheTimeout = column.reversedCacheTimeout()
 
                 # create the lookup method
                 lookup = reverselookupmethod(columnName=column.name(),
                                              reference=db_data['__db_name__'],
                                              unique=column.unique(),
                                              cached=rev_cached,
-                                             cacheExpires=rev_cacheExpires,
+                                             cacheTimeout=rev_cacheTimeout,
                                              __name__=rev_name)
 
                 # ensure we're assigning it to the proper base module
