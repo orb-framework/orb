@@ -491,6 +491,7 @@ class TableSchema(object):
         if self.isArchived():
             # create the archive column
             archive_columns = []
+            colname = projex.text.camelHump(self.name())
 
             # create a duplicate of the existing columns, disabling translations since we'll store
             # a single record per change
@@ -505,7 +506,7 @@ class TableSchema(object):
             archive_columns += [
                 # primary key for the archives is a reference to the article
                 orb.Column(orb.ColumnType.ForeignKey,
-                           self.name(),
+                           colname,
                            fieldName='{0}_archived_id'.format(projex.text.underscore(self.name())),
                            required=True,
                            reference=self.name(),
@@ -523,7 +524,7 @@ class TableSchema(object):
                            default='now')
             ]
             archive_indexes = [
-                orb.Index('byRecordAndVersion', [self.name(), 'archiveNumber'], unique=True)
+                orb.Index('byRecordAndVersion', [colname, 'archiveNumber'], unique=True)
             ]
 
             # store data per locale
@@ -534,28 +535,29 @@ class TableSchema(object):
                                                   required=True,
                                                   maxLength=5))
 
-            archive_data = {
+            # create the new archive schema
+            archive_name = '{0}Archive'.format(self.name())
+            archive_schema = TableSchema()
+            archive_schema.setDatabaseName(self.databaseName())
+            archive_schema.setName(archive_name)
+            archive_schema.setDbName('{0}_archives'.format(projex.text.underscore(self.name())))
+            archive_schema.setColumns(archive_schema.generatePrimary() + archive_columns)
+            archive_schema.setIndexes(archive_indexes)
+            archive_schema.setAutoLocalize(self.autoLocalize())
+            archive_schema.setArchived(False)
+            archive_schema.setDefaultOrder([('archiveNumber', 'asc')])
+
+            # define the class properties
+            class_data = {
                 '__module__': 'orb.schema.dynamic',
-                '__db__': self.databaseName(),
-                '__db_group__': self.groupName(),
-                '__db_name__': '{0}Archive'.format(self.name()),
-                '__db_dbname__': '{0}_archives'.format(projex.text.underscore(self.name())),
-                '__db_columns__': archive_columns,
-                '__db_indexes__': archive_indexes,
-                '__db_pipes__': [],
-                '__db_schema__': None,
-                '__db_abstract__': False,
-                '__db_inherits__': None,
-                '__db_autoprimary__': True,
-                '__db_autolocalize__': self.autoLocalize(),
-                '__db_archived__': False
+                '__db_schema__': archive_schema
             }
 
-            archive_class = MetaTable(archive_data['__db_name__'], tuple(bases), archive_data)
-            archive_schema = archive_class.schema()
-            archive_schema.setDefaultOrder([('archiveNumber', 'asc')])
-            self.setArchiveModel(archive_class)
-            setattr(dynamic, archive_class.__name__, archive_class)
+            model = MetaTable(archive_name, tuple(bases), class_data)
+            self.setArchiveModel(model)
+            orb.system.registerSchema(archive_schema)
+
+            setattr(dynamic, archive_name, model)
 
         return cls
 
