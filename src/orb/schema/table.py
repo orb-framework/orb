@@ -389,7 +389,7 @@ class Table(object):
                 data = cache[cache_key]
             except (TypeError, KeyError):
                 data = self.getRecord(args, db=self.__record_database, namespace=namespace, inflated=False)
-                if data is not None:
+                if data is not None and cache:
                     cache[cache_key] = data
 
             if data:
