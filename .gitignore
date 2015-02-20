@@ -42,3 +42,4 @@
 /src/orb/backends/sql/postgresql/statements/table_exists_sql_mako.py
 /src/orb/backends/sql/postgresql/statements/update_sql_mako.py
 /src/orb/backends/sql/postgresql/statements/where_sql_mako.py
+/src/orb_api.egg-info
