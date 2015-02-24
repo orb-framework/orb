@@ -44,7 +44,7 @@ class Index(object):
                  cached=False,
                  referenced=False):
         
-        if columns == None:
+        if columns is None:
             columns = []
         
         self.__name__ = name

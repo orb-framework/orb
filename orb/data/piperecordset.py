@@ -122,7 +122,7 @@ class PipeRecordSet(RecordSet):
             return False
         
         where = self.query() & (orb.Query(table) == record)
-        return table.selectFirst(where = where) != None
+        return table.selectFirst(where=where) is not None
     
     def removeRecord(self, record, **options):
         """

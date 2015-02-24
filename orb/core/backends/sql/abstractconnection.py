@@ -570,7 +570,7 @@ class SQLConnection(orb.Connection):
 
         :return     <bool> connected
         """
-        return self.nativeConnection() != None
+        return self.nativeConnection() is not None
 
     def nativeConnection(self):
         """

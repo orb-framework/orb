@@ -145,6 +145,7 @@ class Connection(AddonManager):
 
                 # remove if there is a valid reference
                 else:
+                    # noinspection PyComparisonWithNone
                     ref_query = orb.Query(column.name()) != None
 
                 # block removal of records

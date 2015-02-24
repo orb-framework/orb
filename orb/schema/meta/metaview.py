@@ -376,11 +376,10 @@ class MetaView(type):
             '__db_views__': {},
             '__db_cache__': {},
             '__db_schema__': None,
-            '__db_abstract__': False,
             '__db_inherits__': None,
+            '__db_abstract__': False,
             '__db_archived__': False,
             '__db_static__': False,
-            '__db_schema__': None,
         }
         # override with any inherited data
         db_data.update(base_data)

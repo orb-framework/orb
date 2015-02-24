@@ -96,7 +96,7 @@ class RecordSet(object):
                     self._cache['records'][None] = args[1][:]
 
                 # define a recordset that should lookup in the future
-                elif args[1] == None:
+                elif args[1] is None:
                     pass
 
     def __len__(self):

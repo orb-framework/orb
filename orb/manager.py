@@ -95,7 +95,7 @@ class Manager(object):
         return self._tableclass
 
     def baseTimezone(self):
-        if self._baseTimezone == None:
+        if self._baseTimezone is None:
             default = self.settings().defaultTimezone()
             if default:
                 try:

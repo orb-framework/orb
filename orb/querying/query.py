@@ -1923,21 +1923,21 @@ class Query(object):
                 else:
                     or_q = Query()
                     # process or'd queries
-                    for value in value.split(','):
+                    for or_values in value.split(','):
                         and_q = Query()
                         # process and'd queries
-                        for value in value.split('+'):
+                        for and_value in or_values.split('+'):
                             sub_q = Query(key)
-                            match = re.match('^(?P<negated>-|!)?(?P<op>>|<)?(?P<value>.*)$', value)
+                            match = re.match('^(?P<negated>-|!)?(?P<op>>|<)?(?P<value>.*)$', and_value)
                             op = match.group('op')
-                            value = match.group('value')
-                            if value:
-                                startswith = value[-1] == '*'
-                                endswith = value[0] == '*'
-                                value = value.strip('*')
+                            and_value = match.group('value')
+                            if and_value:
+                                startswith = and_value[-1] == '*'
+                                endswith = and_value[0] == '*'
+                                and_value = and_value.strip('*')
                                 negated = bool(match.group('negated'))
                             else:
-                                value = ''
+                                and_value = ''
 
                             if op == '>':
                                 sub_q.setOperatorType(Query.Op.GreaterThan)
@@ -1952,7 +1952,7 @@ class Query(object):
                             else:
                                 sub_q.setOperatorType(Query.Op.Is)
 
-                            sub_q.setValue(safe_eval(value))
+                            sub_q.setValue(safe_eval(and_value))
 
                             # negate the query
                             if negated:

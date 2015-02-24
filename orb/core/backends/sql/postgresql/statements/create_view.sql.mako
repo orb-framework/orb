@@ -52,7 +52,7 @@
                 record_part = parts.pop(0)
                 invert_dir = record_part == 'last'
             except IndexError:
-                raise errors.QueryFailed('Cannot join in a record set for a View.')
+                raise errors.QueryInvalid('Cannot join in a record set for a View.')
 
             # define x here or mako will not render this template (preprocessor fails to find the
             # value within list compression)

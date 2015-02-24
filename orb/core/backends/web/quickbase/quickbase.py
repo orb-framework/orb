@@ -294,7 +294,7 @@ class Quickbase(orb.Connection):
         
         :return     <bool>
         """
-        return self._ticket != None
+        return self._ticket is not None
 
     def open(self):
         """

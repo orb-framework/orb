@@ -379,10 +379,9 @@ class MetaTable(type):
             '__db_contexts__': {},
             '__db_views__': {},
             '__db_schema__': None,
-            '__db_abstract__': False,
             '__db_inherits__': None,
-            '__db_archived__': False,
-            '__db_schema__': None,
+            '__db_abstract__': False,
+            '__db_archived__': False
         }
         # override with any inherited data
         db_data.update(base_data)

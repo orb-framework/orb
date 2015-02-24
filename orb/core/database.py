@@ -742,17 +742,17 @@ class Database(object):
         xdbname = xdatabase.find('dbname')
         xtoken = xdatabase.find('token')
 
-        if xhost != None:
+        if xhost is not None:
             db.setHost(xhost.text)
-        if xport != None:
+        if xport is not None:
             db.setPort(xport.text)
-        if xuser != None:
+        if xuser is not None:
             db.setUsername(xuser.text)
-        if xpword != None:
+        if xpword is not None:
             db.setPassword(xpword.text)
-        if xdbname != None:
+        if xdbname is not None:
             db.setDatabaseName(xdbname.text)
-        if xtoken != None:
+        if xtoken is not None:
             db.setApplicationToken(xtoken.text)
 
         return db
