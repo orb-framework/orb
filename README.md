@@ -20,5 +20,5 @@ and reference and run `setup.py` for your virtual environment
     $ cd orb
     $ python setup.py develop
 
-Read the [Getting Started](https://projexsoftware.github.io/orb/getting_started.html) page for more information on
+Read the [Getting Started](http://projexsoftware.github.io/orb/getting_started.html) page for more information on
 how to use the framework.
