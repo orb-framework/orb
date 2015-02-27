@@ -11,20 +11,14 @@ If you would like to use the latest build that has been tested and published,
 you can use the Python `setuptools` to install it to your computer or virtual
 environment:
 
-    $ pip install projex_orb
-
-or...
-
-    $ easy_install projex_orb
+    $ pip install orb-api
 
 If you would like to use the latest code base, you can clone the repository
-and reference your `PYTHONPATH` to the checkout location, or make a build
-of the code by using the `projex.xbuild` system:
+and reference and run `setup.py` for your virtual environment
 
-    $ cd /path/to/git/orb
-    $ python /path/to/projex/scripts/xbuild.py ./orb.xbuild
+    $ git clone https://github.com/ProjexSoftware/orb.git
+    $ cd orb
+    $ python setup.py develop
 
-Documentation
------------------------
-
-Documentation can be found on [read the docs](http://orb.readthedocs.org/en/latest/) 
+Read the [Getting Started](https://projexsoftware.github.io/orb/getting_started.html) page for more information on
+how to use the framework.
