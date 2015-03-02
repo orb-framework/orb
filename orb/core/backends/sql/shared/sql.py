@@ -10,6 +10,7 @@ log = logging.getLogger(__name__)
 # A
 # ----------------------------------------------------------------------
 
+
 class ADD_COLUMN(SQL):
     def collectFlags(self, column):
         # determine all the flags for this column
@@ -120,7 +121,7 @@ class ALTER_TABLE(SQL):
 
 
 # C
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 class CREATE_TABLE(SQL):
     @staticmethod
@@ -156,7 +157,7 @@ class CREATE_TABLE(SQL):
 
         :return     <str>
         """
-        # ensure this is infact a table type
+        # ensure this is in fact a table type
         if not orb.Table.typecheck(table):
             return ''
 
@@ -166,7 +167,7 @@ class CREATE_TABLE(SQL):
 
         # define the new scope
         new_scope = {
-            'schema':schema,
+            'schema': schema,
             'table': schema.dbname(),
             'columns': new_columns,
             'owner': db.username(),
@@ -186,15 +187,17 @@ class CREATE_TABLE(SQL):
 
         return super(CREATE_TABLE, self).render(**new_scope)
 
+
 class CREATE_VIEW(SQL):
     def render(self, view, db=None, **scope):
-        # ensure this is infact a table type
+        # ensure this is in fact a table type
         if not orb.View.typecheck(view):
             return ''
 
         schema = view.schema()
         scope['schema'] = schema
         return super(CREATE_VIEW, self).render(**scope)
+
 
 class CREATE_INDEX(SQL):
     def render(self, index_or_column, **scope):
@@ -207,6 +210,7 @@ class CREATE_INDEX(SQL):
             scope['index'] = None
 
         return super(CREATE_INDEX, self).render(**scope)
+
 
 # D
 #----------------------------------------------------------------------
@@ -223,6 +227,7 @@ class DELETE(SQL):
         :return     <str>
         """
         io = scope.get('IO', {})
+        # noinspection PyShadowingNames
         WHERE = self.baseSQL().byName('WHERE')
 
         scope['table'] = table.schema().dbname()
@@ -314,7 +319,7 @@ class INSERT(SQL):
         if orb.Table.typecheck(schema):
             schema = schema.schema()
         elif orb.View.typecheck(schema):
-            raise errors.QueryFailed('Views are read-only.')
+            raise errors.QueryInvalid('Views are read-only.')
 
         if columns is None:
             columns = schema.columns(kind=orb.Column.Kind.Field)
@@ -354,7 +359,7 @@ class INSERTED_KEYS(SQL):
         if orb.Table.typecheck(schema):
             schema = schema.schema()
         elif orb.View.typecheck(schema):
-            raise errors.QueryFailed('Views are read-only.')
+            raise errors.QueryInvalid('Views are read-only.')
 
         scope['schema'] = schema
         scope['field'] = schema.primaryColumns()[0].fieldName()
@@ -363,13 +368,14 @@ class INSERTED_KEYS(SQL):
 
         return super(INSERTED_KEYS, self).render(**scope)
 
+
 # Q
 #----------------------------------------------------------------------
 
 class QUOTE(SQL):
     def render(self, *text, **scope):
         """
-        Wraps the inputed text in SQL safe quotes for this language.
+        Wraps the inputted text in SQL safe quotes for this language.
 
         :param      text | [<str>, ..]
 
@@ -378,6 +384,7 @@ class QUOTE(SQL):
         scope.setdefault('joiner', '.')
         scope['text'] = text
         return super(QUOTE, self).render(**scope)
+
 
 # S
 #----------------------------------------------------------------------
@@ -392,6 +399,7 @@ class SCHEMA_INFO(SQL):
         scope['namespace'] = namespace
 
         return super(SCHEMA_INFO, self).render(**scope)
+
 
 class SELECT(SQL):
     def render(self, table_or_records, **scope):
@@ -429,6 +437,7 @@ class SELECT(SQL):
 
         return super(SELECT, self).render(**new_scope)
 
+
 class SELECT_AGGREGATE(SQL):
     def render(self, column, **scope):
         """
@@ -442,6 +451,7 @@ class SELECT_AGGREGATE(SQL):
         scope['column'] = column
 
         return super(SELECT_AGGREGATE, self).render(**scope)
+
 
 class SELECT_COUNT(SQL):
     def render(self, table, **scope):
@@ -461,6 +471,7 @@ class SELECT_COUNT(SQL):
 
         return super(SELECT_COUNT, self).render(**scope)
 
+
 class SELECT_EXPAND(SQL):
     def render(self, **scope):
         # define optional arguments
@@ -472,11 +483,13 @@ class SELECT_EXPAND(SQL):
 
         return super(SELECT_EXPAND, self).render(**scope)
 
+
 class SELECT_SHORTCUT(SQL):
     def render(self, column, **scope):
         scope['column'] = column
 
         return super(SELECT_SHORTCUT, self).render(**scope)
+
 
 class SELECT_JOINER(SQL):
     def render(self, column, **scope):
@@ -491,6 +504,7 @@ class SELECT_JOINER(SQL):
         scope['column'] = column
 
         return super(SELECT_JOINER, self).render(**scope)
+
 
 # U
 #----------------------------------------------------------------------
@@ -509,18 +523,20 @@ class UPDATE(SQL):
         if orb.Table.typecheck(schema):
             schema = schema.schema()
         elif orb.View.typecheck(schema):
-            raise errors.QueryFailed('Views are read-only.')
+            raise errors.QueryInvalid('Views are read-only.')
 
         scope['schema'] = schema
         scope['changes'] = changes
 
         return super(UPDATE, self).render(**scope)
 
+
 # W
 #----------------------------------------------------------------------
 
 class WHERE(SQL):
     def queryToSQL(self, schema, query):
+        # noinspection PyShadowingNames
         QUOTE = self.baseSQL().byName('QUOTE')
 
         column = query.column(schema)

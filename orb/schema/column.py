@@ -1,19 +1,4 @@
-#!/usr/bin/python
-
 """ Defines the meta information for a column within a table schema. """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = ['Eric Hulser']
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
-
-# ------------------------------------------------------------------------------
 
 import datetime
 import decimal
@@ -24,16 +9,16 @@ import projex.text
 import time
 
 from projex.enum import enum
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
 
 from ..common import ColumnType, RemovedAction
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
-pytz = LazyModule('pytz')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+pytz = lazy_import('pytz')
+errors = lazy_import('orb.errors')
 
 
 class Column(object):
@@ -93,7 +78,7 @@ class Column(object):
         # set default values
         ref = options.get('reference', '')
         for key in Column.TEMPLATE_MAP.keys():
-            if not key in options:
+            if key not in options:
                 options[key] = Column.defaultDatabaseName(key, name, ref)
 
         # naming & accessor options
@@ -164,7 +149,7 @@ class Column(object):
 
         self._flags = flags
 
-        # deterimine the kind of column that this column is
+        # determine the kind of column that this column is
         if options.get('proxy'):
             self._kind = Column.Kind.Proxy
         elif self._joiner or self._shortcut:
@@ -234,7 +219,7 @@ class Column(object):
     def customData(self, key, default=None):
         """
         Returns custom information that was assigned to this column for the \
-        inputed key.  If no value was assigned to the given key, the inputed \
+        inputted key.  If no value was assigned to the given key, the inputted \
         default value will be returned.
         
         :param      key     | <str>
@@ -355,16 +340,16 @@ class Column(object):
                 return decimal.Decimal()
             return default
 
-        elif ctype & (ColumnType.String | \
-                              ColumnType.Text | \
-                              ColumnType.Url | \
-                              ColumnType.Email | \
-                              ColumnType.Password | \
-                              ColumnType.Filepath | \
-                              ColumnType.Directory | \
-                              ColumnType.Xml | \
-                              ColumnType.Html | \
-                              ColumnType.Color):
+        elif ctype & (ColumnType.String |
+                      ColumnType.Text |
+                      ColumnType.Url |
+                      ColumnType.Email |
+                      ColumnType.Password |
+                      ColumnType.Filepath |
+                      ColumnType.Directory |
+                      ColumnType.Xml |
+                      ColumnType.Html |
+                      ColumnType.Color):
             if default is None:
                 return ''
             return default
@@ -523,7 +508,7 @@ class Column(object):
 
     def isKind(self, kind):
         """
-        Returns whether or not this column is the kind of inputed type.
+        Returns whether or not this column is the kind of inputted type.
 
         :param      kind | <orb.Column.Kind>
 
@@ -543,7 +528,7 @@ class Column(object):
 
     def isMatch(self, name):
         """
-        Returns whether or not this column's text info matches the inputed name.
+        Returns whether or not this column's text info matches the inputted name.
         
         :param      name | <str>
         """
@@ -552,7 +537,7 @@ class Column(object):
 
         opts = (self.name(),
                 self.name().strip('_'),
-                projex.text.camelHump(self.name()),     # support both styles for string lookup
+                projex.text.camelHump(self.name()),  # support both styles for string lookup
                 projex.text.underscore(self.name()),
                 self.displayName(),
                 self.fieldName())
@@ -601,7 +586,7 @@ class Column(object):
 
     def isProxy(self):
         """
-        Retursn whether or not this column is a proxy column.
+        Returns whether or not this column is a proxy column.
         
         :sa         testFlag
         
@@ -710,15 +695,13 @@ class Column(object):
         """
         joiner = self._joiner
 
-        # dynamically generate a join query based on the inputed function
+        # dynamically generate a join query based on the inputted function
         if type(joiner).__name__ == 'function':
             return joiner(self)
 
         # otherwise, if there is a shortcut, generate that
         else:
             return orb.Query(self.shortcut())
-
-        return joiner
 
     def maxlength(self):
         """
@@ -731,7 +714,7 @@ class Column(object):
 
     def memberOf(self, schemas):
         """
-        Returns a list of schemas this column is a member of from the inputed
+        Returns a list of schemas this column is a member of from the inputted
         list.
         
         :param      schemas | [<orb.TableSchema>, ..]
@@ -809,14 +792,14 @@ class Column(object):
 
         # restore a datetime timezone value
         if isinstance(value, datetime.datetime) and \
-                        coltype == ColumnType.DatetimeWithTimezone:
+           coltype == ColumnType.DatetimeWithTimezone:
             tz = self.timezone()
 
             if tz is not None:
                 if value.tzinfo is None:
                     base_tz = orb.system.baseTimezone()
 
-                    # the machine timezone and preferred tiemzone match, so create off utc time
+                    # the machine timezone and preferred timezone match, so create off utc time
                     if base_tz == tz:
                         value = tz.fromutc(value)
 
@@ -1010,7 +993,7 @@ class Column(object):
 
     def setCustomData(self, key, value):
         """
-        Sets the custom data at the inputed key to the given value.
+        Sets the custom data at the inputted key to the given value.
         
         :param      key     | <str>
                     value   | <variant>
@@ -1019,7 +1002,7 @@ class Column(object):
 
     def setDefault(self, default):
         """
-        Sets the default value for this column to the inputed value.
+        Sets the default value for this column to the inputted value.
         
         :param      default | <str>
         """
@@ -1043,15 +1026,15 @@ class Column(object):
         """
         self._engines[db_or_type] = engine
 
-    def setEnum(self, enum):
+    def setEnum(self, cls):
         """
-        Sets the enumeration that is associated with this column to the inputed
+        Sets the enumeration that is associated with this column to the inputted
         type.  This is an optional parameter but can be useful when dealing
         with validation and some of the automated features of the ORB system.
         
-        :param      enum | <projex.enum.enum> || None
+        :param      cls | <projex.enum.enum> || None
         """
-        self._enum = enum
+        self._enum = cls
 
     def setEncrypted(self, state):
         """
@@ -1086,7 +1069,7 @@ class Column(object):
 
     def setFlags(self, flags):
         """
-        Sets the global flags for this column to the inputed flags.
+        Sets the global flags for this column to the inputted flags.
         
         :param      flags | <Column.Flags>
         """
@@ -1094,7 +1077,7 @@ class Column(object):
 
     def setName(self, name):
         """
-        Sets the name of this column to the inputed name.
+        Sets the name of this column to the inputted name.
         
         :param      name    | <str>
         """
@@ -1146,7 +1129,7 @@ class Column(object):
 
     def setJoiner(self, joiner):
         """
-        Sets the joiner query for this column to the inputed query.
+        Sets the joiner query for this column to the inputted query.
         
         :param      query | (<orb.Column>, <orb.Query>) || <callable> || None
         """
@@ -1200,7 +1183,7 @@ class Column(object):
 
     def setAggregator(self, aggregator):
         """
-        Sets the query aggregate for this column to the inputed aggregate.
+        Sets the query aggregate for this column to the inputted aggregate.
         
         :param      aggregator | <orb.ColumnAggregator> || None
         """
@@ -1242,7 +1225,7 @@ class Column(object):
 
     def setRequired(self, required):
         """
-        Sets whether or not this column is required in the databse.
+        Sets whether or not this column is required in the database.
         
         :sa         setFlag
         
@@ -1321,11 +1304,11 @@ class Column(object):
 
     def setStringFormat(self, formatter):
         """
-        Sets the string formatter for this column to the inputed text.  This
+        Sets the string formatter for this column to the inputted text.  This
         will use Python's string formatting system to format values for the
         column when it is displaying its value.
         
-        :param      formmater | <str>
+        :param      formatter | <str>
         """
         self._stringFormat = formatter
 
@@ -1359,7 +1342,7 @@ class Column(object):
 
     def stringFormat(self):
         """
-        Returns the string formatter for this column to the inputed text.  This
+        Returns the string formatter for this column to the inputted text.  This
         will use Python's string formatting system to format values for the
         column when it is displaying its value.
         
@@ -1369,7 +1352,7 @@ class Column(object):
 
     def testFlag(self, flag):
         """
-        Tests to see if this column has the inputed flag set.
+        Tests to see if this column has the inputted flag set.
         
         :param      flag | <Column.Flags>
         """
@@ -1517,7 +1500,7 @@ class Column(object):
     def toXml(self, xparent=None):
         """
         Saves the data about this column out to xml as a child node for the
-        inputed parent.
+        inputted parent.
         
         :param      xparent    | <xml.etree.ElementTree.Element>
         
@@ -1550,7 +1533,7 @@ class Column(object):
 
         # store additional options
         if self.maxlength():
-            ElementTree.SubElement(xcolumn, 'maxlen').text = nstr(self.maxLength())
+            ElementTree.SubElement(xcolumn, 'maxlen').text = nstr(self.maxlength())
 
         # store indexing options
         if self.indexed():
@@ -1594,7 +1577,7 @@ class Column(object):
 
     def validate(self, value):
         """
-        Validates the inputed value against this columns rules.  If the inputed value does not pass, then
+        Validates the inputted value against this columns rules.  If the inputted value does not pass, then
         a validation error will be raised.
         
         :param      value | <variant>
@@ -1619,7 +1602,7 @@ class Column(object):
 
     def valueFromString(self, value, extra=None, db=None):
         """
-        Converts the inputed string text to a value that matches the type from
+        Converts the inputted string text to a value that matches the type from
         this column type.
         
         :param      value | <str>
@@ -1635,6 +1618,7 @@ class Column(object):
         if coltype == ColumnType.Date:
             try:
                 from dateutil import parser
+
                 return parser.parse(value).date()
             except ImportError:
                 extra = extra or '%Y-%m-%d'
@@ -1646,6 +1630,7 @@ class Column(object):
         elif coltype == ColumnType.Time:
             try:
                 from dateutil import parser
+
                 return parser.parse(value).time()
             except ImportError:
                 extra = extra or '%h:%m:%s'
@@ -1657,6 +1642,7 @@ class Column(object):
         elif coltype in (ColumnType.Datetime, ColumnType.DatetimeWithTimezone):
             try:
                 from dateutil import parser
+
                 return parser.parse(value)
             except ImportError:
                 extra = extra or '%Y-%m-%d %h:%m:s'
@@ -1687,7 +1673,7 @@ class Column(object):
 
     def valueToString(self, value, extra=None, db=None):
         """
-        Converts the inputed string text to a value that matches the type from
+        Converts the inputted string text to a value that matches the type from
         this column type.
         
         :sa         engine
@@ -1755,7 +1741,7 @@ class Column(object):
     @staticmethod
     def defaultPrimaryColumn(name):
         """
-        Creates a default primary column based on the inputed table schema.
+        Creates a default primary column based on the inputted table schema.
         
         :return     <Column>
         """
@@ -1774,7 +1760,7 @@ class Column(object):
     @staticmethod
     def fromXml(xcolumn, referenced=False):
         """
-        Generates a new column from the inputed xml column data.
+        Generates a new column from the inputted xml column data.
         
         :param      xcolumn | <xml.etree.Element>
         
@@ -1862,19 +1848,19 @@ class Column(object):
 
         # restore the index information
         xindex = xcolumn.find('index')
-        if xindex is not None: # as of 4.3
+        if xindex is not None:  # as of 4.3
             column.setIndexName(xindex.text)
             column.setIndexed(True)
             column.setIndexCached(xindex.get('cached') == 'True')
             column.setIndexCacheTimeout(int(xcolumn.get('timeout',
-                                            xcolumn.get('expires', column.indexCacheTimeout()))))
+                                                        xcolumn.get('expires', column.indexCacheTimeout()))))
         else:
             # restore indexing options
             column.setIndexName(xcolumn.get('index'))
             column.setIndexed(xcolumn.get('indexed') == 'True')
             column.setIndexCached(xcolumn.get('indexCached') == 'True')
             column.setIndexCacheTimeout(int(xcolumn.get('indexCachedExpires',
-                                            column.indexCacheTimeout())))
+                                                        column.indexCacheTimeout())))
 
         # create relation information
         xrelation = xcolumn.find('relation')
@@ -1897,7 +1883,8 @@ class Column(object):
                 column.setReversedName(xreversed.text)
                 column.setReversedCached(xreversed.get('cached') == 'True')
                 column.setReversedCacheTimeout(int(xreversed.get('timeout',
-                                                   xreversed.get('expires', column.reversedCacheTimeout()))))
+                                                                 xreversed.get('expires',
+                                                                               column.reversedCacheTimeout()))))
             else:
                 column.setReversed(xrelation.get('reversed') == 'True')
                 column.setReversedName(xrelation.get('reversedName'))

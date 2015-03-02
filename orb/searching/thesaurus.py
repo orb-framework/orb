@@ -1,19 +1,10 @@
-#!/usr/bin/python
-""" 
+"""
 Defines a searching algorithm for searching across multiple tables.
 """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
+import re
 
-# maintanence information 
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
-
+from xml.etree import ElementTree
 from projex.addon import AddonManager
 from projex.enum import enum
 from projex.text import nativestring as nstr
@@ -22,7 +13,7 @@ from projex.text import nativestring as nstr
 class SearchThesaurus(AddonManager):
     """
     Defines a global thesaurus system for searching.  This will allow
-    additional keyword lookups based on synonyms.  Thesuarus' can be
+    additional keyword lookups based on synonyms.  Thesaurus can be
     define on a per API and per Table system.
     """
     Flags = enum('FindSingular', 'FindPlural', 'FindInherited')
@@ -51,7 +42,7 @@ class SearchThesaurus(AddonManager):
                 wordset.add(synonym)
         
         # define new wordset
-        self._wordsets.append(set(word, synonym))
+        self._wordsets.append({word, synonym})
 
     def addset(self, wordset):
         """
@@ -73,7 +64,7 @@ class SearchThesaurus(AddonManager):
         Phrases define groups of words that will create a singular
         search term within a search pattern.  For instance, "is not" will be 
         treated as single term, so instead of looking for "is" and "not", the
-        phrase "is not" will be matched.  The inputed pattern can be a regular
+        phrase "is not" will be matched.  The inputted pattern can be a regular
         expression, or hard set of terms.
         
         :param      pattern | <str>
@@ -119,16 +110,16 @@ class SearchThesaurus(AddonManager):
 
     def load(self, xml):
         """
-        Loads the thesaurus information from the inputed XML file.
+        Loads the thesaurus information from the inputted XML file.
         
         :param      filename | <str>
         """
         try:
             xroot = ElementTree.parse(xml).getroot()
-        except:
+        except StandardError:
             try:
                 xroot = ElementTree.fromstring(xml)
-            except:
+            except StandardError:
                 return False
 
         # load wordsets
@@ -147,7 +138,7 @@ class SearchThesaurus(AddonManager):
 
     def remove(self, word, synonym):
         """
-        Removes a given synonym from the inputed word in a wordset.
+        Removes a given synonym from the inputted word in a wordset.
         
         :param      word    | <str>
                     synonym | <str>
@@ -184,7 +175,7 @@ class SearchThesaurus(AddonManager):
 
     def splitterms(self, text):
         """
-        Splits the inputed search text into search terms.  This will use the
+        Splits the inputted search text into search terms.  This will use the
         phrasing patterns within this thesaurus to determine groups of words.
         
         :param      text | <str>
@@ -241,7 +232,7 @@ class SearchThesaurus(AddonManager):
     
     def update(self, wordsets):
         """
-        Updates the records for this thesaurus' wordsets with the inputed
+        Updates the records for this thesaurus' wordsets with the inputted
         list of sets.
         
         :param      wordsets | [<str>, ..]
@@ -251,7 +242,7 @@ class SearchThesaurus(AddonManager):
 
     def updatePhrases(self, phrases):
         """
-        Updates the phrase sets for this thesaurus with the inputed list
+        Updates the phrase sets for this thesaurus with the inputted list
         of phrases.
         
         :param      phrases | [<str>, ..]

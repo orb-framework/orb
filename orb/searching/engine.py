@@ -1,18 +1,6 @@
-#!/usr/bin/python
-""" 
+"""
 Defines a searching algorithm for searching across multiple tables.
 """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information 
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
 
 from projex.addon import AddonManager
 
@@ -20,9 +8,11 @@ from .terms import SearchTermGroup
 from .thesaurus import SearchThesaurus
 from .spelling import SpellingEngine
 
+
 class SearchEngine(AddonManager):
     def __init__(self, *tables):
-        self._tables = tables
+        self._tables = list(tables)
+        self._parser = None
         self._thesaurus = SearchThesaurus()
         self._spellingEngine = SpellingEngine()
     
@@ -32,12 +22,12 @@ class SearchEngine(AddonManager):
         
         :param      table | <orb.Table>
         """
-        if not table in self._tables:
+        if table not in self._tables:
             self._tables.append(table)
 
     def autocorrect(self, phrase):
         """
-        Autocorrects the inputed search phrase through the spelling engine.
+        Auto-correct the inputted search phrase through the spelling engine.
         
         :param      phrase | <str>
         """
@@ -49,7 +39,7 @@ class SearchEngine(AddonManager):
 
     def hasTable(self, table):
         """
-        Returns whether or not the inputed table is included with this search.
+        Returns whether or not the inputted table is included with this search.
         
         :return     <bool>
         """
@@ -57,7 +47,7 @@ class SearchEngine(AddonManager):
     
     def parse(self, text):
         """
-        Parses the inputed text into the search engine terms.
+        Parses the inputted text into the search engine terms.
         
         :param      text | <unicode>
         
@@ -75,7 +65,7 @@ class SearchEngine(AddonManager):
 
     def removeTable(self, table):
         """
-        Removes the inputed table from this engine.
+        Removes the inputted table from this engine.
         
         :param      table | <orb.Table>
         """
@@ -94,7 +84,7 @@ class SearchEngine(AddonManager):
 
     def suggestions(self, phrase, locale=None, limit=10):
         """
-        Returns the best guess suggestions for the inputed phrase.
+        Returns the best guess suggestions for the inputted phrase.
         
         :param      phrase | <str> || <unicode>
         

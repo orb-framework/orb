@@ -1,27 +1,6 @@
-#!/usr/bin/python
-
 """
 Defines the base abstract SQL connection for all SQL based
 connection backends. """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
-
-# define version information (major,minor,maintanence)
-__depends__        = []
-__version_info__   = (0, 0, 0)
-__version__        = '%i.%i.%i' % __version_info__
-
-
-#------------------------------------------------------------------------------
 
 import datetime
 import logging
@@ -43,6 +22,7 @@ log = logging.getLogger(__name__)
 from .abstractsql import SQL
 
 
+# noinspection PyAbstractClass,PyProtectedMember
 class SQLConnection(orb.Connection):
     """
     Creates a SQL based backend connection type for handling database
@@ -61,19 +41,19 @@ class SQLConnection(orb.Connection):
         # set standard properties
         self.setThreadEnabled(True)
 
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     #                       PROTECTED METHODS
     #----------------------------------------------------------------------
     @abstractmethod()
     def _execute(self,
                  command,
-                 data       = None,
-                 autoCommit = True,
-                 autoClose  = True,
-                 returning  = True,
-                 mapper     = dict):
+                 data=None,
+                 autoCommit=True,
+                 autoClose=True,
+                 returning=True,
+                 mapper=dict):
         """
-        Executes the inputed command into the current \
+        Executes the inputted command into the current \
         connection cursor.
 
         :param      command    | <str>
@@ -117,7 +97,7 @@ class SQLConnection(orb.Connection):
 
     def close(self):
         """
-        Closes the connection to the datbaase for this connection.
+        Closes the connection to the database for this connection.
 
         :return     <bool> closed
         """
@@ -133,7 +113,7 @@ class SQLConnection(orb.Connection):
 
     def count(self, table_or_join, lookup, options):
         """
-        Returns the count of records that will be loaded for the inputed
+        Returns the count of records that will be loaded for the inputted
         information.
 
         :param      table_or_join | <subclass of orb.Table> || None
@@ -180,7 +160,7 @@ class SQLConnection(orb.Connection):
 
     def createTable(self, schema, options):
         """
-        Creates a new table in the database based cff the inputed
+        Creates a new table in the database based cff the inputted
         schema information.  If the dryRun flag is specified, then
         the SQLConnection will only be logged to the current logger, and not
         actually executed in the database.
@@ -211,7 +191,7 @@ class SQLConnection(orb.Connection):
 
     def createView(self, schema, options):
         """
-        Creates a new table in the database based cff the inputed
+        Creates a new table in the database based cff the inputted
         schema information.  If the dryRun flag is specified, then
         the SQLConnection will only be logged to the current logger, and not
         actually executed in the database.
@@ -248,7 +228,7 @@ class SQLConnection(orb.Connection):
 
         ENABLE_INTERNALS = self.sql('ENABLE_INTERNALS')
         data = {}
-        sql = ENABLE_INTERNALS(False, options=options, IO=data)
+        sql = ENABLE_INTERNALS(False, IO=data)
 
         self.execute(sql, data)
 
@@ -293,7 +273,7 @@ class SQLConnection(orb.Connection):
     def existingColumns(self, schema, options):
         """
         Looks up the existing columns from the database based on the
-        inputed schema and namespace information.
+        inputted schema and namespace information.
 
         :param      schema  | <orb.TableSchema>
                     options | <orb.DatabaseOptions>
@@ -308,14 +288,14 @@ class SQLConnection(orb.Connection):
 
     def execute(self,
                 command,
-                data       = None,
-                autoCommit = True,
-                autoClose  = True,
-                returning  = True,
-                mapper     = dict,
-                retries    = 3):
+                data=None,
+                autoCommit=True,
+                autoClose=True,
+                returning=True,
+                mapper=dict,
+                retries=3):
         """
-        Executes the inputed command into the current \
+        Executes the inputted command into the current \
         connection cursor.
 
         :param      command    | <str>
@@ -350,6 +330,7 @@ class SQLConnection(orb.Connection):
             return [], rowcount
 
         results = []
+        start = datetime.datetime.now()
         for i in xrange(retries):
             start = datetime.datetime.now()
 
@@ -465,7 +446,6 @@ class SQLConnection(orb.Connection):
         INSERT = self.sql('INSERT')
         INSERTED_KEYS = self.sql('INSERTED_KEYS')
 
-        engine = self.engine()
         locks = []
         for schema, schema_records in inserter.items():
             if not schema_records:
@@ -473,7 +453,7 @@ class SQLConnection(orb.Connection):
 
             colcount = len(schema.columns())
             batchsize = self.insertBatchSize()
-            size = batchsize / max(int(round(colcount/10.0)), 1)
+            size = batchsize / max(int(round(colcount / 10.0)), 1)
 
             for batch in projex.iters.batch(schema_records, size):
                 batch = list(batch)
@@ -492,7 +472,7 @@ class SQLConnection(orb.Connection):
             # for inherited schemas in non-OO tables, we'll define the
             # primary keys before insertion
             if autoinc and INSERTED_KEYS:
-                cmd = INSERTED_KEYS(schema, count=len(batch), IO=data)
+                cmd = INSERTED_KEYS(schema, count=len(schema_records), IO=data)
                 cmds.append(cmd)
 
         if not cmds:
@@ -565,7 +545,7 @@ class SQLConnection(orb.Connection):
 
     def isConnected(self):
         """
-        Returns whether or not this conection is currently
+        Returns whether or not this connection is currently
         active.
 
         :return     <bool> connected
@@ -583,8 +563,8 @@ class SQLConnection(orb.Connection):
 
     def open(self):
         """
-        Opens a new database connection to the datbase defined
-        by the inputed database.
+        Opens a new database connection to the database defined
+        by the inputted database.
 
         :return     <bool> success
         """
@@ -631,7 +611,7 @@ class SQLConnection(orb.Connection):
 
     def removeRecords(self, remove, options):
         """
-        Removes the inputed record from the database.
+        Removes the inputted record from the database.
 
         :param      remove  | {<orb.Table>: [<orb.Query>, ..], ..}
                     options | <orb.DatabaseOptions>
@@ -675,7 +655,7 @@ class SQLConnection(orb.Connection):
 
     def select(self, table_or_join, lookup, options):
         if orb.Table.typecheck(table_or_join) or orb.View.typecheck(table_or_join):
-            # ensure the primary record information is provided for inflatorb.logger.setLevel(orb.logging.DEBUG)ions
+            # ensure the primary record information is provided for orb.logger.setLevel(orb.logging.DEBUG)ions
             if lookup.columns and options.inflated:
                 lookup.columns += [col.name() for col in
                                    table_or_join.schema().primaryColumns()]
@@ -707,7 +687,7 @@ class SQLConnection(orb.Connection):
 
                 return records
         else:
-            raise orb.DatabaseError('JOIN NOT DEFINED')
+            raise orb.errors.DatabaseError('JOIN NOT DEFINED')
 
     def setupDatabase(self, options):
         """
@@ -736,7 +716,7 @@ class SQLConnection(orb.Connection):
 
     def setRecords(self, schema, records, **options):
         """
-        Restores the data for the inputed schema.
+        Restores the data for the inputted schema.
 
         :param      schema  | <orb.TableSchema>
                     records | [<dict> record, ..]
@@ -745,8 +725,6 @@ class SQLConnection(orb.Connection):
             return
 
         engine = self.engine()
-        cmds = []
-        data = {}
 
         # truncate the table
         cmd, dat = engine.truncateCommand(schema)
@@ -758,11 +736,11 @@ class SQLConnection(orb.Connection):
 
         colcount = len(schema.columns())
         batchsize = self.insertBatchSize()
-        size = batchsize / max(int(round(colcount/10.0)), 1)
+        size = batchsize / max(int(round(colcount / 10.0)), 1)
 
         # insert the records
-        cmds  = []
-        dat   = {}
+        cmds = []
+        dat = {}
         setup = {}
         for batch in projex.iters.batch(records, size):
             batch = list(batch)
@@ -783,7 +761,7 @@ class SQLConnection(orb.Connection):
 
     def tableExists(self, schema, options):
         """
-        Checks to see if the inputed table class exists in the
+        Checks to see if the inputted table class exists in the
         database or not.
 
         :param      schema  | <orb.TableSchema>
@@ -799,7 +777,7 @@ class SQLConnection(orb.Connection):
     def update(self, records, lookup, options):
         """
         Updates the modified data in the database for the
-        inputed record.  If the dryRun flag is specified then
+        inputted record.  If the dryRun flag is specified then
         the command will be logged but not executed.
 
         :param      record   | <orb.Table>
@@ -881,7 +859,7 @@ class SQLConnection(orb.Connection):
 
     def updateTable(self, schema, info, options):
         """
-        Determines the difference between the inputed schema
+        Determines the difference between the inputted schema
         and the table in the database, creating new columns
         for the columns that exist in the schema and do not
         exist in the database.  If the dryRun flag is specified,
@@ -903,7 +881,7 @@ class SQLConnection(orb.Connection):
         """
         # determine the new columns
         existing_columns = info['columns']
-        all_columns  = schema.fieldNames(recurse=False, kind=orb.Column.Kind.Field)
+        all_columns = schema.fieldNames(recurse=False, kind=orb.Column.Kind.Field)
         missing_columns = set(all_columns).difference(existing_columns)
 
         # determine new indexes
@@ -915,7 +893,6 @@ class SQLConnection(orb.Connection):
                         for column in schema.columns(recurse=False, kind=orb.Column.Kind.Field)
                         if column.indexed() and not column.primary()]
         missing_indexes = set(all_indexes).difference(existing_indexes)
-
 
         # if no columns are missing, return True to indicate the table is
         # up to date

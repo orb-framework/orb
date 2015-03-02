@@ -1,35 +1,24 @@
-#!/usr/bin/python
-
-""" 
+"""
 Defines caching methods to use when working with tables.
 """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
-
 import logging
 
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
+orb = lazy_import('orb')
+
 
 class OrderCompare(object):
     """ Defines a class for comparing records by a database order scheme """
+
     def __init__(self, order):
         self._order = order
-    
+
     def __call__(self, a, b):
         """
-        Compares the inputed values for each column based on a given
+        Compares the inputted values for each column based on a given
         direction.
         
         :param      a | <dict>
@@ -40,12 +29,12 @@ class OrderCompare(object):
         for col, direction in self._order:
             a_val = a.get(col)
             b_val = b.get(col)
-            
+
             # ignore same results
             result = cmp(a_val, b_val)
             if not result:
                 continue
-            
+
             # return the direction result
             if direction == 'desc':
                 return -result
@@ -53,7 +42,9 @@ class OrderCompare(object):
                 return result
         return 0
 
-#----------------------------------------------------------------------
+
+# ----------------------------------------------------------------------
+
 
 class RecordCache(object):
     """
@@ -75,6 +66,7 @@ class RecordCache(object):
                 |
                 |User.select() # looks up from the RecordCache for the table
     """
+
     def __init__(self, *tables, **kwds):
         if not tables:
             tables = orb.system.models()
@@ -82,13 +74,14 @@ class RecordCache(object):
         timeout = kwds.get('timeout', None)
         self._caches = dict([(table, orb.TableCache(table, table.schema().cache(), timeout=timeout))
                              for table in tables])
-    
+
     def __enter__(self):
         self.begin()
-    
+
+    # noinspection PyUnusedLocal
     def __exit__(self, *args):
         self.end()
-    
+
     def begin(self):
         """
         Begins the caching process for this instance.
@@ -96,6 +89,7 @@ class RecordCache(object):
         for table in self._caches:
             table.pushRecordCache(self)
 
+    # noinspection PyUnusedLocal
     def cache(self, table, autocreate=False):
         """
         Returns the cache associated with this record cache for the given
@@ -104,7 +98,7 @@ class RecordCache(object):
         :return     <orb.TableCache> || None
         """
         return self._caches.get(table)
-    
+
     def clear(self, table=None):
         """
         Clears the current cache information.
@@ -116,7 +110,7 @@ class RecordCache(object):
         else:
             for cache in self._caches.values():
                 cache.clear()
-    
+
     def count(self, backend, table, lookup, options):
         """
         Returns the number of entries based on the given options.
@@ -130,7 +124,7 @@ class RecordCache(object):
         """
         options.inflated = False
         return len(self.select(backend, table, lookup, options))
-    
+
     def distinct(self, backend, table, lookup, options):
         """
         Returns a distinct set o fentries based on the given lookup options.
@@ -146,12 +140,12 @@ class RecordCache(object):
         for record in self.select(backend, table, lookup, options):
             for column in columns:
                 output[column].add(record.get(column))
-        
+
         for key, value in output.items():
             output[key] = list(value)
-        
+
         return output
-    
+
     def end(self):
         """
         Ends the caching process for this instance.
@@ -171,7 +165,7 @@ class RecordCache(object):
         cache = self.cache(table)
         if not cache:
             return []
-        
+
         records = cache.value('preloaded_records', [])
         if lookup.order:
             schema = table.schema()
@@ -198,13 +192,13 @@ class RecordCache(object):
             record.sort()
             if lookup.distinct and record in output:
                 continue
-            
+
             output.append(dict(record))
             if lookup.limit and len(output) == lookup.limit:
                 break
-        
+
         return output
-    
+
     def record(self, table, primaryKey):
         """
         Returns a record for the given primary key.
@@ -212,13 +206,13 @@ class RecordCache(object):
         :return     {<str> columnName: <variant> value, ..} record
         """
         lookup = orb.LookupOptions()
-        lookup.where = Q(table) == primaryKey
+        lookup.where = orb.Query(table) == primaryKey
         options = orb.DatabaseOptions()
         return self.selectFirst(table.getDatabase().backend(),
                                 table,
                                 lookup,
                                 options)
-    
+
     def records(self, table, **options):
         """
         Returns a list of records that are cached.
@@ -230,14 +224,14 @@ class RecordCache(object):
         """
         if 'query' in options:
             options['where'] = options.pop('query')
-        
+
         lookup = orb.LookupOptions(**options)
         db_opts = orb.DatabaseOptions(**options)
         return self.select(table.getDatabase().backend(),
                            table,
                            lookup,
                            db_opts)
-    
+
     def setTimeout(self, table, seconds):
         """
         Sets the length of time in minutes to hold onto this cache before 
@@ -256,10 +250,10 @@ class RecordCache(object):
 
             # set the timeout in seconds
             cache.setTimeout(timeout)
-    
+
     def selectFirst(self, backend, table, lookup, options):
         """
-        Returns a list of records from the cache that matches the inputed
+        Returns a list of records from the cache that matches the inputted
         parameters.
         
         :param      table   | subclass of <orb.Table>
@@ -273,10 +267,10 @@ class RecordCache(object):
         if results:
             return results[0]
         return None
-    
+
     def select(self, backend, table, lookup, options):
         """
-        Returns a list of records from the cache that matches the inputed
+        Returns a list of records from the cache that matches the inputted
         parameters.
         
         :param      backend | <orb.Connection>
@@ -289,7 +283,7 @@ class RecordCache(object):
         cache = self.cache(table)
         cache_key = (hash(lookup), hash(options), backend.database().name() if backend.database() else '')
         preload_key = 'preloaded_records'
-        
+
         # determine if the query is simple (only involving a simple table)
         # if it is, we can use local querying on the cached set for 
         # preloaded records.  If it is not (joined tables) we need to
@@ -298,22 +292,22 @@ class RecordCache(object):
             is_simple = len(lookup.where.tables(table)) <= 1
         else:
             is_simple = not (bool(lookup.expand) or options.locale != orb.system.locale())
-        
+
         # return an exact cached match
         if cache and cache.isCached(cache_key):
             return cache.value(cache_key)
-        
+
         # return a parsed match from preloaded records
         elif is_simple and cache and cache.isCached(preload_key):
             records = self.preloadedRecords(table, lookup)
             cache.setValue(cache_key, records)
             return records
-        
+
         # otherwise, determine if we need to load this exact search
         # or reload the pre-loaded records
         elif is_simple and cache and cache.isPreloaded():
             all_lookup = orb.LookupOptions()
-            all_opts   = orb.DatabaseOptions()
+            all_opts = orb.DatabaseOptions()
 
             records = backend.select(table, all_lookup, all_opts)
             cache.setValue(preload_key, records)
@@ -321,14 +315,14 @@ class RecordCache(object):
             records = self.preloadedRecords(table, lookup)
             cache.setValue(cache_key, records)
             return records
-        
+
         # otherwise, search the backend for this lookup specifically and
         # cache the results
         else:
             records = backend.select(table, lookup, options)
             if cache:
                 cache.setValue(cache_key, records)
-            
+
             return records
 
     def tables(self):

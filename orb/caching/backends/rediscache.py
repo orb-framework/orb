@@ -7,6 +7,7 @@ redis = lazy_import('redis')
 orb = lazy_import('orb')
 
 
+# noinspection PyAbstractClass
 class RedisCache(DataCache):
     """ Base caching object for tracking data caches """
     def __init__(self, host='localhost', port=6379, timeout=0):
@@ -15,7 +16,8 @@ class RedisCache(DataCache):
         # define custom properties
         self._client = redis.StrictRedis(host=host, port=port)
 
-    def __key(self, key):
+    @staticmethod
+    def __key(key):
         return 'ORB({0})'.format(key or '*')
 
     def expire(self, key=None):
@@ -37,7 +39,7 @@ class RedisCache(DataCache):
 
     def isCached(self, key):
         """
-        Returns whether or not the inputed key is cached.
+        Returns whether or not the inputted key is cached.
 
         :param      key | <hashable>
 
@@ -47,7 +49,7 @@ class RedisCache(DataCache):
 
     def setValue(self, key, value, timeout=None):
         """
-        Caches the inputed key and value to this instance.
+        Caches the inputted key and value to this instance.
 
         :param      key     | <hashable>
                     value   | <variant>

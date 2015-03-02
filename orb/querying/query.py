@@ -1,27 +1,15 @@
-# #!/usr/bin/python
-
 """
-Defines the global query building syntzx for generating db
+Defines the global query building syntax for generating db
 agnostic queries quickly and easily.
 """
 
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
-
 import datetime
+import projex.regex
 import projex.text
 import re
 
 from projex.enum import enum
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
 from xml.parsers.expat import ExpatError
@@ -29,8 +17,8 @@ from xml.parsers.expat import ExpatError
 from .querypattern import QueryPattern
 from ..common import ColumnType, SearchMode
 
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 
 class Query(object):
@@ -205,7 +193,7 @@ class Query(object):
 
     def __contains__(self, value):
         """
-        Returns whether or not the query defines the inputed column name.
+        Returns whether or not the query defines the inputted column name.
         
         :param      value | <variant>
         
@@ -285,7 +273,7 @@ class Query(object):
     # operator methods
     def __add__(self, value):
         """
-        Adds the inputed value to this query with arithmatic joiner.
+        Adds the inputted value to this query with arithmetic joiner.
         
         :param      value | <variant>
         
@@ -350,7 +338,7 @@ class Query(object):
 
     def __div__(self, value):
         """
-        Divides the inputed value for this query to the inputed query.
+        Divides the inputted value for this query to the inputted query.
         
         :param      value | <variant>
         
@@ -460,7 +448,7 @@ class Query(object):
 
     def __mul__(self, value):
         """
-        Multiplies the value with this query to the inputed query.
+        Multiplies the value with this query to the inputted query.
         
         :param      value | <variant>
         
@@ -577,7 +565,7 @@ class Query(object):
         elif typ not in ('str', 'unicode'):
             try:
                 return eval(data['value']), True
-            except:
+            except StandardError:
                 return None, False
 
         return data['value'], True
@@ -621,7 +609,7 @@ class Query(object):
         elif typ not in ('str', 'unicode'):
             try:
                 return eval(xobject.text), True
-            except:
+            except StandardError:
                 return None, False
 
         return xobject.text, True
@@ -647,14 +635,13 @@ class Query(object):
         else:
             typ = type(value).__name__
 
-        output = {}
-        output['value_type'] = typ
+        output = {'value_type': typ}
 
         # save queries
         if typ in ('query', 'compound'):
             output['value'] = value.toDict()
 
-        # save a list/tpule
+        # save a list/tuple
         elif typ in ('list', 'tuple'):
             new_value = []
             for subvalue in value:
@@ -673,7 +660,7 @@ class Query(object):
         else:
             try:
                 output['value'] = nstr(value)
-            except:
+            except StandardError:
                 pass
 
         return output
@@ -714,7 +701,7 @@ class Query(object):
         else:
             try:
                 xobject.text = projex.text.decoded(value)
-            except:
+            except StandardError:
                 pass
 
         return xobject
@@ -731,8 +718,8 @@ class Query(object):
     def after(self, value):
         """
         Sets the operator type to Query.Op.After and sets the value to 
-        the amount that this query should be lower than.  This is functionaly
-        the same as doing the lessThan operation, but is useufl for visual 
+        the amount that this query should be lower than.  This is functionally
+        the same as doing the lessThan operation, but is useful for visual
         queries for things like dates.
         
         :param      value   | <variant>
@@ -787,8 +774,8 @@ class Query(object):
     def before(self, value):
         """
         Sets the operator type to Query.Op.Before and sets the value to 
-        the amount that this query should be lower than.  This is functionaly
-        the same as doing the lessThan operation, but is useufl for visual 
+        the amount that this query should be lower than.  This is functionally
+        the same as doing the lessThan operation, but is useful for visual
         queries for things like dates.
         
         :param      value   | <variant>
@@ -809,7 +796,7 @@ class Query(object):
     def between(self, valueA, valueB):
         """
         Sets the operator type to Query.Op.Between and sets the
-        value to a tuple of the two inputed values.
+        value to a tuple of the two inputted values.
         
         :param      valueA      <variant>
         :param      valueB      <variant>
@@ -885,7 +872,7 @@ class Query(object):
 
     def columnName(self):
         """
-        Reutrns the column name that this query instance is
+        Returns the column name that this query instance is
         looking up.
         
         :return     <str>
@@ -901,7 +888,7 @@ class Query(object):
     def contains(self, value, caseSensitive=False):
         """
         Sets the operator type to Query.Op.Contains and sets the    
-        value to the inputd value.  Use an asterix for wildcard
+        value to the inputted value.  Use an astrix for wildcard
         characters.
         
         :param      value           <variant>
@@ -942,7 +929,7 @@ class Query(object):
     def doesNotContain(self, value):
         """
         Sets the operator type to Query.Op.DoesNotContain and sets the
-        value to the inputed value.
+        value to the inputted value.
         
         :param      value       <variant>
         
@@ -962,7 +949,7 @@ class Query(object):
     def doesNotMatch(self, value, caseSensitive=True):
         """
         Sets the operator type to Query.Op.DoesNotMatch and sets the \
-        value to the inputed value.
+        value to the inputted value.
         
         :param      value       <variant>
         
@@ -983,7 +970,7 @@ class Query(object):
     def endswith(self, value):
         """
         Sets the operator type to Query.Op.Endswith and sets \
-        the value to the inputed value.  This method will only work on text \
+        the value to the inputted value.  This method will only work on text \
         based fields.
         
         :param      value       <str>
@@ -1073,7 +1060,7 @@ class Query(object):
 
     def findValue(self, column, instance=1):
         """
-        Looks up the value for the inputed column name for the given instance.
+        Looks up the value for the inputted column name for the given instance.
         If the instance == 1, then this result will return the value and a
         0 instance count, otherwise it will decrement the instance for a
         matching column to indicate it was found, but not at the desired
@@ -1112,7 +1099,7 @@ class Query(object):
     def is_(self, value):
         """
         Sets the operator type to Query.Op.Is and sets the
-        value to the inputed value.
+        value to the inputted value.
         
         :param      value       <variant>
         
@@ -1142,7 +1129,7 @@ class Query(object):
     def greaterThan(self, value):
         """
         Sets the operator type to Query.Op.GreaterThan and sets the
-        value to the inputed value.
+        value to the inputted value.
         
         :param      value       <variant>
         
@@ -1164,7 +1151,7 @@ class Query(object):
     def greaterThanOrEqual(self, value):
         """
         Sets the operator type to Query.Op.GreaterThanOrEqual and 
-        sets the value to the inputed value.
+        sets the value to the inputted value.
         
         :param      value       <variant>
         
@@ -1204,7 +1191,7 @@ class Query(object):
     def isNot(self, value):
         """
         Sets the operator type to Query.Op.IsNot and sets the
-        value to the inputed value.
+        value to the inputted value.
         
         :param      value       <variant>
         
@@ -1244,7 +1231,7 @@ class Query(object):
     def in_(self, value):
         """
         Sets the operator type to Query.Op.IsIn and sets the value
-        to the inputed value.
+        to the inputted value.
         
         :param      value       <variant>
         
@@ -1291,7 +1278,7 @@ class Query(object):
     def notIn(self, value):
         """
         Sets the operator type to Query.Op.IsNotIn and sets the value
-        to the inputed value.
+        to the inputted value.
         
         :param      value       <variant>
         
@@ -1318,7 +1305,7 @@ class Query(object):
     def lessThan(self, value):
         """
         Sets the operator type to Query.Op.LessThan and sets the
-        value to the inputed value.
+        value to the inputted value.
         
         :param      value       <variant>
         
@@ -1340,7 +1327,7 @@ class Query(object):
     def lessThanOrEqual(self, value):
         """
         Sets the operator type to Query.Op.LessThanOrEqual and sets 
-        the value to the inputed value.
+        the value to the inputted value.
         
         :param      value       <variant>
         
@@ -1373,7 +1360,7 @@ class Query(object):
     def matches(self, value, caseSensitive=True):
         """
         Sets the operator type to Query.Op.Matches and sets \
-        the value to the inputed regex expression.  This method will only work \
+        the value to the inputted regex expression.  This method will only work \
         on text based fields.
         
         :param      value       <str>
@@ -1439,7 +1426,7 @@ class Query(object):
 
     def removed(self, columnName):
         """
-        Removes the query containing the inputed column name from this
+        Removes the query containing the inputted column name from this
         query set.
         
         :param      columnName | <str>
@@ -1530,7 +1517,7 @@ class Query(object):
 
     def setValueString(self, valuestring):
         """
-        Sets the value for this query from the inputed string representation \
+        Sets the value for this query from the inputted string representation \
         of the value.  For this method to work, the table and column name for 
         this query needs to be set.  Otherwise, the string value will be used.
         
@@ -1545,7 +1532,7 @@ class Query(object):
     def startswith(self, value):
         """
         Sets the operator type to Query.Op.Startswith and sets \
-        the value to the inputed value.  This method will only work on text \
+        the value to the inputted value.  This method will only work on text \
         based fields.
         
         :param      value       <str>
@@ -1748,8 +1735,8 @@ class Query(object):
 
     def validate(self, record, table=None):
         """
-        Validates this query's value against the inputed record.  This will 
-        return True if the record satisies the query condition.
+        Validates this query's value against the inputted record.  This will
+        return True if the record satisfies the query condition.
         
         :param      record | <dict> || <orb.Table>
                     table  | <orb.Table> || None
@@ -1780,17 +1767,17 @@ class Query(object):
                 if func == Query.Function.Lower:
                     try:
                         rvalue = rvalue.lower()
-                    except:
+                    except StandardError:
                         pass
                 elif func == Query.Function.Upper:
                     try:
                         rvalue = rvalue.upper()
-                    except:
+                    except StandardError:
                         pass
                 elif func == Query.Function.Abs:
                     try:
                         rvalue = abs(rvalue)
-                    except:
+                    except StandardError:
                         pass
 
         # basic operations
@@ -1882,7 +1869,7 @@ class Query(object):
     def build(data):
         """
         Builds a new query from simple data.  This will just create an anded QueryCompound
-        for each key value pair in the inputed dictionary where the key will be equal to the value.
+        for each key value pair in the inputted dictionary where the key will be equal to the value.
         This method provides a convenient shortcut case for comparing values from a dictionary against
         data in the database.  If you want more advanced options, then you should manually create the
         query.
@@ -1937,6 +1924,9 @@ class Query(object):
                                 and_value = and_value.strip('*')
                                 negated = bool(match.group('negated'))
                             else:
+                                startswith = False
+                                endswith = False
+                                negated = False
                                 and_value = ''
 
                             if op == '>':
@@ -1971,7 +1961,7 @@ class Query(object):
     @staticmethod
     def fromDict(data):
         """
-        Restores a query from the inputed data dictionary representation.
+        Restores a query from the inputted data dictionary representation.
         
         :param      data | <str>
         
@@ -2053,13 +2043,14 @@ class Query(object):
         results = search_re.search(searchstr)
         query = Query()
 
-        def eval_value(value):
-            result = re.match('^' + projex.regex.DATETIME + '$', value)
+        def eval_value(val):
+            result = re.match('^' + projex.regex.DATETIME + '$', val)
 
             # convert a datetime value
             if result:
                 data = result.groupdict()
-                if len(data['year']):
+                if len(data['year']) == 2:
+                    # noinspection PyAugmentAssignment
                     data['year'] = '20' + data['year']
 
                 if not data['second']:
@@ -2075,25 +2066,26 @@ class Query(object):
                                              int(data['hour']),
                                              int(data['min']),
                                              int(data['second']))
-                except AttributeError, ValueError:
+                except (AttributeError, ValueError):
                     pass
 
             # convert a date value
-            result = re.match('^' + projex.regex.DATE + '$', value)
+            result = re.match('^' + projex.regex.DATE + '$', val)
             if result:
                 data = result.groupdict()
-                if len(data['year']):
+                if len(data['year']) == 2:
+                    # noinspection PyAugmentAssignment
                     data['year'] = '20' + data['year']
 
                 try:
                     return datetime.date(int(data['year']),
                                          int(data['month']),
                                          int(data['day']))
-                except AttributeError, ValueError:
+                except (AttributeError, ValueError):
                     pass
 
             # convert a time value
-            result = re.match('^' + projex.regex.TIME + '$', value)
+            result = re.match('^' + projex.regex.TIME + '$', val)
             if result:
                 data = result.groupdict()
                 if not data['second']:
@@ -2106,13 +2098,13 @@ class Query(object):
                     return datetime.time(int(data['hour']),
                                          int(data['min']),
                                          int(data['second']))
-                except AttributeError, ValueError:
+                except (AttributeError, ValueError):
                     pass
 
             try:
-                return eval(value)
-            except:
-                return value
+                return eval(val)
+            except StandardError:
+                return val
 
         while results:
             column, values = results.groups()
@@ -2125,7 +2117,7 @@ class Query(object):
 
             # see if this is an exact value
             if values.startswith('"') and values.endswith('"'):
-                query &= Q(column) == values.strip('"')
+                query &= Query(column) == values.strip('"')
 
             # process multiple values
             all_values = values.split(',')
@@ -2134,7 +2126,7 @@ class Query(object):
             for value in all_values:
                 value = value.strip()
 
-                # process a contains search (same as no asterixes)
+                # process a contains search (same as no astrix)
                 if value.startswith('*') and value.endswith('*'):
                     value = value.strip('*')
 
@@ -2146,28 +2138,29 @@ class Query(object):
                     negate = True
 
                 if value.startswith('*'):
-                    sub_q |= Query(column).startswith(value.strip('*'))
+                    item_q = Query(column).startswith(value.strip('*'))
 
                 elif value.endswith('*'):
-                    sub_q |= Query(column).endswith(value.strip('*'))
+                    item_q = Query(column).endswith(value.strip('*'))
 
                 elif value.startswith('<='):
                     value = eval_value(value[2:])
-                    sub_q |= Query(column) <= value
+                    item_q = Query(column) <= value
 
                 elif value.startswith('<'):
                     value = eval_value(value[1:])
-                    sub_q |= Query(column) < value
+                    item_q = Query(column) < value
 
                 elif value.startswith('>='):
                     value = eval_value(value[2:])
-                    sub_q |= Query(column) >= value
+                    item_q = Query(column) >= value
 
                 elif value.startswith('>'):
                     value = eval_value(value[1:])
-                    sub_q |= Query(column) > value
+                    item_q = Query(column) > value
 
                 elif '<' in value or '-' in value:
+                    a = b = None
                     try:
                         a, b = value.split('<')
                         success = True
@@ -2185,10 +2178,10 @@ class Query(object):
                         a = eval_value(a)
                         b = eval_value(b)
 
-                        sub_q |= Query(column).between(a, b)
+                        item_q = Query(column).between(a, b)
 
                     else:
-                        sub_q |= Query(column).contains(value)
+                        item_q = Query(column).contains(value)
 
                 else:
                     # process additional options
@@ -2196,9 +2189,14 @@ class Query(object):
                         value = eval_value(value)
 
                     if not isinstance(value, basestring):
-                        sub_q |= Query(column) == value
+                        item_q = Query(column) == value
                     else:
-                        sub_q |= Query(column).contains(value)
+                        item_q = Query(column).contains(value)
+
+                if negate:
+                    item_q = item_q.negated()
+
+                sub_q |= item_q
 
             if mode == SearchMode.All:
                 query &= sub_q
@@ -2218,7 +2216,7 @@ class Query(object):
     @staticmethod
     def fromString(querystr):
         """
-        Recreates a query instance from the inputed string value.
+        Recreates a query instance from the inputted string value.
         
         :param      querystr | <str>
         
@@ -2282,7 +2280,7 @@ class Query(object):
             out._columnName = None
 
         try:
-            out._fuctions = [int(x) for x in xquery.get('functions', '').split(',')]
+            out._functions = [int(x) for x in xquery.get('functions', '').split(',')]
         except ValueError:
             out._functions = []
 
@@ -2336,7 +2334,7 @@ class Query(object):
     @staticmethod
     def typecheck(obj):
         """
-        Returns whether or not the inputed object is a type of a query.
+        Returns whether or not the inputted object is a type of a query.
         
         :param      obj     <variant>
         
@@ -2347,7 +2345,7 @@ class Query(object):
     @staticmethod
     def testNull(query):
         """
-        Tests to see if the inputed query is null.  This will also check
+        Tests to see if the inputted query is null.  This will also check
         against None and 0 values.
         
         :param      query | <orb.Query> || <orb.QueryCompound> || <variant>

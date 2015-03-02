@@ -1,22 +1,7 @@
-#!/usr/bin/python
-
-""" 
+"""
 Defines the main Table class that will be used when developing
 database classes.
 """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
-
-# ------------------------------------------------------------------------------
 
 import datetime
 import logging
@@ -26,7 +11,7 @@ import projex.text
 import re
 
 from projex.enum import enum
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from projex.callbacks import CallbackSet
 
@@ -35,8 +20,8 @@ from ..common import ColumnType
 from ..querying import Query as Q
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 # treat unicode warnings as errors
 from exceptions import UnicodeWarning
@@ -111,7 +96,7 @@ class View(object):
                       inflated=False,
                       locale=None):
         """
-        Looks up the grouping key for the inputed record.  If the cache
+        Looks up the grouping key for the inputted record.  If the cache
         value is specified, then it will lookup any reference information within
         the cache and return it.
         
@@ -152,7 +137,7 @@ class View(object):
                 ref_cache_key = (column.reference(), ref_key)
 
                 # cache this record so that we only access 1 of them
-                if not ref_cache_key in ref_cache:
+                if ref_cache_key not in ref_cache:
                     col_value = record.recordValue(columnName,
                                                    inflated=inflated,
                                                    locale=locale)
@@ -199,7 +184,7 @@ class View(object):
 
     def __format__(self, format_spec):
         """
-        Formats this record based on the inputed format_spec.  If no spec
+        Formats this record based on the inputted format_spec.  If no spec
         is supplied, this is the same as calling str(record).
         
         :param      format_spec | <str>
@@ -228,7 +213,6 @@ class View(object):
         Defines the custom string format for this view.
         """
         schema = self.schema()
-        adv = False
         sform = None
 
         # extract any inherited 
@@ -300,7 +284,7 @@ class View(object):
         no arguments will create a fresh record that does not
         exist in the database.  Providing keyword arguments will
         map to this view's schema column name information,
-        setting default values for the record.  Suppling an 
+        setting default values for the record.  Supplying an
         argument will be the records unique primary key, and 
         trigger a lookup from the database for the record directly.
         
@@ -419,8 +403,8 @@ class View(object):
                 continue
 
             # preload a reference column
-            elif column.isReference() and \
-                (type(value) == dict or type(value) in (str, unicode) and value.startswith('{')):
+            elif column.isReference() and (type(value) == dict or
+                                           (type(value) in (str, unicode) and value.startswith('{'))):
                 if type(value) in (str, unicode) and value.startswith('{'):
                     try:
                         value = eval(value)
@@ -472,7 +456,7 @@ class View(object):
     #----------------------------------------------------------------------
     def changeset(self, columns=None, recurse=True, flags=0, kind=0):
         """
-        Returns a dictionary of changees that have been made 
+        Returns a dictionary of changes that have been made
         to the data from this record.
         
         :return     { <orb.Column>: ( <variant> old, <variant> new), .. }
@@ -511,7 +495,7 @@ class View(object):
                 try:
                     equals = newValue == oldValue
 
-                # compare against non timezoned values
+                # compare against non timezone values
                 except TypeError:
                     norm_new = newValue.replace(tzinfo=None)
                     norm_old = oldValue.replace(tzinfo=None)
@@ -539,9 +523,10 @@ class View(object):
 
         return changes
 
+    # noinspection PyMethodMayBeStatic
     def clearCustomCache(self):
         """
-        Clears out any custom cached data.  This is a pure virutal method,
+        Clears out any custom cached data.  This is a pure virtual method,
         as by default the view class does not define any direct custom
         cache information.  Overload this method to wipe any local data that
         is cached when the system decides to clear.
@@ -565,93 +550,7 @@ class View(object):
         
         :return     <bool> success
         """
-
-        # sync the record to the database
-        lookup = orb.LookupOptions(**kwds)
-        options = orb.DatabaseOptions(**kwds)
-
-        # run any pre-commit logic required for this record
-        self.callbacks().emit('aboutToCommit(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
-
-        # check to see if we have any modifications to store
-        if not self.isModified():
-            return False
-
-        # validate the data from the software side that is about to be saved
-        self.validateRecord()
-
-        # support columns as defined by a variable list of arguments
-        if args:
-            columns = set(kwds.get('columns', []))
-            columns.update(args)
-            kwds['columns'] = list(columns)
-
-        # grab the database
-        db = kwds.pop('db', None)
-        if db is None:
-            db = self.database()
-
-        if db is None:
-            raise errors.DatabaseNotFound()
-
-        # grab the backend
-        backend = db.backend()
-        results = backend.storeRecord(self, lookup, options)
-
-        # marks this view as expired
-        self.markViewCacheExpired()
-
-        # store the archive
-        self.commitToArchive(*args, **kwds)
-
-        # clear any custom caches
-        self.__local_cache.clear()
-        self.__record_database = db
-        self.clearCustomCache()
-
-        # run any pre-commit logic required for this record
-        kwds['results'] = results
-
-        cache = self.viewCache()
-        cache.expire(('record', self.id()))
-
-        self.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
-        return True
-
-    def commitToArchive(self, *args, **kwds):
-        """
-        Saves this record to an archive location.
-
-        :return     <bool> | success
-        """
-        if not self.schema().isArchived():
-            return False
-
-        if not self.isRecord():
-            raise errors.RecordNotFound(self)
-
-        model = self.schema().archiveModel()
-        if not model:
-            raise errors.ArchiveNotFound(self.schema().name())
-
-        last_archive = self.archives().last()
-        number = last_archive.archiveNumber() if last_archive else 0
-
-        # create the new archive information
-        values = self.recordValues(inflated=False, flags=~orb.Column.Flags.Primary)
-        locale = values.get('locale') or kwds.get('locale') or self.recordLocale()
-        record = model(**values)
-        record.setArchivedAt(datetime.datetime.now())
-        record.setArchiveNumber(number + 1)
-        record.setRecordValue(self.schema().name(), self)
-
-        try:
-            record.setLocale(locale)  # property on archive for translaview models
-        except AttributeError:
-            pass
-
-        record.commit()
-        return True
+        raise NotImplementedError('Views are read-only.')
 
     def conflicts(self, *columnNames, **options):
         """
@@ -715,7 +614,7 @@ class View(object):
             if m_value == m_default:
                 continue
 
-            # ignore unchaged values from the database, we can save without
+            # ignore unchanged values from the database, we can save without
             # conflict
             elif d_value in (m_default, m_value):
                 continue
@@ -728,7 +627,7 @@ class View(object):
     def database(self):
         """
         Returns the database instance for this record.  If no
-        specific datbase is defined, then the database will be looked up
+        specific database is defined, then the database will be looked up
         based on the name, environment, and current settings from the current
         manager.
         
@@ -956,7 +855,7 @@ class View(object):
         defaults = self.__record_defaults
         output = []
         for col in cols:
-            if not col in self.__record_dbloaded:
+            if col not in self.__record_dbloaded:
                 return None
             output.append(defaults.get(col))
 
@@ -1234,7 +1133,7 @@ class View(object):
                 updates[column] = d_value
 
             # don't care about non-loaded columns
-            if not column in self.__record_dbloaded:
+            if column not in self.__record_dbloaded:
                 continue
 
             m_default = self.__record_defaults[column]
@@ -1244,7 +1143,7 @@ class View(object):
             if m_value == m_default:
                 continue
 
-            # ignore unchaged values from the database, we can save without
+            # ignore unchanged values from the database, we can save without
             # conflict
             elif d_value == m_default:
                 continue
@@ -1298,7 +1197,7 @@ class View(object):
         """
         Resets the values for this record to the database
         defaults.  This will only reset to the local cache, not reload from
-        the datbase itself.  To reset the record from database values, 
+        the database itself.  To reset the record from database values,
         use the reload method.
         
         :sa     reload
@@ -1309,7 +1208,7 @@ class View(object):
     def revert(self, *columnNames, **kwds):
         """
         Reverts all conflicting column data from the database so that the
-        local modifictaions are up to date with what is in the database.
+        local modifications are up to date with what is in the database.
 
         :sa         reload
 
@@ -1335,7 +1234,7 @@ class View(object):
 
     def setLocalCache(self, key, value):
         """
-        Sets a value for the local cache to the inputed key & value.
+        Sets a value for the local cache to the inputted key & value.
         
         :param      key     | <str>
                     value   | <variant>
@@ -1383,7 +1282,7 @@ class View(object):
 
     def setRecordLocale(self, locale):
         """
-        Sets the default locale for this record to the inputed value.  This will affect what locale
+        Sets the default locale for this record to the inputted value.  This will affect what locale
         is stored when editing and what is returned on reading.  If no locale is supplied, then
         the default system locale will be used.
 
@@ -1397,7 +1296,7 @@ class View(object):
                        useMethod=True,
                        locale=None):
         """
-        Sets the value for this record at the inputed column
+        Sets the value for this record at the inputted column
         name.  If the columnName provided doesn't exist within
         the schema, then the ColumnNotFound error will be
         raised.
@@ -1407,7 +1306,7 @@ class View(object):
         
         :return     <bool> changed
         """
-        # convert the inputed value information
+        # convert the inputted value information
         value = orb.DataConverter.toPython(value)
 
         # validate the column
@@ -1444,7 +1343,7 @@ class View(object):
         if column.isReadOnly():
             raise errors.ColumnReadOnly(column)
 
-        # make sure the inputed value matches the validation
+        # make sure the inputted value matches the validation
         column.validate(value)
 
         # store the new value
@@ -1485,7 +1384,7 @@ class View(object):
 
     def setRecordValues(self, **data):
         """
-        Sets the values for this record from the inputed column
+        Sets the values for this record from the inputted column
         value pairing
         
         :param      **data      key/value pair for column names
@@ -1514,7 +1413,7 @@ class View(object):
 
     def updateFromRecord(self, record):
         """
-        Updates this records values from the inputed record.
+        Updates this records values from the inputted record.
         
         :param      record | <orb.View>
         """
@@ -1609,7 +1508,7 @@ class View(object):
         """
         Defines a new proxy column.  Proxy columns are code based properties -
         the information will be generated by methods and not stored directly in
-        the databse, however can be referenced abstractly as though they are
+        the database, however can be referenced abstractly as though they are
         columns.  This is useful for generating things like joined or calculated
         column information.
         
@@ -1635,7 +1534,7 @@ class View(object):
     def defineRecord(cls, **kwds):
         """
         Defines a new record for the given class based on the
-        inputed set of keywords.  If a record already exists for
+        inputted set of keywords.  If a record already exists for
         the query, the first found record is returned, otherwise
         a new record is created and returned.
         
@@ -1662,7 +1561,7 @@ class View(object):
     @classmethod
     def baseQuery(cls):
         """
-        Returns the default query value for the inputed class.  The default
+        Returns the default query value for the inputted class.  The default
         query can be used to globally control queries run through a
         View's API to always contain a default.  Common cases are when
         filtering out inactive results or user based results.
@@ -1702,7 +1601,7 @@ class View(object):
     @staticmethod
     def groupRecords(records, groupings, inflated=False):
         """
-        Creates a grouping of the records based on the inputed columns.  You \
+        Creates a grouping of the records based on the inputted columns.  You \
         can supply as many column values as you'd like creating nested \
         groups.
         
@@ -1725,19 +1624,19 @@ class View(object):
             # make sure we have the proper level
             for i in range(len(groupings) - 1):
                 grouping_key = View.__groupingKey(record,
-                                                   schema,
-                                                   groupings[i],
-                                                   ref_cache,
-                                                   inflated)
+                                                  schema,
+                                                  groupings[i],
+                                                  ref_cache,
+                                                  inflated)
 
                 data.setdefault(grouping_key, {})
                 data = data[grouping_key]
 
             grouping_key = View.__groupingKey(record,
-                                               schema,
-                                               groupings[-1],
-                                               ref_cache,
-                                               inflated)
+                                              schema,
+                                              groupings[-1],
+                                              ref_cache,
+                                              inflated)
 
             data.setdefault(grouping_key, [])
             data[grouping_key].append(record)
@@ -1765,7 +1664,7 @@ class View(object):
         schema = cls.schema()
         column = schema.polymorphicColumn()
 
-        # attept to expand the class to its defined polymorphic type
+        # attempt to expand the class to its defined polymorphic type
         if column and column.name() in values:
             morph = column.referenceModel()
             if morph:
@@ -1797,12 +1696,12 @@ class View(object):
     def polymorphicModel(cls, key, default=None):
         """
         Returns the polymorphic reference model for this view.  This allows
-        a view to reference external links through the inputed key.
+        a view to reference external links through the inputted key.
         
         :param      key | <str>
                     default | <variant>
         
-        :return     <subclass of VoldbView> || None
+        :return     <subclass of orb.View> || None
         """
         models = getattr(cls, '_%s__models' % cls.__name__, {})
         if key in models:
@@ -1868,8 +1767,8 @@ class View(object):
     @classmethod
     def recordCache(cls):
         """
-        Returns the record cache for the inputed class.  If the given class 
-        schema does not define caching, then a None valu3e is returned, otherwise
+        Returns the record cache for the inputted class.  If the given class
+        schema does not define caching, then a None value is returned, otherwise
         a <orb.RecordCache> instance is returned.
         
         :return     <orb.RecordCache> || None
@@ -1917,7 +1816,7 @@ class View(object):
     @classmethod
     def selectFirst(cls, *args, **kwds):
         """
-        Selects records for the class based on the inputed \
+        Selects records for the class based on the inputted \
         options.  If no db is specified, then the current \
         global database will be used.  If the inflated flag is specified, then \
         the results will be inflated to class instances.  If the flag is left \
@@ -1941,7 +1840,7 @@ class View(object):
     @classmethod
     def select(cls, *args, **kwds):
         """
-        Selects records for the class based on the inputed \
+        Selects records for the class based on the inputted \
         options.  If no db is specified, then the current \
         global database will be used.  If the inflated flag is specified, then \
         the results will be inflated to class instances.  
@@ -2060,7 +1959,7 @@ class View(object):
     @classmethod
     def setPolymorphicModel(cls, key, value):
         """
-        Sets the polymorphic model for this view to the inputed value.
+        Sets the polymorphic model for this view to the inputted value.
         
         :param      key     | <str>
                     value   | <str>
@@ -2092,7 +1991,7 @@ class View(object):
     @classmethod
     def recordcheck(cls, obj):
         """
-        Checks to see if the inputed obj ia s View record instance.
+        Checks to see if the inputted obj ia s View record instance.
         
         :param      obj     | <variant>
         
@@ -2103,7 +2002,7 @@ class View(object):
     @classmethod
     def typecheck(cls, obj):
         """
-        Checks to see if the inputed obj is a subclass of a view.
+        Checks to see if the inputted obj is a subclass of a view.
         
         :param      obj     |  <variant>
                     cls     |  <subclass of View> || None

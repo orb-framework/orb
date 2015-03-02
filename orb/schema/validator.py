@@ -2,10 +2,11 @@ import re
 
 from orb import errors
 
+
 class AbstractColumnValidator(object):
     def validate(self, column, value):
         """
-        Validates the inputed value for this instance.
+        Validates the inputted value for this instance.
 
         :param      column | <orb.Column>
                     value | <variant>
@@ -14,12 +15,14 @@ class AbstractColumnValidator(object):
         """
         raise NotImplemented
 
-#-----------------------------------------------------------
+
+# -----------------------------------------------------------
 
 class AbstractRecordValidator(object):
+    # noinspection PyMethodMayBeStatic
     def validate(self, record, values):
         """
-        Validates the record against the inputed dictionary of column
+        Validates the record against the inputted dictionary of column
         values.
 
         :param      record | <orb.Table>
@@ -28,6 +31,7 @@ class AbstractRecordValidator(object):
         :return     <bool>
         """
         raise NotImplemented
+
 
 #-----------------------------------------------------------
 
@@ -41,7 +45,7 @@ class RegexValidator(AbstractColumnValidator):
 
     def expression(self):
         """
-        Returns the regular expression for the inputed text.
+        Returns the regular expression for the inputted text.
 
         :return     <str>
         """
@@ -57,23 +61,23 @@ class RegexValidator(AbstractColumnValidator):
 
     def setExpression(self, expression):
         """
-        Sets the regular expression to the inputed text.
+        Sets the regular expression to the inputted text.
 
         :param      expression | <str>
         """
         self._expression = expression
 
-    def setHelp(self, help):
+    def setHelp(self, text):
         """
         Defines the help text that will be raised when processing this validator.
 
-        :param      help | <str>
+        :param      text | <str>
         """
-        self._help = help
+        self._help = text
 
     def validate(self, column, value):
         """
-        Validates the inputed value against this validator's expression.
+        Validates the inputted value against this validator expression.
 
         :param      value | <variant>
 
@@ -90,12 +94,13 @@ class RegexValidator(AbstractColumnValidator):
                 raise errors.ColumnValidationError(column, msg=self.help() or msg)
             return True
 
+
 #-----------------------------------------------------------
 
 class RequiredValidator(AbstractColumnValidator):
     def validate(self, column, value):
         """
-        Varifies that the inputed value is not a NULL value.
+        Verifies that the inputted value is not a NULL value.
 
         :param      value | <variant>
 

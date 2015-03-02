@@ -1,17 +1,4 @@
-#!/usr/bin/python
-
 """ Defines the base database class. """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
 
 # ------------------------------------------------------------------------------
 
@@ -19,14 +6,14 @@ import logging
 import tempfile
 
 from projex.enum import enum
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
 from projex.callbacks import CallbackSet
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 
 class Database(object):
@@ -115,13 +102,12 @@ class Database(object):
             # type
             backend = orb.Connection.create(self)
             if not backend:
-                msg = 'There was an error creating a backend class for database.'
                 raise errors.BackendNotFound(self._databaseType)
 
             self._backend = backend
 
-        if autoConnect:
-            backend.open()
+        if self._backend and autoConnect:
+            self._backend.open()
 
         return self._backend
 
@@ -171,7 +157,7 @@ class Database(object):
 
     def cleanup(self):
         """
-        Cleans up the datbase.  This should be called after large amounts
+        Cleans up the database.  This should be called after large amounts
         of modifications, and is specific to the backend as to how necessary
         it is.
         """
@@ -191,19 +177,19 @@ class Database(object):
         if self._credentials is not None:
             return self._credentials
         elif self._applicationToken:
-            return (self._applicationToken,)
+            return self._applicationToken, ''
         else:
-            return (self._username, self._password)
+            return self._username, self._password
 
     def copyTo(self, other, **options):
         """
-        Copies the contents of this database to the inputed other database.
+        Copies the contents of this database to the inputted other database.
         This method provides a way to map data from one database type to
-        another seemlessly.  It will create a backup of the current
+        another seamlessly.  It will create a backup of the current
         database to a temp file location, and then perform a restore
-        operation on the inputed database.
+        operation on the inputted database.
         
-        :warning    This will wipe the contents of the inputed database
+        :warning    This will wipe the contents of the inputted database
                     entirely!
         
         :param      other | <orb.Database>
@@ -216,7 +202,7 @@ class Database(object):
         """
         Returns whether or not the commands are being blocked
         from hitting the database.  When this is on, the backends
-        will simploy log the command that is created to the
+        will simply log the command that is created to the
         current logger vs. actually executing it.
         
         :sa         commandsBlocked
@@ -275,7 +261,7 @@ class Database(object):
         try:
             return self._columnEngines[column_or_type]
         except KeyError:
-            engine = None
+            pass
 
         # lookup by the column type linked for this database
         if type(column_or_type) == orb.Column:
@@ -283,7 +269,7 @@ class Database(object):
             try:
                 return self._columnEngines[column_or_type]
             except KeyError:
-                engine = None
+                pass
 
         # lookup the column type from the backend
         # (at this point it will be just a ColumnType as desired
@@ -457,7 +443,7 @@ class Database(object):
 
     def setApplicationToken(self, token):
         """
-        Sets the application token for this database to the inputed token.
+        Sets the application token for this database to the inputted token.
         
         :param      token | <str>
         """
@@ -478,7 +464,7 @@ class Database(object):
         
         :param      database        <Database>
         """
-        self.manager().setDatabase(self)
+        orb.system.setDatabase(self)
 
     def setDatabaseName(self, databaseName):
         """
@@ -512,7 +498,7 @@ class Database(object):
 
     def setCredentials(self, credentials):
         """
-        Sets the credentials for this database to the inputed argument
+        Sets the credentials for this database to the inputted argument
         list.  This is most often used with the REST based backends.
         
         :param      credentials | <tuple> || None
@@ -540,13 +526,13 @@ class Database(object):
         """
         Sets the database name for this instance to the given name.
         
-        :param      datatbaseName   <str>
+        :param      databaseName   <str>
         """
         self._name = nstr(name)
 
     def setNamespace(self, namespace):
         """
-        Sets the default namespace for this database to the inputed name.
+        Sets the default namespace for this database to the inputted name.
         
         :param      namespace | <str> || None
         """
@@ -590,7 +576,7 @@ class Database(object):
 
     def setUsername(self, username):
         """
-        Sets the username used for this database's connection.
+        Sets the username used for this database connection.
         
         :param      username        <str>
         """
@@ -612,7 +598,7 @@ class Database(object):
 
     def sync(self, **kwds):
         """
-        Syncs the datbase by calling its schema sync method.  If
+        Syncs the database by calling its schema sync method.  If
         no specific schema has been set for this database, then
         the global database schema will be used.  If the dryRun
         flag is specified, then all the resulting commands will
@@ -666,7 +652,7 @@ class Database(object):
 
     def toXml(self, xparent):
         """
-        Saves this datbase instance to xml under the inputed parent.
+        Saves this database instance to xml under the inputted parent.
         
         :param      xparent | <xml.etree.ElementTree.Element>
         
@@ -722,7 +708,7 @@ class Database(object):
     @staticmethod
     def fromXml(xdatabase, referenced=False):
         """
-        Returns a new database instance from the inputed xml data.
+        Returns a new database instance from the inputted xml data.
         
         :param      xdatabase | <xml.etree.Element>
         

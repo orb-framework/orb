@@ -1,22 +1,7 @@
-#!/usr/bin/python
-
-""" 
+"""
 Defines the main Table class that will be used when developing
 database classes.
 """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
-
-# ------------------------------------------------------------------------------
 
 import datetime
 import logging
@@ -27,7 +12,7 @@ import re
 
 from projex.enum import enum
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from projex.callbacks import CallbackSet
 
@@ -36,8 +21,8 @@ from ..common import ColumnType
 from ..querying import Query as Q
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 # treat unicode warnings as errors
 from exceptions import UnicodeWarning
@@ -112,7 +97,7 @@ class Table(object):
                       inflated=False,
                       locale=None):
         """
-        Looks up the grouping key for the inputed record.  If the cache
+        Looks up the grouping key for the inputted record.  If the cache
         value is specified, then it will lookup any reference information within
         the cache and return it.
         
@@ -153,7 +138,7 @@ class Table(object):
                 ref_cache_key = (column.reference(), ref_key)
 
                 # cache this record so that we only access 1 of them
-                if not ref_cache_key in ref_cache:
+                if ref_cache_key not in ref_cache:
                     col_value = record.recordValue(columnName,
                                                    inflated=inflated,
                                                    locale=locale)
@@ -238,7 +223,7 @@ class Table(object):
 
     def __format__(self, format_spec):
         """
-        Formats this record based on the inputed format_spec.  If no spec
+        Formats this record based on the inputted format_spec.  If no spec
         is supplied, this is the same as calling str(record).
         
         :param      format_spec | <str>
@@ -338,7 +323,7 @@ class Table(object):
         no arguments will create a fresh record that does not
         exist in the database.  Providing keyword arguments will
         map to this table's schema column name information, 
-        setting default values for the record.  Suppling an 
+        setting default values for the record.  Supplying an
         argument will be the records unique primary key, and 
         trigger a lookup from the database for the record directly.
         
@@ -464,8 +449,8 @@ class Table(object):
                 continue
 
             # preload a reference column
-            elif column.isReference() and \
-                (type(value) == dict or type(value) in (str, unicode) and value.startswith('{')):
+            elif column.isReference() and (type(value) == dict or
+                                           (type(value) in (str, unicode) and value.startswith('{'))):
                 if type(value) in (str, unicode) and value.startswith('{'):
                     try:
                         value = eval(value)
@@ -503,7 +488,6 @@ class Table(object):
             dvalues[column] = value
             self.__record_dbloaded.add(column)
 
-        # pylint: disable-msg=W0142
         with WriteLocker(self.__record_value_lock):
             column_values = {k: v if type(v) != dict else v.copy() for k, v in dvalues.items()}
             self.__record_values.update(column_values)
@@ -523,7 +507,7 @@ class Table(object):
     #----------------------------------------------------------------------
     def changeset(self, columns=None, recurse=True, flags=0, kind=0, inflated=False):
         """
-        Returns a dictionary of changees that have been made 
+        Returns a dictionary of changes that have been made
         to the data from this record.
         
         :return     { <orb.Column>: ( <variant> old, <variant> new), .. }
@@ -563,7 +547,7 @@ class Table(object):
                     try:
                         equals = newValue == oldValue
 
-                    # compare against non timezoned values
+                    # compare against non timezone values
                     except TypeError:
                         norm_new = newValue.replace(tzinfo=None)
                         norm_old = oldValue.replace(tzinfo=None)
@@ -598,7 +582,7 @@ class Table(object):
 
     def clearCustomCache(self):
         """
-        Clears out any custom cached data.  This is a pure virutal method,
+        Clears out any custom cached data.  This is a pure virtual method,
         as by default the Table class does not define any direct custom
         cache information.  Overload this method to wipe any local data that
         is cached when the system decides to clear.
@@ -673,7 +657,7 @@ class Table(object):
 
         cache = self.tableCache()
         if cache:
-            cache.expire(self.id())
+            cache.expire(self.primaryKey())
 
         self.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
         return True
@@ -694,7 +678,11 @@ class Table(object):
         if not model:
             raise errors.ArchiveNotFound(self.schema().name())
 
-        last_archive = self.archives().last()
+        try:
+            last_archive = self.archives().last()
+        except AttributeError:
+            raise errors.ArchiveNotFound(self.schema().name())
+
         number = last_archive.archiveNumber() if last_archive else 0
 
         # create the new archive information
@@ -776,7 +764,7 @@ class Table(object):
                 if m_value == m_default:
                     continue
 
-                # ignore unchaged values from the database, we can save without
+                # ignore unchanged values from the database, we can save without
                 # conflict
                 elif d_value in (m_default, m_value):
                     continue
@@ -789,7 +777,7 @@ class Table(object):
     def database(self):
         """
         Returns the database instance for this record.  If no
-        specific datbase is defined, then the database will be looked up
+        specific database is defined, then the database will be looked up
         based on the name, environment, and current settings from the current
         manager.
         
@@ -909,7 +897,7 @@ class Table(object):
         """
         if db in (None, self.database()):
             # make sure we have an ID and that the ID has been loaded from the database
-            return self.id() is not None and self.__record_dbloaded.issuperset(self.schema().primaryColumns())
+            return self.primaryKey() is not None and self.__record_dbloaded.issuperset(self.schema().primaryColumns())
         return False
 
     def json(self, **options):
@@ -1013,7 +1001,7 @@ class Table(object):
         defaults = self.__record_defaults
         output = []
         for col in cols:
-            if not col in self.__record_dbloaded:
+            if col not in self.__record_dbloaded:
                 return None
             output.append(defaults.get(col))
 
@@ -1298,7 +1286,7 @@ class Table(object):
                     updates[column] = d_value
 
                 # don't care about non-loaded columns
-                if not column in self.__record_dbloaded:
+                if column not in self.__record_dbloaded:
                     continue
 
                 m_default = self.__record_defaults[column]
@@ -1308,7 +1296,7 @@ class Table(object):
                 if m_value == m_default:
                     continue
 
-                # ignore unchaged values from the database, we can save without
+                # ignore unchanged values from the database, we can save without
                 # conflict
                 elif d_value == m_default:
                     continue
@@ -1351,13 +1339,11 @@ class Table(object):
         except AttributeError:
             return 0
 
-        return 0
-
     def resetRecord(self):
         """
         Resets the values for this record to the database
         defaults.  This will only reset to the local cache, not reload from
-        the datbase itself.  To reset the record from database values, 
+        the database itself.  To reset the record from database values, 
         use the reload method.
         
         :sa     reload
@@ -1369,7 +1355,7 @@ class Table(object):
     def revert(self, *columnNames, **kwds):
         """
         Reverts all conflicting column data from the database so that the
-        local modifictaions are up to date with what is in the database.
+        local modifications are up to date with what is in the database.
 
         :sa         reload
 
@@ -1395,7 +1381,7 @@ class Table(object):
 
     def setLocalCache(self, key, value):
         """
-        Sets a value for the local cache to the inputed key & value.
+        Sets a value for the local cache to the inputted key & value.
         
         :param      key     | <str>
                     value   | <variant>
@@ -1445,7 +1431,7 @@ class Table(object):
 
     def setRecordLocale(self, locale):
         """
-        Sets the default locale for this record to the inputed value.  This will affect what locale
+        Sets the default locale for this record to the inputted value.  This will affect what locale
         is stored when editing and what is returned on reading.  If no locale is supplied, then
         the default system locale will be used.
 
@@ -1459,7 +1445,7 @@ class Table(object):
                        useMethod=True,
                        locale=None):
         """
-        Sets the value for this record at the inputed column
+        Sets the value for this record at the inputted column
         name.  If the columnName provided doesn't exist within
         the schema, then the ColumnNotFound error will be
         raised.
@@ -1469,7 +1455,7 @@ class Table(object):
         
         :return     <bool> changed
         """
-        # convert the inputed value information
+        # convert the inputted value information
         value = orb.DataConverter.toPython(value)
 
         # validate the column
@@ -1506,8 +1492,9 @@ class Table(object):
         if column.isReadOnly():
             raise errors.ColumnReadOnly(column)
 
-        # make sure the inputed value matches the validation
+        # make sure the inputted value matches the validation
         column.validate(value)
+        equals = False
 
         # store the new value
         with WriteLocker(self.__record_value_lock):
@@ -1552,7 +1539,7 @@ class Table(object):
 
     def setRecordValues(self, **data):
         """
-        Sets the values for this record from the inputed column
+        Sets the values for this record from the inputted column
         value pairing
         
         :param      **data      key/value pair for column names
@@ -1581,7 +1568,7 @@ class Table(object):
 
     def updateFromRecord(self, record):
         """
-        Updates this records values from the inputed record.
+        Updates this records values from the inputted record.
         
         :param      record | <orb.Table>
         """
@@ -1677,7 +1664,7 @@ class Table(object):
         """
         Defines a new proxy column.  Proxy columns are code based properties -
         the information will be generated by methods and not stored directly in
-        the databse, however can be referenced abstractly as though they are
+        the database, however can be referenced abstractly as though they are
         columns.  This is useful for generating things like joined or calculated
         column information.
         
@@ -1703,7 +1690,7 @@ class Table(object):
     def defineRecord(cls, **kwds):
         """
         Defines a new record for the given class based on the
-        inputed set of keywords.  If a record already exists for
+        inputted set of keywords.  If a record already exists for
         the query, the first found record is returned, otherwise
         a new record is created and returned.
         
@@ -1739,7 +1726,7 @@ class Table(object):
     @classmethod
     def baseTableQuery(cls):
         """
-        Returns the default query value for the inputed class.  The default
+        Returns the default query value for the inputted class.  The default
         table query can be used to globally control queries run through a 
         Table's API to always contain a default.  Common cases are when
         filtering out inactive results or user based results.
@@ -1778,7 +1765,7 @@ class Table(object):
 
     @classmethod
     def getRecord(cls, key, **options):
-        if not 'where' in options:
+        if 'where' not in options:
             if type(key) in (str, unicode):
                 try:
                     key = int(key)
@@ -1790,7 +1777,7 @@ class Table(object):
     @staticmethod
     def groupRecords(records, groupings, inflated=False):
         """
-        Creates a grouping of the records based on the inputed columns.  You \
+        Creates a grouping of the records based on the inputted columns.  You \
         can supply as many column values as you'd like creating nested \
         groups.
         
@@ -1853,7 +1840,7 @@ class Table(object):
         schema = cls.schema()
         column = schema.polymorphicColumn()
 
-        # attept to expand the class to its defined polymorphic type
+        # attempt to expand the class to its defined polymorphic type
         if column and column.name() in values:
             morph = column.referenceModel()
             if morph:
@@ -1885,12 +1872,12 @@ class Table(object):
     def polymorphicModel(cls, key, default=None):
         """
         Returns the polymorphic reference model for this table.  This allows
-        a table to reference external links through the inputed key.
+        a table to reference external links through the inputted key.
         
         :param      key | <str>
                     default | <variant>
         
-        :return     <subclass of VoldbTable> || None
+        :return     <subclass of orb.Table> || None
         """
         models = getattr(cls, '_%s__models' % cls.__name__, {})
         if key in models:
@@ -1956,8 +1943,8 @@ class Table(object):
     @classmethod
     def recordCache(cls):
         """
-        Returns the record cache for the inputed class.  If the given class 
-        schema does not define caching, then a None valu3e is returned, otherwise
+        Returns the record cache for the inputted class.  If the given class
+        schema does not define caching, then a None value is returned, otherwise
         a <orb.RecordCache> instance is returned.
         
         :return     <orb.RecordCache> || None
@@ -2005,7 +1992,7 @@ class Table(object):
     @classmethod
     def selectFirst(cls, *args, **kwds):
         """
-        Selects records for the class based on the inputed \
+        Selects records for the class based on the inputted \
         options.  If no db is specified, then the current \
         global database will be used.  If the inflated flag is specified, then \
         the results will be inflated to class instances.  If the flag is left \
@@ -2029,7 +2016,7 @@ class Table(object):
     @classmethod
     def select(cls, *args, **kwds):
         """
-        Selects records for the class based on the inputed \
+        Selects records for the class based on the inputted \
         options.  If no db is specified, then the current \
         global database will be used.  If the inflated flag is specified, then \
         the results will be inflated to class instances.  
@@ -2149,7 +2136,7 @@ class Table(object):
     @classmethod
     def setPolymorphicModel(cls, key, value):
         """
-        Sets the polymorphic model for this table to the inputed value.
+        Sets the polymorphic model for this table to the inputted value.
         
         :param      key     | <str>
                     value   | <str>
@@ -2181,7 +2168,7 @@ class Table(object):
     @classmethod
     def recordcheck(cls, obj):
         """
-        Checks to see if the inputed obj ia s Table record instance.
+        Checks to see if the inputted obj ia s Table record instance.
         
         :param      obj     | <variant>
         
@@ -2192,7 +2179,7 @@ class Table(object):
     @classmethod
     def typecheck(cls, obj):
         """
-        Checks to see if the inputed obj is a subclass of a table.
+        Checks to see if the inputted obj is a subclass of a table.
         
         :param      obj     |  <variant>
                     cls     |  <subclass of Table> || None

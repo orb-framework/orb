@@ -1,25 +1,13 @@
-##!/usr/bin/python
-
 """
-Defines the global query building syntzx for generating db
+Defines the global query building syntax for generating db
 agnostic queries quickly and easily.
 """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
-
 from projex.enum import enum
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 
-orb = LazyModule('orb')
+orb = lazy_import('orb')
+
 
 class QueryAggregate(object):
     Type = enum(
@@ -28,6 +16,7 @@ class QueryAggregate(object):
         'Minimum',
         'Sum'
     )
+
     def __init__(self, typ, table, **options):
         self._type = typ
         self._table = table
@@ -45,7 +34,7 @@ class QueryAggregate(object):
                 col = self._table.schema().column(self._column)
             else:
                 col = self._column
-            return (col,)
+            return col,
         else:
             return self._table.schema().primaryColumns()
     

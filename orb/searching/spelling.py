@@ -1,34 +1,37 @@
-import os, re, collections
+import collections
+import os
+import re
 
 from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
+
 
 class SpellingEngine(object):
     Alphabet = {
         'default': u'abcdefghijklmnopqrstuvwxyz',
         'en_US': u'abcdefghijklmnopqrstuvwxyz'
     }
-    
+
     def __init__(self):
         self._rankings = {}
 
-    def alphabet(self, language=None):
+    def alphabet(self, locale=None):
         """
         Returns the alphabet for this spelling system.  This will be a
-        language based set based on the language for this suggestor.
+        language based set based on the language for this suggester.
         
-        :param      language | <str> || None
+        :param      locale | <str> || None
         """
-        if language is None:
+        if locale is None:
             locale = orb.system.locale()
-        
+
         default = SpellingEngine.Alphabet['default']
         return SpellingEngine.Alphabet.get(locale, default)
 
     def autocorrect(self, word, locale=None):
         """
-        Returns the best guess for the inputed word for the given locale.
+        Returns the best guess for the inputted word for the given locale.
         
         :param      word     | <str> || <unicode>
                     locale   | <str> || None
@@ -39,13 +42,13 @@ class SpellingEngine(object):
         if not choices:
             edits = self.knownEdits(word, locale)
             choices = self.knownWords(edits, locale) or edits or [word]
-        
+
         rankings = self.rankings(locale)
-        return max(choices, key=lambda x: x.startswith(word) * 10**10 + rankings.get(x))
+        return max(choices, key=lambda x: x.startswith(word) * 10 ** 10 + rankings.get(x))
 
     def commonEdits(self, word, locale=None):
         """
-        Returns the most common edits for the inputed word for a given
+        Returns the most common edits for the inputted word for a given
         locale.
         
         :param      word   | <str> || <unicode>
@@ -55,10 +58,10 @@ class SpellingEngine(object):
         """
         alphabet = self.alphabet(locale)
         s = [(word[:i], word[i:]) for i in range(len(word) + 1)]
-        deletes    = [a + b[1:] for a, b in s if b]
-        transposes = [a + b[1] + b[0] + b[2:] for a, b in s if len(b)>1]
-        replaces   = [a + c + b[1:] for a, b in s for c in alphabet if b]
-        inserts    = [a + c + b for a, b in s for c in alphabet]
+        deletes = [a + b[1:] for a, b in s if b]
+        transposes = [a + b[1] + b[0] + b[2:] for a, b in s if len(b) > 1]
+        replaces = [a + c + b[1:] for a, b in s for c in alphabet if b]
+        inserts = [a + c + b for a, b in s for c in alphabet]
         return set(deletes + transposes + replaces + inserts)
 
     def createRankings(self, source, locale=None):
@@ -70,17 +73,17 @@ class SpellingEngine(object):
         """
         # collect all the words from the source
         words = re.findall('[a-z]+', source.lower())
-        
+
         # define the counts per word for common tests
         rankings = collections.defaultdict(lambda: 1)
         for word in words:
             rankings[word] += 1
-        
+
         return rankings
 
     def knownEdits(self, word, locale=None):
         """
-        Returns the known words for the most common edits for the inputed word.
+        Returns the known words for the most common edits for the inputted word.
         
         :param      word   | <str> || <unicode>
                     locale | <str> || None
@@ -88,12 +91,12 @@ class SpellingEngine(object):
         :return     {<unicode> word, ..}
         """
         rankings = self.rankings(locale)
-        return set(e2 for e1 in self.commonEdits(word, locale) \
+        return set(e2 for e1 in self.commonEdits(word, locale)
                    for e2 in self.commonEdits(e1) if e2 in rankings)
 
     def knownWords(self, words, locale=None):
         """
-        Returns a set of the known words based on the inputed list of 
+        Returns a set of the known words based on the inputted list of
         words compared against the locale's data set.
         
         :param      words       | [<str> || <unicode>, ..]
@@ -106,7 +109,7 @@ class SpellingEngine(object):
 
     def ranking(self, word, locale=None):
         """
-        Returns the ranking for the inputed word within the spelling engine.
+        Returns the ranking for the inputted word within the spelling engine.
         
         :param      word | <str>
         
@@ -117,8 +120,8 @@ class SpellingEngine(object):
 
     def rankings(self, locale=None):
         """
-        Loads the source text for this spelling suggestor based on the
-        inputed locale source.
+        Loads the source text for this spelling suggester based on the
+        inputted locale source.
         
         :param      locale | <str> || None
         
@@ -126,7 +129,7 @@ class SpellingEngine(object):
         """
         if locale is None:
             locale = orb.system.locale()
-        
+
         try:
             return self._rankings[locale]
         except KeyError:
@@ -137,7 +140,7 @@ class SpellingEngine(object):
                 source = file(filepath).read()
             except OSError:
                 return {}
-            
+
             # set the words for this locale
             rankings = self.createRankings(source, locale)
             self._rankings[locale] = rankings
@@ -145,7 +148,7 @@ class SpellingEngine(object):
 
     def suggestions(self, word, locale=None, limit=10):
         """
-        Returns a list of the best guesses for the inputed word for 
+        Returns a list of the best guesses for the inputted word for
         the given locale, along with their ranking.
         
         :param      word     | <str> || <unicode>
@@ -156,9 +159,9 @@ class SpellingEngine(object):
         edits = list(self.knownEdits(word, locale))
         choices = self.knownWords([word] + edits, locale) or edits or [word]
         choices = list(choices)
-        
+
         rankings = self.rankings(locale)
-        choices.sort(key=lambda x: x.startswith(word) * 10**10 + rankings.get(x))
+        choices.sort(key=lambda x: x.startswith(word) * 10 ** 10 + rankings.get(x))
         choices.reverse()
         return choices[:limit]
 

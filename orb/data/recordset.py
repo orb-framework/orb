@@ -4,17 +4,6 @@ This is useful when you need to remove a lot of records at one time, and is the
 return result from the select mechanism that supports paging.
 """
 
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2012, Projex Software'
-__license__ = 'LGPL'
-
-# maintenance information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
-
 # ------------------------------------------------------------------------------
 
 import logging
@@ -135,11 +124,11 @@ class RecordSet(object):
 
     def __getitem__(self, value):
         """
-        Returns the item at the inputed index for this record set.
+        Returns the item at the inputted index for this record set.
         
         :return     <orb.Table>
         """
-        # slice up this record set based on the inputed information
+        # slice up this record set based on the inputted information
         if type(value) == slice:
             rset = RecordSet(self)
 
@@ -287,7 +276,7 @@ class RecordSet(object):
 
     def cacheKey(self, options):
         """
-        Returns the cache key for based on the inputed dictionary of
+        Returns the cache key for based on the inputted dictionary of
         options.
         
         :param      options | <dict>
@@ -464,6 +453,7 @@ class RecordSet(object):
 
         return out
 
+    # noinspection PyProtectedMember
     def duplicate(self, other):
         """
         Duplicates the data from the other record set instance.
@@ -489,7 +479,7 @@ class RecordSet(object):
     def distinct(self, columns, **options):
         """
         Returns a distinct series of column values for the current record set
-        based on the inputed column list.
+        based on the inputted column list.
         
         The additional options are any keyword arguments supported by the
         <orb.LookupOptions> or <orb.DatabaseOptions> classes.  
@@ -706,23 +696,23 @@ class RecordSet(object):
 
     def hasRecord(self, record, **options):
         """
-        Returns whether or not this record set contains the inputed record.
+        Returns whether or not this record set contains the inputted record.
 
         :param      record | <orb.Table>
 
         :return     <bool>
         """
         try:
-            id = record.id()
+            id_ = record.id()
             if type(record) != self.table():
                 return False
         except AttributeError:
             try:
-                id = record['id']
+                id_ = record['id']
             except KeyError:
-                id = record
+                id_ = record
 
-        return id in self.ids()
+        return id_ in self.ids()
 
     def ids(self, **options):
         """
@@ -764,7 +754,7 @@ class RecordSet(object):
 
     def index(self, record):
         """
-        Returns the index of the inputed record within the all list.
+        Returns the index of the inputted record within the all list.
         
         :param      record | <orb.Table>
         
@@ -925,7 +915,7 @@ class RecordSet(object):
 
     def update(self, **values):
         """
-        Updates the records within this set based on the inputed values.
+        Updates the records within this set based on the inputted values.
 
         :param      **values | <dict>
         """
@@ -1065,7 +1055,7 @@ class RecordSet(object):
 
     def ordered(self, *order):
         """
-        Returns a newly ordered record set based on the inputed ordering.
+        Returns a newly ordered record set based on the inputted ordering.
 
         :param      order | [(<str> column, <str> asc | desc), ..]
 
@@ -1230,7 +1220,7 @@ class RecordSet(object):
     def refine(self, *args, **options):
         """
         Creates a subset of this record set with a joined query based on the 
-        inputed search text.  The search will be applied to all columns that are
+        inputted search text.  The search will be applied to all columns that are
         marked as searchable.
 
         :return     <RecordSet>
@@ -1251,7 +1241,7 @@ class RecordSet(object):
 
     def remove(self, **options):
         """
-        Removes the records from this set based on the inputed removal mode.
+        Removes the records from this set based on the inputted removal mode.
         
         :note       As of version 0.6.0 on, this method accepts variable 
                     keyword arguments.  This is to support legacy code,
@@ -1301,7 +1291,7 @@ class RecordSet(object):
                useThesaurus=True):
         """
         Creates a subset of this record set with a joined query based on the 
-        inputed search text.  The search will be applied to all columns that are
+        inputted search text.  The search will be applied to all columns that are
         marked as searchable.
         
         :sa         Column.setSearchable
@@ -1369,7 +1359,7 @@ class RecordSet(object):
 
     def setDatabaseOptions(self, options):
         """
-        Sets the database options for selectin to the inputed options.
+        Sets the database options for selectin to the inputted options.
         
         :param      options | <orb.DatabaseOptions>
         """
@@ -1394,7 +1384,7 @@ class RecordSet(object):
 
     def setLookupOptions(self, lookup):
         """
-        Sets the lookup options for this instance to the inputed lookup data.
+        Sets the lookup options for this instance to the inputted lookup data.
         
         :param      lookup | <orb.LookupOptions>
         """
@@ -1418,7 +1408,7 @@ class RecordSet(object):
 
     def setPageSize(self, pageSize):
         """
-        Sets the page size for this record set to the inputed page size.
+        Sets the page size for this record set to the inputted page size.
         
         :param      pageSize | <int>
         """
@@ -1436,7 +1426,7 @@ class RecordSet(object):
 
     def setValues(self, **values):
         """
-        Sets the values within this record set to the inputed value dictionary
+        Sets the values within this record set to the inputted value dictionary
         or keyword mapping.
         """
         for record in self.records():
@@ -1495,9 +1485,10 @@ class RecordSet(object):
         """
         return self._source
 
+    # noinspection PyShadowingBuiltins
     def sort(self, cmp=None, key=None, reverse=False):
         """
-        Sorts the resulted all records by the inputed arguments.
+        Sorts the resulted all records by the inputted arguments.
         
         :param      *args | arguments
         """
@@ -1539,7 +1530,7 @@ class RecordSet(object):
         :return     <ElementTree.Element>
         """
         xset = ElementTree.SubElement(xparent, 'recordset') if xparent is not None else ElementTree.Element('recordset')
-        xset.set('table', self.schema().name())
+        xset.set('table', self.table().schema().name())
         xlookup = ElementTree.SubElement(xset, 'lookup')
         xoptions = ElementTree.SubElement(xset, 'options')
         self._lookupOptions.toXml(xlookup)
@@ -1548,7 +1539,7 @@ class RecordSet(object):
 
     def values(self, columns, **options):
         """
-        Returns either a list of values for all the records if the inputed arg
+        Returns either a list of values for all the records if the inputted arg
         is a column name, or a dictionary of columnName values for multiple
         records for all the records in this set.
         
@@ -1592,7 +1583,7 @@ class RecordSet(object):
             for column in columns:
                 expand = bool(column.isReference() and inflated)
 
-                # retreive the value
+                # retrieve the value
                 if orb.Table.recordcheck(record) or orb.View.recordcheck(record):
                     value = record.recordValue(column, inflated=expand)
                 else:
@@ -1652,7 +1643,7 @@ class RecordSet(object):
     @staticmethod
     def typecheck(value):
         """
-        Checks to see if the inputed type is of a Recordset
+        Checks to see if the inputted type is of a Recordset
         
         :param      value | <variant>
         

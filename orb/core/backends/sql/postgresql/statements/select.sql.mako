@@ -62,7 +62,7 @@
                     columns.append(GLOBALS['join_column'])
 
         elif use_column and column.shortcut() and not isinstance(column.schema(), orb.ViewSchema):
-            raise NotImplementedError('Shorcuts are not supported in Postgresql yet.')
+            raise NotImplementedError('Shortcuts are not supported in PostgreSQL yet.')
 
         elif use_column and column.isTranslatable():
             if options.inflated or options.locale == 'all':

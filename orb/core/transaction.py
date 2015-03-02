@@ -1,16 +1,7 @@
 """ Defines the Transaction class to handle multiple database transactions """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software, LLC'
-__license__         = 'LGPL'
-
-__maintainer__      = 'Projex Software, LLC'
-__email__           = 'team@projexsoftware.com'
-
 import threading
+
 from collections import defaultdict
 from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
 
@@ -26,7 +17,8 @@ class Transaction(object):
     
     def __enter__(self):
         self.begin()
-    
+
+    # noinspection PyUnusedLocal
     def __exit__(self, *args):
         if self._dryRun:
             self.cancel()
@@ -83,11 +75,12 @@ class Transaction(object):
         if not self.isErrored():
             self.commit()
         else:
-            self.rollback()
+            for connection in self._connections:
+                connection.rollback()
     
     def rollback(self, error):
         """
-        Rollsback the changes to the dirty connections for this instance.
+        Rolls back the changes to the dirty connections for this instance.
         
         :param      error | <subclass of Exception>
         """
