@@ -1,24 +1,9 @@
-#!/usr/bin/python
-
 """ Defines the meta information for a View class. """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
-
-# ------------------------------------------------------------------------------
 
 import logging
 import projex.text
 
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
 
@@ -26,8 +11,8 @@ from .meta.metaview import MetaView
 from . import dynamic
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 
 class ViewSchema(object):
@@ -109,7 +94,7 @@ class ViewSchema(object):
 
     def addColumn(self, column):
         """
-        Adds the inputed column to this view schema.
+        Adds the inputted column to this view schema.
 
         :param      column  | <orb.Column>
         """
@@ -119,7 +104,7 @@ class ViewSchema(object):
 
     def addIndex(self, index):
         """
-        Adds the inputed index to this view schema.
+        Adds the inputted index to this view schema.
 
         :param      index   | <orb.Index>
         """
@@ -131,7 +116,7 @@ class ViewSchema(object):
 
     def addPipe(self, pipe):
         """
-        Adds the inputed pipe reference to this view schema.
+        Adds the inputted pipe reference to this view schema.
 
         :param      pipe | <orb.Pipe>
         """
@@ -262,7 +247,7 @@ class ViewSchema(object):
         """
         Returns the column instance based on its name.
         If error reporting is on, then the ColumnNotFound
-        error will be thrown the key inputed is not a valid
+        error will be thrown the key inputted is not a valid
         column name.
 
         :param      name | <str>
@@ -386,7 +371,7 @@ class ViewSchema(object):
 
     def defaultColumns(self):
         """
-        Returns the colum   ns that should be used by default when querying for
+        Returns the columns that should be used by default when querying for
         this view.
 
         :return     [<orb.Column>, ..]
@@ -475,7 +460,7 @@ class ViewSchema(object):
                 new_column.setTranslatable(False)
                 archive_columns.append(new_column)
                 if column.name() == 'locale':
-                    found_locale == True
+                    found_locale = True
 
             archive_columns += [
                 # primary key for the archives is a reference to the article
@@ -542,7 +527,7 @@ class ViewSchema(object):
         if not (db and db.backend()):
             return None
 
-        # create the default primary column from the inputed type
+        # create the default primary column from the inputted type
         return [db.backend().defaultPrimaryColumn()]
 
     def group(self):
@@ -721,7 +706,7 @@ class ViewSchema(object):
 
     def pipe(self, name):
         """
-        Returns the pipe that matches the inputed name.
+        Returns the pipe that matches the inputted name.
 
         :return     <orb.Pipe> || None
         """
@@ -757,7 +742,7 @@ class ViewSchema(object):
 
     def property(self, key, default=None):
         """
-        Returns the custom data that was stored on this view at the inputed \
+        Returns the custom data that was stored on this view at the inputted \
         key.  If the key is not found, then the default value will be returned.
 
         :param      key         | <str>
@@ -769,7 +754,7 @@ class ViewSchema(object):
 
     def removeColumn(self, column):
         """
-        Removes the inputed column from this view's schema.
+        Removes the inputted column from this view's schema.
 
         :param      column | <orb.Column>
         """
@@ -781,7 +766,7 @@ class ViewSchema(object):
 
     def removeIndex(self, index):
         """
-        Removes the inputed index from this view's schema.
+        Removes the inputted index from this view's schema.
 
         :param      index | <orb.Index>
         """
@@ -792,7 +777,7 @@ class ViewSchema(object):
 
     def removePipe(self, pipe):
         """
-        Removes the inputed pipe from this view's schema.
+        Removes the inputted pipe from this view's schema.
 
         :param      pipe | <orb.Pipe>
         """
@@ -816,13 +801,13 @@ class ViewSchema(object):
 
     def reverseLookup(self, name):
         """
-        Returns the reverse lookup that matches the inputed name.
+        Returns the reverse lookup that matches the inputted name.
 
         :return     <orb.Column> || None
         """
         return {column.reversedName(): column for schema in orb.system.schemas()
-                       for column in schema.columns()
-                       if column.reference() == self.name() and column.isReversed()}.get(name)
+                for column in schema.columns()
+                if column.reference() == self.name() and column.isReversed()}.get(name)
 
     def reverseLookups(self):
         """
@@ -831,8 +816,8 @@ class ViewSchema(object):
         :return     [<orb.Column>, ..]
         """
         return [column for schema in orb.system.schemas()
-                       for column in schema.columns()
-                       if column.reference() == self.name() and column.isReversed()]
+                for column in schema.columns()
+                if column.reference() == self.name() and column.isReversed()]
 
     def searchEngine(self):
         """
@@ -943,7 +928,7 @@ class ViewSchema(object):
 
     def setContexts(self, contexts):
         """
-        Sets the full context set for this view to the inputed dictionary of contexts.
+        Sets the full context set for this view to the inputted dictionary of contexts.
 
         :param      contexts | {<str> context name: <dict>, ..}
         """
@@ -951,7 +936,7 @@ class ViewSchema(object):
 
     def setDefaultOrder(self, order):
         """
-        Sets the default order for this schema to the inputed order.  This
+        Sets the default order for this schema to the inputted order.  This
         will be used when an individual query for this schema does not specify
         an order explicitly.
 
@@ -961,7 +946,7 @@ class ViewSchema(object):
 
     def setProperty(self, key, value):
         """
-        Sets the custom data at the given key to the inputed value.
+        Sets the custom data at the given key to the inputted value.
 
         :param      key     | <str>
                     value   | <variant>
@@ -972,7 +957,7 @@ class ViewSchema(object):
         """
         Sets the database name that this schema will be linked to.
 
-        :param      database | <orb.Datatabase> || <str> || None
+        :param      database | <orb.Database> || <str> || None
         """
         if isinstance(database, orb.Database):
             self._database = database
@@ -1009,7 +994,7 @@ class ViewSchema(object):
 
     def setNamespace(self, namespace):
         """
-        Sets the namespace that will be used for this schema to the inputed
+        Sets the namespace that will be used for this schema to the inputted
         namespace.
 
         :param      namespace | <str>
@@ -1018,7 +1003,7 @@ class ViewSchema(object):
 
     def setIndexes(self, indexes):
         """
-        Sets the list of indexed lookups for this schema to the inputed list.
+        Sets the list of indexed lookups for this schema to the inputted list.
 
         :param      indexes     | [<orb.Index>, ..]
         """
@@ -1026,7 +1011,7 @@ class ViewSchema(object):
 
     def setInherits(self, name):
         """
-        Sets the name for the inherited view schema to the inputed name.
+        Sets the name for the inherited view schema to the inputted name.
 
         :param      name    | <str>
         """
@@ -1034,7 +1019,7 @@ class ViewSchema(object):
 
     def setName(self, name):
         """
-        Sets the name of this schema object to the inputed name.
+        Sets the name of this schema object to the inputted name.
 
         :param      name    | <str>
         """
@@ -1042,7 +1027,7 @@ class ViewSchema(object):
 
     def setGroup(self, group):
         """
-        Sets the group association for this schema to the inputed group.
+        Sets the group association for this schema to the inputted group.
 
         :param      group | <orb.ViewGroup>
         """
@@ -1274,7 +1259,7 @@ class ViewSchema(object):
     @staticmethod
     def defaultDbName(name, prefix=''):
         """
-        Returns the default database view name for the inputed name \
+        Returns the default database view name for the inputted name \
         and prefix.
 
         :param      name    | <str>
@@ -1292,7 +1277,7 @@ class ViewSchema(object):
     @staticmethod
     def fromXml(xschema, referenced=False):
         """
-        Generates a new view schema instance for the inputed database schema \
+        Generates a new view schema instance for the inputted database schema \
         based on the given xml information.
 
         :param      xschema      | <xml.etree.Element>

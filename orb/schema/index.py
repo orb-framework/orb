@@ -1,33 +1,17 @@
-#!/usr/bin/python
-
 """ Defines an indexing system to use when looking up records. """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
-
-#------------------------------------------------------------------------------
-
-import datetime
 import logging
 import projex.security
 
 from xml.etree import ElementTree
 
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 
 class Index(object):
@@ -36,17 +20,18 @@ class Index(object):
     Creating an Index generates an object that works like a method, however
     has a preset query built into it, along with caching options.
     """
-    def __init__(self, 
-                 name='', 
-                 columns=None, 
-                 unique=False, 
-                 order=None, 
+
+    def __init__(self,
+                 name='',
+                 columns=None,
+                 unique=False,
+                 order=None,
                  cached=False,
                  referenced=False):
-        
+
         if columns is None:
             columns = []
-        
+
         self.__name__ = name
         self._schema = None
         self._columnNames = columns
@@ -57,7 +42,7 @@ class Index(object):
         self._cached = cached
         self._cacheTimeout = 0
         self._referenced = referenced
-    
+
     def __call__(self, table, *values, **options):
         # make sure we have the right number of arguments
         if len(values) != len(self._columnNames):
@@ -67,13 +52,13 @@ class Index(object):
             opts = (name, columnCount, valueCount)
             text = '%s() takes exactly %i arguments (%i given)' % opts
             raise TypeError(text)
-        
+
         data = tuple(hash(value) for value in values)
         cache_key = (data,
                      hash(orb.LookupOptions(**options)),
                      options.get('db').name() if options.get('db') else '')
         cache = self.cache(table)
-        
+
         if cache and cache_key in self._local_cache and cache.isCached(cache_key):
             return self._local_cache[cache_key]
 
@@ -84,44 +69,41 @@ class Index(object):
         for i, col in enumerate(self._columnNames):
             value = values[i]
             column = table.schema().column(col)
-            
+
             if (orb.Table.recordcheck(value) or orb.View.recordcheck(value)) and not value.isRecord():
                 if self._unique:
                     return None
-                
+
                 return orb.RecordSet()
-            
+
             if not column:
                 name = table.schema().name()
                 raise errors.ColumnNotFound(name, col)
-            
+
             if column.isEncrypted():
                 value = projex.security.encrypt(value)
-                
+
             query &= orb.Query(col) == value
-        
+
         # include additional where option selection
         if 'where' in options:
             options['where'] = query & options['where']
         else:
             options['where'] = query
-        
-        order   = options.get('order', self._order)
-        columns = options.get('columns', None)
-        
+
         # selects the records from the database
         if self._unique:
             results = table.selectFirst(**options)
         else:
             results = table.select(**options)
-        
+
         # cache the results
         if cache and results is not None:
             self._local_cache[cache_key] = results
             cache.setValue(cache_key, True, timeout=self._cacheTimeout)
-        
+
         return results
-    
+
     def cache(self, table):
         """
         Returns the cache associated with this index for the given table.
@@ -130,12 +112,12 @@ class Index(object):
         """
         if not self.cached():
             return None
-        
-        if not table in self._cache:
+
+        if table not in self._cache:
             self._cache[table] = table.tableCache()
-        
+
         return self._cache[table]
-    
+
     def cached(self):
         """
         Returns whether or not the results for this index should be cached.
@@ -143,7 +125,7 @@ class Index(object):
         :return     <bool>
         """
         return self._cached
-    
+
     def cacheTimeout(self):
         """
         Returns the number of seconds that this index will keep its cache
@@ -152,7 +134,7 @@ class Index(object):
         :return     <int> | seconds
         """
         return self._cacheTimeout
-    
+
     def columnNames(self):
         """
         Returns the list of column names that this index will be expecting as \
@@ -161,13 +143,13 @@ class Index(object):
         :return     [<str>, ..]
         """
         return self._columnNames
-    
+
     def isReferenced(self):
         """
         Returns whether or not this
         """
         return self._referenced
-    
+
     def name(self):
         """
         Returns the name of this index.
@@ -186,17 +168,17 @@ class Index(object):
         :param      state | <bool>
         """
         self._cached = state
-    
+
     def setCacheTimeout(self, seconds):
         """
         Sets the time in seconds that this index will hold onto a client
         side cache.  If the value is 0, then the cache will never expire, 
-        otheriwise it will update after N seconds.
+        otherwise it will update after N seconds.
         
         :param     seconds | <int>
         """
         self._cacheTimeout = seconds
-    
+
     def setColumnNames(self, columnNames):
         """
         Sets the list of the column names that this index will use when \
@@ -205,7 +187,7 @@ class Index(object):
         :param      columnNames | [<str>, ..]
         """
         self._columnNames = columnNames
-    
+
     def setOrder(self, order):
         """
         Sets the order information for this index for how to sort and \
@@ -214,7 +196,7 @@ class Index(object):
         :param      order   | [(<str> field, <str> direction), ..]
         """
         self._order = order
-    
+
     def setName(self, name):
         """
         Sets the name for this index to this index.
@@ -222,7 +204,7 @@ class Index(object):
         :param      name    | <str>
         """
         self.__name__ = nstr(name)
-    
+
     def setUnique(self, state):
         """
         Sets whether or not this index should find only a unique record.
@@ -289,12 +271,12 @@ class Index(object):
 
         for name in self.columnNames():
             ElementTree.SubElement(xindex, 'column').text = name
-        
+
         return xindex
 
     def validate(self, record, values):
         """
-        Validates whether or not this index's requirements are satisfied by the inputed record and
+        Validates whether or not this index's requirements are satisfied by the inputted record and
         values.  If this index fails validation, a ValidationError will be raised.
 
         :param      record | subclass of <orb.Table>
@@ -305,7 +287,7 @@ class Index(object):
         schema = record.schema()
         try:
             column_values = [values[schema.column(name)] for name in self.columnNames()]
-        except StandardError as err:
+        except StandardError:
             msg = 'Missing some columns ({0}) from {1}.{2}.'.format(', '.join(self.columnNames()),
                                                                     record.schema().name(),
                                                                     self.name())
@@ -335,7 +317,7 @@ class Index(object):
         index.setUnique(xindex.get('unique') == 'True')
         index.setCached(xindex.get('cached') == 'True')
         index.setCacheTimeout(int(xindex.get('cacheTimeout',
-                                  xindex.get('cachedExpires', index._cacheTimeout))))
+                                             xindex.get('cachedExpires', index._cacheTimeout))))
 
         xcolumns = xindex.findall('column')
         if xcolumns:

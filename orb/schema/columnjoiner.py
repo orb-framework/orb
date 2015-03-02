@@ -1,19 +1,6 @@
-#!/usr/bin/python
-
-""" 
+"""
 Defines methods for joining columns within the database system.
 """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
 
 from projex.lazymodule import lazy_import
 
@@ -40,8 +27,8 @@ class ColumnJoiner(object):
         :return     <orb.Query>
         """
         where = self.where(column)
-        out  = where if where is not None else orb.Query()
-        out &= Q(self.referenceColumn()) == Q(column.schema().model())
+        out = where if where is not None else orb.Query()
+        out &= orb.Query(self.referenceColumn()) == orb.Query(column.schema().model())
         return out
 
     def reference(self):
@@ -64,24 +51,24 @@ class ColumnJoiner(object):
         ref = orb.system.schema(self._reference)
         if not ref:
             raise orb.errors.TableNotFound(self._reference)
-        
+
         return ref.column(self._referenceColumn)
 
     def targetColumn(self):
         """
-        Returns the target column for the inputed joiner.
+        Returns the target column for the inputted joiner.
         
         :return     <orb.Column>
         """
         ref = orb.system.schema(self._reference)
         if not ref:
             raise orb.errors.TableNotFound(self._reference)
-        
+
         return ref.column(self._targetColumn)
 
     def where(self, column):
         """
-        Generates the join logic for the inputed column.
+        Generates the join logic for the inputted column.
         
         :param      column | <orb.Column>
         

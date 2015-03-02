@@ -1,19 +1,6 @@
-#!/usr/bin/python
-
-""" 
+"""
 Defines methods for aggregation within the database system.
 """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
 
 from projex.lazymodule import lazy_import
 
@@ -54,7 +41,7 @@ class ColumnAggregator(object):
 
     def generate(self, column):
         """
-        Generates a new <orb.QueryAggregate> for the inputed <orb.Column>.
+        Generates a new <orb.QueryAggregate> for the inputted <orb.Column>.
         
         :param      column  | <orb.Column>
         
@@ -126,7 +113,7 @@ class ColumnAggregator(object):
 
     def where(self, column):
         """
-        Returns an <orb.Query> for the inputed column.
+        Returns an <orb.Query> for the inputted column.
         
         :param      column | <orb.Column>
         

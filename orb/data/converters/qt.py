@@ -1,20 +1,14 @@
 """ Defines a mapper for converting Qt information to and from the database. """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software, LLC'
-__license__         = 'LGPL'
+import binascii
+import logging
 
-__maintainer__      = 'Projex Software, LLC'
-__email__           = 'team@projexsoftware.com'
-
-from projex.lazymodule import LazyModule
-
-QtCore = LazyModule('xqt.QtCore')
-
+from projex.text import nativestring as nstr
+from projex.lazymodule import lazy_import
 from ..converter import DataConverter
+
+log = logging.getLogger(__name__)
+QtCore = lazy_import('xqt.QtCore')
 
 
 class QDataConverter(DataConverter):
@@ -23,7 +17,7 @@ class QDataConverter(DataConverter):
     """
     def convert(self, value):
         """
-        Converts the inputed value to a Python value.
+        Converts the inputted value to a Python value.
         
         :param      value | <variant>
         
@@ -32,7 +26,7 @@ class QDataConverter(DataConverter):
         val_name = type(value).__name__
         
         if val_name == 'QString':
-            return projex.text.decoded(value.toUtf8(), 'utf-8')
+            return nstr(value.toUtf8())
         elif val_name == 'QVariant':
             return value.toPyObject()
         elif val_name == 'QDate':
@@ -65,7 +59,7 @@ class QDataConverter(DataConverter):
                 buf = QtCore.QBuffer()
                 buf.setBuffer(arr)
                 buf.open(QtCore.QBuffer.WriteOnly)
-                pixmap.save(buf, 'PNG')
+                value.save(buf, 'PNG')
                 buf.close()
                 
                 return binascii.b2a_base64(nstr(arr))

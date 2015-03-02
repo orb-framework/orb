@@ -1,22 +1,9 @@
-#!/usr/bin/python
-
 """
 Defines the different options that can be used throughout the system.  Often,
 classes and methods will accept a variable set of keyword arguments.  As
-opposed to hardcoding these options everywhere and updating them, they
+opposed to hard-coding these options everywhere and updating them, they
 will map to one of the classes defined in this module.
 """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
 
 from collections import OrderedDict
 from projex.text import nativestring as nstr
@@ -35,9 +22,9 @@ class DatabaseOptions(object):
     
     :param      namespace       | <str> || None (default: None)
                 flags           | <orb.DatabaseFlags> (default: 0)
-                dryRun          | <bool> (default: False) | When True, the database operation will only log, not actually perform any actions.
+                dryRun          | <bool> (default: False) | When True, the database operation will only log
                 useCache        | <bool> (default: False)
-                inflated        | <bool> (default: True) | When True, inflated <orb.Table> instances will be returned.  When False, the raw result is returned.
+                inflated        | <bool> (default: True) | When True, inflated <orb.Table> instances will be returned
                 autoIncrement   | <bool> (default: True)
                 force           | <bool> (default: False)
                 deleteFlags     | <orb.DeleteFlags> (default: all)
@@ -108,7 +95,7 @@ class DatabaseOptions(object):
 
     def copy(self):
         """
-        Reutrns a copy of this database option set.
+        Returns a copy of this database option set.
 
         :return     <orb.DatabaseOptions>
         """
@@ -128,7 +115,7 @@ class DatabaseOptions(object):
 
     def update(self, options):
         """
-        Updates this lookup set with the inputed options.
+        Updates this lookup set with the inputted options.
 
         :param      options | <dict>
         """
@@ -158,7 +145,7 @@ class DatabaseOptions(object):
     @staticmethod
     def fromDict(data):
         """
-        Returns a new lookup options instance based on the inputed data
+        Returns a new lookup options instance based on the inputted data
         dictionary.
         
         :param      data | <dict>
@@ -183,7 +170,7 @@ class LookupOptions(object):
     The LookupOptions class will accept a set of keyword arguments to
     control how the action on the database will be affected.  The options are:
     
-    :param      columns       | [<str>, ..] || None (default: None) | When provided, only the selected columns will be returned.
+    :param      columns       | [<str>, ..] || None (default: None)
                 where         | <orb.Query> || <orb.QueryCompound> || None (default: None)
                 order         | [(<str> column, 'asc'/'desc'), ..] || None (default: None)
                 start         | <int> || None (default: None)
@@ -203,7 +190,7 @@ class LookupOptions(object):
         if type(expand) == dict:
             def expand_string(key, children):
                 return [key] + [key + '.' + child
-                                for value in [expand_string(k, v) for k, v in children.items()]
+                                for value in [expand_string(k_, v_) for k_, v_ in children.items()]
                                 for child in value]
 
             expand = [entry for item in [expand_string(k, v) for k, v in expand.items()] for entry in item]
@@ -285,7 +272,7 @@ class LookupOptions(object):
 
     def copy(self):
         """
-        Reutrns a copy of this database option set.
+        Returns a copy of this database option set.
 
         :return     <orb.DatabaseOptions>
         """
@@ -304,7 +291,7 @@ class LookupOptions(object):
 
     def expandtree(self):
         """
-        Returns a dictionary of nested expansions for this option set.  This will inflate the dot notted
+        Returns a dictionary of nested expansions for this option set.  This will inflate the dot noted
         paths for each expanded column.
 
         :return     <dict>
@@ -358,7 +345,8 @@ class LookupOptions(object):
 
     @property
     def start(self):
-        if self.page > 0 and self.pageSize:
+        if self.page > 0 and self.pageSize is not None:
+            # noinspection PyTypeChecker
             return self.pageSize * (self.page - 1)
         return self._start
 
@@ -366,9 +354,10 @@ class LookupOptions(object):
     def start(self, start):
         self._start = start
 
+    # noinspection PyProtectedMember
     def update(self, options):
         """
-        Updates this lookup set with the inputed options.
+        Updates this lookup set with the inputted options.
 
         :param      options | <dict>
         """
@@ -399,7 +388,7 @@ class LookupOptions(object):
         if type(expand) == dict:
             def expand_string(key, children):
                 return [key] + [key + '.' + child
-                                for value in [expand_string(k, v) for k, v in children.items()]
+                                for value in [expand_string(k_, v_) for k_, v_ in children.items()]
                                 for child in value]
 
             expand = [entry for item in [expand_string(k, v) for k, v in expand.items()] for entry in item]
@@ -450,7 +439,7 @@ class LookupOptions(object):
     @staticmethod
     def fromDict(data):
         """
-        Returns a new lookup options instance based on the inputed data
+        Returns a new lookup options instance based on the inputted data
         dictionary.
         
         :param      data | <dict>

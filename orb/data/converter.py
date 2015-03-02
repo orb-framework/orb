@@ -1,22 +1,8 @@
 """ [desc] """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software, LLC'
-__license__         = 'LGPL'
-
-__maintainer__      = 'Projex Software, LLC'
-__email__           = 'team@projexsoftware.com'
-
-import binascii
-import projex.text
 import logging
 
 from projex.addon import AddonManager
-from projex.lazymodule import LazyModule
-from projex.text import nativestring as nstr
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +13,7 @@ class DataConverter(AddonManager):
     """
     def convert(self, value):
         """
-        Converts the inputed value to a standard Python value.
+        Converts the inputted value to a standard Python value.
         
         :param      value | <variant>
         
@@ -38,7 +24,7 @@ class DataConverter(AddonManager):
     @staticmethod
     def toPython(value):
         """
-        Converts the inputed value to a basic Python value that can be wrapped
+        Converts the inputted value to a basic Python value that can be wrapped
         for the database.
         
         :param      value | <variant>

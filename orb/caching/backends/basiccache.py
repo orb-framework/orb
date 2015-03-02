@@ -7,6 +7,7 @@ from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 orb = lazy_import('orb')
 
 
+# noinspection PyAbstractClass
 class BasicCache(DataCache):
     """ Base caching object for tracking data caches """
 
@@ -45,7 +46,7 @@ class BasicCache(DataCache):
 
     def isCached(self, key):
         """
-        Returns whether or not the inputed key is cached.
+        Returns whether or not the inputted key is cached.
 
         :param      key | <hashable>
 
@@ -61,7 +62,7 @@ class BasicCache(DataCache):
 
     def setValue(self, key, value, timeout=None):
         """
-        Caches the inputed key and value to this instance.
+        Caches the inputted key and value to this instance.
 
         :param      key     | <hashable>
                     value   | <variant>

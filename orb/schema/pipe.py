@@ -1,28 +1,13 @@
-#!/usr/bin/python
-
 """ Defines an piping system to use when accessing multi-to-multi records. """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
-
-# ------------------------------------------------------------------------------
 
 import projex.text
 
 from orb import errors
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
 
-orb = LazyModule('orb')
+orb = lazy_import('orb')
 
 
 class Pipe(object):
@@ -34,6 +19,7 @@ class Pipe(object):
 
     def __init__(self, name, **options):
         self.__name__ = name
+        self._schema = options.get('schema', None)
         self._pipeReference = options.get('pipeReference', options.get('through', ''))
         self._pipeTable = None
         self._sourceColumn = options.get('sourceColumn', options.get('source', ''))
@@ -119,7 +105,7 @@ class Pipe(object):
 
     def cache(self, table, force=False):
         """
-        Returns the cache for the inputed table.
+        Returns the cache for the inputted table.
         
         :param      table | <subclass of orb.Table>
         
@@ -167,7 +153,7 @@ class Pipe(object):
 
     def preload(self, record, data, options, type='records'):
         """
-        Preloads the inputed record and result values.
+        Preloads the inputted record and result values.
 
         :param      record       | <orb.Table>
                     data         | [<dict>, ..]

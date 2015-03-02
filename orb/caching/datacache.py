@@ -1,19 +1,6 @@
-#!/usr/bin/python
-
-""" 
+"""
 Defines caching methods to use when working with tables.
 """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
 
 import datetime
 import projex
@@ -40,10 +27,11 @@ class DataCache(AddonManager):
     def __setitem__(self, key, value):
         self.setValue(key, value)
 
+    # noinspection PyUnusedLocal
     @abstractmethod()
     def cachedAt(self, key):
         """
-        Returns when the inputed key was last cached for this instance.
+        Returns when the inputted key was last cached for this instance.
         
         :param      key | <hashable>
 
@@ -69,7 +57,7 @@ class DataCache(AddonManager):
     @abstractmethod()
     def isCached(self, key):
         """
-        Returns whether or not the inputed key is cached.
+        Returns whether or not the inputted key is cached.
         
         :param      key | <hashable>
         
@@ -107,7 +95,7 @@ class DataCache(AddonManager):
     @abstractmethod()
     def setValue(self, key, value, timeout=0):
         """
-        Caches the inputed key and value to this instance.
+        Caches the inputted key and value to this instance.
         
         :param      key     | <hashable>
                     value   | <variant>
@@ -132,8 +120,8 @@ class DataCache(AddonManager):
         """
         return default
 
-    @classmethod
-    def create(cls, timeout=0):
+    @staticmethod
+    def create(timeout=0):
         """
         Creates a new data cache instance through the orb system manager.  To setup a factory, use
         `orb.system.setCacheFactory(factory)`

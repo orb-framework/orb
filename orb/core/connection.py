@@ -1,20 +1,7 @@
-#!/usr/bin/python
-
 """
 Defines the base connection class that will be used for communication
 to the backend databases.
 """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
 
 import cPickle
 import logging
@@ -23,10 +10,10 @@ import projex.iters
 from collections import OrderedDict
 from projex.addon import AddonManager
 from projex.decorators import abstractmethod
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 log = logging.getLogger(__name__)
 
@@ -57,9 +44,10 @@ class Connection(AddonManager):
         """
         self.close()
 
+    # noinspection PyUnusedLocal
     def backup(self, filename, **options):
         """
-        Backs up the data from this database backend to the inputed filename.
+        Backs up the data from this database backend to the inputted filename.
         
         :param      filename | <str>
         
@@ -89,7 +77,7 @@ class Connection(AddonManager):
     @abstractmethod()
     def close(self):
         """
-        Closes the connection to the datbaase for this connection.
+        Closes the connection to the database for this connection.
         
         :return     <bool> closed
         """
@@ -115,8 +103,8 @@ class Connection(AddonManager):
         query = lookup.where
 
         # lookup cascading removal
-        def load_keys(table, query):
-            return table.select(where=query).primaryKeys()
+        def load_keys(t, q):
+            return t.select(where=q).primaryKeys()
 
         root_keys = None
 
@@ -145,7 +133,7 @@ class Connection(AddonManager):
 
                 # remove if there is a valid reference
                 else:
-                    # noinspection PyComparisonWithNone
+                    # noinspection PyComparisonWithNone,PyPep8
                     ref_query = orb.Query(column.name()) != None
 
                 # block removal of records
@@ -206,7 +194,7 @@ class Connection(AddonManager):
     @abstractmethod()
     def createTable(self, schema, options):
         """
-        Creates a new table in the database based cff the inputed
+        Creates a new table in the database based cff the inputted
         table information.
         
         :param      schema   | <orb.TableSchema>
@@ -313,7 +301,7 @@ class Connection(AddonManager):
     def distinct(self, table_or_join, lookup, options):
         """
         Returns the distinct set of records that exist for a given lookup
-        for the inputed table or join instance.
+        for the inputted table or join instance.
         
         :sa         count, select
         
@@ -348,7 +336,7 @@ class Connection(AddonManager):
     @abstractmethod()
     def execute(self, command, data=None, flags=0):
         """
-        Executes the inputed command into the current 
+        Executes the inputted command into the current
         connection cursor.
         
         :param      command  | <str>
@@ -395,7 +383,7 @@ class Connection(AddonManager):
     @abstractmethod()
     def isConnected(self):
         """
-        Returns whether or not this conection is currently
+        Returns whether or not this connection is currently
         active.
         
         :return     <bool> connected
@@ -413,8 +401,8 @@ class Connection(AddonManager):
     @abstractmethod()
     def open(self):
         """
-        Opens a new database connection to the datbase defined
-        by the inputed database.
+        Opens a new database connection to the database defined
+        by the inputted database.
         
         :return     <bool> success
         """
@@ -422,7 +410,7 @@ class Connection(AddonManager):
 
     def remove(self, table, lookup, options):
         """
-        Removes the given records from the inputed schema.  This method is 
+        Removes the given records from the inputted schema.  This method is
         called from the <Connection.remove> method that handles the pre
         processing of grouping records together by schema and only works
         on the primary key.
@@ -446,7 +434,7 @@ class Connection(AddonManager):
     @abstractmethod
     def removeRecords(self, remove, options):
         """
-        Removes the given records from the inputed schema.  This method is 
+        Removes the given records from the inputted schema.  This method is
         called from the <Connection.remove> method that handles the pre
         processing of grouping records together by schema and only works
         on the primary key.
@@ -460,7 +448,7 @@ class Connection(AddonManager):
 
     def restore(self, filename, **options):
         """
-        Restores this backend database from the inputed pickle file.
+        Restores this backend database from the inputted pickle file.
         
         :param      filename | <str>
         
@@ -493,7 +481,7 @@ class Connection(AddonManager):
                 print 'ignoring {0}...'.format(schema_name)
                 continue
 
-            elif include and not schema_name in include:
+            elif include and schema_name not in include:
                 print 'ignoring {0}...'.format(schema_name)
                 continue
 
@@ -512,14 +500,14 @@ class Connection(AddonManager):
     @abstractmethod()
     def rollback(self):
         """
-        Rollsback the latest code run on the database.
+        Rolls back the latest code run on the database.
         """
         return False
 
     @abstractmethod()
     def select(self, table_or_join, lookup, options):
         """
-        Selects the records from the database for the inputed table or join
+        Selects the records from the database for the inputted table or join
         instance based on the given lookup and options.
                     
         :param      table_or_join   | <subclass of orb.Table>
@@ -532,7 +520,7 @@ class Connection(AddonManager):
 
     def selectFirst(self, table_or_join, lookup, options):
         """
-        Returns the first result based on the inputed query options \
+        Returns the first result based on the inputted query options \
         from the database.database.
         
         
@@ -546,7 +534,7 @@ class Connection(AddonManager):
         lookup.limit = 1
 
         # load the results
-        results = self.select(table, query_options, options)
+        results = self.select(table_or_join, lookup, options)
 
         if results:
             return results[0]
@@ -561,7 +549,7 @@ class Connection(AddonManager):
     @abstractmethod()
     def setRecords(self, schema, records):
         """
-        Restores the data for the inputed schema.
+        Restores the data for the inputted schema.
         
         :param      schema  | <orb.TableSchema>
                     records | [<dict> record, ..]
@@ -616,7 +604,7 @@ class Connection(AddonManager):
         """
         Syncs the record to the current database, checking to \
         see if the record exists, and if so - updates the records \
-        field values, otherise, creates the new record.  The possible sync \
+        field values, otherwise, creates the new record.  The possible sync \
         return types are 'created', 'updated', and 'errored'.
         
         :param      record      | <orb.Table>
@@ -650,7 +638,7 @@ class Connection(AddonManager):
     @abstractmethod()
     def tableExists(self, schema, options):
         """
-        Checks to see if the inputed table class exists as a
+        Checks to see if the inputted table class exists as a
         database table.
         
         :param      schema  | <orb.TableSchema>
@@ -661,7 +649,7 @@ class Connection(AddonManager):
         return False
 
     @abstractmethod()
-    def update(self, record, options):
+    def update(self, records, lookup, options):
         """
         Updates the database record into the database with the
         given values.
@@ -674,9 +662,9 @@ class Connection(AddonManager):
         return False
 
     @abstractmethod
-    def updateTable(self, table, options):
+    def updateTable(self, schema, info, options):
         """
-        Determines the difference between the inputed table
+        Determines the difference between the inputted table
         and the table in the database, creating new columns
         for the columns that exist in the table and do not
         exist in the database.
@@ -700,7 +688,7 @@ class Connection(AddonManager):
     @staticmethod
     def create(database):
         """
-        Returns a new datbase connection for the inputed database
+        Returns a new database connection for the inputted database
         from the registered backends and the database type
         
         :return     <Connection> || None

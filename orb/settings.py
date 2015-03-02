@@ -1,17 +1,4 @@
-#!/usr/bin/python
-
 """ Defines common globals to use for the Orb system. """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2012, Projex Software'
-__license__         = 'LGPL'
-
-# maintenance information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
 
 import os
 
@@ -26,7 +13,7 @@ class Settings(object):
         self._cachingEnabled = env.get('ORB_CACHING_ENABLED') != 'False'
         self._maxCacheTimeout = int(env.get('ORB_MAX_CACHE_TIMEOUT', 60 * 24))
         self._editOnlyMode = env.get('ORB_EDIT_ONLY_MODE') == 'True'
-        self._optimmizeDefaultEmpty = env.get('ORB_OPTIMIZE_DEFAULT_EMPTY') == 'True'
+        self._optimizeDefaultEmpty = env.get('ORB_OPTIMIZE_DEFAULT_EMPTY') == 'True'
         self._defaultPageSize = int(env.get('ORB_DEFAULT_PAGE_SIZE', '40'))
         
         # setup field options (version 1)
@@ -48,7 +35,6 @@ class Settings(object):
             self._primarySetter = env.get('ORB_PRIMARY_SETTER', 'setId')
             self._primaryDisplay = env.get('ORB_PRIMARY_INDEX', 'Id')
             self._primaryIndex = env.get('ORB_PRIMARY_INDEX', 'byId')
-            
             self._inheritField = env.get('ORB_INHERIT_FIELD', '{table}_id__baseref')
 
     def editOnlyMode(self):
@@ -108,7 +94,7 @@ class Settings(object):
         
         :return     <bool>
         """
-        return self._optimmizeDefaultEmpty
+        return self._optimizeDefaultEmpty
 
     def primaryDisplay(self):
         """

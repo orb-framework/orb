@@ -1,20 +1,7 @@
-#!/usr/bin/python
-
 """
 Defines the main View class that will be used when developing
 database classes.
 """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
 
 # ------------------------------------------------------------------------------
 
@@ -55,11 +42,11 @@ GETTER_FKEY_DOCS = """\
 #----------------------------------------------------------------------
 
 SETTER_DOCS = """\
-Sets the value for the {name} column to the inputed value.  This will only
+Sets the value for the {name} column to the inputted value.  This will only
 affect the value of the API object instance, and '''not''' the value in
 the database.  To commit this value to the database, use the [[View::commit]]
 method.  This method will return a boolean whether or not a change in the
-value acutally occurred.
+value actually occurred.
 
 :param      {param}  | {returns}
 {optparams}
@@ -180,7 +167,7 @@ class settermethod(object):
 
     def __call__(self, record, value, **kwds):
         """
-        Calls the setter method for the inputed database record.
+        Calls the setter method for the inputted database record.
 
         :param      record      <View>
                     value       <variant>
@@ -279,13 +266,13 @@ class reverselookupmethod(object):
 
         :param      view | <subclass of orb.View>
 
-        :return     <orb.ViewCache> || None
+        :return     <orb.TableCache> || None
         """
         try:
             return self._cache[view]
         except KeyError:
             if force or self.cached:
-                cache = orb.ViewCache(view, self.cacheTimeout)
+                cache = orb.TableCache(view, self.cacheTimeout)
                 self._cache[view] = cache
                 return cache
             return None
@@ -322,14 +309,14 @@ class reverselookupmethod(object):
 
     def viewFor(self, record):
         """
-        Returns the view for the inputed record.
+        Returns the view for the inputted record.
 
         :return     <orb.View>
         """
-        return record.polymorphicModel(self.reference) or \
-                orb.system.model(self.reference, database=self.referenceDb)
+        return record.polymorphicModel(self.reference) or orb.system.model(self.reference, database=self.referenceDb)
 
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+
 
 class MetaView(type):
     """
@@ -341,7 +328,7 @@ class MetaView(type):
         """
         Manages the creation of database model classes, reading
         through the creation attributes and generating view
-        schemas based on the inputed information.  This class
+        schemas based on the inputted information.  This class
         never needs to be expressly defined, as any class that
         inherits from the View class will be passed through this
         as a constructor.
@@ -360,7 +347,7 @@ class MetaView(type):
 
         base_views = [base for base in bases if isinstance(base, MetaView)]
         base_data = {key: value for base_view in base_views
-                                for key, value in base_view.__dict__.items() if key.startswith('__db_')}
+                     for key, value in base_view.__dict__.items() if key.startswith('__db_')}
 
         # define the default database information
         db_data = {
@@ -502,7 +489,7 @@ class MetaView(type):
                                   [column.name()],
                                   unique=column.unique())
                 index.setCached(column.indexCached())
-                index.setCachedTimeout(column.indexCacheTimeout())
+                index.setCacheTimeout(column.indexCacheTimeout())
                 index.__name__ = iname
                 imethod = classmethod(index)
                 setattr(new_model, iname, imethod)
@@ -524,10 +511,8 @@ class MetaView(type):
                                              __name__=rev_name)
 
                 # ensure we're assigning it to the proper base module
-                while ref_model and \
-                      ref_model.__module__ != 'orb.schema.dynamic' and \
-                      ref_model.__bases__ and \
-                      ref_model.__bases__[0] == orb.View:
+                while ref_model and ref_model.__module__ != 'orb.schema.dynamic' and \
+                        ref_model.__bases__ and ref_model.__bases__[0] == orb.View:
                     ref_model = ref_model.__bases__[0]
 
                 # assign to an existing model

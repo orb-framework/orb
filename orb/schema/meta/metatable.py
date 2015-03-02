@@ -1,25 +1,13 @@
-#!/usr/bin/python
-
-""" 
+"""
 Defines the main Table class that will be used when developing
 database classes.
 """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
 
 # ------------------------------------------------------------------------------
 
 import orb
 
+from orb import errors
 from new import instancemethod
 
 TEMP_REVERSE_LOOKUPS = {}
@@ -55,11 +43,11 @@ GETTER_FKEY_DOCS = """\
 # ----------------------------------------------------------------------
 
 SETTER_DOCS = """\
-Sets the value for the {name} column to the inputed value.  This will only
+Sets the value for the {name} column to the inputted value.  This will only
 affect the value of the API object instance, and '''not''' the value in
 the database.  To commit this value to the database, use the [[Table::commit]]
 method.  This method will return a boolean whether or not a change in the
-value acutally occurred.
+value actually occurred.
 
 :param      {param}  | {returns}
 {optparams}
@@ -76,7 +64,7 @@ SETTER_I18N_DOCS = """\
 """
 
 
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 class gettermethod(object):
     """ Creates a method for tables to use as a field accessor. """
@@ -180,7 +168,7 @@ class settermethod(object):
 
     def __call__(self, record, value, **kwds):
         """
-        Calls the setter method for the inputed database record.
+        Calls the setter method for the inputted database record.
         
         :param      record      <Table>
                     value       <variant>
@@ -272,7 +260,7 @@ class reverselookupmethod(object):
             output.setSourceColumn(self.columnName)
 
         if cache and output is not None:
-            self._locale_cache[cache_key] = output
+            self._local_cache[cache_key] = output
             cache.setValue(cache_key, True, timeout=self.cacheTimeout)
 
         return output
@@ -327,14 +315,14 @@ class reverselookupmethod(object):
 
     def tableFor(self, record):
         """
-        Returns the table for the inputed record.
+        Returns the table for the inputted record.
 
         :return     <orb.Table>
         """
-        return record.polymorphicModel(self.reference) or \
-                orb.system.model(self.reference, database=self.referenceDb)
+        return record.polymorphicModel(self.reference) or orb.system.model(self.reference, database=self.referenceDb)
 
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+
 
 class MetaTable(type):
     """ 
@@ -346,7 +334,7 @@ class MetaTable(type):
         """
         Manages the creation of database model classes, reading
         through the creation attributes and generating table
-        schemas based on the inputed information.  This class
+        schemas based on the inputted information.  This class
         never needs to be expressly defined, as any class that
         inherits from the Table class will be passed through this
         as a constructor.
@@ -365,7 +353,7 @@ class MetaTable(type):
 
         base_tables = [base for base in bases if isinstance(base, MetaTable)]
         base_data = {key: value for base_table in base_tables
-                                for key, value in base_table.__dict__.items() if key.startswith('__db_')}
+                     for key, value in base_table.__dict__.items() if key.startswith('__db_')}
 
         # define the default database information
         db_data = {
@@ -523,7 +511,7 @@ class MetaTable(type):
 
                 try:
                     ref_model = column.referenceModel()
-                except orb.errors.TableNotFound:
+                except errors.TableNotFound:
                     ref_model = None
 
                 rev_cacheTimeout = column.reversedCacheTimeout()
@@ -536,14 +524,12 @@ class MetaTable(type):
                                              cacheTimeout=rev_cacheTimeout,
                                              __name__=rev_name)
 
-                # ensure we're assigning it to the proper base module
-                while ref_model and \
-                      ref_model.__module__ != 'orb.schema.dynamic' and \
-                      ref_model.__bases__ and \
-                      ref_model.__bases__[0] == orb.Table:
+                while ref_model and ref_model.__module__ != 'orb.schema.dynamic' and \
+                        ref_model.__bases__ and ref_model.__bases__[0] == orb.Table:
                     ref_model = ref_model.__bases__[0]
 
                 # assign to an existing model
+                # ensure we're assigning it to the proper base module
                 if ref_model:
                     ilookup = instancemethod(lookup, None, ref_model)
                     setattr(ref_model, rev_name, ilookup)

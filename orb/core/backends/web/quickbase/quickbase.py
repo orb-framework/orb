@@ -1,24 +1,4 @@
-#!/usr/bin/python
-
 """ Defines the backend connection class for Quickbase databases. """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
-
-# define version information (major,minor,maintanence)
-__depends__ = ['']
-__version_info__ = (0, 0, 0)
-__version__ = '%i.%i.%i' % __version_info__
-
-# ------------------------------------------------------------------------------
 
 import datetime
 import orb
@@ -40,7 +20,8 @@ log = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------
 #                       DEFINE ERROR CLASSES
-#----------------------------------------------------------------------
+# ---------------------------------------------------------------------
+
 
 class ConnectionError(errors.DatabaseError):
     pass
@@ -54,8 +35,9 @@ class UnknownError(errors.DatabaseError):
     pass
 
 
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
+# noinspection PyAbstractClass
 class Quickbase(orb.Connection):
     # map the default operator types to a SQL operator
     OpMap = {
@@ -85,7 +67,7 @@ class Quickbase(orb.Connection):
 
     def _fieldIds(self, schema):
         """
-        Retreives the field ids from the inputed schema, generating them if
+        Retreives the field ids from the inputted schema, generating them if
         necessary.
         
         :param      schema | <orb.TableSchema>
@@ -141,8 +123,6 @@ class Quickbase(orb.Connection):
         else:
             raise errors.QueryInvalid('Invalid select option: {0}'.format(table_or_join))
 
-        limit = 0
-        start = 0
         qb_opts = []
 
         if lookup.limit:
@@ -157,8 +137,7 @@ class Quickbase(orb.Connection):
             field_ids = self._fieldIds(schema)
 
             # generate the request parameters
-            request = {}
-            request['includeRids'] = 1
+            request = {'includeRids': 1}
             if options:
                 request['options'] = qb_options
 
@@ -205,8 +184,7 @@ class Quickbase(orb.Connection):
                 if not xrecord.tag == 'record':
                     continue
 
-                record = {}
-                record['_id'] = int(xrecord.get('rid'))
+                record = {'_id': int(xrecord.get('rid'))}
                 for xfield in xrecord:
                     fname = xfield.tag
                     fval = xfield.text
@@ -299,7 +277,7 @@ class Quickbase(orb.Connection):
     def open(self):
         """
         Opens a new database connection to the datbase defined
-        by the inputed database.
+        by the inputted database.
         
         :return     <bool> success
         """
@@ -327,7 +305,7 @@ class Quickbase(orb.Connection):
 
     def queryCommand(self, schema, query):
         """
-        Converts the inputed query object to a SQL query command.
+        Converts the inputted query object to a SQL query command.
         
         :param      schema  | <orb.TableSchema> || None
         :param      query   | <orb.Query>
@@ -344,9 +322,9 @@ class Quickbase(orb.Connection):
             output = []
 
             # determine the joining operator
-            join = 'AND'
+            join = ' AND '
             if query.operatorType() == orb.QueryCompound.Op.Or:
-                join = 'OR'
+                join = ' OR '
 
             # generate the queries
             for q in query.queries():
@@ -354,7 +332,7 @@ class Quickbase(orb.Connection):
                 if q_str:
                     output.append(q_str)
 
-            return op.join(output)
+            return join.join(output)
 
         # load Query objects
         # initialize the field query objects
@@ -394,10 +372,12 @@ class Quickbase(orb.Connection):
         except KeyError:
             return ''
 
-    def recordCommand(self, column, value):
+    # noinspection PyUnusedLocal
+    @staticmethod
+    def recordCommand(column, value):
         """
-        Converts the inputed value from a record instance to a mongo id pointer,
-        provided the value is a table type.  If not, the inputed value is 
+        Converts the inputted value from a record instance to a mongo id pointer,
+        provided the value is a table type.  If not, the inputted value is
         returned unchanged.
         
         :param      column | <orb.Column>
@@ -430,7 +410,7 @@ class Quickbase(orb.Connection):
                 useTicket=True,
                 useToken=True):
         """
-        Does a Quickbase query based on the inputed action information.
+        Does a Quickbase query based on the inputted action information.
         
         :param     action    | <str> | 'API_' will be prepended automatically
                    request   | {<str> key: <variant> value}
@@ -523,7 +503,7 @@ class Quickbase(orb.Connection):
 
     def select(self, table_or_join, lookup, options):
         """
-        Selects the records from the database for the inputed table or join
+        Selects the records from the database for the inputted table or join
         instance based on the given lookup and options.
                     
         :param      table_or_join   | <subclass of orb.Table>
@@ -560,6 +540,7 @@ class Quickbase(orb.Connection):
         """
         request = ElementTree.Element('qdbapi')
 
+        # noinspection PyShadowingNames
         def add_sub_element(field, value):
             if isinstance(value, tuple):
                 attrib, value = value

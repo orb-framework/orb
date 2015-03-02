@@ -1,23 +1,13 @@
 """ Defines decorator methods for the ORB library. """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software, LLC'
-__license__         = 'LGPL'
-
-__maintainer__      = 'Projex Software, LLC'
-__email__           = 'team@projexsoftware.com'
-
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.decorators import wraps
 
-orb = LazyModule('orb')
+orb = lazy_import('orb')
 
 
 # C
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 def cachedmethod(*tables):
     """
@@ -39,7 +29,8 @@ def cachedmethod(*tables):
     return decorated
 
 # L
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+
 
 def lookupmethod(cache=None, permits=None):
     def wrapped(method):
@@ -47,24 +38,26 @@ def lookupmethod(cache=None, permits=None):
         method.cache_timeout = cache
 
         def caller(source, *args, **options):
-            cache = None
+            data_cache = None
             if method.cache_timeout:
                 try:
-                    cache = source.tableCache()
+                    data_cache = source.tableCache()
                 except AttributeError:
                     raise StandardError('Invalid type for a lookupmethod: {0}'.format(source))
 
                 key = hash(args), hash(orb.LookupOptions(**options)), hash(orb.DatabaseOptions(**options))
-                if cache:
+                if data_cache:
                     try:
                         return cache[key]
                     except KeyError:
                         pass
+            else:
+                key = None
 
             options.setdefault('context', method.__name__)
             output = method(source, *args, **options)
-            if cache:
-                cache.setValue(key, output, timeout=method.cache_timeout)
+            if data_cache:
+                data_cache.setValue(key, output, timeout=method.cache_timeout)
 
             return output
 
@@ -74,7 +67,8 @@ def lookupmethod(cache=None, permits=None):
     return wrapped
 
 # T
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+
 
 def transactedmethod():
     """

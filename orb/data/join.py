@@ -1,26 +1,11 @@
-#!/usr/bin/python
-
-""" Defines the Join class uesd when querying multiple tables. """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
-
-#------------------------------------------------------------------------------
+""" Defines the Join class used when querying multiple tables. """
 
 import logging
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 
 log = logging.getLogger(__name__)
-orb = LazyModule('orb')
-errors = LazyModule('orb.errors')
+orb = lazy_import('orb')
+errors = lazy_import('orb.errors')
 
 
 class Join(object):
@@ -28,7 +13,7 @@ class Join(object):
     Defines a class for creating joined database lookups, returning
     multiple table records on a single select lookup.
     """
-    
+
     def __init__(self, *table_or_queries, **options):
         """
         Joins together at least one Table class to be looked up from the
@@ -44,17 +29,17 @@ class Join(object):
                     |>>> user = User.byFirstAndLastName('Eric','Hulser')
                     |>>> q  = Q(Role,'user')==user
                     |>>> q &= Q(Role,'primary') == True
-                    |>>> q &= Q(Role,'department')==Q(Deparment)
+                    |>>> q &= Q(Role,'department')==Q(Department)
                     |>>> J(Role,Department).selectFirst( where = q )
                     |(<Role>,<Department>)
                     |>>> q  = Q(Role,'user')==user
-                    |>>> q &= Q(Role,'department')==Q(Deparment)
+                    |>>> q &= Q(Role,'department')==Q(Department)
                     |>>> J(Q(Department,'name'),Q(Role,'primary')).select( where = True )
                     |[('Modeling',False),('Rigging',True)]
         """
-        self._options  = list(table_or_queries)
+        self._options = list(table_or_queries)
         self._database = options.get('db')
-    
+
     def addOption(self, table_or_query):
         """
         Adds a new option to this join for lookup.
@@ -62,7 +47,7 @@ class Join(object):
         :param      option      <subclass of orb.Table> || <orb.Query>
         """
         self._options.append(table_or_query)
-    
+
     def database(self):
         """
         Returns the database instance that is linked to this join.
@@ -71,15 +56,16 @@ class Join(object):
         """
         if self._database:
             return self._database
-        
+
         # use the first database option based on the tables
         for option in self.options():
-            if ( isinstance(option, Table) ):
+            if isinstance(option, orb.Table):
                 return option.database()
-        
+
         from orb import Orb
+
         return Orb.instance().database()
-    
+
     def options(self):
         """
         Returns the options that this join is using.
@@ -87,10 +73,10 @@ class Join(object):
         :return     [ <subclass of Table> || <Query>, .. ]
         """
         return self._options
-    
+
     def selectFirst(self, **kwds):
         """
-        Selects records for the class based on the inputed
+        Selects records for the class based on the inputted
         options.  If no db is specified, then the current
         global database will be used
         
@@ -103,21 +89,21 @@ class Join(object):
         
         :return     (<variant>, ..)
         """
-        db      = kwds.get('db')
-        lookup  = orb.LookupOptions(**kwds)
+        db = kwds.get('db')
+        lookup = orb.LookupOptions(**kwds)
         options = orb.DatabaseOptions(**kwds)
-        
+
         if not db:
             db = self.database()
-        
+
         if not db:
             raise errors.DatabaseNotFound()
-        
+
         return db.backend().selectFirst(self, lookup, options)
 
     def select(self, **kwds):
         """
-        Selects records for the joined information based on the inputed
+        Selects records for the joined information based on the inputted
         options.  If no db is specified, then the current
         global database will be used
         
@@ -130,13 +116,13 @@ class Join(object):
         
         :return     [ ( <variant>, .. ), .. ]
         """
-        db      = kwds.get('db')
-        lookup  = orb.LookupOptions(**kwds)
+        db = kwds.get('db')
+        lookup = orb.LookupOptions(**kwds)
         options = orb.DatabaseOptions(**kwds)
-        
+
         if not db:
             db = self.database()
-            
+
         if not db:
             raise errors.DatabaseNotFound()
 
@@ -149,7 +135,7 @@ class Join(object):
         :param      database   <orb.Database>
         """
         self._database = database
-    
+
     def tables(self):
         """
         Returns the list of tables used in this join instance.
@@ -158,20 +144,20 @@ class Join(object):
         """
         output = []
         for option in self._options:
-            if Table.typecheck(option) or orb.View.typecheck(option):
+            if orb.Table.typecheck(option) or orb.View.typecheck(option):
                 output.append(option)
             else:
                 output += option.tables()
         return output
-    
+
     @staticmethod
     def typecheck(obj):
         """
-        Returns whether or not the inputed object is a type of a query.
+        Returns whether or not the inputted object is a type of a query.
         
         :param      obj     <variant>
         
         :return     <bool>
         """
-        return isinstance( obj, Join )
+        return isinstance(obj, Join)
 

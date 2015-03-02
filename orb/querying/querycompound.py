@@ -1,20 +1,7 @@
-# #!/usr/bin/python
-
 """
-Defines the global query building syntzx for generating db
+Defines the global query building syntax for generating db
 agnostic queries quickly and easily.
 """
-
-# define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
-__copyright__ = 'Copyright (c) 2011, Projex Software'
-__license__ = 'LGPL'
-
-# maintanence information
-__maintainer__ = 'Projex Software'
-__email__ = 'team@projexsoftware.com'
 
 import logging
 import projex.text
@@ -39,7 +26,7 @@ class QueryCompound(object):
     def __contains__(self, value):
         """
         Returns whether or not the query compound contains a query for the
-        inputed column name.
+        inputted column name.
         
         :param      value | <variant>
         
@@ -155,7 +142,6 @@ class QueryCompound(object):
             queries.append(other)
             opts = {'op': QueryCompound.Op.And}
 
-            # pylint: disable-msg=W0142
             return QueryCompound(*queries, **opts)
 
         # create a new compound
@@ -237,7 +223,7 @@ class QueryCompound(object):
 
     def findValue(self, column, instance=1):
         """
-        Looks up the value for the inputed column name for the given instance.
+        Looks up the value for the inputted column name for the given instance.
         If the instance == 1, then this result will return the value and a
         0 instance count, otherwise it will decrement the instance for a
         matching column to indicate it was found, but not at the desired
@@ -317,7 +303,6 @@ class QueryCompound(object):
             queries.append(other)
             opts = {'op': QueryCompound.Op.Or}
 
-            # pylint: disable-msg=W0142
             return QueryCompound(*queries, **opts)
 
         return QueryCompound(self, other, op=QueryCompound.Op.Or)
@@ -333,7 +318,7 @@ class QueryCompound(object):
 
     def removed(self, columnName):
         """
-        Removes the query containing the inputed column name from this
+        Removes the query containing the inputted column name from this
         query set.
         
         :param      columnName | <str>
@@ -450,7 +435,7 @@ class QueryCompound(object):
 
     def validate(self, record, table=None):
         """
-        Validates the inputed record against this query compound.
+        Validates the inputted record against this query compound.
         
         :param      record | <orb.Table>
         """
@@ -473,9 +458,9 @@ class QueryCompound(object):
     @staticmethod
     def build(compound, queries):
         """
-        Builds a compound based on the inputed compound string.  This should 
+        Builds a compound based on the inputted compound string.  This should
         look like: ((QUERY_1 and QUERY_2) or (QUERY_3 and QUERY_4)).  The 
-        inputed query dictionary should correspond with the keys in the string.
+        inputted query dictionary should correspond with the keys in the string.
         
         This method will be called as part of the Query.fromString method and 
         probably never really needs to be called otherwise.
@@ -511,7 +496,7 @@ class QueryCompound(object):
                 new_text = new_text.replace('(' + match + ')', key)
 
         new_text = new_text.strip('()')
-        query = Query()
+        query = orb.Query()
         last_op = 'and'
         for section in new_text.split():
             section = section.strip('()')
@@ -559,7 +544,7 @@ class QueryCompound(object):
     @staticmethod
     def fromString(querystr):
         """
-        Returns a new compound from the inputed query string.  This simply calls
+        Returns a new compound from the inputted query string.  This simply calls
         the Query.fromString method, as the two work the same.
         
         :param      querystr | <str>
@@ -596,14 +581,14 @@ class QueryCompound(object):
         try:
             xml = ElementTree.fromstring(xquery_str)
         except ExpatError:
-            return Query()
+            return orb.Query()
 
         return orb.Query.fromXml(xml)
 
     @staticmethod
     def typecheck(obj):
         """
-        Returns whether or not the inputed object is a QueryCompound object.
+        Returns whether or not the inputted object is a QueryCompound object.
         
         :param      obj     <variant>
         

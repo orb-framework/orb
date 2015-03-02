@@ -1,27 +1,11 @@
-#!/usr/bin/python
-""" 
+"""
 Defines a searching algorithm for searching across multiple tables.
 """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information 
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
-
-import re
-
-from collections import defaultdict
-from projex.enum import enum
 from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
 pyparsing = lazy_import('pyparsing')
+
 
 class SearchJoiner(object):
     def __init__(self, text):
@@ -33,7 +17,8 @@ class SearchJoiner(object):
     def toString(self):
         return self._text
 
-#----------------------------------------------------------------------
+# ---------------------------------------------------------------------
+
 
 class SearchTerm(object):
     def __init__(self, engine, text, column=''):
@@ -142,6 +127,7 @@ class SearchTerm(object):
 
 #----------------------------------------------------------------------
 
+
 class SearchTermGroup(object):
     def __init__(self, engine, words, column='', root=False):
         self._engine = engine
@@ -160,8 +146,7 @@ class SearchTermGroup(object):
                                                    column=curr_column)) 
             
             # lookup a specific column
-            elif not (word.startswith('"') or word.startswith("'")) and \
-                 word.count(':') == 1:
+            elif not (word.startswith('"') or word.startswith("'")) and word.count(':') == 1:
                 if word.endswith(':'):
                     last_column = word.strip(':')
                 else:
@@ -211,7 +196,7 @@ class SearchTermGroup(object):
 
     def toQuery(self, table, column=''):
         """
-        Creates a query for the inputed table based on this search term
+        Creates a query for the inputted table based on this search term
         information.
         
         :param      table | <orb.Table>
@@ -266,7 +251,7 @@ class SearchTermGroup(object):
     @staticmethod
     def fromString(text, engine=None):
         """
-        Parses the inputed text using the common searching syntax.  By default,
+        Parses the inputted text using the common searching syntax.  By default,
         the words will be separated and processed to their root, joined
         together as an AND join.  Override behaviors exist as well:
         

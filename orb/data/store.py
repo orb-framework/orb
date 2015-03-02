@@ -1,20 +1,7 @@
-#!/usr/bin/python
-
 """
 Defines the DataStore class that will convert Column value types for different
 backends to a base type.
 """
-
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
 
 import cPickle
 import datetime
@@ -24,18 +11,18 @@ import orb.errors
 import projex.rest
 
 from projex.addon import AddonManager
-from projex.lazymodule import LazyModule
+from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from .converter import DataConverter
 
-yaml = LazyModule('yaml')
-pytz = LazyModule('pytz')
+yaml = lazy_import('yaml')
+pytz = lazy_import('pytz')
 
 
 class DataStore(AddonManager):
     def restore(self, column, db_value):
         """
-        Restores the inputed value from the database to a Python value.
+        Restores the inputted value from the database to a Python value.
         
         :param      column   | <orb.Column>
                     db_value | <variant>
@@ -52,13 +39,13 @@ class DataStore(AddonManager):
         
         elif col_type == orb.ColumnType.Pickle:
             try:
-                return cPickle.loads(nstr(py_value))
+                return cPickle.loads(nstr(db_value))
             except StandardError:
                 raise orb.errors.DataStoreError('Failed to restore pickle.')
         
         elif col_type == orb.ColumnType.Yaml:
             try:
-                return yaml.loads(nstr(py_value))
+                return yaml.loads(nstr(db_value))
             except StandardError:
                 raise orb.errors.DataStoreError('Failed to restore yaml.')
 
@@ -72,7 +59,7 @@ class DataStore(AddonManager):
                     raise orb.errors.DataStoreError('Failed to restore query.')
         
         elif col_type == orb.ColumnType.Dict:
-            return projex.rest.dejsonify(nstr(db_value))
+            return projex.rest.unjsonify(nstr(db_value))
         
         elif column.isString():
             return projex.text.decoded(db_value)
@@ -85,7 +72,7 @@ class DataStore(AddonManager):
 
     def fromString(self, value_str):
         """
-        Converts the inputed string to a standard Python value.
+        Converts the inputted string to a standard Python value.
         
         :param      value_str | <str>
         
@@ -98,7 +85,7 @@ class DataStore(AddonManager):
 
     def store(self, column, py_value):
         """
-        Prepares the inputed value from Python to a value that the database
+        Prepares the inputted value from Python to a value that the database
         can store.
         
         :param      column   | <orb.Column>
@@ -177,7 +164,7 @@ class DataStore(AddonManager):
 
     def toString(self, value):
         """
-        Converts the inputed value to a string representation.
+        Converts the inputted value to a string representation.
         
         :param      value | <variant>
         

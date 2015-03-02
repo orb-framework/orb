@@ -3,17 +3,6 @@ Defines the base SQL class used for rendering SQL statements
 out.
 """
 
-# define authorship information
-__authors__         = ['Eric Hulser']
-__author__          = ','.join(__authors__)
-__credits__         = []
-__copyright__       = 'Copyright (c) 2011, Projex Software'
-__license__         = 'LGPL'
-
-# maintanence information
-__maintainer__      = 'Projex Software'
-__email__           = 'team@projexsoftware.com'
-
 import logging
 import mako
 import mako.template
@@ -21,11 +10,10 @@ import os
 import orb
 import sys
 
-from orb import errors
-from mako import exceptions
 from projex.addon import AddonManager
 
 log = logging.getLogger(__name__)
+
 
 class SQL(AddonManager):
     def __init__(self, sql, baseSQL=None):
@@ -38,7 +26,7 @@ class SQL(AddonManager):
 
     def __call__(self, *args, **options):
         """
-        Executes this statement with the inputed keywords to generate
+        Executes this statement with the inputted keywords to generate
         the context SQL statement.
         
         :param      **options | <keywords>
@@ -47,6 +35,7 @@ class SQL(AddonManager):
         
         :return     <str> sql, <dict> data
         """
+        # noinspection PyArgumentList
         return self.render(*args, **options)
 
     def baseSQL(self):
@@ -59,7 +48,7 @@ class SQL(AddonManager):
 
     def render(self, **scope):
         """
-        Executes this statement with the inputed keywords to generate
+        Executes this statement with the inputted keywords to generate
         the context SQL statement.  Any keywords provided to the render
         method will be used as scope variables within the mako template for
         this SQL class.
@@ -124,8 +113,8 @@ class SQL(AddonManager):
     @classmethod
     def loadStatements(cls, module):
         """
-        Loads the mako definitions for the inputed name.  This is the inputed
-        module that will be attepmting to access the file.  When running
+        Loads the mako definitions for the inputted name.  This is the inputted
+        module that will be attempting to access the file.  When running
         with mako file support, this will read and load the mako file, when 
         built it will load a _mako.py module that defines the TEMPLATE variable
         as a string.
