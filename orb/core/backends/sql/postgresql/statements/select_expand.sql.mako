@@ -39,6 +39,7 @@
         target_column = join_table.schema().column(pipe.targetColumn())
         target_table = pipe.targetReferenceModel()
         table_name = target_table.schema().dbname()
+        has_translations = target_table.schema().hasTranslations()
         columns = []
         colname = pipe.name()
         col_name = projex.text.underscore(colname)
