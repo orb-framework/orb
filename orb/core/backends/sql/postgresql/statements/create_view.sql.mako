@@ -56,6 +56,7 @@
 
             # define x here or mako will not render this template (preprocessor fails to find the
             # value within list compression)
+            x = 0
             if pipe:
                 join_schema = pipe.targetReferenceModel().schema()
                 join_primary = join_schema.primaryColumns()[0]

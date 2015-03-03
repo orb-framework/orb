@@ -38,6 +38,7 @@
         source_column = join_table.schema().column(pipe.sourceColumn())
         target_column = join_table.schema().column(pipe.targetColumn())
         target_table = pipe.targetReferenceModel()
+        table_name = target_table.schema().dbname()
         columns = []
         colname = pipe.name()
         col_name = projex.text.underscore(colname)
@@ -62,11 +63,18 @@
         SELECT row_to_json(${col_name}_row) FROM (
             SELECT ${', '.join(columns)}
             FROM (
+                % if not has_translations:
                 SELECT ${alias}.*
+                % else:
+                SELECT ${alias}.*, ${alias}_i18n.*
+                % endif
                 % for (type, object), sub_tree in collect_sub_expand(target_table.schema(), tree).items():
                 ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO})}
                 % endfor
-                FROM "${target_table.schema().dbname()}" AS "${alias}"
+                FROM "${}" AS "${alias}"
+                % if has_translations:
+                LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON ${alias}.id = ${alias}_i18n.${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
+                % endif
                 WHERE "${alias}".id IN (
                     SELECT DISTINCT ON (j."${target_column.fieldName()}") j."${target_column.fieldName()}"
                     FROM "${join_table.schema().dbname()}" AS j
@@ -81,8 +89,10 @@
     <%
         source_schema = reverseLookup.schema()
         source_column = reverseLookup
+        table_name = source_schema.dbname()
         ref_schema = reverseLookup.referenceModel().schema()
         ref_table_name = source_alias or ref_schema.dbname()
+        has_translations = source_schema.hasTranslations()
 
         colname = reverseLookup.reversedName()
         col_name = projex.text.underscore(colname)
@@ -107,11 +117,18 @@
         SELECT row_to_json(${col_name}_row) FROM (
             SELECT ${', '.join(columns)}
             FROM (
+                % if not has_translations:
                 SELECT ${alias}.*
+                % else:
+                SELECT ${alias}.*, ${alias}_i18n.*
+                % endif
                 % for (type, object), sub_tree in collect_sub_expand(source_schema, tree).items():
                 ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO})}
                 % endfor
-                FROM "${source_schema.dbname()}" AS "${alias}"
+                FROM "${table_name}" AS "${alias}"
+                % if has_translations:
+                LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON ${alias}.id = ${alias}_i18n.${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
+                % endif
                 WHERE "${alias}"."${source_column.fieldName()}" = "${ref_table_name}".id
                 ${'LIMIT 1' if source_column.unique() else ''}
             ) ${records_alias}
@@ -123,16 +140,25 @@
         reference = column.referenceModel()
         ref_table_name = source_alias or column.schema().dbname()
         colname = column.name()
+        table_name = reference.schema().dbname()
         col_name = projex.text.underscore(colname)
         alias = projex.text.underscore(column.name()) + '_table'
+        has_translations = reference.schema().hasTranslations()
     %>
     (
         SELECT row_to_json(${col_name}_row) FROM (
+            % if not has_translations:
             SELECT "${alias}".*
+            % else:
+            SELECT "${alias}".*, "${alias}_i18n".*
+            % endif
             % for (type, object), sub_tree in collect_sub_expand(reference.schema(), tree).items():
             ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO})}
             % endfor
-            FROM "${reference.schema().dbname()}" AS "${alias}"
+            FROM "${table_name}" AS "${alias}"
+            % if has_translations:
+            LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON "${alias}".id = "${alias}_i18n".${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
+            % endif
             WHERE "${alias}".id = "${ref_table_name}"."${column.fieldName()}"
         ) ${col_name}_row
     ) AS "${colname}"
