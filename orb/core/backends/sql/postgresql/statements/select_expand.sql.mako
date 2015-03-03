@@ -72,7 +72,7 @@
                 % for (type, object), sub_tree in collect_sub_expand(target_table.schema(), tree).items():
                 ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO})}
                 % endfor
-                FROM "${}" AS "${alias}"
+                FROM "${table_name}" AS "${alias}"
                 % if has_translations:
                 LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON ${alias}.id = ${alias}_i18n.${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
                 % endif
