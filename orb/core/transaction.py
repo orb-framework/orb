@@ -19,10 +19,13 @@ class Transaction(object):
         self.begin()
 
     # noinspection PyUnusedLocal
-    def __exit__(self, *args):
+    def __exit__(self, typ, error, traceback):
         if self._dryRun:
             self.cancel()
-        self.end()
+        else:
+            if error:
+                self._errors.append(error)
+            self.end()
 
     def cancel(self):
         """

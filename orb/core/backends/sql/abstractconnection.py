@@ -367,19 +367,7 @@ class SQLConnection(orb.Connection):
                 delta = datetime.datetime.now() - start
                 log.error('Query took: %s' % delta)
                 log.error(u'{0}: \n {1}'.format(err, command))
-
-                if self.isConnected():
-                    if orb.Transaction.current():
-                        orb.Transaction.current().rollback(err)
-
-                    try:
-                        self.rollback()
-                    except StandardError:
-                        pass
-
-                    raise
-                else:
-                    raise
+                raise
 
             # always raise any unknown issues for the developer
             except StandardError as err:
