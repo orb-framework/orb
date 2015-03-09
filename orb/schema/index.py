@@ -1,7 +1,6 @@
 """ Defines an indexing system to use when looking up records. """
 
 import logging
-import projex.security
 
 from xml.etree import ElementTree
 
@@ -81,7 +80,7 @@ class Index(object):
                 raise errors.ColumnNotFound(name, col)
 
             if column.isEncrypted():
-                value = projex.security.encrypt(value)
+                value = orb.system.encrypt(value)
 
             query &= orb.Query(col) == value
 

@@ -4,7 +4,6 @@ import datetime
 import decimal
 import logging
 import projex.regex
-import projex.security
 import projex.text
 import time
 
@@ -942,7 +941,7 @@ class Column(object):
 
         # encrypt the value if necessary
         elif self.isEncrypted():
-            return projex.security.encrypt(value)
+            return orb.system.encrypt(value)
 
         return value
 
@@ -1832,7 +1831,7 @@ class Column(object):
         if xflags is not None:
             for xchild in xflags:
                 try:
-                    flags |= Column.Flags[xchild.tag]
+                    flags |= Column.Flags[projex.text.classname(xchild.tag)]
                 except KeyError:
                     log.error('{0} is not a valid column flag.'.format(xchild.tag))
         else:
@@ -1840,7 +1839,7 @@ class Column(object):
                 state = xcolumn.get(flag[0].lower() + flag[1:]) == 'True'
                 if state:
                     try:
-                        flags |= Column.Flags[flag]
+                        flags |= Column.Flags[projex.text.classname(flag)]
                     except KeyError:
                         log.error('{0} is not a valid column flag.'.format(flag))
 

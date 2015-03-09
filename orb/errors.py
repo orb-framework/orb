@@ -49,7 +49,7 @@ class BackendNotFound(OrbError):
     code = 410  # HTTPGone
 
     def __init__(self, backend):
-        super(BackendNotFound, self).__init__('Could not find %s backend', backend)
+        super(BackendNotFound, self).__init__('Could not find {0} backend'.format(backend))
 
 
 # C

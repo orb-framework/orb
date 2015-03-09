@@ -11,7 +11,7 @@ import projex.text
 from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from xml.etree import ElementTree
-from  xml.parsers.expat import ExpatError
+from xml.parsers.expat import ExpatError
 
 from .settings import Settings
 
@@ -30,6 +30,7 @@ class Manager(object):
         self._database = None  # current database
         self._tableclass = None  # base table class (default: orb.Table)
         self._namespace = ''  # current namespace
+        self._token = None  # security token -- CREATE NEW TOKEN!!!!
 
         self._cache = None  # global cache manager
         self._searchEngine = orb.SearchEngine()
@@ -209,6 +210,32 @@ class Manager(object):
         """
         return [schema for schema in self._schemas
                 if schema.database() == db and (base is None or isinstance(schema, base))]
+
+    def decrypt(self, text):
+        """
+        Decrypts the inputted text based on the managers security token.
+
+        :warning    Before using encryption, it is recommended to set a custom token for
+                    the system using the setToken method.
+
+        :param      text | <str>
+
+        :return     <str>
+        """
+        return projex.security.decrypt(text, self.token())
+
+    def encrypt(self, text):
+        """
+        Encrypts the inputted text based on the managers security token.
+
+        :warning    Before using encryption, it is recommended to set a custom token for
+                    the system using the setToken method.
+
+        :param      text | <str>
+
+        :return     <str>
+        """
+        return projex.security.encrypt(text, self.token())
 
     def environment(self, name=None):
         """
@@ -483,7 +510,7 @@ class Manager(object):
                 f.close()
 
                 # try decrypting the data
-                decrypted = projex.security.decrypt(data)
+                decrypted = self.decrypt(data)
                 try:
                     xorb = ElementTree.fromstring(decrypted)
 
@@ -728,7 +755,7 @@ class Manager(object):
         data = ElementTree.tostring(xorb)
 
         if encrypted:
-            data = projex.security.encrypt(data)
+            data = self.encrypt(data)
 
         f = open(filename, 'w')
         f.write(data)
@@ -981,6 +1008,14 @@ class Manager(object):
         """
         self._timezone = timezone
 
+    def setToken(self, token):
+        """
+        Sets the security token used to encrypt/decrypt information for this database.
+
+        :param      token | <str>
+        """
+        self._token = token
+
     def timezone(self):
         """
         Returns the timezone for the system.  This will affect how the
@@ -1000,6 +1035,14 @@ class Manager(object):
         elif callable(self._timezone):
             return self._timezone()
         return self._timezone
+
+    def token(self):
+        """
+        Returns the security token used to encrypt/decrypt information for this database.
+
+        :return     <str>
+        """
+        return self._token
 
     def unregisterDatabase(self, database):
         """
