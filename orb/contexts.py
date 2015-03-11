@@ -9,6 +9,10 @@ class SingleTransaction(object):
     def __init__(self, *databases):
         self._databases = databases or orb.system.databases()
 
+    def __enter__(self):
+        # nothing needed here
+        pass
+
     def __exit__(self, exc_type, error, traceback):
         for db in self._databases:
             db.disconnect()
