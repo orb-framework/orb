@@ -79,6 +79,7 @@ class TableSchema(object):
         self._properties = {}
         self._indexes = []
         self._pipes = []
+        self._additionalSearchColumns = []
         self._contexts = {}
         self._database = None
         self._timezone = None
@@ -101,6 +102,14 @@ class TableSchema(object):
         self._columns.add(column)
         if not column._schema:
             column._schema = self
+
+    def additionalSearchColumns(self):
+        """
+        Returns a list of additional columns to use during search.
+
+        :return    [<str>, ..]
+        """
+        return self._additionalSearchColumns
 
     def addIndex(self, index):
         """
@@ -889,9 +898,10 @@ class TableSchema(object):
         """
         Returns a list of the searchable columns for this schema.
         
-        :return     <str>
+        :return     [<str>, ..]
         """
-        return self.columns(recurse=recurse, flags=flags | orb.Column.Flags.Searchable, kind=kind)
+        addtl = self.additionalSearchColumns()
+        return self.columnNames(recurse=recurse, flags=flags | orb.Column.Flags.Searchable, kind=kind) + addtl
 
     def setAbstract(self, state):
         """
@@ -900,6 +910,14 @@ class TableSchema(object):
         :param      state | <bool>
         """
         self._abstract = state
+
+    def setAdditionalSearchColumns(self, columns):
+        """
+        Sets a list of additional columns to use during search.
+
+        :param      columns | [<str>, ..]
+        """
+        self._additionalSearchColumns = columns
 
     def setAutoLocalize(self, state):
         """

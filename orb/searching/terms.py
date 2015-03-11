@@ -77,7 +77,7 @@ class SearchTerm(object):
             search_columns = table.schema().searchableColumns()
             out = orb.Query()
             for search_column in search_columns:
-                out |= self.toQuery(table, search_column.name())
+                out |= self.toQuery(table, search_column)
             return out
         
         # otherwise, search the provided column
@@ -227,7 +227,7 @@ class SearchTermGroup(object):
             elif search_columns:
                 subq = orb.Query()
                 for search_column in search_columns:
-                    subq |= term.toQuery(table, search_column.name())
+                    subq |= term.toQuery(table, search_column)
             
             if op == orb.QueryCompound.Op.And:
                 out &= subq
