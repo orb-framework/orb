@@ -5,6 +5,7 @@
 import logging
 import tempfile
 
+from multiprocessing.util import register_after_fork
 from projex.enum import enum
 from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
@@ -222,6 +223,9 @@ class Database(object):
         """
         backend = self.backend()
         if backend:
+            # disconnect after a multiprocess fork or this will error out
+            register_after_fork(self, self.disconnect)
+
             return backend.open()
         return False
 
