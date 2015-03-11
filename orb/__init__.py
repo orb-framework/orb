@@ -19,7 +19,7 @@ __email__ = 'eric.hulser@gmail.com'
 # define version information (major,minor,revision)
 __major__ = 4
 __minor__ = 4
-__revision__ = 3
+__revision__ = 4
 
 __version_info__ = (__major__, __minor__, __revision__)
 __version__ = '{0}.{1}.{2}'.format(*__version_info__)
@@ -38,6 +38,7 @@ from .data import *
 from .querying import *
 from .schema import *
 from .searching import *
+from .contexts import *
 
 #----------------------------------------------------------------------
 
