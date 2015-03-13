@@ -128,7 +128,7 @@ class PSQLConnection(SQLConnection):
                     msg = '{value} is already being used.'.format(**result.groupdict())
                     raise errors.DuplicateEntryFound(msg)
                 else:
-                    raise errors.DuplicateEntryFound(duplicate_error)
+                    raise errors.DuplicateEntryFound(duplicate_error.group())
 
             # look for a reference error
             reference_error = re.search('Key .* is still referenced from table ".*"', nstr(err))
