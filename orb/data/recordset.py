@@ -57,7 +57,7 @@ class RecordSet(object):
         self._database = -1
         self._groupBy = None
         self._lookupOptions = orb.LookupOptions()
-        self._databaseOptions = orb.DatabaseOptions()
+        self._contextOptions = orb.ContextOptions()
 
         # join another record set as RecordSet(recordSet)
         if args:
@@ -193,7 +193,7 @@ class RecordSet(object):
         """
         Looks up all the records based on the current query information.
         Additional options can include any options available for the 
-        <orb.LookupOptions> or <orb.DatabaseOptions> classes that will be passed
+        <orb.LookupOptions> or <orb.ContextOptions> classes that will be passed
         to this recordset backend.
         
         :return     [<orb.Table>, ..]
@@ -211,7 +211,7 @@ class RecordSet(object):
             db = self.database()
 
             lookup = self.lookupOptions(**options)
-            db_opts = self.databaseOptions(**options)
+            ctxt_opts = self.contextOptions(**options)
 
             # create the lookup information
             cache = table.recordCache()
@@ -223,12 +223,12 @@ class RecordSet(object):
 
             # cache the result for this query
             if cache is not None and orb.system.isCachingEnabled():
-                results = cache.select(backend, table, lookup, db_opts)
+                results = cache.select(backend, table, lookup, ctxt_opts)
             else:
-                results = backend.select(table, lookup, db_opts)
+                results = backend.select(table, lookup, ctxt_opts)
 
             # return specific columns
-            if db_opts.inflated and lookup.returning != 'values':
+            if ctxt_opts.inflated and lookup.returning != 'values':
                 output = [self.inflateRecord(table, x) for x in results]
 
             elif lookup.columns:
@@ -305,12 +305,12 @@ class RecordSet(object):
         backend = db.backend()
 
         lookup = self.lookupOptions(**options)
-        db_options = self.databaseOptions(**options)
+        db_options = self.contextOptions(**options)
         records = self.records(**options)
 
         # run each records pre-commit logic before it is inserted to the db
         for record in records:
-            record.callbacks().emit('aboutToCommit(Record,LookupOptions,DatabaseOptions)', record, lookup, db_options)
+            record.callbacks().emit('aboutToCommit(Record,LookupOptions,ContextOptions)', record, lookup, db_options)
 
         inserts = filter(lambda x: not x.isRecord(db=db), records)
         updates = filter(lambda x: x.isRecord(db=db), records)
@@ -326,7 +326,7 @@ class RecordSet(object):
 
         # run each records pre-commit logic before it is inserted to the db
         for record in records:
-            record.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', record, lookup, options)
+            record.callbacks().emit('commitFinished(Record,LookupOptions,ContextOptions)', record, lookup, options)
 
         return True
 
@@ -334,7 +334,7 @@ class RecordSet(object):
         """
         Collects the count of records for this record set.  Additional options
         can include any options available for the <orb.LookupOptions> or 
-        <orb.DatabaseOptions> classes that will be passed to this records
+        <orb.ContextOptions> classes that will be passed to this records
         backend.
         
         :return     <int>
@@ -353,7 +353,7 @@ class RecordSet(object):
                     return 0
 
                 lookup = self.lookupOptions(**options)
-                db_opts = self.databaseOptions(**options)
+                ctxt_opts = self.contextOptions(**options)
 
                 # don't lookup unnecessary data
                 lookup.columns = table.schema().primaryColumns()
@@ -363,9 +363,9 @@ class RecordSet(object):
                 # retrieve the count information
                 cache = table.recordCache()
                 if cache is not None and orb.system.isCachingEnabled():
-                    count = cache.count(db.backend(), table, lookup, db_opts)
+                    count = cache.count(db.backend(), table, lookup, ctxt_opts)
                 else:
-                    count = db.backend().count(table, lookup, db_opts)
+                    count = db.backend().count(table, lookup, ctxt_opts)
 
                 self._cache['count'][key] = count
                 return count
@@ -378,7 +378,7 @@ class RecordSet(object):
         """
         return self._lookupOptions.columns
 
-    def createRecord(self, **values):
+    def createRecord(self, values, **options):
         """
         Creates a new record for this recordset.  If this set was generated from a reverse lookup, then a pointer
         back to the source record will automatically be generated.
@@ -393,7 +393,7 @@ class RecordSet(object):
         if isinstance(self.table(), orb.View):
             raise errors.ActionNotAllowed('View tables are read-only.')
 
-        return self.table().createRecord(**values)
+        return self.table().createRecord(values, **options)
 
     def currentPage(self):
         """
@@ -419,14 +419,14 @@ class RecordSet(object):
         self._database = db
         return db
 
-    def databaseOptions(self, **options):
+    def contextOptions(self, **options):
         """
         Returns the database options for this record set.  See the
-        <orb.DatabaseOptions> documentation about the optional arguments.
+        <orb.ContextOptions> documentation about the optional arguments.
         
-        :return     <orb.DatabaseOptions>
+        :return     <orb.ContextOptions>
         """
-        opts = orb.DatabaseOptions(options=self._databaseOptions)
+        opts = orb.ContextOptions(options=self._contextOptions)
         opts.update(options)
         return opts
 
@@ -472,7 +472,7 @@ class RecordSet(object):
         # select information
         self._database = other._database
         self._groupBy = list(other._groupBy) if other._groupBy else None
-        self._databaseOptions = other.databaseOptions().copy()
+        self._contextOptions = other.contextOptions().copy()
         self._lookupOptions = other.lookupOptions().copy()
         self._table = other._table
 
@@ -482,7 +482,7 @@ class RecordSet(object):
         based on the inputted column list.
         
         The additional options are any keyword arguments supported by the
-        <orb.LookupOptions> or <orb.DatabaseOptions> classes.  
+        <orb.LookupOptions> or <orb.ContextOptions> classes.
         
         If there is one column supplied, then the result will be a list, 
         otherwise, the result will be a dictionary.
@@ -522,7 +522,7 @@ class RecordSet(object):
                     lookup.order = None
                     rset = orb.RecordSet(self)
                     rset.setLookupOptions(lookup)
-                    rset.setDatabaseOptions(self.databaseOptions(**options))
+                    rset.setContextOptions(self.contextOptions(**options))
                     results[column] = ref_model.select(where=orb.Query(ref_model).in_(rset))
 
             lookup_columns = list(set(columns) - set(results.keys()))
@@ -531,14 +531,14 @@ class RecordSet(object):
 
         # perform an actual lookup
         if lookup_columns:
-            db_opts = self.databaseOptions(**options)
+            ctxt_opts = self.contextOptions(**options)
             lookup = self.lookupOptions(**options)
             lookup.columns = lookup_columns
             backend = db.backend()
             if cache is not None and orb.system.isCachingEnabled():
-                output = cache.distinct(backend, table, lookup, db_opts)
+                output = cache.distinct(backend, table, lookup, ctxt_opts)
             else:
-                output = backend.distinct(table, lookup, db_opts)
+                output = backend.distinct(table, lookup, ctxt_opts)
         else:
             output = {}
 
@@ -567,7 +567,7 @@ class RecordSet(object):
             except KeyError:
                 options['limit'] = 1
                 lookup = self.lookupOptions(**options)
-                db_opts = self.databaseOptions(**options)
+                ctxt_opts = self.contextOptions(**options)
 
                 if self.isNull():
                     return None
@@ -577,15 +577,15 @@ class RecordSet(object):
                 # retrieve the data from the cache
                 cache = table.recordCache()
                 if cache is not None and orb.system.isCachingEnabled():
-                    records = cache.select(db.backend(), table, lookup, db_opts)
+                    records = cache.select(db.backend(), table, lookup, ctxt_opts)
                 else:
-                    records = db.backend().select(table, lookup, db_opts)
+                    records = db.backend().select(table, lookup, ctxt_opts)
 
                 if records:
-                    if db_opts.inflated and lookup.returning != 'values':
-                        record = self.inflateRecord(table, records[0], db_opts.locale)
+                    if ctxt_opts.inflated and lookup.returning!= 'values':
+                        record = self.inflateRecord(table, records[0], **options)
                         record.setLookupOptions(lookup)
-                        record.setDatabaseOptions(db_opts)
+                        record.setContextOptions(ctxt_opts)
                     else:
                         record = records[0]
                 else:
@@ -650,7 +650,7 @@ class RecordSet(object):
 
             for value in values:
                 lookup = self.lookupOptions(**options)
-                db_options = self.databaseOptions(**options)
+                db_options = self.contextOptions(**options)
 
                 # generate the sub-grouping query
                 options = {}
@@ -676,7 +676,7 @@ class RecordSet(object):
                 else:
                     sub_set = RecordSet(table, None)
                     lookup = self.lookupOptions(**options)
-                    db_options = self.databaseOptions(**options)
+                    db_options = self.contextOptions(**options)
 
                     # join the lookup options
                     if lookup.where is None:
@@ -685,7 +685,7 @@ class RecordSet(object):
                         lookup.where &= sub_query
 
                     sub_set.setLookupOptions(lookup)
-                    sub_set.setDatabaseOptions(db_options)
+                    sub_set.setContextOptions(db_options)
 
                     if remain:
                         sub_set = sub_set.grouped(remain, **options)
@@ -734,22 +734,18 @@ class RecordSet(object):
 
         return self.values(orb.system.settings().primaryField(), **options)
 
-    def inflateRecord(self, table, record, locale=None):
+    def inflateRecord(self, table, record, **options):
         """
         Inflates the record for the given class, applying a namespace override
         if this record set is using a particular namespace.
         
-        :param      table     | <subclass of orb.Table>
-                    record  | <dict>
-        
+        :param      table       | <subclass of orb.Table>
+                    record      | <dict>
+
         :return     <orb.Table>
         """
-        inst = table.inflateRecord(record, record, db=self.database())
-        inst.setRecordLocale(locale or self._databaseOptions.locale)
-        inst.setLookupOptions(self.lookupOptions())
-        inst.setDatabaseOptions(self.databaseOptions())
-        if self._databaseOptions.namespace is not None:
-            inst.setRecordNamespace(self._databaseOptions.namespace)
+        inst = table.inflateRecord(record, options=self.contextOptions(**options))
+        inst.setLookupOptions(self.lookupOptions(**options))
         return inst
 
     def index(self, record):
@@ -812,12 +808,12 @@ class RecordSet(object):
             return False
 
         lookup = orb.LookupOptions(**options)
-        db_opts = orb.DatabaseOptions(**options)
-        db_opts.force = True
+        ctxt_opts = orb.ContextOptions(**options)
+        ctxt_opts.force = True
 
         backend = db.backend()
         records = self.records()
-        backend.insert(records, lookup, db_opts)
+        backend.insert(records, lookup, ctxt_opts)
         return True
 
     def isEmpty(self, **options):
@@ -870,7 +866,7 @@ class RecordSet(object):
         
         :return     <bool>
         """
-        return self._lookupOptions.returning != 'values' and self._databaseOptions.inflated
+        return self._lookupOptions.returning != 'values' and self._contextOptions.inflated
 
     def isLoaded(self):
         """
@@ -923,7 +919,7 @@ class RecordSet(object):
 
     def updateOptions(self, **options):
         self._lookupOptions.update(options)
-        self._databaseOptions.update(options)
+        self._contextOptions.update(options)
 
     def union(self, records):
         """
@@ -955,7 +951,7 @@ class RecordSet(object):
         :return     <str>
         """
         lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
+        ctxt_opts = self.contextOptions(**options)
         tree = lookup.expandtree()
         output = {}
         if 'first' in tree:
@@ -986,7 +982,7 @@ class RecordSet(object):
             else:
                 output = self.records()
 
-        if db_opts.format == 'text':
+        if ctxt_opts.format == 'text':
             return projex.rest.jsonify(output)
         else:
             return output
@@ -1043,7 +1039,7 @@ class RecordSet(object):
         
         :return     <str> || None
         """
-        return self._databaseOptions.namespace
+        return self._contextOptions.namespace
 
     def order(self):
         """
@@ -1191,7 +1187,7 @@ class RecordSet(object):
         """
         Returns the record at the given index and current query information.
         Additional options can include any options available for the 
-        <orb.LookupOptions> or <orb.DatabaseOptions> classes that will be passed
+        <orb.LookupOptions> or <orb.ContextOptions> classes that will be passed
         to this recordset backend.
         
         :return     [<orb.Table>, ..]
@@ -1232,7 +1228,7 @@ class RecordSet(object):
             options.setdefault('where', args[0])
 
         rset.setLookupOptions(self.lookupOptions(**options))
-        rset.setDatabaseOptions(self.databaseOptions(**options))
+        rset.setContextOptions(self.contextOptions(**options))
 
         if 'terms' in options and options['terms']:
             return rset.search(options['terms'])
@@ -1246,7 +1242,7 @@ class RecordSet(object):
         :note       As of version 0.6.0 on, this method accepts variable 
                     keyword arguments.  This is to support legacy code,
                     the preferred method to call is to pass in options =
-                    <orb.DatabaseOptions>, however, you can supply any
+                    <orb.ContextOptions>, however, you can supply any
                     members as keyword arguments and it will generate an
                     options instance for you.
         
@@ -1262,7 +1258,7 @@ class RecordSet(object):
 
         # include cascading records
         breakdown = self._schemaBreakdown()
-        dbopts = self.databaseOptions(**options)
+        dbopts = self.contextOptions(**options)
 
         count = 0
         for table, query in breakdown.items():
@@ -1357,13 +1353,13 @@ class RecordSet(object):
         """
         self._groupBy = groupBy
 
-    def setDatabaseOptions(self, options):
+    def setContextOptions(self, options):
         """
         Sets the database options for selectin to the inputted options.
         
-        :param      options | <orb.DatabaseOptions>
+        :param      options | <orb.ContextOptions>
         """
-        self._databaseOptions = options.copy()
+        self._contextOptions = options.copy()
 
     def setInflated(self, state):
         """
@@ -1372,7 +1368,7 @@ class RecordSet(object):
         
         :param      state | <bool> || None
         """
-        self._databaseOptions.inflated = state
+        self._contextOptions.inflated = state
 
     def setLimit(self, limit):
         """
@@ -1396,7 +1392,7 @@ class RecordSet(object):
         
         :param      namespace | <str>
         """
-        self._databaseOptions.namespace = namespace
+        self._contextOptions.namespace = namespace
 
     def setOrder(self, order):
         """
@@ -1534,7 +1530,7 @@ class RecordSet(object):
         xlookup = ElementTree.SubElement(xset, 'lookup')
         xoptions = ElementTree.SubElement(xset, 'options')
         self._lookupOptions.toXml(xlookup)
-        self._databaseOptions.toXml(xoptions)
+        self._contextOptions.toXml(xoptions)
         return xset
 
     def values(self, columns, **options):
@@ -1562,22 +1558,22 @@ class RecordSet(object):
         # create the lookup options
         options['columns'] = columns[:]
         lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
+        ctxt_opts = self.contextOptions(**options)
 
         # lookup the data
         cache = self.table().recordCache()
         if key in self._cache['records']:
             records = self._cache['records'][key]
         elif cache:
-            records = cache.select(db.backend(), self.table(), lookup, db_opts)
+            records = cache.select(db.backend(), self.table(), lookup, ctxt_opts)
         else:
-            records = db.backend().select(self.table(), lookup, db_opts)
+            records = db.backend().select(self.table(), lookup, ctxt_opts)
 
         # parse the values from the cache
         output = defaultdict(list)
-        locale = db_opts.locale
+        locale = ctxt_opts.locale
 
-        inflated = db_opts.inflated and lookup.returning != 'values'
+        inflated = ctxt_opts.inflated and lookup.returning != 'values'
 
         for record in records:
             for column in columns:
@@ -1662,5 +1658,5 @@ class RecordSet(object):
         """
         model = orb.system.model(xset.get('table'))
         lookup = orb.LookupOptions.fromXml(xset.find('lookup'))
-        options = orb.DatabaseOptions.fromXml(xset.find('options'))
+        options = orb.ContextOptions.fromXml(xset.find('options'))
         return model.select(lookup=lookup, options=options)

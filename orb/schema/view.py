@@ -13,6 +13,7 @@ import re
 from projex.enum import enum
 from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
+from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.callbacks import CallbackSet
 
 from .meta.metaview import MetaView
@@ -52,8 +53,8 @@ class View(object):
                          'IgnoreConflicts')
 
     Signals = enum(
-        AboutToCommit='aboutToCommit(Record,LookupOptions,DatabaseOptions)',
-        CommitFinished='commitFinished(Record,LookupOptions,DatabaseOptions)'
+        AboutToCommit='aboutToCommit(Record,LookupOptions,ContextOptions)',
+        CommitFinished='commitFinished(Record,LookupOptions,ContextOptions)'
     )
 
     # ----------------------------------------------------------------------
@@ -291,22 +292,24 @@ class View(object):
         :param      *args       <tuple> primary key
         :param      **kwds      <dict>  column default values
         """
-        # define view properties in a way that shouldn't be accidentally
+        # define table properties in a way that shouldn't be accidentally
         # overwritten
+        self.__local_cache_lock = ReadWriteLock()
         self.__local_cache = {}
-        self.__record_locale = None
         self.__record_defaults = {}
+        self.__record_value_lock = ReadWriteLock()
         self.__record_values = {}
         self.__record_dbloaded = set()
         self.__record_datacache = None
-        self.__record_database = db = kwds.pop('db', None)
-        self.__record_namespace = namespace = kwds.pop('recordNamespace', None)
 
-        self.__lookup_options = None
-        self.__database_options = None
+        self.__lookup_options = orb.LookupOptions(**kwds)
+        self.__context_options = orb.ContextOptions(**kwds)
 
         # initialize the defaults
-        if '__values' in kwds:
+        if len(args) == 1 and type(args[0]) == dict and args[0].get('__pickle'):
+            self.__setstate__(args[0].pop('__pickle'))
+
+        elif '__values' in kwds:
             self._updateFromDatabase(kwds.pop('__values'))
 
         elif not args:
@@ -316,7 +319,7 @@ class View(object):
         # initialize from the database
         else:
             # extract the primary key for initializing from a record
-            if len(args) == 1 and View.recordcheck(args[0]):
+            if len(args) == 1 and (Table.recordcheck(args[0]) or orb.View.recordcheck(args[0])):
                 record = args[0]
                 args = record.id()
                 self._updateFromDatabase(dict(record))
@@ -324,20 +327,21 @@ class View(object):
             elif len(args) == 1:
                 args = args[0]
 
-            cache = self.viewCache()
+            cache = self.tableCache()
+            cache_key = '__init__({0})'.format(args)
             try:
-                data = cache[('record', args)]
-            except KeyError:
-                lookup = Q(type(self)) == args
-                data = self.selectFirst(where=lookup, db=db, namespace=namespace, inflated=False)
-                cache[('record', args)] = data
+                data = cache[cache_key]
+            except (TypeError, KeyError):
+                data = self.getRecord(args, inflated=False, options=self.__context_options)
+                if data is not None and cache:
+                    cache[cache_key] = data
 
             if data:
                 self._updateFromDatabase(data)
             else:
                 raise errors.RecordNotFound(self, args)
 
-        self.setRecordValues(**kwds)
+        self.setRecordValues(**{k: v for k, v in kwds.items() if self.schema().column(k)})
 
     #----------------------------------------------------------------------
     #                       PROTECTED METHODS
@@ -350,25 +354,24 @@ class View(object):
         """
         columns = [self.schema().column(column) for column in columns] if columns else self.schema().columns()
 
-        for column in columns:
-            data = self.__record_values.get(column)
-            if type(data) == dict:
-                data = data.copy()
-            self.__record_defaults[column] = data
+        with WriteLocker(self.__record_value_lock):
+            for column in columns:
+                data = self.__record_values.get(column)
+                if type(data) == dict:
+                    data = data.copy()
+                self.__record_defaults[column] = data
 
-        self.__record_database = database
-        self.__record_dbloaded.update(columns)
+            self.__context_options.database = database
+            self.__record_dbloaded.update(columns)
 
-    def _updateFromDatabase(self, data, options=None):
+    def _updateFromDatabase(self, data):
         """
         Called from the backend class when it needs to
         manipulate information on this record instance.
         
         :param      data  | {<str> column_name: <variant>, ..}
         """
-        if options and options.locale != 'all':
-            self.__record_locale = options.locale
-
+        options = self.contextOptions()
         schema = self.schema()
         dbname = schema.dbname()
         dvalues = {}
@@ -545,8 +548,8 @@ class View(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    <orb.ContextOptions>, 'options' for
+                    an instance of the <orb.ContextOptions>
         
         :return     <bool> success
         """
@@ -633,9 +636,7 @@ class View(object):
         
         :return     <Database> || None
         """
-        if self.__record_database is None:
-            return self.getDatabase()
-        return self.__record_database
+        return self.__context_options.database
 
     def dataCache(self):
         """
@@ -647,14 +648,14 @@ class View(object):
             self.__record_datacache = orb.DataCache.create()
         return self.__record_datacache
 
-    def databaseOptions(self, **options):
+    def contextOptions(self, **options):
         """
         Returns the lookup options for this record.  This will track the options that were
         used when looking this record up from the database.
 
         :return     <orb.LookupOptions>
         """
-        output = self.__database_options or orb.DatabaseOptions(locale=self.recordLocale())
+        output = self.__context_options or orb.ContextOptions(locale=self.recordLocale())
         output.update(options)
         return output
 
@@ -718,15 +719,15 @@ class View(object):
             return False
 
         lookup = orb.LookupOptions(**options)
-        db_opts = orb.DatabaseOptions(**options)
-        db_opts.force = True
+        ctxt_opts = orb.ContextOptions(**options)
+        ctxt_opts.force = True
 
         backend = db.backend()
         try:
-            backend.insert([self], lookup, db_opts)
+            backend.insert([self], lookup, ctxt_opts)
             return True
         except errors.OrbError, err:
-            if db_opts.throwErrors:
+            if ctxt_opts.throwErrors:
                 raise
             else:
                 log.error('Backend error occurred.\n%s', err)
@@ -763,7 +764,7 @@ class View(object):
         """
         # additional options
         lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
+        ctxt_opts = self.contextOptions(**options)
 
         # simple json conversion
         output = self.recordValues(key='field', columns=lookup.columns, inflated=False)
@@ -792,7 +793,7 @@ class View(object):
             if len(output) == 1:
                 output = output[0]
 
-        if db_opts.format == 'text':
+        if ctxt_opts.format == 'text':
             return projex.rest.jsonify(output)
         else:
             return output
@@ -900,7 +901,7 @@ class View(object):
 
         :return     <str>
         """
-        return self.__record_locale or orb.system.locale()
+        return self.contextOptions().locale
 
     def recordValue(self,
                     column,
@@ -1167,9 +1168,9 @@ class View(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, as well as the keyword 'lookup' to 
+                    <orb.ContextOptions>, as well as the keyword 'lookup' to
                     an instance of <orb.LookupOptions> and 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    an instance of the <orb.ContextOptions>
         
         :return     <int>
         """
@@ -1177,7 +1178,7 @@ class View(object):
             return 0
 
         cls = type(self)
-        opts = orb.DatabaseOptions(**kwds)
+        opts = orb.ContextOptions(**kwds)
         lookup = orb.LookupOptions(**kwds)
         lookup.where = Q(cls) == self
 
@@ -1225,12 +1226,10 @@ class View(object):
         
         :param      database        <Database> || None
         """
-        self.__record_database = database
+        self.__context_options.database = database
 
-    def setDatabaseOptions(self, options):
-        self.__database_options = options
-        if options:
-            self.__record_locale = options.locale
+    def setContextOptions(self, options):
+        self.__context_options = options
 
     def setLocalCache(self, key, value):
         """
@@ -1288,7 +1287,7 @@ class View(object):
 
         :param      locale | <str> || None
         """
-        self.__record_locale = locale
+        self.__context_options.locale = locale
 
     def setRecordValue(self,
                        columnName,
@@ -1409,7 +1408,7 @@ class View(object):
 
     def updateOptions(self, **options):
         self.setLookupOptions(self.lookupOptions(**options))
-        self.setDatabaseOptions(self.databaseOptions(**options))
+        self.setContextOptions(self.contextOptions(**options))
 
     def updateFromRecord(self, record):
         """
@@ -1464,7 +1463,7 @@ class View(object):
         Returns a record set containing all records for this view class.  This
         is a convenience method to the <orb.View>.select method.
         
-        :param      **options | <orb.LookupOptions> & <orb.DatabaseOptions>
+        :param      **options | <orb.LookupOptions> & <orb.ContextOptions>
         
         :return     <orb.RecordSet>
         """
@@ -1644,7 +1643,7 @@ class View(object):
         return output
 
     @classmethod
-    def inflateRecord(cls, values, default=None, db=None):
+    def inflateRecord(cls, values, **options):
         """
         Returns a new record instance for the given class with the values
         defined from the database.
@@ -1668,17 +1667,17 @@ class View(object):
         if column and column.name() in values:
             morph = column.referenceModel()
             if morph:
-                morph_name = nstr(morph(values[column.name()], db=db))
+                morph_name = nstr(morph(values[column.name()], **options))
                 dbname = cls.schema().databaseName()
                 morph_cls = orb.system.model(morph_name, database=dbname)
 
                 if morph_cls and morph_cls != cls:
                     pcols = morph_cls.schema().primaryColumns()
                     pkeys = [values.get(pcol.name(), values.get(pcol.fieldName())) for pcol in pcols if pcol in values]
-                    record = morph_cls(*pkeys, db=db)
+                    record = morph_cls(*pkeys, **options)
 
         if record is None:
-            record = cls(__values=values, db=db)
+            record = cls(__values=values, **options)
 
         return record
 
@@ -1856,9 +1855,9 @@ class View(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, as well as the keyword 'lookup' to 
+                    <orb.ContextOptions>, as well as the keyword 'lookup' to
                     an instance of <orb.LookupOptions> and 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    an instance of the <orb.ContextOptions>
         
         :return     [ <cls>, .. ] || { <variant> grp: <variant> result, .. }
         """
@@ -1869,13 +1868,13 @@ class View(object):
         for i in range(len(args)):
             if i == 0 and isinstance(args[i], orb.LookupOptions):
                 kwds['lookup'] = args[i]
-            elif i == 1 and isinstance(args[i], orb.DatabaseOptions):
+            elif i == 1 and isinstance(args[i], orb.ContextOptions):
                 kwds['options'] = args[i]
             else:
                 kwds[arg_headers[i]] = args[i]
 
         lookup = orb.LookupOptions(**kwds)
-        options = orb.DatabaseOptions(**kwds)
+        options = orb.ContextOptions(**kwds)
 
         # setup the default query options
         default_q = cls.baseQuery()
@@ -1890,7 +1889,7 @@ class View(object):
         # define the record set and return it
         rset = orb.RecordSet(cls, None)
         rset.setLookupOptions(lookup)
-        rset.setDatabaseOptions(options)
+        rset.setContextOptions(options)
 
         if db is not None:
             rset.setDatabase(db)

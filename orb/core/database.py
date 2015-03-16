@@ -586,18 +586,20 @@ class Database(object):
         """
         self._username = nstr(username)
 
-    def timezone(self):
+    def timezone(self, options=None):
         """
         Returns the timezone associated specifically with this database.  If
         no timezone is directly associated, then it will return the timezone
         that is associated with the system in general.
         
         :sa     <orb.Manager>
-        
+
+        :param      options | <orb.ContextOptions>
+
         :return     <pytz.tzfile> || None
         """
         if self._timezone is None:
-            return orb.system.timezone()
+            return orb.system.timezone(options)
         return self._timezone
 
     def sync(self, **kwds):
@@ -612,8 +614,8 @@ class Database(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    <orb.ContextOptions>, 'options' for
+                    an instance of the <orb.ContextOptions>
         
         :return     <bool> success
         """
@@ -622,7 +624,7 @@ class Database(object):
         schemas = self.schemas(orb.TableSchema)
         schemas.sort()
 
-        options = kwds.get('options', orb.DatabaseOptions(**kwds))
+        options = kwds.get('options', orb.ContextOptions(**kwds))
 
         # initialize the database
         con.setupDatabase(options)

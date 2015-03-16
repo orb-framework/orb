@@ -777,11 +777,12 @@ class Column(object):
             raise errors.TableNotFound(self.reference())
         return model
 
-    def restoreValue(self, value):
+    def restoreValue(self, value, options=None):
         """
         Restores the value from a table cache for usage.
         
         :param      value | <variant>
+                    options | <orb.ContextOptions> || None
         """
         coltype = ColumnType.base(self.columnType())
 
@@ -792,7 +793,7 @@ class Column(object):
         # restore a datetime timezone value
         if isinstance(value, datetime.datetime) and \
            coltype == ColumnType.DatetimeWithTimezone:
-            tz = self.timezone()
+            tz = self.timezone(options)
 
             if tz is not None:
                 if value.tzinfo is None:
@@ -1357,18 +1358,20 @@ class Column(object):
         """
         return bool(self.flags() & flag) if flag >= 0 else not bool(self.flags() & ~flag)
 
-    def timezone(self):
+    def timezone(self, options=None):
         """
         Returns the timezone associated specifically with this column.  If
         no timezone is directly associated, then it will return the timezone
         that is associated with the system in general.
         
         :sa     <orb.Manager>
+
+        :param      options | <orb.ContextOptions> || None
         
         :return     <pytz.tzfile> || None
         """
         if self._timezone is None:
-            return self.schema().timezone()
+            return self.schema().timezone(options)
         return self._timezone
 
     def toolTip(self, context='normal'):

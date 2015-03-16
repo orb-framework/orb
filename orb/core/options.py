@@ -11,107 +11,84 @@ from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
 
-
-class DatabaseOptions(object):
+class Options(object):
     """"
     Defines a unique instance of information that will be bundled when
     calling different methods within the connections class.
-    
-    The DatabaseOptions class will accept a set of keyword arguments to
+
+    The ContextOptions class will accept a set of keyword arguments to
     control how the action on the database will be affected.  The options are:
-    
-    :param      namespace       | <str> || None (default: None)
-                flags           | <orb.DatabaseFlags> (default: 0)
-                dryRun          | <bool> (default: False) | When True, the database operation will only log
-                useCache        | <bool> (default: False)
-                inflated        | <bool> (default: True) | When True, inflated <orb.Table> instances will be returned
-                autoIncrement   | <bool> (default: True)
-                force           | <bool> (default: False)
-                deleteFlags     | <orb.DeleteFlags> (default: all)
     """
+    DEFAULTS = {}
 
     def __init__(self, **kwds):
-        self.defaults = {'namespace': None,
-                         'flags': 0,
-                         'dryRun': False,
-                         'useCache': False,
-                         'inflated': True,
-                         'autoIncrement': True,
-                         'force': False,
-                         'locale': orb.system.locale(),
-                         'deleteFlags': orb.DeleteFlags.all(),
-                         'format': 'object'}
-
         # update from the other database option instance
-        if isinstance(kwds.get('options'), DatabaseOptions):
-            other = kwds['options']
-            kwds.setdefault('locale', other.locale)
-            kwds.setdefault('namespace', other.namespace)
-            kwds.setdefault('flags', other.flags)
-            kwds.setdefault('dryRun', other.dryRun)
-            kwds.setdefault('useCache', other.useCache)
-            kwds.setdefault('inflated', other.inflated)
-            kwds.setdefault('autoIncrement', other.autoIncrement)
-            kwds.setdefault('force', other.force)
-            kwds.setdefault('deleteFlags', other.deleteFlags)
-            kwds.setdefault('context', other.context)
-            kwds.setdefault('format', 'object')
+        other_options = kwds.pop('options', None)
+        if isinstance(other_options, ContextOptions):
+            for key, default in self.DEFAULTS.items():
+                kwds.setdefault(key, other_options.raw_values.get(key, default))
 
-        self.locale = kwds.get('locale') or orb.system.locale()
-        self.namespace = kwds.get('namespace')
-        self.flags = kwds.get('flags', 0)
-        self.dryRun = kwds.get('dryRun', False)
-        self.useCache = kwds.get('useCache', False)
-        self.inflated = kwds.get('inflated', True)
-        self.autoIncrement = kwds.get('autoIncrement', True)
-        self.force = kwds.get('force', False)
-        self.deleteFlags = kwds.get('deleteFlags', orb.DeleteFlags.all())
-        self.format = kwds.get('format', 'object')
-        self.context = kwds.get('context', None)
+        self.__dict__['raw_values'] = {}
+        for key, value in self.DEFAULTS.items():
+            self.raw_values[key] = kwds.get(key, value)
 
     def __str__(self):
         """
         Returns a string for this instance.
-        
+
         :return     <str>
         """
         opts = []
-        for key, default in self.defaults.items():
+        for key, default in self.DEFAULTS.items():
             val = getattr(self, key)
             if val == default:
                 continue
-
             opts.append('{0}:{1}'.format(key, val))
+        return '<{0} {1}>'.format(type(self).__name__, ' '.join(opts))
 
-        return '<DatabaseOptions {0}>'.format(' '.join(opts))
+    def __getattr__(self, key):
+        try:
+            return self.raw_values[key]
+        except KeyError:
+            raise AttributeError(key)
+
+    def __setattr__(self, key, value):
+        if key in self.raw_values:
+            self.raw_values[key] = value
+        else:
+            raise AttributeError(key)
 
     def __hash__(self):
         """
         Returns a hash representation for this instance.
-        
+
         :return     <hash>
         """
         return hash(nstr(self))
+
+    def assigned(self):
+        """
+        Returns a dictionary of assigned values for this context option.
+
+        :return     {<str> key: <variant> value, ..}
+        """
+        return {k: v for k, v in self.raw_values.items() if self.DEFAULTS[k] != v}
 
     def copy(self):
         """
         Returns a copy of this database option set.
 
-        :return     <orb.DatabaseOptions>
+        :return     <orb.ContextOptions>
         """
-        return DatabaseOptions(**self.toDict())
+        return type(self)(**self.raw_values)
 
     def isNull(self):
         """
         Returns whether or not this option set has been modified.
-        
+
         :return     <bool>
         """
-        for key, default in self.defaults.items():
-            val = getattr(self, key)
-            if val != default:
-                return False
-        return True
+        return self.raw_values.values() == self.DEFAULTS.values()
 
     def update(self, options):
         """
@@ -119,46 +96,93 @@ class DatabaseOptions(object):
 
         :param      options | <dict>
         """
-        self.__dict__.update(options)
+        self.raw_values.update({k: v for k, v in options.items() if k in self.DEFAULTS})
 
     def toDict(self):
         """
         Returns a dictionary representation of this database option set.
-        
+
         :return     <dict>
         """
-        return {
-            'namespace': self.namespace,
-            'flags': self.flags,
-            'dryRun': self.dryRun,
-            'useCache': self.useCache,
-            'inflated': self.inflated,
-            'deleteFlags': self.deleteFlags,
-            'locale': self.locale,
-            'context': self.context,
-            'format': self.format
-        }
+        return self.raw_values.copy()
 
-    def toXml(self, xparent=None):
-        raise NotImplementedError
-
-    @staticmethod
-    def fromDict(data):
+    @classmethod
+    def fromDict(cls, data):
         """
         Returns a new lookup options instance based on the inputted data
         dictionary.
-        
+
         :param      data | <dict>
-        
-        
+
+
         :return     <LookupOptions>
         """
-        return DatabaseOptions(**data)
+        return cls(**data)
 
-    @staticmethod
-    def fromXml(xdata):
-        raise NotImplementedError
 
+class ContextOptions(Options):
+    """"
+    Defines a unique instance of information that will be bundled when
+    calling different methods within the connections class.
+    
+    The ContextOptions class will accept a set of keyword arguments to
+    control how the action on the database will be affected.  The options are:
+    """
+    DEFAULTS = {
+        # database options
+        'namespace': None,
+        'flags': 0,
+        'autoIncrement': True,
+        'deleteFlags': orb.DeleteFlags.all(),
+        'useCache': False,
+        'context': None,
+        'database': None,
+
+        # output options
+        'inflated': True,
+        'format': 'object',
+
+        # context options
+        'locale': None,
+        'timezone': None,
+        'request': None,
+
+        # debug options
+        'force': False,
+        'dryRun': False
+    }
+
+    @property
+    def database(self):
+        return self.raw_values['database'] or orb.system.database()
+
+    @property
+    def locale(self):
+        """
+        Returns the locale for this context, either by the specified locale or the root manager.
+
+        :return     <str>
+        """
+        return self.raw_values['locale'] or orb.system.locale(self)
+
+    @property
+    def timezone(self):
+        """
+        Returns the timezone for this context, either by the specified zone or from the root manager.
+
+        :return     <str>
+        """
+        return self.raw_values['timezone'] or orb.system.timezone(self)
+
+    def update(self, options):
+        """
+        Updates this lookup set with the inputted options.
+
+        :param      options | <dict>
+        """
+        if 'options' in options:
+            options = options['options'].raw_values
+        super(ContextOptions, self).update(options)
 
 # ------------------------------------------------------------------------------
 
@@ -237,7 +261,7 @@ class LookupOptions(object):
     def __str__(self):
         """
         Returns a string for this instance.
-        
+
         :return     <str>
         """
         opts = []
@@ -265,7 +289,7 @@ class LookupOptions(object):
     def __hash__(self):
         """
         Returns a hash representation for this instance.
-        
+
         :return     <hash>
         """
         return hash(nstr(self))
@@ -274,7 +298,7 @@ class LookupOptions(object):
         """
         Returns a copy of this database option set.
 
-        :return     <orb.DatabaseOptions>
+        :return     <orb.ContextOptions>
         """
         return LookupOptions(
             columns=self.columns[:] if self.columns else None,

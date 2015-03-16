@@ -45,7 +45,7 @@ def lookupmethod(cache=None, permits=None):
                 except AttributeError:
                     raise StandardError('Invalid type for a lookupmethod: {0}'.format(source))
 
-                key = hash(args), hash(orb.LookupOptions(**options)), hash(orb.DatabaseOptions(**options))
+                key = hash(args), hash(orb.LookupOptions(**options)), hash(orb.ContextOptions(**options))
                 if data_cache:
                     try:
                         return cache[key]

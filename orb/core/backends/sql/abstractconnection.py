@@ -118,7 +118,7 @@ class SQLConnection(orb.Connection):
 
         :param      table_or_join | <subclass of orb.Table> || None
                     lookup        | <orb.LookupOptions>
-                    options       | <orb.DatabaseOptions>
+                    options       | <orb.ContextOptions>
 
         :return     <int>
         """
@@ -167,7 +167,7 @@ class SQLConnection(orb.Connection):
 
         :param      schema    | <orb.TableSchema>
                     info      | <dict>
-                    options   | <orb.DatabaseOptions>
+                    options   | <orb.ContextOptions>
 
         :return     <bool> success
         """
@@ -198,7 +198,7 @@ class SQLConnection(orb.Connection):
 
         :param      schema    | <orb.TableSchema>
                     info      | <dict>
-                    options   | <orb.DatabaseOptions>
+                    options   | <orb.ContextOptions>
 
         :return     <bool> success
         """
@@ -238,7 +238,7 @@ class SQLConnection(orb.Connection):
 
         :param      table_or_join | <subclass of orb.Table> || <orb.Join>
                     lookup        | <orb.LookupOptions>
-                    options       | <orb.DatabaseOptions>
+                    options       | <orb.ContextOptions>
 
         :return     {<str> columnName: <list> value, ..}
         """
@@ -276,7 +276,7 @@ class SQLConnection(orb.Connection):
         inputted schema and namespace information.
 
         :param      schema  | <orb.TableSchema>
-                    options | <orb.DatabaseOptions>
+                    options | <orb.ContextOptions>
 
         :return     [<str>, ..]
         """
@@ -399,7 +399,7 @@ class SQLConnection(orb.Connection):
 
         :param      records  | <orb.Table>
                     lookup   | <orb.LookupOptions>
-                    options  | <orb.DatabaseOptions>
+                    options  | <orb.ContextOptions>
 
         :return     <dict> changes
         """
@@ -487,7 +487,8 @@ class SQLConnection(orb.Connection):
         # update the values for the database
         for i, record in enumerate(records):
             try:
-                record._updateFromDatabase(results[i], options)
+                record.updateOptions(**options.assigned())
+                record._updateFromDatabase(results[i])
             except IndexError:
                 pass
 
@@ -602,7 +603,7 @@ class SQLConnection(orb.Connection):
         Removes the inputted record from the database.
 
         :param      remove  | {<orb.Table>: [<orb.Query>, ..], ..}
-                    options | <orb.DatabaseOptions>
+                    options | <orb.ContextOptions>
 
         :return     <int> number of rows removed
         """
@@ -753,7 +754,7 @@ class SQLConnection(orb.Connection):
         database or not.
 
         :param      schema  | <orb.TableSchema>
-                    options | <orb.DatabaseOptions>
+                    options | <orb.ContextOptions>
 
         :return     <bool> exists
         """
@@ -770,7 +771,7 @@ class SQLConnection(orb.Connection):
 
         :param      record   | <orb.Table>
                     lookup   | <orb.LookupOptions>
-                    options  | <orb.DatabaseOptions>
+                    options  | <orb.ContextOptions>
 
         :return     <dict> changes
         """
@@ -863,7 +864,7 @@ class SQLConnection(orb.Connection):
                     what they are doing and why.
 
         :param      schema     | <orb.TableSchema>
-                    options    | <orb.DatabaseOptions>
+                    options    | <orb.ContextOptions>
 
         :return     <bool> success
         """

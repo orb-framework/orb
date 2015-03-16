@@ -108,20 +108,21 @@ class gettermethod(object):
 
         self.__dict__['__doc__'] = self.func_doc
 
-    def __call__(self, record, **kwds):
+    def __call__(self, record, **options):
         """
         Calls the getter lookup method for the database record.
         
         :param      record      <Table>
         """
-        inflated = kwds.get('inflated', True)
+        default = options.pop('default', None)
+        context = record.contextOptions(**options)
         val = record.recordValue(self.columnName,
-                                 locale=kwds.get('locale', None),
-                                 default=kwds.get('default', None),
-                                 inflated=inflated,
+                                 locale=context.locale,
+                                 default=default,
+                                 inflated=context.inflated,
                                  useMethod=False)
 
-        if not inflated and orb.Table.recordcheck(val):
+        if not context.inflated and orb.Table.recordcheck(val):
             return val.primaryKey()
         return val
 
@@ -206,33 +207,33 @@ class reverselookupmethod(object):
 
         self.__dict__['__doc__'] = self.func_doc
 
-    def __call__(self, record, **kwds):
+    def __call__(self, record, **options):
         """
         Calls the getter lookup method for the database record.
         
         :param      record      <Table>
         """
-        reload = kwds.pop('reload', False)
+        reload = options.pop('reload', False)
 
         # remove any invalid query lookups
-        if 'where' in kwds and orb.Query.testNull(kwds['where']):
-            kwds.pop('where')
+        if 'where' in options and orb.Query.testNull(options['where']):
+            options.pop('where')
 
         # lookup the records with a specific model
-        kwds.setdefault('locale', record.recordLocale())
-        table = kwds.get('table') or self.tableFor(record)
+        options.setdefault('locale', record.recordLocale())
+        table = options.get('table') or self.tableFor(record)
         if not table:
             return None if self.unique else orb.RecordSet()
 
         # return from the cache when specified
         cache = self.cache(table)
         cache_key = (record.id(),
-                     hash(orb.LookupOptions(**kwds)),
+                     hash(orb.LookupOptions(**options)),
                      record.database().name())
 
         if not reload and cache and cache_key in self._local_cache and cache.isCached(cache_key):
             out = self._local_cache[cache_key]
-            out.updateOptions(**kwds)
+            out.updateOptions(**options)
             return out
 
         self._local_cache.pop(cache_key, None)
@@ -246,14 +247,17 @@ class reverselookupmethod(object):
         # generate the reverse lookup query
         reverse_q = orb.Query(self.columnName) == record
 
-        kwds['where'] = reverse_q & kwds.get('where')
-        kwds['db'] = record.database()
-        kwds['context'] = record.schema().context(self.func_name)
+        options['where'] = reverse_q & options.get('where')
+        options['db'] = record.database()
+        options['context'] = record.schema().context(self.func_name)
+
+        lookup = orb.LookupOptions(**options)
+        context = record.contextOptions(**options)
 
         if self.unique:
-            output = table.selectFirst(**kwds)
+            output = table.selectFirst(lookup=lookup, options=context)
         else:
-            output = table.select(**kwds)
+            output = table.select(lookup=lookup, options=context)
 
         if isinstance(output, orb.RecordSet):
             output.setSource(record)

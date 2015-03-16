@@ -83,15 +83,15 @@ class Join(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, as well as the keyword 'lookup' to 
+                    <orb.ContextOptions>, as well as the keyword 'lookup' to
                     an instance of <orb.LookupOptions> and 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    an instance of the <orb.ContextOptions>
         
         :return     (<variant>, ..)
         """
         db = kwds.get('db')
         lookup = orb.LookupOptions(**kwds)
-        options = orb.DatabaseOptions(**kwds)
+        options = orb.ContextOptions(**kwds)
 
         if not db:
             db = self.database()
@@ -110,15 +110,15 @@ class Join(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, as well as the keyword 'lookup' to 
+                    <orb.ContextOptions>, as well as the keyword 'lookup' to
                     an instance of <orb.LookupOptions> and 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    an instance of the <orb.ContextOptions>
         
         :return     [ ( <variant>, .. ), .. ]
         """
         db = kwds.get('db')
         lookup = orb.LookupOptions(**kwds)
-        options = orb.DatabaseOptions(**kwds)
+        options = orb.ContextOptions(**kwds)
 
         if not db:
             db = self.database()

@@ -73,7 +73,9 @@ class Pipe(object):
             options['where'] = q
 
         # generate the new record set
-        records = targetTable.select(**options)
+        lookup = orb.LookupOptions(**options)
+        context = record.contextOptions(**options)
+        records = targetTable.select(lookup=lookup, options=context)
 
         # map this recordset to a pipe set (if the options generate a pipe set)
         if isinstance(records, orb.RecordSet):

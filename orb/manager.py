@@ -371,14 +371,16 @@ class Manager(object):
         """
         return self.settings().isCachingEnabled()
 
-    def locale(self):
+    def locale(self, options=None):
         """
         Returns the current locale that the system is going to be in.
-        
+
+        :param      options | <orb.ContextOptions>
+
         :return     <str>
         """
         if callable(self._locale):
-            return self._locale()
+            return self._locale(options)
         return self._locale
 
     def load(self, filename='', includeReferences=False):
@@ -1016,7 +1018,7 @@ class Manager(object):
         """
         self._token = token
 
-    def timezone(self):
+    def timezone(self, options=None):
         """
         Returns the timezone for the system.  This will affect how the
         date time information will be returned and formatted from the database.
@@ -1027,13 +1029,15 @@ class Manager(object):
         
         :sa     http://pytz.sourceforge.net/
                 https://pypi.python.org/pypi/tzlocal
-        
+
+        :param      options | <orb.ContextOptions> || None
+
         :return     <pytz.tzfile> || None
         """
         if self._timezone is None:
             return self.baseTimezone()
         elif callable(self._timezone):
-            return self._timezone()
+            return self._timezone(options)
         return self._timezone
 
     def token(self):

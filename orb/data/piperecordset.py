@@ -22,7 +22,7 @@ class PipeRecordSet(RecordSet):
         self._pipeTable = pipeTable
         self._targetColumn = targetColumn
 
-    def createRecord(self, **values):
+    def createRecord(self, values, **options):
         # link an existing column to this recordset
         if self._targetColumn in values:
             record = self.table()(values[self._targetColumn])
@@ -31,7 +31,7 @@ class PipeRecordSet(RecordSet):
 
         # otherwise, create a new record based on the target table and link it
         else:
-            record = self.table().createRecord(**values)
+            record = self.table().createRecord(values, **options)
             self.addRecord(record)
             return record
 
@@ -65,10 +65,9 @@ class PipeRecordSet(RecordSet):
                 msg = 'A record already exists for {0} and {1}'.format(self.sourceColumn(), self._targetColumn)
                 raise errors.DuplicateEntryFound(msg)
 
-        options[self.sourceColumn()] = self.source()
-        options[self._targetColumn] = record
+        values = {self.sourceColumn(): self.source(), self._targetColumn: record}
 
-        return pipe.createRecord(**options)
+        return pipe.createRecord(values, **options)
 
     def clear(self, **options):
         """
