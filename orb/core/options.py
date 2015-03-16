@@ -135,7 +135,6 @@ class ContextOptions(Options):
         'autoIncrement': True,
         'deleteFlags': orb.DeleteFlags.all(),
         'useCache': False,
-        'context': None,
         'database': None,
 
         # output options
@@ -143,6 +142,7 @@ class ContextOptions(Options):
         'format': 'object',
 
         # context options
+        'context': None,
         'locale': None,
         'timezone': None,
         'request': None,
@@ -180,9 +180,11 @@ class ContextOptions(Options):
 
         :param      options | <dict>
         """
+        new_options = {}
         if 'options' in options:
-            options = options['options'].raw_values
-        super(ContextOptions, self).update(options)
+            new_options.update(options['options'].raw_values)
+        new_options.update(options)
+        super(ContextOptions, self).update(new_options)
 
 # ------------------------------------------------------------------------------
 
