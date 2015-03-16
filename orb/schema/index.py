@@ -91,6 +91,8 @@ class Index(object):
             options['where'] = query
 
         # selects the records from the database
+        options['context'] = table.schema().context(self.name())
+
         if self._unique:
             results = table.selectFirst(**options)
         else:

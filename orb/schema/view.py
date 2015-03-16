@@ -319,7 +319,7 @@ class View(object):
         # initialize from the database
         else:
             # extract the primary key for initializing from a record
-            if len(args) == 1 and (Table.recordcheck(args[0]) or orb.View.recordcheck(args[0])):
+            if len(args) == 1 and (orb.Table.recordcheck(args[0]) or orb.View.recordcheck(args[0])):
                 record = args[0]
                 args = record.id()
                 self._updateFromDatabase(dict(record))
@@ -327,7 +327,7 @@ class View(object):
             elif len(args) == 1:
                 args = args[0]
 
-            cache = self.tableCache()
+            cache = self.viewCache()
             cache_key = '__init__({0})'.format(args)
             try:
                 data = cache[cache_key]
@@ -1596,6 +1596,17 @@ class View(object):
             return orb.system.database(db)
         else:
             return cls.schema().database()
+
+    @classmethod
+    def getRecord(cls, key, **options):
+        if 'where' not in options:
+            if type(key) in (str, unicode):
+                try:
+                    key = int(key)
+                except StandardError:
+                    raise orb.errors.RecordNotFound(cls, key)
+            options['where'] = Q(cls) == key
+        return cls.selectFirst(**options)
 
     @staticmethod
     def groupRecords(records, groupings, inflated=False):

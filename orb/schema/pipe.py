@@ -73,6 +73,8 @@ class Pipe(object):
             options['where'] = q
 
         # generate the new record set
+        options['context'] = record.schema().context(self.name())
+
         lookup = orb.LookupOptions(**options)
         context = record.contextOptions(**options)
         records = targetTable.select(lookup=lookup, options=context)

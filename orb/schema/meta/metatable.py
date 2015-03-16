@@ -115,6 +115,7 @@ class gettermethod(object):
         :param      record      <Table>
         """
         default = options.pop('default', None)
+        options['context'] = record.schema().context(self.func_name)
         context = record.contextOptions(**options)
         val = record.recordValue(self.columnName,
                                  locale=context.locale,
