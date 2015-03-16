@@ -1916,6 +1916,9 @@ class Query(object):
                         for and_value in or_values.split('+'):
                             sub_q = Query(key)
                             match = re.match('^(?P<negated>-|!)?(?P<op>>|<)?(?P<value>.*)$', and_value)
+                            if not match:
+                                continue
+
                             op = match.group('op')
                             and_value = match.group('value')
                             if and_value:
