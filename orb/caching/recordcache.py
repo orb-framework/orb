@@ -118,7 +118,7 @@ class RecordCache(object):
         :param      backend | <orb.Connection>
                     table   | subclass of <orb.Table>
                     lookup  | <orb.LookupOptions>
-                    options | <orb.DatabaseOptions>
+                    options | <orb.ContextOptions>
         
         :return     <int>
         """
@@ -131,7 +131,7 @@ class RecordCache(object):
         
         :param      table   | subclass of <orb.Table>
                     lookup  | <orb.LookupOptions>
-                    options | <orb.DatabaseOptions>
+                    options | <orb.ContextOptions>
         
         :return     {<str> columnName: <list> value, ..}
         """
@@ -207,7 +207,7 @@ class RecordCache(object):
         """
         lookup = orb.LookupOptions()
         lookup.where = orb.Query(table) == primaryKey
-        options = orb.DatabaseOptions()
+        options = orb.ContextOptions()
         return self.selectFirst(table.getDatabase().backend(),
                                 table,
                                 lookup,
@@ -226,11 +226,11 @@ class RecordCache(object):
             options['where'] = options.pop('query')
 
         lookup = orb.LookupOptions(**options)
-        db_opts = orb.DatabaseOptions(**options)
+        ctxt_opts = orb.ContextOptions(**options)
         return self.select(table.getDatabase().backend(),
                            table,
                            lookup,
-                           db_opts)
+                           ctxt_opts)
 
     def setTimeout(self, table, seconds):
         """
@@ -258,7 +258,7 @@ class RecordCache(object):
         
         :param      table   | subclass of <orb.Table>
                     lookup  | <orb.LookupOptions>
-                    options | <orb.DatabaseOptions>
+                    options | <orb.ContextOptions>
         
         :return     <dict> record || None
         """
@@ -276,7 +276,7 @@ class RecordCache(object):
         :param      backend | <orb.Connection>
                     table   | subclass of <orb.Table>
                     lookup  | <orb.LookupOptions>
-                    options | <orb.DatabaseOptions>
+                    options | <orb.ContextOptions>
         
         :return     [<dict> record, ..]
         """
@@ -307,7 +307,7 @@ class RecordCache(object):
         # or reload the pre-loaded records
         elif is_simple and cache and cache.isPreloaded():
             all_lookup = orb.LookupOptions()
-            all_opts = orb.DatabaseOptions()
+            all_opts = orb.ContextOptions()
 
             records = backend.select(table, all_lookup, all_opts)
             cache.setValue(preload_key, records)

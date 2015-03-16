@@ -53,8 +53,8 @@ class Table(object):
                          'IgnoreConflicts')
 
     Signals = enum(
-        AboutToCommit='aboutToCommit(Record,LookupOptions,DatabaseOptions)',
-        CommitFinished='commitFinished(Record,LookupOptions,DatabaseOptions)'
+        AboutToCommit='aboutToCommit(Record,LookupOptions,ContextOptions)',
+        CommitFinished='commitFinished(Record,LookupOptions,ContextOptions)'
     )
 
     # ----------------------------------------------------------------------
@@ -163,14 +163,11 @@ class Table(object):
     def __getstate__(self):
         state = {
             '__pickle': {
-                'locale': self.__record_locale,
                 'defaults': {k.name(): v for k, v in self.__record_defaults.items()},
                 'values': {k.name(): v for k, v in self.__record_values.items()},
                 'dbloaded': {x.name() for x in self.__record_dbloaded},
-                'database': self.__record_database.name() if self.__record_database else None,
-                'namespace': self.__record_namespace,
-                'lookup': dict(self.__lookup_options) if self.__database_options else None,
-                'dbopts': dict(self.__database_options) if self.__database_options else None
+                'lookup': dict(self.__lookup_options) if self.__context_options else None,
+                'context': dict(self.__context_options) if self.__context_options else None
             }
         }
         return state
@@ -178,15 +175,12 @@ class Table(object):
     def __setstate__(self, state):
         schema = self.schema()
 
-        self.__record_locale = state.get('locale')
         self.__record_defaults = {schema.column(k): v for k, v in state.get('defaults', {}).items()}
         self.__record_values = {schema.column(k): v for k, v in state.get('values', {}).items()}
         self.__record_dbloaded = {schema.column(x) for x in state.get('dbloaded', [])}
-        self.__record_database = orb.system.database(state.get('database')) if state.get('database') else None
-        self.__record_namespace = state.get('namespace')
 
         self.__lookup_options = orb.LookupOptions(**state.get('lookup')) if state.get('lookup') else None
-        self.__database_options = orb.DatabaseOptions(**state.get('dbopts')) if state.get('dbopts') else None
+        self.__context_options = orb.ContextOptions(**state.get('context')) if state.get('context') else None
 
     def __getitem__(self, key):
         column = self.schema().column(key)
@@ -334,17 +328,14 @@ class Table(object):
         # overwritten
         self.__local_cache_lock = ReadWriteLock()
         self.__local_cache = {}
-        self.__record_locale = None
         self.__record_defaults = {}
         self.__record_value_lock = ReadWriteLock()
         self.__record_values = {}
         self.__record_dbloaded = set()
         self.__record_datacache = None
-        self.__record_database = kwds.pop('db', None) or self.getDatabase()
-        self.__record_namespace = namespace = kwds.pop('recordNamespace', None)
 
-        self.__lookup_options = None
-        self.__database_options = None
+        self.__lookup_options = orb.LookupOptions(**kwds)
+        self.__context_options = orb.ContextOptions(**kwds)
 
         # initialize the defaults
         if len(args) == 1 and type(args[0]) == dict and args[0].get('__pickle'):
@@ -373,7 +364,7 @@ class Table(object):
             try:
                 data = cache[cache_key]
             except (TypeError, KeyError):
-                data = self.getRecord(args, db=self.__record_database, namespace=namespace, inflated=False)
+                data = self.getRecord(args, inflated=False, options=self.__context_options)
                 if data is not None and cache:
                     cache[cache_key] = data
 
@@ -382,7 +373,7 @@ class Table(object):
             else:
                 raise errors.RecordNotFound(self, args)
 
-        self.setRecordValues(**kwds)
+        self.setRecordValues(**{k: v for k, v in kwds.items() if self.schema().column(k)})
 
     #----------------------------------------------------------------------
     #                       PROTECTED METHODS
@@ -402,19 +393,18 @@ class Table(object):
                     data = data.copy()
                 self.__record_defaults[column] = data
 
-            self.__record_database = database
+            self.__context_options.database = database
             self.__record_dbloaded.update(columns)
 
-    def _updateFromDatabase(self, data, options=None):
+    def _updateFromDatabase(self, data):
         """
         Called from the backend class when it needs to
         manipulate information on this record instance.
         
-        :param      data  | {<str> column_name: <variant>, ..}
+        :param      data    | {<str> column_name: <variant>, ..}
+                    options | <orb.ContextOptions>
         """
-        if options and options.locale != 'all':
-            self.__record_locale = options.locale
-
+        options = self.contextOptions()
         schema = self.schema()
         dbname = schema.dbname()
         dvalues = {}
@@ -483,7 +473,7 @@ class Table(object):
 
             # restore the value from teh database
             else:
-                value = column.restoreValue(value)
+                value = column.restoreValue(value, options)
 
             dvalues[column] = value
             self.__record_dbloaded.add(column)
@@ -601,18 +591,18 @@ class Table(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    <orb.ContextOptions>, 'options' for
+                    an instance of the <orb.ContextOptions>
         
         :return     <bool> success
         """
 
         # sync the record to the database
         lookup = orb.LookupOptions(**kwds)
-        options = orb.DatabaseOptions(**kwds)
+        options = orb.ContextOptions(**kwds)
 
         # run any pre-commit logic required for this record
-        self.callbacks().emit('aboutToCommit(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
+        self.callbacks().emit('aboutToCommit(Record,LookupOptions,ContextOptions)', self, lookup, options)
 
         # check to see if we have any modifications to store
         if not self.isModified():
@@ -648,7 +638,7 @@ class Table(object):
         # clear any custom caches
         with WriteLocker(self.__local_cache_lock):
             self.__local_cache.clear()
-            self.__record_database = db
+            self.__context_options.database = db
 
         self.clearCustomCache()
 
@@ -659,7 +649,7 @@ class Table(object):
         if cache:
             cache.expire(self.primaryKey())
 
-        self.callbacks().emit('commitFinished(Record,LookupOptions,DatabaseOptions)', self, lookup, options)
+        self.callbacks().emit('commitFinished(Record,LookupOptions,ContextOptions)', self, lookup, options)
         return True
 
     def commitToArchive(self, *args, **kwds):
@@ -783,9 +773,7 @@ class Table(object):
         
         :return     <Database> || None
         """
-        if self.__record_database is None:
-            return self.getDatabase()
-        return self.__record_database
+        return self.__context_options.database
 
     def dataCache(self):
         """
@@ -797,14 +785,14 @@ class Table(object):
             self.__record_datacache = orb.DataCache.create()
         return self.__record_datacache
 
-    def databaseOptions(self, **options):
+    def contextOptions(self, **options):
         """
         Returns the lookup options for this record.  This will track the options that were
         used when looking this record up from the database.
 
         :return     <orb.LookupOptions>
         """
-        output = self.__database_options or orb.DatabaseOptions(locale=self.recordLocale())
+        output = self.__context_options or orb.ContextOptions()
         output.update(options)
         return output
 
@@ -863,15 +851,15 @@ class Table(object):
             return False
 
         lookup = orb.LookupOptions(**options)
-        db_opts = orb.DatabaseOptions(**options)
-        db_opts.force = True
+        ctxt_opts = orb.ContextOptions(**options)
+        ctxt_opts.force = True
 
         backend = db.backend()
         try:
-            backend.insert([self], lookup, db_opts)
+            backend.insert([self], lookup, ctxt_opts)
             return True
         except errors.OrbError, err:
-            if db_opts.throwErrors:
+            if ctxt_opts.throwErrors:
                 raise
             else:
                 log.error('Backend error occurred.\n%s', err)
@@ -908,7 +896,7 @@ class Table(object):
         """
         # additional options
         lookup = self.lookupOptions(**options)
-        db_opts = self.databaseOptions(**options)
+        ctxt_opts = self.contextOptions(**options)
 
         # simple json conversion
         output = self.recordValues(key='field', columns=lookup.columns, inflated=False)
@@ -937,7 +925,7 @@ class Table(object):
             if len(output) == 1:
                 output = output[0]
 
-        if db_opts.format == 'text':
+        if ctxt_opts.format == 'text':
             return projex.rest.jsonify(output)
         else:
             return output
@@ -1035,9 +1023,7 @@ class Table(object):
         
         :return     <str>
         """
-        if not self.__record_namespace:
-            return self.schema().namespace()
-        return self.__record_namespace
+        return self.__context_options.namespace
 
     def recordLocale(self):
         """
@@ -1046,7 +1032,7 @@ class Table(object):
 
         :return     <str>
         """
-        return self.__record_locale or orb.system.locale()
+        return self.contextOptions().locale
 
     def recordValue(self,
                     column,
@@ -1320,9 +1306,9 @@ class Table(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, as well as the keyword 'lookup' to 
+                    <orb.ContextOptions>, as well as the keyword 'lookup' to
                     an instance of <orb.LookupOptions> and 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    an instance of the <orb.ContextOptions>
         
         :return     <int>
         """
@@ -1330,7 +1316,7 @@ class Table(object):
             return 0
 
         cls = type(self)
-        opts = orb.DatabaseOptions(**kwds)
+        opts = orb.ContextOptions(**kwds)
         lookup = orb.LookupOptions(**kwds)
         lookup.where = Q(cls) == self
 
@@ -1372,12 +1358,10 @@ class Table(object):
         
         :param      database        <Database> || None
         """
-        self.__record_database = database
+        self.__context_options.database = database
 
-    def setDatabaseOptions(self, options):
-        self.__database_options = options
-        if options:
-            self.__record_locale = options.locale
+    def setContextOptions(self, options):
+        self.__context_options = options
 
     def setLocalCache(self, key, value):
         """
@@ -1437,7 +1421,7 @@ class Table(object):
 
         :param      locale | <str> || None
         """
-        self.__record_locale = locale
+        self.__context_options.locale = locale
 
     def setRecordValue(self,
                        columnName,
@@ -1557,14 +1541,14 @@ class Table(object):
         
         :param      namespace | <str> || None
         """
-        self.__record_namespace = namespace
+        self.__context_options.namespace = namespace
 
     def update(self, **values):
         return self.setRecordValues(**values)
 
     def updateOptions(self, **options):
-        self.setLookupOptions(self.lookupOptions(**options))
-        self.setDatabaseOptions(self.databaseOptions(**options))
+        self.__lookup_options.update(options)
+        self.__context_options.update(options)
 
     def updateFromRecord(self, record):
         """
@@ -1620,14 +1604,14 @@ class Table(object):
         Returns a record set containing all records for this table class.  This
         is a convenience method to the <orb.Table>.select method.
         
-        :param      **options | <orb.LookupOptions> & <orb.DatabaseOptions>
+        :param      **options | <orb.LookupOptions> & <orb.ContextOptions>
         
         :return     <orb.RecordSet>
         """
         return cls.select(**options)
 
     @classmethod
-    def createRecord(cls, **values):
+    def createRecord(cls, values, **options):
         """
         Shortcut for creating a new record for this table.
 
@@ -1639,7 +1623,7 @@ class Table(object):
         expand = [item for item in values.pop('expand', '').split(',') if item]
 
         # create the new record
-        record = cls()
+        record = cls(options=orb.ContextOptions(**options))
         record.update(**values)
         record.commit()
 
@@ -1820,7 +1804,7 @@ class Table(object):
         return output
 
     @classmethod
-    def inflateRecord(cls, values, default=None, db=None):
+    def inflateRecord(cls, values, **options):
         """
         Returns a new record instance for the given class with the values
         defined from the database.
@@ -1830,6 +1814,8 @@ class Table(object):
         
         :return     <orb.Table>
         """
+        context = orb.ContextOptions(**options)
+
         # inflate values from the database into the given class type
         if Table.recordcheck(values):
             record = values
@@ -1844,17 +1830,17 @@ class Table(object):
         if column and column.name() in values:
             morph = column.referenceModel()
             if morph:
-                morph_name = nstr(morph(values[column.name()], db=db))
+                morph_name = nstr(morph(values[column.name()], options=context))
                 dbname = cls.schema().databaseName()
                 morph_cls = orb.system.model(morph_name, database=dbname)
 
                 if morph_cls and morph_cls != cls:
                     pcols = morph_cls.schema().primaryColumns()
                     pkeys = [values.get(pcol.name(), values.get(pcol.fieldName())) for pcol in pcols if pcol in values]
-                    record = morph_cls(*pkeys, db=db)
+                    record = morph_cls(*pkeys, options=context)
 
         if record is None:
-            record = cls(__values=values, db=db)
+            record = cls(__values=values, options=context)
 
         return record
 
@@ -2032,9 +2018,9 @@ class Table(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.DatabaseOptions>, as well as the keyword 'lookup' to 
+                    <orb.ContextOptions>, as well as the keyword 'lookup' to
                     an instance of <orb.LookupOptions> and 'options' for 
-                    an instance of the <orb.DatabaseOptions>
+                    an instance of the <orb.ContextOptions>
         
         :return     [ <cls>, .. ] || { <variant> grp: <variant> result, .. }
         """
@@ -2045,14 +2031,14 @@ class Table(object):
         for i in range(len(args)):
             if i == 0 and isinstance(args[i], orb.LookupOptions):
                 kwds['lookup'] = args[i]
-            elif i == 1 and isinstance(args[i], orb.DatabaseOptions):
+            elif i == 1 and isinstance(args[i], orb.ContextOptions):
                 kwds['options'] = args[i]
             else:
                 kwds[arg_headers[i]] = args[i]
 
         lookup = orb.LookupOptions(**kwds)
         lookup.order = lookup.order or cls.schema().defaultOrder()
-        options = orb.DatabaseOptions(**kwds)
+        options = orb.ContextOptions(**kwds)
 
         # setup the default query options
         default_q = cls.baseTableQuery()
@@ -2067,7 +2053,7 @@ class Table(object):
         # define the record set and return it
         rset = orb.RecordSet(cls, None)
         rset.setLookupOptions(lookup)
-        rset.setDatabaseOptions(options)
+        rset.setContextOptions(options)
 
         if db is not None:
             rset.setDatabase(db)

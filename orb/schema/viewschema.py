@@ -1140,7 +1140,7 @@ class ViewSchema(object):
             self._dbname = self.defaultDbName(self.name(), prefix)
         return self._dbname
 
-    def timezone(self):
+    def timezone(self, options=None):
         """
         Returns the timezone associated specifically with this database.  If
         no timezone is directly associated, then it will return the timezone
@@ -1151,7 +1151,7 @@ class ViewSchema(object):
         :return     <pytz.tzfile> || None
         """
         if self._timezone is None:
-            return self.database().timezone()
+            return self.database().timezone(options)
         return self._timezone
 
     def toolTip(self, context='normal'):

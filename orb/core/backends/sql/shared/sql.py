@@ -408,7 +408,7 @@ class SELECT(SQL):
 
         :param      table_or_records   | <orb.Table> or <orb.RecordSet>
                     lookup             | <orb.LookupOptions>
-                    options            | <orb.DatabaseOptions>
+                    options            | <orb.ContextOptions>
                     **scope            | <dict>
 
         :return     <str>
@@ -417,13 +417,13 @@ class SELECT(SQL):
             new_scope = {
                 'table': table_or_records,
                 'lookup': orb.LookupOptions(**scope),
-                'options': orb.DatabaseOptions(**scope)
+                'options': orb.ContextOptions(**scope)
             }
         else:
             new_scope = {
                 'table': table_or_records.table(),
                 'lookup': table_or_records.lookupOptions(**scope),
-                'options': table_or_records.databaseOptions(**scope)
+                'options': table_or_records.contextOptions(**scope)
             }
 
         # use default columns
@@ -460,14 +460,14 @@ class SELECT_COUNT(SQL):
 
         :param      table   | <orb.Table>
                     lookup  | <orb.LookupOptions>
-                    options | <orb.DatabaseOptions>
+                    options | <orb.ContextOptions>
                     **scope | <dict>
 
         :return     <str>
         """
         scope['table'] = table
         scope['lookup'] = scope.get('lookup', orb.LookupOptions(**scope))
-        scope['options'] = scope.get('options', orb.DatabaseOptions(**scope))
+        scope['options'] = scope.get('options', orb.ContextOptions(**scope))
 
         return super(SELECT_COUNT, self).render(**scope)
 
