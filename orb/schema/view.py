@@ -157,6 +157,38 @@ class View(object):
 
     #----------------------------------------------------------------------
 
+    def __reduce__(self):
+        return type(self), (self.__getstate__(),)
+
+    def __getstate__(self):
+        state = {
+            '__pickle': {
+                'defaults': {k.name(): v for k, v in self.__record_defaults.items()},
+                'values': {k.name(): v for k, v in self.__record_values.items()},
+                'dbloaded': {x.name() for x in self.__record_dbloaded},
+                'lookup': dict(self.__lookup_options) if self.__context_options else None,
+                'context': dict(self.__context_options) if self.__context_options else None
+            }
+        }
+        return state
+
+    def __setstate__(self, state):
+        schema = self.schema()
+
+        self.__record_defaults = {schema.column(k): v for k, v in state.get('defaults', {}).items()}
+        self.__record_values = {schema.column(k): v for k, v in state.get('values', {}).items()}
+        self.__record_dbloaded = {schema.column(x) for x in state.get('dbloaded', [])}
+
+        self.__lookup_options = orb.LookupOptions(**state.get('lookup')) if state.get('lookup') else None
+        self.__context_options = orb.ContextOptions(**state.get('context')) if state.get('context') else None
+
+    def __getitem__(self, key):
+        column = self.schema().column(key)
+        if column:
+            return self.recordValue(column)
+        else:
+            raise KeyError(key)
+
     def __json__(self, *args):
         """
         Iterates this object for its values.  This will return the field names from the
@@ -369,7 +401,8 @@ class View(object):
         Called from the backend class when it needs to
         manipulate information on this record instance.
         
-        :param      data  | {<str> column_name: <variant>, ..}
+        :param      data    | {<str> column_name: <variant>, ..}
+                    options | <orb.ContextOptions>
         """
         options = self.contextOptions()
         schema = self.schema()
@@ -391,7 +424,7 @@ class View(object):
             column = schema.column(colname)
 
             # use the expanded option when possible
-            if column in dvalues and orb.View.recordcheck(dvalues[column]):
+            if column in dvalues and (orb.Table.recordcheck(dvalues[column]) or orb.View.recordcheck(dvalues[column])):
                 continue
 
             if not column:
@@ -419,7 +452,7 @@ class View(object):
                     raise errors.TableNotFound(column.reference())
                 value = model(__values=value)
 
-            # store translatable columns
+            # restore translatable columns
             elif column.isTranslatable():
                 if type(value) in (str, unicode) and value.startswith('{'):
                     try:
@@ -438,12 +471,17 @@ class View(object):
                 elif type(value) in (str, unicode):
                     value = orb.Query.fromXmlString(value)
 
+            # restore the value from teh database
+            else:
+                value = column.restoreValue(value, options)
+
             dvalues[column] = value
             self.__record_dbloaded.add(column)
 
-        # pylint: disable-msg=W0142
-        self.__record_values.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
-        self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
+        with WriteLocker(self.__record_value_lock):
+            column_values = {k: v if type(v) != dict else v.copy() for k, v in dvalues.items()}
+            self.__record_values.update(column_values)
+            self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
 
     def _removedFromDatabase(self):
         """
@@ -930,19 +968,21 @@ class View(object):
                 orb_getter = False
 
             if method is not None and not orb_getter:
-                keywords = self.__getKeywords(method).copy()
+                keywords = list(self.__getKeywords(method))
+                kwds = {}
 
                 if 'locale' in keywords:
-                    keywords['locale'] = locale
+                    kwds['locale'] = locale
                 if 'default' in keywords:
-                    keywords['default'] = default
+                    kwds['default'] = default
                 if 'inflated' in keywords:
-                    keywords['inflated'] = inflated
+                    kwds['inflated'] = inflated
 
-                return method(self, **keywords)
+                return method(self, **kwds)
 
         try:
-            value = self.__record_values[col]
+            with ReadLocker(self.__record_value_lock):
+                value = self.__record_values[col]
         except KeyError:
             proxy = self.proxyColumn(column)
             if proxy and proxy.getter():
@@ -989,8 +1029,7 @@ class View(object):
 
         # return none output's and non-auto inflated values immediately
         if value is None or not (col.isReference() and inflated):
-            out = col.restoreValue(value)
-            return out if not View.recordcheck(out) else out.id()
+            return value if not orb.Table.recordcheck(value) else value.id()
 
         # ensure we have a proper reference model
         refmodel = col.referenceModel()
@@ -1007,7 +1046,8 @@ class View(object):
             self.__record_defaults[col] = inst
 
         # cache the record value
-        self.__record_values[col] = inst
+        with WriteLocker(self.__record_value_lock):
+            self.__record_values[col] = inst
         return inst
 
     def recordValues(self,

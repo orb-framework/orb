@@ -70,7 +70,7 @@
                 SELECT ${alias}.*, ${alias}_i18n.*
                 % endif
                 % for (type, object), sub_tree in collect_sub_expand(target_table.schema(), tree).items():
-                ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO})}
+                ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO, 'options': options})}
                 % endfor
                 FROM "${table_name}" AS "${alias}"
                 % if has_translations:
@@ -124,7 +124,7 @@
                 SELECT ${alias}.*, ${alias}_i18n.*
                 % endif
                 % for (type, object), sub_tree in collect_sub_expand(source_schema, tree).items():
-                ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO})}
+                ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO, 'options': options})}
                 % endfor
                 FROM "${table_name}" AS "${alias}"
                 % if has_translations:
@@ -154,7 +154,7 @@
             SELECT "${alias}".*, "${alias}_i18n".*
             % endif
             % for (type, object), sub_tree in collect_sub_expand(reference.schema(), tree).items():
-            ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO})}
+            ,${SELECT_EXPAND(**{type: object, 'tree': sub_tree, 'source_alias': alias, 'GLOBALS': GLOBALS, 'IO': IO, 'options': options})}
             % endfor
             FROM "${table_name}" AS "${alias}"
             % if has_translations:

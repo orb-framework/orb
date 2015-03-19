@@ -951,7 +951,7 @@ class RecordSet(object):
         :return     <str>
         """
         lookup = self.lookupOptions(**options)
-        ctxt_opts = self.contextOptions(**options)
+        context = self.contextOptions(**options)
         tree = lookup.expandtree()
         output = {}
         if 'first' in tree:
@@ -972,17 +972,17 @@ class RecordSet(object):
             options['expand'] = sub_tree
 
             if lookup.returning != 'values':
-                output['records'] = [record.json(**options) for record in self.records()]
+                output['records'] = [record.json(lookup=lookup, options=context) for record in self.records()]
             else:
                 output['records'] = self.records()
 
         if not output:
             if lookup.returning != 'values':
-                output = [record.json(**options) for record in self.records()]
+                output = [record.json(lookup=lookup, options=context) for record in self.records()]
             else:
                 output = self.records()
 
-        if ctxt_opts.format == 'text':
+        if context.format == 'text':
             return projex.rest.jsonify(output)
         else:
             return output
@@ -1630,7 +1630,7 @@ class RecordSet(object):
         view = table.schema().view(name)
         if view:
             if not self.isEmpty():
-                return view.select(where=orb.Query(view).in_(self))
+                return view.select(where=orb.Query(view).in_(self), options=self.contextOptions())
             else:
                 return orb.RecordSet(view)
         else:

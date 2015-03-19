@@ -107,20 +107,22 @@ class gettermethod(object):
 
         self.__dict__['__doc__'] = self.func_doc
 
-    def __call__(self, record, **kwds):
+    def __call__(self, record, **options):
         """
         Calls the getter lookup method for the database record.
 
         :param      record      <View>
         """
-        inflated = kwds.get('inflated', True)
+        default = options.pop('default', None)
+        options['context'] = record.schema().context(self.func_name)
+        context = record.contextOptions(**options)
         val = record.recordValue(self.columnName,
-                                 locale=kwds.get('locale', None),
-                                 default=kwds.get('default', None),
-                                 inflated=inflated,
+                                 locale=context.locale,
+                                 default=default,
+                                 inflated=context.inflated,
                                  useMethod=False)
 
-        if not inflated and orb.View.recordcheck(val):
+        if not context.inflated and orb.Table.recordcheck(val):
             return val.primaryKey()
         return val
 
@@ -192,6 +194,7 @@ class reverselookupmethod(object):
         self.__lookup__ = True
 
         self._cache = {}
+        self._local_cache = {}
         self.reference = kwds.get('reference', '')
         self.referenceDb = kwds.get('referenceDatabase', None)
         self.columnName = kwds.get('columnName', '')
@@ -204,34 +207,36 @@ class reverselookupmethod(object):
 
         self.__dict__['__doc__'] = self.func_doc
 
-    def __call__(self, record, **kwds):
+    def __call__(self, record, **options):
         """
         Calls the getter lookup method for the database record.
 
         :param      record      <View>
         """
-        reload = kwds.pop('reload', False)
+        reload = options.pop('reload', False)
 
         # remove any invalid query lookups
-        if 'where' in kwds and orb.Query.testNull(kwds['where']):
-            kwds.pop('where')
+        if 'where' in options and orb.Query.testNull(options['where']):
+            options.pop('where')
 
         # lookup the records with a specific model
-        kwds.setdefault('locale', record.recordLocale())
-        view = kwds.get('view') or self.viewFor(record)
+        options.setdefault('locale', record.recordLocale())
+        view = options.get('view') or self.viewFor(record)
         if not view:
             return None if self.unique else orb.RecordSet()
 
         # return from the cache when specified
         cache = self.cache(view)
-        cache_key = (id(record),
-                     hash(orb.LookupOptions(**kwds)),
-                     id(record.database()))
+        cache_key = (record.id(),
+                     hash(orb.LookupOptions(**options)),
+                     record.database().name())
 
-        if not reload and cache and cache.isCached(cache_key):
-            out = cache.value(cache_key)
-            out.updateOptions(**kwds)
+        if not reload and cache and cache_key in self._local_cache and cache.isCached(cache_key):
+            out = self._local_cache[cache_key]
+            out.updateOptions(**options)
             return out
+
+        self._local_cache.pop(cache_key, None)
 
         # make sure this is a valid record
         if not record.isRecord():
@@ -242,21 +247,25 @@ class reverselookupmethod(object):
         # generate the reverse lookup query
         reverse_q = orb.Query(self.columnName) == record
 
-        kwds['where'] = reverse_q & kwds.get('where')
-        kwds['db'] = record.database()
-        kwds['context'] = record.schema().context(self.func_name)
+        options['where'] = reverse_q & options.get('where')
+        options['db'] = record.database()
+        options['context'] = record.schema().context(self.func_name)
+
+        lookup = orb.LookupOptions(**options)
+        context = record.contextOptions(**options)
 
         if self.unique:
-            output = view.selectFirst(**kwds)
+            output = view.selectFirst(lookup=lookup, options=context)
         else:
-            output = view.select(**kwds)
+            output = view.select(lookup=lookup, options=context)
 
         if isinstance(output, orb.RecordSet):
             output.setSource(record)
             output.setSourceColumn(self.columnName)
 
         if cache and output is not None:
-            cache.setValue(cache_key, output)
+            self._local_cache[cache_key] = output
+            cache.setValue(cache_key, True, timeout=self.cacheTimeout)
 
         return output
 
@@ -266,35 +275,36 @@ class reverselookupmethod(object):
 
         :param      view | <subclass of orb.View>
 
-        :return     <orb.TableCache> || None
+        :return     <orb.ViewCache> || None
         """
         try:
             return self._cache[view]
         except KeyError:
             if force or self.cached:
-                cache = orb.TableCache(view, self.cacheTimeout)
+                cache = view.viewCache() or orb.ViewCache(view, view.schema().cache(), timeout=self.cacheTimeout)
                 self._cache[view] = cache
                 return cache
             return None
 
-    def preload(self, record, data, options, type='records'):
+    def preload(self, record, data, lookup, type='records'):
         """
         Preload a list of records from the database.
 
         :param      record  | <orb.View>
                     data    | [<dict>, ..]
-                    options | <orb.LookupOptions> || None
+                    lookup | <orb.LookupOptions> || None
         """
         view = self.viewFor(record)
-        cache_key = (id(record),
-                     hash(options or orb.LookupOptions()),
-                     id(record.database()))
+        cache_key = (record.id(),
+                     hash(lookup or orb.LookupOptions()),
+                     record.database().name())
 
         cache = self.cache(view, force=True)
-        rset = cache.value(cache_key)
+        rset = self._local_cache.get(cache_key)
         if rset is None:
             rset = orb.RecordSet()
-            cache.setValue(cache_key, rset)
+            self._local_cache[cache_key] = rset
+            cache.setValue(cache_key, True, timeout=self.cacheTimeout)
 
         if type == 'ids':
             rset.cache('ids', data)
