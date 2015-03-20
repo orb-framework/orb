@@ -110,7 +110,7 @@
 
                 if record_part in ('first', 'last'):
                     join_table = QUOTE('_'.join((join_schema.dbname(), column_name, record_part)))
-                    preload_as = '(SELECT DISTINCT ON ({0}) {1}.* FROM {1} ORDER BY {0}, {2})'
+                    preload_as = '(SELECT DISTINCT ON ({0}) {1}.* FROM {1} ORDER BY {0}, {3})'
                     preload.setdefault(join_table, preload_as.format(*opts))
                 else:
                     join_table = QUOTE(join_schema.dbname())
