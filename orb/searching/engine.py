@@ -51,10 +51,21 @@ class SearchEngine(AddonManager):
         
         :param      text | <unicode>
         
-        :return     <orb.SearchParseResult>
+        :return     <orb.SearchTermGroup>
         """
         return SearchTermGroup.fromString(text)
-    
+
+    def parseQuery(self, table, text):
+        """
+        Takes the given table and generates a Query object for the inputted text.
+
+        :param      table | <orb.Table>
+                    text  |  <str>
+
+        :return     <orb.Query>
+        """
+        return self.parse(text).toQuery(table)
+
     def setParser(self, parser):
         """
         Sets the parser that will be utilized for this engine.

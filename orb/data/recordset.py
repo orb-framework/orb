@@ -1303,8 +1303,7 @@ class RecordSet(object):
             return RecordSet(self)
 
         engine = self.table().schema().searchEngine()
-        terms = engine.parse(search_terms)
-        output = self.refine(terms.toQuery(self.table()))
+        output = self.refine(engine.parseQuery(self.table(), search_terms))
         if limit is not None:
             output.setLimit(limit)
         return output
