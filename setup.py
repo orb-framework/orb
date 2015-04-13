@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
-import orb
+from orb import version
 
 setup(
     name='orb-api',
-    version=orb.__version__,
+    version=version.__version__,
     author='Eric Hulser',
     author_email='eric.hulser@gmail.com',
     maintainer='Eric Hulser',

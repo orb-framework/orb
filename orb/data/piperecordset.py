@@ -152,6 +152,8 @@ class PipeRecordSet(RecordSet):
     def update(self, **values):
         if 'ids' in values:
             return self.setRecords(values['ids'])
+        elif 'records' in values:
+            return self.setRecords([x.get('id') for x in values['records'] if x.get('id')])
         else:
             raise errors.OrbError('Invalid update parameters: {0}'.format(values))
 

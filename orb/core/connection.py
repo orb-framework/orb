@@ -262,7 +262,6 @@ class Connection(AddonManager):
                           indexName=settings.primaryIndex(),
                           indexed=True,
                           unique=True,
-                          private=True,
                           searchable=True)
 
     def defaultInheritColumn(self, schema):

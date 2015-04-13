@@ -46,6 +46,7 @@ class Table(object):
     __db_schema__ = None  # <orb.TableSchema> for direct creation
     __db_ignore__ = True  # bypass database table processing
     __db_archive__ = False
+    __db_implements__ = None
 
     ReloadOptions = enum('Conflicts',
                          'Modified',
@@ -898,8 +899,11 @@ class Table(object):
         lookup = self.lookupOptions(**options)
         ctxt_opts = self.contextOptions(**options)
 
+        # hide private columns
+        columns = [x for x in lookup.columns or self.schema().columns() if not x.testFlag(x.Flags.Private)]
+
         # simple json conversion
-        output = self.recordValues(key='field', columns=lookup.columns, inflated=False)
+        output = self.recordValues(key='field', columns=columns, inflated=False)
 
         # expand any references we need
         expand_tree = lookup.expandtree()

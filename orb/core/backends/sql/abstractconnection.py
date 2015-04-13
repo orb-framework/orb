@@ -27,7 +27,7 @@ class SQLConnection(orb.Connection):
     """
     Creates a SQL based backend connection type for handling database
     connections to different SQL based databases.  This class can be subclassed
-    to define different SQL connections.
+    to define different SQL connections.f
     """
 
     def __init__(self, database):

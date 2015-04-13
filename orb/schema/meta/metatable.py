@@ -372,6 +372,7 @@ class MetaTable(type):
             '__db_contexts__': {},
             '__db_views__': {},
             '__db_schema__': None,
+            '__db_implements__': None,
             '__db_inherits__': None,
             '__db_abstract__': False,
             '__db_archived__': False
@@ -393,8 +394,15 @@ class MetaTable(type):
         """
         Create a new table model.
         """
+        # implement a new override class
+        if db_data['__db_implements__']:
+            new_base = orb.system.model(db_data['__db_implements__'], autoGenerate=True)
+            bases = tuple([new_base if issubclass(base, orb.Table) else base for base in bases])
+            schema = new_base.schema()
+        else:
+            schema = db_data['__db_schema__']
+
         new_model = super(MetaTable, mcs).__new__(mcs, name, bases, attrs)
-        schema = db_data['__db_schema__']
 
         if schema:
             db_data['__db_name__'] = schema.name()
@@ -547,5 +555,8 @@ class MetaTable(type):
         for rev_name, lookup in lookups:
             ilookup = instancemethod(lookup, None, new_model)
             setattr(new_model, rev_name, ilookup)
+
+        if db_data['__db_implements__']:
+            orb.system.setModel(db_data['__db_implements__'], new_model)
 
         return new_model
