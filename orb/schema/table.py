@@ -900,7 +900,9 @@ class Table(object):
         ctxt_opts = self.contextOptions(**options)
 
         # hide private columns
-        columns = [x for x in lookup.columns or self.schema().columns() if not x.testFlag(x.Flags.Private)]
+        schema = self.schema()
+        columns = [schema.column(x) for x in lookup.columns] if lookup.columns else schema.columns()
+        columns = [x for x in columns if not x.testFlag(x.Flags.Private)]
 
         # simple json conversion
         output = self.recordValues(key='field', columns=columns, inflated=False)

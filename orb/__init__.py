@@ -18,7 +18,7 @@ __email__ = 'eric.hulser@gmail.com'
 # this also needs to be set in the setup.py file!
 __major__ = 4
 __minor__ = 4
-__revision__ = 12
+__revision__ = 13
 
 __version_info__ = (__major__, __minor__, __revision__)
 __version__ = '{0}.{1}.{2}'.format(*__version_info__)
@@ -35,6 +35,7 @@ from .querying import *
 from .schema import *
 from .searching import *
 from .contexts import *
+from .decorators import lookupmethod
 
 # create the global manager instance
 from .manager import Manager
