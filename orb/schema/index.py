@@ -1,9 +1,9 @@
 """ Defines an indexing system to use when looking up records. """
 
 import logging
+import projex.text
 
 from xml.etree import ElementTree
-
 from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 
