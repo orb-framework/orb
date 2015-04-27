@@ -774,7 +774,7 @@ class Table(object):
         
         :return     <Database> || None
         """
-        return self.__context_options.database
+        return self.__context_options.raw_values.get('database') or self.getDatabase()
 
     def dataCache(self):
         """

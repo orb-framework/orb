@@ -3,6 +3,7 @@ Defines the DataStore class that will convert Column value types for different
 backends to a base type.
 """
 
+import time
 import cPickle
 import datetime
 import decimal
@@ -57,7 +58,11 @@ class DataStore(AddonManager):
                     return orb.Query.fromXmlString(nstr(db_value))
                 except StandardError:
                     raise orb.errors.DataStoreError('Failed to restore query.')
-        
+
+        elif col_type in (orb.ColumnType.Timestamp, orb.ColumnType.Timestamp_UTC):
+            if isinstance(db_value, (int, float)):
+                return datetime.datetime.fromtimestamp(db_value)
+
         elif col_type == orb.ColumnType.Dict:
             return projex.rest.unjsonify(nstr(db_value))
         
@@ -142,6 +147,9 @@ class DataStore(AddonManager):
         
         # save a datetime
         elif type(py_value) == datetime.datetime:
+            if col_type in (orb.ColumnType.Timestamp, orb.ColumnType.Timestamp_UTC):
+                return time.mktime(py_value.timetuple())
+
             # convert timezone information to UTC data
             if py_value.tzinfo is not None:
                 try:

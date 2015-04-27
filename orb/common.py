@@ -35,6 +35,8 @@ ColumnType = enum(
     'Interval',
     'Time',
     'DatetimeWithTimezone',
+    'Timestamp',
+    'Timestamp_UTC',
 
     # data types
     'Image',  # stores images in the database as binary

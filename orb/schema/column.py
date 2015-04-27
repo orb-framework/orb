@@ -14,6 +14,11 @@ from xml.etree import ElementTree
 
 from ..common import ColumnType, RemovedAction
 
+try:
+    from dateutil import parser as dateutil_parser
+except ImportError:
+    dateutil_parser = None
+
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
 pytz = lazy_import('pytz')
@@ -310,7 +315,7 @@ class Column(object):
             else:
                 return None
 
-        elif ctype == ColumnType.Datetime:
+        elif ctype in (ColumnType.Datetime, ColumnType.Timestamp):
             if isinstance(default, datetime.datetime):
                 return default
             elif default in ('today', 'now'):
@@ -318,7 +323,7 @@ class Column(object):
             else:
                 return None
 
-        elif ctype == ColumnType.DatetimeWithTimezone:
+        elif ctype == (ColumnType.DatetimeWithTimezone, ColumnType.Timestamp_UTC):
             if isinstance(default, datetime.datetime):
                 return default
             elif default in ('today', 'now'):
@@ -811,6 +816,10 @@ class Column(object):
             else:
                 log.warning('No local timezone defined')
 
+        # restore a timestamp value
+        elif coltype in (ColumnType.Timestamp, ColumnType.Timestamp_UTC) and isinstance(value, (int, float)):
+            value = datetime.datetime.fromtimestamp(value)
+
         # restore a string value
         elif self.isString():
             value = projex.text.decoded(value)
@@ -842,7 +851,7 @@ class Column(object):
             typ = '<int>'
         elif self.columnType() == ColumnType.Enum:
             typ = '<int> (enum)'
-        elif self.columnType() == ColumnType.Datetime:
+        elif self.columnType() in (ColumnType.Datetime, ColumnType.Timestamp, ColumnType.Timestamp_UTC):
             typ = '<datetime.datetime>'
         elif self.columnType() == ColumnType.Date:
             typ = '<datetime.date> (without tz_info)'
@@ -939,6 +948,11 @@ class Column(object):
                     value = value.astimezone(pytz.utc).replace(tzinfo=None)
                 else:
                     log.warning('No local timezone defined.')
+
+        # store timestamp information
+        elif coltype in (ColumnType.Timestamp, ColumnType.Timestamp_UTC):
+            if isinstance(value, datetime.datetime):
+                value = time.mktime(value.timetuple())
 
         # encrypt the value if necessary
         elif self.isEncrypted():
@@ -1388,6 +1402,8 @@ class Column(object):
             'Datetime': 'datetime.datetime.now()',
             'DatetimeWithTimezone': 'datetime.datetime.now()',
             'Time': 'datetime.time(12, 0, 0)',
+            'Timestamp': 'datetime.datetime.now()',
+            'Timestamp_UTC': 'datetime.datetime.now()',
             'Interval': 'datetime.timedelta(seconds=1)',
             'Decimal': '0.0',
             'Double': '0.0',
@@ -1618,11 +1634,9 @@ class Column(object):
         # convert the value to a string using default values
         coltype = ColumnType.base(self.columnType())
         if coltype == ColumnType.Date:
-            try:
-                from dateutil import parser
-
-                return parser.parse(value).date()
-            except ImportError:
+            if dateutil_parser:
+                return dateutil_parser.parse(value).date()
+            else:
                 extra = extra or '%Y-%m-%d'
                 time_struct = time.strptime(value, extra)
                 return datetime.date(time_struct.tm_year,
@@ -1630,11 +1644,9 @@ class Column(object):
                                      time_struct.tm_day)
 
         elif coltype == ColumnType.Time:
-            try:
-                from dateutil import parser
-
-                return parser.parse(value).time()
-            except ImportError:
+            if dateutil_parser:
+                return dateutil_parser.parse(value).time()
+            else:
                 extra = extra or '%h:%m:%s'
                 time_struct = time.strptime(value, extra)
                 return datetime.time(time_struct.tm_hour,
@@ -1642,11 +1654,9 @@ class Column(object):
                                      time_struct.tm_sec)
 
         elif coltype in (ColumnType.Datetime, ColumnType.DatetimeWithTimezone):
-            try:
-                from dateutil import parser
-
-                return parser.parse(value)
-            except ImportError:
+            if dateutil_parser:
+                return dateutil_parser.parse(value)
+            else:
                 extra = extra or '%Y-%m-%d %h:%m:s'
                 time_struct = time.strptime(value, extra)
                 return datetime.datetime(time_struct.tm_year,
@@ -1655,6 +1665,15 @@ class Column(object):
                                          time_struct.tm_hour,
                                          time_struct.tm_minute,
                                          time_struct.tm_sec)
+
+        elif coltype in (ColumnType.Timestamp, ColumnType.Timestamp_UTC):
+            try:
+                return datetime.datetime.fromtimestamp(float(value))
+            except StandardError:
+                if dateutil_parser:
+                    return dateutil_parser.parse(value)
+                else:
+                    return datetime.datetime.min()
 
         elif coltype == ColumnType.Bool:
             return nstr(value).lower() == 'true'
