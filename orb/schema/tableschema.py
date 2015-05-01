@@ -532,7 +532,6 @@ class TableSchema(object):
             # create the new archive schema
             archive_name = '{0}Archive'.format(self.name())
             archive_schema = TableSchema()
-            archive_schema.setAutoPrimary(False)
             archive_schema.setDatabaseName(self.databaseName())
             archive_schema.setName(archive_name)
             archive_schema.setDbName('{0}_archives'.format(projex.text.underscore(self.name())))

@@ -886,7 +886,10 @@ class Table(object):
         """
         if db in (None, self.database()):
             # make sure we have an ID and that the ID has been loaded from the database
-            return self.primaryKey() is not None and self.__record_dbloaded.issuperset(self.schema().primaryColumns())
+            primary_cols = self.schema().primaryColumns()
+            if not primary_cols:
+                raise orb.errors.PrimaryKeyNotDefined(self)
+            return bool(self.primaryKey()) and self.__record_dbloaded.issuperset(primary_cols)
         return False
 
     def json(self, **options):
