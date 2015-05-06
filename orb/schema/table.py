@@ -682,7 +682,7 @@ class Table(object):
         record = model(**values)
         record.setArchivedAt(datetime.datetime.now())
         record.setArchiveNumber(number + 1)
-        record.setRecordValue(self.schema().name(), self)
+        record.setRecordValue(projex.text.camelHump(self.schema().name()), self)
 
         try:
             record.setLocale(locale)  # property on archive for translatable models
