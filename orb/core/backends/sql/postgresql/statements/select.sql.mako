@@ -154,13 +154,13 @@ SELECT ${'DISTINCT' if lookup.distinct else ''}
 FROM "${table_name}"
 ${'\n'.join(joined) if joined else ''}
 % if i18n_columns:
-    % if options.inflated or options.locale == 'all':
+    % if options.locale == 'all':
     LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
         "i18n"."${table_name}_id" = "${ID}"
     )
     % else:
     LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
-        "i18n"."${table_name}_id" = "${table_name}"."${ID}" AND "i18n"."locale" = %(locale)s
+        "i18n"."${table_name}_id" = "${table_name}"."${ID}" AND "i18n"."locale" = '${options.locale}'
     )
     % endif
 % endif
@@ -170,13 +170,13 @@ ${'\n'.join(joined) if joined else ''}
         SELECT DISTINCT ${'ON ({0}) '.format(', '.join([col.split(' ')[0] for col in order_by])) if order_by else ''}"${table_name}"."id"
         FROM "${table_name}"
         % if i18n_columns:
-            % if options.inflated or options.locale == 'all':
+            % if options.locale == 'all':
             LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
                 "i18n"."${table_name}_id" = "${ID}"
             )
             % else:
             LEFT JOIN "${table_name}_i18n" AS "i18n" ON (
-                "i18n"."${table_name}_id" = "${table_name}"."${ID}" AND "i18n"."locale" = %(locale)s
+                "i18n"."${table_name}_id" = "${table_name}"."${ID}" AND "i18n"."locale" = '${options.locale}'
             )
             % endif
         % endif
