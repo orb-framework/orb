@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='orb-api',
-    version='4.4.15',
+    version='4.4.16',
     author='Eric Hulser',
     author_email='eric.hulser@gmail.com',
     maintainer='Eric Hulser',
