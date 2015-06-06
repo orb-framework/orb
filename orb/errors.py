@@ -41,6 +41,10 @@ class ValidationError(OrbError):
 class ActionNotAllowed(OrbError):
     pass
 
+class ArchiveNotFound(OrbError):
+    def __init__(self, table):
+        msg = 'Could not find archives for the {0} table.'.format(table)
+        super(ArchiveNotFound, self).__init__(msg)
 
 # B
 # ------------------------------------------------------------------------------

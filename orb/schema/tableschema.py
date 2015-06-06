@@ -478,9 +478,6 @@ class TableSchema(object):
         if grp:
             prefix = grp.modelPrefix()
 
-        cls = MetaTable(prefix + self.name(), tuple(bases), attrs)
-        setattr(dynamic, cls.__name__, cls)
-
         # generate archive layer
         if self.isArchived():
             # create the archive column
@@ -490,9 +487,13 @@ class TableSchema(object):
             # create a duplicate of the existing columns, disabling translations since we'll store
             # a single record per change
             found_locale = False
-            for column in self.columns(recurse=False, flags=~orb.Column.Flags.Primary):
+            for column in self.columns(recurse=False):
+                if column.name() == 'id':
+                    continue
+
                 new_column = column.copy()
                 new_column.setTranslatable(False)
+                new_column.setUnique(False)
                 archive_columns.append(new_column)
                 if column.name() == 'locale':
                     found_locale = True
@@ -535,7 +536,7 @@ class TableSchema(object):
             archive_schema.setDatabaseName(self.databaseName())
             archive_schema.setName(archive_name)
             archive_schema.setDbName('{0}_archives'.format(projex.text.underscore(self.name())))
-            archive_schema.setColumns(archive_schema.generatePrimary() + archive_columns)
+            archive_schema.setColumns(archive_columns)
             archive_schema.setIndexes(archive_indexes)
             archive_schema.setAutoLocalize(self.autoLocalize())
             archive_schema.setArchived(False)
@@ -548,11 +549,15 @@ class TableSchema(object):
             }
 
             model = MetaTable(archive_name, tuple(bases), class_data)
+            archive_schema.setModel(model)
             self.setArchiveModel(model)
             orb.system.registerSchema(archive_schema)
 
             setattr(dynamic, archive_name, model)
 
+        # finally, create the new model
+        cls = MetaTable(prefix + self.name(), tuple(bases), attrs)
+        setattr(dynamic, cls.__name__, cls)
         return cls
 
     def generatePrimary(self):
