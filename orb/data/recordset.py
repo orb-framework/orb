@@ -24,6 +24,32 @@ errors = lazy_import('orb.errors')
 
 # ------------------------------------------------------------------------------
 
+class RecordSetIterator(object):
+    def __init__(self, rset, batch=1):
+        self._rset = rset
+        self._page = 1
+        self._index = -1
+        self._pageSize = batch
+        self._records = []
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        self._index += 1
+
+        # get the next batch of records
+        if len(self._records) <= self._index:
+            self._records = list(self._rset.page(self._page, self._pageSize))
+            self._page += 1
+            self._index = 0
+
+        # stop the iteration when complete
+        if not self._records:
+            raise StopIteration()
+        else:
+            return self._records[self._index]
+
 class RecordSet(object):
     """
     Defines a class that can be used to manipulate table records in bulk.  For
@@ -908,6 +934,18 @@ class RecordSet(object):
         if db:
             return db.isThreadEnabled()
         return False
+
+    def iterrecords(self, batch=1):
+        """
+        Creates a recordset iterator that will loop through the contents of this
+        record set at a particular size.  This will reduce the number of calls made to the
+        database at a single time.
+
+        :param batch:int
+
+        :return: <orb.data.recordset.RecordSetIterator
+        """
+        return RecordSetIterator(self, batch)
 
     def update(self, **values):
         """
