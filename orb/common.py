@@ -44,6 +44,7 @@ ColumnType = enum(
     'Dict',  # stores python dictionary types
     'Pickle',  # stores python pickle data
     'Yaml',  # stores python data as yaml (requires PyYaml)
+    'JSON', # stores python data as JSON
     'Query',  # stores an orb.Query class as xml
 
     # relation types

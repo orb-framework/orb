@@ -50,6 +50,12 @@ class DataStore(AddonManager):
             except StandardError:
                 raise orb.errors.DataStoreError('Failed to restore yaml.')
 
+        elif col_type == orb.ColumnType.JSON:
+            try:
+                return projex.rest.unjsonify(db_value)
+            except StandardError:
+                raise orb.errors.DataStoreError('Failed to restore JSON.')
+
         elif col_type == orb.ColumnType.Query:
             if type(db_value) == dict:
                 return orb.Query.fromDict(db_value)
@@ -126,7 +132,14 @@ class DataStore(AddonManager):
                 raise orb.errors.DependencyNotFound('PyYaml')
             except StandardError:
                 raise orb.errors.DataStoreError('Unable to convert to yaml')
-        
+
+        # save as JSON
+        elif col_type == orb.Column.JSON:
+            try:
+                return projex.rest.jsonify(py_value)
+            except StandardError:
+                raise orb.errors.DataStoreError('Unable to convert to JSON')
+
         # save a record set
         elif orb.RecordSet.typecheck(py_value):
             return py_value.primaryKeys()

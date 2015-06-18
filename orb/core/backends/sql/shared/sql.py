@@ -677,6 +677,7 @@ SQL.registerAddon('Type::Time', u'TIME')
 SQL.registerAddon('Type::Url', u'VARCHAR')
 SQL.registerAddon('Type::Xml', u'TEXT')
 SQL.registerAddon('Type::Yaml', u'TEXT')
+SQL.registerAddon('Type::JSON', u'TEXT')
 
 # define the default lengths
 SQL.registerAddon('Length::Color', 25)
