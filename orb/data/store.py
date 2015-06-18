@@ -134,7 +134,7 @@ class DataStore(AddonManager):
                 raise orb.errors.DataStoreError('Unable to convert to yaml')
 
         # save as JSON
-        elif col_type == orb.Column.JSON:
+        elif col_type == orb.ColumnType.JSON:
             try:
                 return projex.rest.jsonify(py_value)
             except StandardError:
