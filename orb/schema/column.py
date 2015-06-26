@@ -69,10 +69,18 @@ class Column(object):
     def __str__(self):
         return self.name() or self.fieldName() or '<< INVALID COLUMN >>'
 
-    def __init__(self, typ, name, **options):
+    def __init__(self, *args, **options):
+        # support 2 constructor methods orb.Column(typ, name) or
+        # orb.Column(name, type=typ)
+        if len(args) == 2:
+            options['type'], options['name'] = args
+        elif len(args) == 1:
+            options['name'] = args[0]
+
+
         # define required arguments
-        self._name = name
-        self._type = typ
+        self._name = options.get('name', '')
+        self._type = options.get('type', None)
         self._schema = options.get('schema')
         self._engines = {}
         self._customData = {}
@@ -83,7 +91,7 @@ class Column(object):
         ref = options.get('reference', '')
         for key in Column.TEMPLATE_MAP.keys():
             if key not in options:
-                options[key] = Column.defaultDatabaseName(key, name, ref)
+                options[key] = Column.defaultDatabaseName(key, self._name, ref)
 
         # naming & accessor options
         self._getter = options.get('getter')
@@ -142,7 +150,7 @@ class Column(object):
             flags |= Column.Flags.Required
         if options.get('unique'):
             flags |= Column.Flags.Unique
-        if options.get('encrypted', typ == ColumnType.Password):
+        if options.get('encrypted', self._type == ColumnType.Password):
             flags |= Column.Flags.Encrypted
         if options.get('searchable'):
             flags |= Column.Flags.Searchable

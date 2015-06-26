@@ -24,7 +24,8 @@
                 return '{0}.{1}'.format(alias, QUOTE(column.fieldName()))
             else:
                 ref_model = column.referenceModel()
-                join_alias = QUOTE(ref_model.schema().dbname() + '_' + projex.text.underscore(column.name()))
+                alias = alias or ref_model.schema().dbname()
+                join_alias = alias + '_' + projex.text.underscore(column.name())
                 target = '{0}.{1}'.format(join_alias, QUOTE(ref_model.schema().primaryColumns()[0].fieldName()))
                 source = '{0}.{1}'.format(alias, QUOTE(column.fieldName()))
                 join = {'table': QUOTE(ref_model.schema().dbname()),
@@ -115,7 +116,7 @@
                 else:
                     join_table = QUOTE(join_schema.dbname())
 
-            join_alias = QUOTE('_'.join((join_schema.dbname(), column_name, record_part)))
+            join_alias = '_'.join((join_schema.dbname(), column_name, record_part))
             target = '{0}.{1}'.format(join_alias, QUOTE(join_primary.fieldName()))
 
             join = {'table': join_table,
@@ -148,7 +149,7 @@
             msg = 'Invalid column ({0}) on View ({1}).  All columns must be shortcuts.'
             raise errors.OrbError(msg.format(column.name(), curr_schema.name()))
 
-        field_name = populate(curr_schema, curr_field, parts[1:], QUOTE(curr_schema.dbname()))
+        field_name = populate(curr_schema, curr_field, parts[1:], curr_schema.dbname())
         columns.append('{0} AS {1}'.format(field_name, column.fieldName()))
 %>
 DROP ${'MATERIALIZED' if schema.isStatic() else ''} VIEW IF EXISTS "${schema.dbname()}";

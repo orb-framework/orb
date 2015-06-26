@@ -114,11 +114,12 @@ class DataStore(AddonManager):
         elif col_type == orb.ColumnType.Query:
             if type(py_value) == dict:
                 py_value = orb.Query.fromDict(py_value)
-            
-            try:
-                return py_value.toXmlString()
-            except StandardError:
-                raise orb.errors.DataStoreError('Unable to convert Query to XML')
+
+            if orb.Query.typecheck(py_value):
+                try:
+                    return py_value.toXmlString()
+                except StandardError:
+                    raise orb.errors.DataStoreError('Unable to convert Query to XML')
         
         # save a pickle
         elif col_type == orb.ColumnType.Pickle:

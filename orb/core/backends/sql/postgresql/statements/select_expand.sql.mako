@@ -45,12 +45,15 @@
         col_name = projex.text.underscore(colname)
 
         alias = col_name + '_table'
+        alias = source_column.schema().primaryColumn().fieldName()
+        target_primary = target_column.schema().primaryColumn().fieldName()
         records_alias = col_name + '_records'
+        record_primary = target_table.schema().primaryColumn().fieldName()
 
         source_table_name = source_alias or source_table.schema().dbname()
 
         if 'ids' in tree:
-            columns.append('array_agg({0}.id) AS ids'.format(records_alias))
+            columns.append('array_agg({0}.{1}) AS ids'.format(records_alias, target_primary))
         if 'count' in tree:
             columns.append('count({0}.*) AS count'.format(records_alias))
         if 'first' in tree:
@@ -74,12 +77,12 @@
                 % endfor
                 FROM "${table_name}" AS "${alias}"
                 % if has_translations:
-                LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON ${alias}.id = ${alias}_i18n.${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
+                LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON ${alias}.${target_primary} = ${alias}_i18n.${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
                 % endif
-                WHERE "${alias}".id IN (
+                WHERE "${alias}"."${target_primary}" IN (
                     SELECT DISTINCT ON (j."${target_column.fieldName()}") j."${target_column.fieldName()}"
                     FROM "${join_table.schema().dbname()}" AS j
-                    WHERE j."${source_column.fieldName()}" = "${source_table_name}".id
+                    WHERE j."${source_column.fieldName()}" = "${source_table_name}"."${source_primary}"
                     ${'LIMIT 1' if pipe.unique() else ''}
                 )
             ) ${records_alias}
@@ -100,10 +103,12 @@
 
         alias = col_name + '_table'
         records_alias = col_name + '_records'
+        target_primary = ref_schema.primaryColumn().fieldName()
+        source_primary = source_schema.primaryColumn().fieldName()
 
         columns = []
         if 'ids' in tree:
-            columns.append('array_agg({0}.id) AS ids'.format(records_alias))
+            columns.append('array_agg({0}.{1}) AS ids'.format(records_alias, target_primary))
         if 'count' in tree:
             columns.append('count({0}.*) AS count'.format(records_alias))
         if 'first' in tree:
@@ -128,9 +133,9 @@
                 % endfor
                 FROM "${table_name}" AS "${alias}"
                 % if has_translations:
-                LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON ${alias}.id = ${alias}_i18n.${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
+                LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON ${alias}.${target_primary} = ${alias}_i18n.${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
                 % endif
-                WHERE "${alias}"."${source_column.fieldName()}" = "${ref_table_name}".id
+                WHERE "${alias}"."${source_column.fieldName()}" = "${ref_table_name}".${target_primary}
                 ${'LIMIT 1' if source_column.unique() else ''}
             ) ${records_alias}
         ) ${col_name}_row
@@ -144,6 +149,7 @@
         table_name = reference.schema().dbname()
         col_name = projex.text.underscore(colname)
         alias = projex.text.underscore(column.name()) + '_table'
+        primary = reference.schema().primaryColumn().fieldName()
         has_translations = reference.schema().hasTranslations()
     %>
     (
@@ -158,9 +164,9 @@
             % endfor
             FROM "${table_name}" AS "${alias}"
             % if has_translations:
-            LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON "${alias}".id = "${alias}_i18n".${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
+            LEFT JOIN "${table_name}_i18n" AS "${alias}_i18n" ON "${alias}"."${primary}" = "${alias}_i18n".${table_name}_id AND ${alias}_i18n.locale = '${options.locale}'
             % endif
-            WHERE "${alias}".id = "${ref_table_name}"."${column.fieldName()}"
+            WHERE "${alias}"."${primary}" = "${ref_table_name}"."${column.fieldName()}"
         ) ${col_name}_row
     ) AS "${colname}"
 % endif

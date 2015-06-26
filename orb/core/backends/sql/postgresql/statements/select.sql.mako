@@ -10,6 +10,7 @@
 
     schema = table.schema()
     table_name = schema.dbname()
+    primary = schema.primaryColumn().fieldName()
 
     def cmpcol(a, b):
         result = cmp(a.isAggregate(), b.isAggregate())
@@ -166,8 +167,8 @@ ${'\n'.join(joined) if joined else ''}
 % endif
 % if expanded:
     % if where or order_by or lookup.start or lookup.limit:
-    WHERE "${table_name}"."id" IN (
-        SELECT DISTINCT ${'ON ({0}) '.format(', '.join([col.split(' ')[0] for col in order_by])) if order_by else ''}"${table_name}"."id"
+    WHERE "${table_name}"."${primary}" IN (
+        SELECT DISTINCT ${'ON ({0}) '.format(', '.join([col.split(' ')[0] for col in order_by])) if order_by else ''}"${table_name}"."${primary}"
         FROM "${table_name}"
         % if i18n_columns:
             % if options.locale == 'all':

@@ -731,6 +731,19 @@ class ViewSchema(object):
         """
         return self._preloadCache
 
+    def primaryColumn(self):
+        """
+        Returns the primary column for this table.  If this table has no or multiple primary columns defined,
+        then a PrimaryKeyNotDefined will be raised, otherwise the first column will be returned.
+
+        :return     <orb.Column>
+        """
+        cols = self.primaryColumns()
+        if len(cols) == 1:
+            return cols[0]
+        else:
+            raise orb.PrimaryKeyNotDefined(self)
+
     def primaryColumns(self, db=None):
         """
         Returns the primary key columns for this view's

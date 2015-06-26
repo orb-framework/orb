@@ -663,7 +663,7 @@ class Table(object):
             return False
 
         if not self.isRecord():
-            raise errors.RecordNotFound(self)
+            raise errors.RecordNotFound(type(self), self.id())
 
         model = self.schema().archiveModel()
         if not model:

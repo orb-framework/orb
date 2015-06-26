@@ -2014,6 +2014,28 @@ class Query(object):
         return out
 
     @staticmethod
+    def fromJSON(jdata):
+        """
+        Creates a new Query object from the given JSON data.
+
+        :param      jdata | <dict>
+
+        :return     <orb.Query> || <orb.QueryCompound>
+        """
+        if jdata['type'] == 'compound':
+            queries = [orb.Query.fromJSON(jquery) for jquery in jdata['queries']]
+            out = orb.QueryCompound(*queries, op=orb.QueryCompound.Op(jdata['op']))
+            return out
+        else:
+            return orb.Query(
+                jdata['column'],
+                op=orb.Query.Op(jdata.get('op', 'Is')),
+                value=jdata.get('value'),
+                functions=[orb.Query.Function(func) for func in jdata.get('functions', [])],
+                math=[orb.Query.Math(op) for op in jdata.get('math', [])]
+            )
+
+    @staticmethod
     def fromSearch(searchstr,
                    mode=SearchMode.All,
                    schema=None,

@@ -990,6 +990,15 @@ class RecordSet(object):
         """
         lookup = self.lookupOptions(**options)
         context = self.contextOptions(**options)
+
+        # lookup specific return types
+        if lookup.returning == 'count':
+            return len(self)
+        elif lookup.returning == 'first':
+            return self.first().json()
+        elif lookup.returning == 'last':
+            return self.last().json()
+
         tree = lookup.expandtree()
         output = {}
         if 'first' in tree:

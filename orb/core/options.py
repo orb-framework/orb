@@ -8,6 +8,7 @@ will map to one of the classes defined in this module.
 from collections import OrderedDict
 from projex.text import nativestring as nstr
 from projex.lazymodule import lazy_import
+import projex.rest
 
 orb = lazy_import('orb')
 
@@ -484,3 +485,19 @@ class LookupOptions(object):
     def fromXml(xdata):
         raise NotImplementedError
 
+    @staticmethod
+    def fromJSON(jdata):
+        """
+        Restores a LookupOptions item from the JSON dataset.
+
+        :param      jdata | <dict> || <str>
+
+        :return     <orb.LookupOptions>
+        """
+        if type(jdata) in (unicode, str):
+            jdata = projex.rest.unjsonify(jdata)
+
+        # restore the query data if applicable
+        if 'where' in jdata:
+            jdata['where'] = orb.Query.fromJSON(jdata['where'])
+        return orb.LookupOptions(**jdata)
