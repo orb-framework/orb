@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS "${table}" (
     % endif
 )
 % if inherits:
-INHERITS "${inherits}"
+INHERITS ("${inherits}")
 % endif
 WITH (OIDS=FALSE);
 ALTER TABLE "${table}" OWNER TO "${owner}";

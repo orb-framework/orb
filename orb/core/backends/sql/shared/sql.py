@@ -179,7 +179,7 @@ class CREATE_TABLE(SQL):
             'CREATE_INDEX': self.baseSQL().byName('CREATE_INDEX'),
         }
 
-        if not new_scope['columns']['primary']:
+        if not (new_scope['columns']['primary'] or new_scope['inherits']):
             raise errors.DatabaseError('No primary keys defined for {0}.'.format(schema.name()))
 
         # update any user overrides

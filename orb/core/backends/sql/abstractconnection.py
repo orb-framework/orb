@@ -875,7 +875,7 @@ class SQLConnection(orb.Connection):
 
         # determine new indexes
         table_name = schema.dbname()
-        existing_indexes = info['indexes']
+        existing_indexes = info['indexes'] or []
         all_indexes = [table_name + '_' + projex.text.underscore(index.name().lstrip('by')) + '_idx'
                        for index in schema.indexes(recurse=False)]
         all_indexes += [table_name + '_' + projex.text.underscore(column.indexName().lstrip('by')) + '_idx'

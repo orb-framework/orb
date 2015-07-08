@@ -342,11 +342,11 @@ class TableSchema(object):
             output.update(self._model.proxyColumns())
 
         if recurse and self.inherits():
-            model = self.inheritsModel()
-            if not model:
+            schema = self.inheritsSchema()
+            if not schema:
                 raise errors.TableNotFound(self.inherits())
 
-            ancest_columns = model.schema().columns(recurse=recurse, flags=flags, kind=kind)
+            ancest_columns = schema.columns(recurse=recurse, flags=flags, kind=kind)
             dups = output.intersection(ancest_columns)
             if dups:
                 dup_names = ','.join([x.name() for x in dups])
@@ -459,8 +459,7 @@ class TableSchema(object):
             inherited = orb.system.schema(inherits)
 
             if not inherited:
-                log.error('Could not find inherited model: %s', inherits)
-                base = None
+                raise orb.errors.TableNotFound(inherits)
             else:
                 base = inherited.model(autoGenerate=True)
 
@@ -633,9 +632,10 @@ class TableSchema(object):
         return self._inherits
 
     def inheritsModel(self):
-        if not self.inherits():
-            return None
-        return orb.system.model(self.inherits())
+        return orb.system.model(self.inherits()) if self.inherits() else None
+
+    def inheritsSchema(self):
+        return orb.system.schema(self.inherits()) if self.inherits() else None
 
     def inheritsRecursive(self):
         """

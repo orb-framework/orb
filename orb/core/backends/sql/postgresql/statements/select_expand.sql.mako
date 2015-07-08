@@ -46,6 +46,7 @@
 
         alias = col_name + '_table'
         alias = source_column.schema().primaryColumn().fieldName()
+        source_primary = source_table.schema().primaryColumn().fieldName()
         target_primary = target_column.schema().primaryColumn().fieldName()
         records_alias = col_name + '_records'
         record_primary = target_table.schema().primaryColumn().fieldName()
