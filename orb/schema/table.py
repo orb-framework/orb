@@ -838,6 +838,8 @@ class Table(object):
             value = column.default(resolve=True)
             if column.isTranslatable():
                 value = {self.recordLocale(): value}
+            elif column.isString() and column.testFlag(column.Flags.Polymorphic):
+                value = type(self).__name__
 
             self.__record_defaults[column] = value
 
@@ -1836,17 +1838,32 @@ class Table(object):
         column = schema.polymorphicColumn()
 
         # attempt to expand the class to its defined polymorphic type
-        if column and column.name() in values:
+        if column and column.fieldName() in values:
+            # expand based on SQL style reference inheritance
             morph = column.referenceModel()
             if morph:
-                morph_name = nstr(morph(values[column.name()], options=context))
+                morph_name = nstr(morph(values[column.fieldName()], options=context))
                 dbname = cls.schema().databaseName()
                 morph_cls = orb.system.model(morph_name, database=dbname)
 
                 if morph_cls and morph_cls != cls:
                     pcols = morph_cls.schema().primaryColumns()
-                    pkeys = [values.get(pcol.name(), values.get(pcol.fieldName())) for pcol in pcols if pcol in values]
+                    pkeys = [values.get(pcol.name(), values.get(pcol.fieldName())) for pcol in pcols if pcol.fieldName() in values]
                     record = morph_cls(*pkeys, options=context)
+                elif not morph_cls:
+                    raise orb.errors.TableNotFound(morph_name)
+
+            # expand based on postgres-style OO inheritance
+            elif column.isString():
+                table_type = column.fieldName()
+                dbname = cls.schema().databaseName()
+                morph_cls = orb.system.model(values[table_type], database=dbname)
+                if morph_cls and morph_cls != cls:
+                    pcols = morph_cls.schema().primaryColumns()
+                    pkeys = [values.get(pcol.name(), values.get(pcol.fieldName())) for pcol in pcols if pcol.fieldName() in values]
+                    record = morph_cls(*pkeys, options=context)
+                elif not morph_cls:
+                    raise orb.errors.TableNotFound(table_type)
 
         if record is None:
             record = cls(__values=values, options=context)

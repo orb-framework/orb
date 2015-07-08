@@ -540,7 +540,7 @@ class WHERE(SQL):
         QUOTE = self.baseSQL().byName('QUOTE')
 
         column = query.column(schema)
-        output = QUOTE(column.schema().dbname(), column.fieldName())
+        output = QUOTE(schema.dbname(), column.fieldName())
 
         # process any functions on the query
         for func in query.functions():
@@ -638,6 +638,7 @@ class WHERE(SQL):
 
             # update the scope
             scope['WHERE'] = self
+            scope['schema'] = schema
             scope['query'] = query
             scope['column'] = column
             scope['field'] = field

@@ -27,7 +27,7 @@
     if operator in (orb.Query.Op.IsIn, orb.Query.Op.IsNotIn) and not value:
         raise orb.errors.QueryIsNull()
 
-    ID = orb.system.settings().primaryField()
+    ID = schema.primaryColumn().fieldName()
     key = str(len(IO))
     key_id = '%({0})s'.format(key)
 
@@ -48,7 +48,7 @@
         % if column in GLOBALS['field_mapper']:
         ${field} ${op} %(${key})s
         % else:
-        <% table_name = column.schema().dbname() %>
+        <% table_name = schema.dbname() %>
         "${table_name}"."${ID}" IN (
             SELECT "${table_name}_id"
             FROM "${table_name}_i18n"
