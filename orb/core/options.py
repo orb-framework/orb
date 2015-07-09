@@ -214,13 +214,16 @@ class LookupOptions(object):
 
         if type(expand) == set:
             expand = list(expand)
-        if type(expand) == dict:
+        elif type(expand) == dict:
             def expand_string(key, children):
                 return [key] + [key + '.' + child
                                 for value in [expand_string(k_, v_) for k_, v_ in children.items()]
                                 for child in value]
 
             expand = [entry for item in [expand_string(k, v) for k, v in expand.items()] for entry in item]
+        elif type(expand) in (str, unicode):
+            expand = expand.split(',')
+
         if type(order) == set:
             order = list(order)
 
