@@ -1731,15 +1731,17 @@ class Table(object):
         return getattr(cls, '_%s__baseTableQuery' % cls.__name__, None)
 
     @classmethod
-    def generateToken(cls, column):
+    def generateToken(cls, column, prefix='', suffix=''):
         """
         Generates a new random token for the token record based off the
         database.
         
         :param      column | <str>
+                    prefix | <str>
+                    suffix | <str>
         """
         while True:
-            token = projex.security.generateToken()
+            token = prefix + projex.security.generateToken() + suffix
             if len(cls.select(where=Q(column) == token)) == 0:
                 return token
 
@@ -2016,14 +2018,7 @@ class Table(object):
         
         :return     <cls> || None
         """
-        results = cls.select(*args, **kwds)
-        if isinstance(results, orb.RecordSet):
-            return results.first()
-        else:
-            try:
-                return results[0]
-            except IndexError:
-                return None
+        return cls.select().first(*args, **kwds)
 
     @classmethod
     def select(cls, *args, **kwds):
