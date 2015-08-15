@@ -2,7 +2,7 @@
     <%
         val_schema = value.table().schema()
         val_col = value.column()
-        query_field = QUOTE(val_schema.dbname(), val_col.fieldName())
+        query_field = QUOTE(schema_alias or val_schema.dbname(), val_col.fieldName())
     %>
     % if query.isInverted():
         ${query_field} ${op} ${field}
@@ -49,7 +49,7 @@
         ${field} ${op} %(${key})s
         % else:
         <% table_name = schema.dbname() %>
-        "${table_name}"."${ID}" IN (
+        "${schema_alias or table_name}"."${ID}" IN (
             SELECT "${table_name}_id"
             FROM "${table_name}_i18n"
             % if query.isInverted():

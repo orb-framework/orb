@@ -405,10 +405,12 @@ class Table(object):
         :param      data    | {<str> column_name: <variant>, ..}
                     options | <orb.ContextOptions>
         """
+        lookup = self.lookupOptions()
         options = self.contextOptions()
         schema = self.schema()
         dbname = schema.dbname()
         dvalues = {}
+        loaders = []
 
         for column_name, value in data.items():
             try:
@@ -432,11 +434,9 @@ class Table(object):
                 # preload records for reverse lookups and pipes
                 try:
                     loader = getattr(self, colname).preload
+                    loaders.append((loader, value))
                 except AttributeError:
                     pass
-                else:
-                    for preload_type, preload_value in value.items():
-                        loader(self, preload_value, options, type=preload_type)
                 continue
 
             # preload a reference column
@@ -451,7 +451,7 @@ class Table(object):
                 model = column.referenceModel()
                 if not model:
                     raise errors.TableNotFound(column.reference())
-                value = model(__values=value)
+                value = model(__values=value, options=options)
 
             # restore translatable columns
             elif column.isTranslatable():
@@ -479,10 +479,16 @@ class Table(object):
             dvalues[column] = value
             self.__record_dbloaded.add(column)
 
+        # set data properties
         with WriteLocker(self.__record_value_lock):
             column_values = {k: v if type(v) != dict else v.copy() for k, v in dvalues.items()}
             self.__record_values.update(column_values)
             self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
+
+        # load pre-loaded information from database
+        for loader, value in loaders:
+            for preload_type, preload_value in value.items():
+                loader(self, preload_value, options, type=preload_type)
 
     def _removedFromDatabase(self):
         """
@@ -921,7 +927,7 @@ class Table(object):
                 except AttributeError:
                     continue
                 else:
-                    value = getter()
+                    value = getter(options=ctxt_opts)
                     try:
                         updater = value.updateOptions
                     except AttributeError:
@@ -1622,6 +1628,17 @@ class Table(object):
         return cls.select(**options)
 
     @classmethod
+    def accessibleQuery(cls, **options):
+        """
+        Returns the query to be used to filter accessible models from the database.  This method should be
+        overridden to match your specific authorization system, but can be used to hide particular records
+        from the database.
+
+        :return     <orb.Query> || None
+        """
+        return None
+
+    @classmethod
     def createRecord(cls, values, **options):
         """
         Shortcut for creating a new record for this table.
@@ -1719,7 +1736,7 @@ class Table(object):
         return record
 
     @classmethod
-    def baseTableQuery(cls):
+    def baseTableQuery(cls, **options):
         """
         Returns the default query value for the inputted class.  The default
         table query can be used to globally control queries run through a 
@@ -1827,6 +1844,7 @@ class Table(object):
         
         :return     <orb.Table>
         """
+        lookup = orb.LookupOptions(**options)
         context = orb.ContextOptions(**options)
 
         # inflate values from the database into the given class type
@@ -2062,8 +2080,8 @@ class Table(object):
         options = orb.ContextOptions(**kwds)
 
         # setup the default query options
-        default_q = cls.baseTableQuery()
-        if default_q:
+        default_q = cls.baseTableQuery(lookup=lookup, options=options)
+        if default_q is not None:
             lookup.where = default_q & lookup.where
 
         # determine if we should auto-add locale

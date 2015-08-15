@@ -535,12 +535,12 @@ class UPDATE(SQL):
 #----------------------------------------------------------------------
 
 class WHERE(SQL):
-    def queryToSQL(self, schema, query):
+    def queryToSQL(self, schema, query, alias=''):
         # noinspection PyShadowingNames
         QUOTE = self.baseSQL().byName('QUOTE')
 
         column = query.column(schema)
-        output = QUOTE(schema.dbname(), column.fieldName())
+        output = QUOTE(alias or schema.dbname(), column.fieldName())
 
         # process any functions on the query
         for func in query.functions():
@@ -595,7 +595,7 @@ class WHERE(SQL):
             try:
                 field = glbls['field_mapper'][column]
             except KeyError:
-                field = self.queryToSQL(schema, query)
+                field = self.queryToSQL(schema, query, scope.get('schema_alias', ''))
 
             # calculate the field math modifications
             for op, target in query.math():
@@ -637,6 +637,7 @@ class WHERE(SQL):
                 op = case or op
 
             # update the scope
+            scope.setdefault('schema_alias', '')
             scope['WHERE'] = self
             scope['schema'] = schema
             scope['query'] = query

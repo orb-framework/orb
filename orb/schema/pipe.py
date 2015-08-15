@@ -27,11 +27,11 @@ class Pipe(object):
         self._targetTable = None
         self._targetColumn = options.get('targetColumn', options.get('target', ''))
         self._local_cache = {}
+        self._cache = {}
         self._cached = options.get('cached', False)
         self._cacheTimeout = options.get('cacheTimeout', 0)
         self._referenced = options.get('referenced', False)
         self._unique = options.get('unique', False)
-        self._cache = {}
 
     def __call__(self, record, **options):
         # return a blank piperecordset
@@ -52,10 +52,7 @@ class Pipe(object):
                      options.get('db', record.database()).name())
 
         # ensure neither the pipe nor target table have timeout their caches
-        if not reload and \
-                cache_key in self._local_cache and \
-                pipe_cache and pipe_cache.isCached(cache_key) and \
-                target_cache and target_cache.isCached(cache_key):
+        if not reload and cache_key in self._local_cache:
             out = self._local_cache[cache_key]
             out.updateOptions(**options)
             return out
@@ -87,6 +84,8 @@ class Pipe(object):
                             pipeTable,
                             self._sourceColumn,
                             self._targetColumn)
+            rset.setLookupOptions(lookup)
+            rset.setContextOptions(context)
 
             self._local_cache[cache_key] = rset
 
@@ -161,7 +160,8 @@ class Pipe(object):
 
         :param      record       | <orb.Table>
                     data         | [<dict>, ..]
-                    options      | <orb.LookupOptions>
+                    lookup       | <orb.LookupOptions>
+                    options      | <orb.DatabaseOptions>
                     type         | <str>
         """
         target_model = self.targetReferenceModel()
@@ -170,7 +170,7 @@ class Pipe(object):
         target_cache = self.cache(target_model, force=True)
 
         cache_key = (record.id() or 0,
-                     hash(options or orb.LookupOptions()),
+                     hash(orb.LookupOptions()),
                      record.database().name())
 
         # define the pipe cached value
@@ -193,11 +193,11 @@ class Pipe(object):
         elif type == 'count':
             pset.cache('count', data)
         elif type == 'first':
-            pset.cache('first', target_model(__values=data) if data else None)
+            pset.cache('first', target_model(__values=data, options=options) if data else None)
         elif type == 'last':
-            pset.cache('last', target_model(__values=data) if data else None)
+            pset.cache('last', target_model(__values=data, options=options) if data else None)
         elif type == 'records':
-            pset.cache('records', [target_model(__values=record) for record in data or []])
+            pset.cache('records', [target_model(__values=record, options=options) for record in data or []])
 
     def pipeReference(self):
         return self._pipeReference

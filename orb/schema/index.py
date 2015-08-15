@@ -58,7 +58,7 @@ class Index(object):
                      options.get('db').name() if options.get('db') else '')
         cache = self.cache(table)
 
-        if cache and cache_key in self._local_cache and cache.isCached(cache_key):
+        if cache and cache_key in self._local_cache:
             return self._local_cache[cache_key]
 
         self._local_cache.pop(cache_key, None)

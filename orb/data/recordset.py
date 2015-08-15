@@ -82,8 +82,8 @@ class RecordSet(object):
         # select information
         self._database = -1
         self._groupBy = None
-        self._lookupOptions = orb.LookupOptions()
-        self._contextOptions = orb.ContextOptions()
+        self._lookupOptions = orb.LookupOptions(**kwds)
+        self._contextOptions = orb.ContextOptions(**kwds)
 
         # join another record set as RecordSet(recordSet)
         if args:

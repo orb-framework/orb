@@ -231,7 +231,7 @@ class reverselookupmethod(object):
                      hash(orb.LookupOptions(**options)),
                      record.database().name())
 
-        if not reload and cache and cache_key in self._local_cache and cache.isCached(cache_key):
+        if not reload and cache_key in self._local_cache:
             out = self._local_cache[cache_key]
             out.updateOptions(**options)
             return out
@@ -286,17 +286,18 @@ class reverselookupmethod(object):
                 return cache
             return None
 
-    def preload(self, record, data, lookup, type='records'):
+    def preload(self, record, data, options, type='records'):
         """
         Preload a list of records from the database.
 
         :param      record  | <orb.View>
                     data    | [<dict>, ..]
-                    lookup | <orb.LookupOptions> || None
+                    lookup  | <orb.LookupOptions> || None
+                    options | <orb.ContextOptions> || None
         """
         view = self.viewFor(record)
         cache_key = (record.id(),
-                     hash(lookup or orb.LookupOptions()),
+                     hash(orb.LookupOptions()),
                      record.database().name())
 
         cache = self.cache(view, force=True)
@@ -311,11 +312,11 @@ class reverselookupmethod(object):
         elif type == 'count':
             rset.cache('count', data)
         elif type == 'first':
-            rset.cache('first', view(__values=data) if data else None)
+            rset.cache('first', view(__values=data, options=options) if data else None)
         elif type == 'last':
-            rset.cache('last', view(__values=data) if data else None)
+            rset.cache('last', view(__values=data, options=options) if data else None)
         else:
-            rset.cache('records', [view(__values=record) for record in data or []])
+            rset.cache('records', [view(__values=record, options=options) for record in data or []])
 
     def viewFor(self, record):
         """

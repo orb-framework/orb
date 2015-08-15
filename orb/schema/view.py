@@ -404,10 +404,12 @@ class View(object):
         :param      data    | {<str> column_name: <variant>, ..}
                     options | <orb.ContextOptions>
         """
+        lookup = self.lookupOptions()
         options = self.contextOptions()
         schema = self.schema()
         dbname = schema.dbname()
         dvalues = {}
+        loaders = []
 
         for column_name, value in data.items():
             try:
@@ -431,11 +433,9 @@ class View(object):
                 # preload records for reverse lookups and pipes
                 try:
                     loader = getattr(self, colname).preload
+                    loaders.append((loader, value))
                 except AttributeError:
                     pass
-                else:
-                    for preload_type, preload_value in value.items():
-                        loader(self, preload_value, options, type=preload_type)
                 continue
 
             # preload a reference column
@@ -450,7 +450,7 @@ class View(object):
                 model = column.referenceModel()
                 if not model:
                     raise errors.TableNotFound(column.reference())
-                value = model(__values=value)
+                value = model(__values=value, options=options)
 
             # restore translatable columns
             elif column.isTranslatable():
@@ -482,6 +482,10 @@ class View(object):
             column_values = {k: v if type(v) != dict else v.copy() for k, v in dvalues.items()}
             self.__record_values.update(column_values)
             self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
+
+        for loader, value in loaders:
+            for preload_type, preload_value in value.items():
+                loader(self, preload_value, options, type=preload_type)
 
     def _removedFromDatabase(self):
         """

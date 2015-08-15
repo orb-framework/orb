@@ -12,6 +12,10 @@
     table_name = schema.dbname()
     primary = schema.primaryColumn().fieldName()
 
+    base_query = table.baseTableQuery(lookup=lookup, options=options)
+    if base_query:
+        lookup.where = base_query & lookup.where
+
     def cmpcol(a, b):
         result = cmp(a.isAggregate(), b.isAggregate())
         if not result:
