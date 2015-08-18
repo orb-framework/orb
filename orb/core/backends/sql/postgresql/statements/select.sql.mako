@@ -12,7 +12,7 @@
     table_name = schema.dbname()
     primary = schema.primaryColumn().fieldName()
 
-    base_query = table.baseTableQuery(lookup=lookup, options=options)
+    base_query = table.baseQuery(lookup=lookup, options=options)
     if base_query:
         lookup.where = base_query & lookup.where
 

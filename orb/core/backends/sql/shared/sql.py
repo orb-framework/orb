@@ -576,7 +576,7 @@ class WHERE(SQL):
 
         # create a compound query
         if orb.QueryCompound.typecheck(query):
-            queries = [self(schema, subq, GLOBALS=glbls, IO=io) for subq in query.queries()]
+            queries = [self(schema, subq, schema_alias=scope.get('schema_alias'), GLOBALS=glbls, IO=io) for subq in query.queries()]
             joiner = u' AND ' if query.operatorType() == orb.QueryCompound.Op.And else u' OR '
             result = joiner.join([q for q in queries if q])
             return u'({0})'.format(result) if result else ''
@@ -612,7 +612,7 @@ class WHERE(SQL):
                 else:
                     field += sql
                     if orb.Query.typecheck(target):
-                        field += self.queryToSQL(schema, target)
+                        field += self.queryToSQL(schema, target, scope.get('schema_alias', ''))
                     else:
                         key = len(io)
                         io[str(key)] = target

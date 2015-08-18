@@ -1514,6 +1514,18 @@ class View(object):
         return cls.select(**options)
 
     @classmethod
+    def baseQuery(cls, **options):
+        """
+        Returns the default query value for the inputted class.  The default
+        table query can be used to globally control queries run through a
+        Table's API to always contain a default.  Common cases are when
+        filtering out inactive results or user based results.
+
+        :return     <orb.Query> || None
+        """
+        return getattr(cls, '_%s__baseQuery' % cls.__name__, None)
+
+    @classmethod
     def createRecord(cls, **values):
         """
         Shortcut for creating a new record for this view.
@@ -1600,18 +1612,6 @@ class View(object):
             record.commit(db=db)
 
         return record
-
-    @classmethod
-    def baseQuery(cls):
-        """
-        Returns the default query value for the inputted class.  The default
-        query can be used to globally control queries run through a
-        View's API to always contain a default.  Common cases are when
-        filtering out inactive results or user based results.
-        
-        :return     <orb.Query> || None
-        """
-        return getattr(cls, '_%s__baseQuery' % cls.__name__, None)
 
     @classmethod
     def generateToken(cls, column):
@@ -1931,11 +1931,6 @@ class View(object):
         lookup = orb.LookupOptions(**kwds)
         options = orb.ContextOptions(**kwds)
 
-        # setup the default query options
-        default_q = cls.baseQuery()
-        if default_q:
-            lookup.where = default_q & lookup.where
-
         # determine if we should auto-add locale
         if options.locale != 'all' and cls.schema().column('locale'):
             if not (lookup.where and 'locale' in lookup.where):
@@ -1959,6 +1954,16 @@ class View(object):
             return rset
         else:
             return rset.records()
+
+    @classmethod
+    def setBaseQuery(cls, query):
+        """
+        Sets the default table query value.  This method can be used to control
+        all queries for a given table by setting global where inclusions.
+
+        :param      query | <orb.Query> || None
+        """
+        setattr(cls, '_%s__baseQuery' % cls.__name__, query)
 
     @classmethod
     def viewCache(cls):
@@ -1990,16 +1995,6 @@ class View(object):
             callbacks = CallbackSet()
             setattr(cls, key, callbacks)
             return callbacks
-
-    @classmethod
-    def setBaseQuery(cls, query):
-        """
-        Sets the default view query value.  This method can be used to control
-        all queries for a given view by setting global where inclusions.
-        
-        :param      query | <orb.Query> || None
-        """
-        setattr(cls, '_%s__baseQuery' % cls.__name__, query)
 
     @classmethod
     def setCurrentRecord(cls, record):

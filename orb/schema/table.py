@@ -1736,7 +1736,7 @@ class Table(object):
         return record
 
     @classmethod
-    def baseTableQuery(cls, **options):
+    def baseQuery(cls, **options):
         """
         Returns the default query value for the inputted class.  The default
         table query can be used to globally control queries run through a 
@@ -1745,7 +1745,7 @@ class Table(object):
         
         :return     <orb.Query> || None
         """
-        return getattr(cls, '_%s__baseTableQuery' % cls.__name__, None)
+        return getattr(cls, '_%s__baseQuery' % cls.__name__, None)
 
     @classmethod
     def generateToken(cls, column, prefix='', suffix=''):
@@ -2079,11 +2079,6 @@ class Table(object):
         lookup.order = lookup.order or cls.schema().defaultOrder()
         options = orb.ContextOptions(**kwds)
 
-        # setup the default query options
-        default_q = cls.baseTableQuery(lookup=lookup, options=options)
-        if default_q is not None:
-            lookup.where = default_q & lookup.where
-
         # determine if we should auto-add locale
         if options.locale != 'all' and cls.schema().column('locale') and cls.schema().autoLocalize():
             if not (lookup.where and 'locale' in lookup.where):
@@ -2140,14 +2135,14 @@ class Table(object):
             return callbacks
 
     @classmethod
-    def setBaseTableQuery(cls, query):
+    def setBaseQuery(cls, query):
         """
         Sets the default table query value.  This method can be used to control
         all queries for a given table by setting global where inclusions.
         
         :param      query | <orb.Query> || None
         """
-        setattr(cls, '_%s__baseTableQuery' % cls.__name__, query)
+        setattr(cls, '_%s__baseQuery' % cls.__name__, query)
 
     @classmethod
     def setCurrentRecord(cls, record):

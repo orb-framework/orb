@@ -54,7 +54,7 @@
         record_primary = target_table.schema().primaryColumn().fieldName()
 
         # include the base table's filter, if one exists
-        target_filter = target_table.baseTableQuery(lookup=lookup, options=options)
+        target_filter = target_table.baseQuery(lookup=lookup, options=options)
         if target_filter is not None:
             base_where = '(' + WHERE(target_table.schema(), target_filter, schema_alias=alias, GLOBALS=GLOBALS, IO=IO) + ') AND '
         else:
@@ -117,7 +117,7 @@
         source_primary = source_schema.primaryColumn().fieldName()
 
         # include the base table's filter, if one exists
-        target_filter = ref_schema.model().baseTableQuery(lookup=lookup, options=options)
+        target_filter = ref_schema.model().baseQuery(lookup=lookup, options=options)
         if target_filter is not None:
             base_where = '(' + WHERE(ref_schema, target_filter, schema_alias=alias, GLOBALS=GLOBALS, IO=IO) + ') AND '
         else:
@@ -170,7 +170,7 @@
         has_translations = reference.schema().hasTranslations()
 
         # include the base table's filter, if one exists
-        target_filter = reference.baseTableQuery(lookup=lookup, options=options)
+        target_filter = reference.baseQuery(lookup=lookup, options=options)
         if target_filter is not None:
             base_where = '(' + WHERE(reference.schema(), target_filter, schema_alias=alias, GLOBALS=GLOBALS, IO=IO) + ') AND '
         else:

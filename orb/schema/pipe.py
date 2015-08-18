@@ -53,11 +53,9 @@ class Pipe(object):
 
         # ensure neither the pipe nor target table have timeout their caches
         if not reload and cache_key in self._local_cache:
-            out = self._local_cache[cache_key]
+            out = self._local_cache.pop(cache_key)
             out.updateOptions(**options)
             return out
-
-        self._local_cache.pop(cache_key, None)
 
         # create the query for the pipe
         sub_q = orb.Query(pipeTable, self._sourceColumn) == record
