@@ -26,7 +26,6 @@ class Pipe(object):
         self._targetReference = options.get('targetReference', '')
         self._targetTable = None
         self._targetColumn = options.get('targetColumn', options.get('target', ''))
-        self._local_cache = {}
         self._cache = {}
         self._cached = options.get('cached', False)
         self._cacheTimeout = options.get('cacheTimeout', 0)
@@ -52,10 +51,13 @@ class Pipe(object):
                      options.get('db', record.database()).name())
 
         # ensure neither the pipe nor target table have timeout their caches
-        if not reload and cache_key in self._local_cache:
-            out = self._local_cache.pop(cache_key)
+        preload_cache = getattr(record, '_Model__preload_cache', {})
+        if not reload and self.__name__ in preload_cache:
+            out = preload_cache[self.__name__]
             out.updateOptions(**options)
             return out
+
+        preload_cache.pop(self.__name__, None)
 
         # create the query for the pipe
         sub_q = orb.Query(pipeTable, self._sourceColumn) == record
@@ -85,7 +87,8 @@ class Pipe(object):
             rset.setLookupOptions(lookup)
             rset.setContextOptions(context)
 
-            self._local_cache[cache_key] = rset
+            preload_cache[self.__name__] = rset
+            setattr(record, '_Model__preload_cache', preload_cache)
 
             if pipe_cache:
                 pipe_cache.setValue(cache_key, True, timeout=self._cacheTimeout)
@@ -164,15 +167,10 @@ class Pipe(object):
         """
         target_model = self.targetReferenceModel()
         pipe_model = self.pipeReferenceModel()
-        pipe_cache = self.cache(pipe_model, force=True)
-        target_cache = self.cache(target_model, force=True)
-
-        cache_key = (record.id() or 0,
-                     hash(orb.LookupOptions()),
-                     record.database().name())
 
         # define the pipe cached value
-        pset = self._local_cache.get(cache_key)
+        preload_cache = getattr(record, '_Model__preload_cache', {})
+        pset = preload_cache.get(self.__name__)
         if pset is None:
             pset = orb.PipeRecordSet(orb.RecordSet(),
                                      record,
@@ -180,10 +178,8 @@ class Pipe(object):
                                      self._sourceColumn,
                                      self._targetColumn)
 
-            self._local_cache[cache_key] = pset
-
-            pipe_cache.setValue(cache_key, True, timeout=self._cacheTimeout)
-            target_cache.setValue(cache_key, True, timeout=self._cacheTimeout)
+            preload_cache[self.__name__] = pset
+            setattr(record, '_Model__preload_cache', preload_cache)
 
         # update teh cache for the dataset
         if type == 'ids':

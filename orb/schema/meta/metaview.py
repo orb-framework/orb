@@ -194,7 +194,6 @@ class reverselookupmethod(object):
         self.__lookup__ = True
 
         self._cache = {}
-        self._local_cache = {}
         self.reference = kwds.get('reference', '')
         self.referenceDb = kwds.get('referenceDatabase', None)
         self.columnName = kwds.get('columnName', '')
@@ -296,16 +295,13 @@ class reverselookupmethod(object):
                     options | <orb.ContextOptions> || None
         """
         view = self.viewFor(record)
-        cache_key = (record.id(),
-                     hash(orb.LookupOptions()),
-                     record.database().name())
 
-        cache = self.cache(view, force=True)
-        rset = self._local_cache.get(cache_key)
+        preload_cache = getattr(record, '_Model__preload_cache', {})
+        rset = preload_cache.get(self.func_name)
         if rset is None:
             rset = orb.RecordSet()
-            self._local_cache[cache_key] = rset
-            cache.setValue(cache_key, True, timeout=self.cacheTimeout)
+            preload_cache[self.func_name] = rset
+            setattr(record, '_Model__preload_cache', preload_cache)
 
         if type == 'ids':
             rset.cache('ids', data)

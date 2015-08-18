@@ -195,7 +195,6 @@ class reverselookupmethod(object):
         self.__lookup__ = True
 
         self._cache = {}
-        self._local_cache = {}
         self.reference = kwds.get('reference', '')
         self.referenceDb = kwds.get('referenceDatabase', None)
         self.columnName = kwds.get('columnName', '')
@@ -232,12 +231,13 @@ class reverselookupmethod(object):
                      hash(orb.LookupOptions(**options)),
                      record.database().name())
 
-        if not reload and cache_key in self._local_cache:
-            out = self._local_cache[cache_key]
+        preload_cache = getattr(record, '_Table__preload_cache', {})
+        if not reload and self.func_name in preload_cache:
+            out = preload_cache[self.func_name]
             out.updateOptions(**options)
             return out
 
-        self._local_cache.pop(cache_key, None)
+        preload_cache.pop(self.func_name, None)
 
         # make sure this is a valid record
         if not record.isRecord():
@@ -265,7 +265,8 @@ class reverselookupmethod(object):
             output.setSourceColumn(self.columnName)
 
         if cache and output is not None:
-            self._local_cache[cache_key] = output
+            preload_cache[self.func_name] = output
+            setattr(record, '_Model__preload_cache', preload_cache)
             cache.setValue(cache_key, True, timeout=self.cacheTimeout)
 
         return output
@@ -297,16 +298,13 @@ class reverselookupmethod(object):
                     options | <orb.ContextOptions> || None
         """
         table = self.tableFor(record)
-        cache_key = (record.id(),
-                     hash(orb.LookupOptions()),
-                     record.database().name())
 
-        cache = self.cache(table, force=True)
-        rset = self._local_cache.get(cache_key)
+        preload_cache = getattr(record, '_Model__preload_cache', {})
+        rset = preload_cache.get(self.func_name)
         if rset is None:
             rset = orb.RecordSet()
-            self._local_cache[cache_key] = rset
-            cache.setValue(cache_key, True, timeout=self.cacheTimeout)
+            preload_cache[self.func_name] = rset
+            setattr(record, '_Model__preload_cache', preload_cache)
 
         if type == 'ids':
             rset.cache('ids', data)
