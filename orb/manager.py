@@ -591,7 +591,7 @@ class Manager(object):
 
         # generate a blank table
         elif autoGenerate:
-            log.warning('Could not find a schema for %s' % name)
+            log.warning('Could not find a schema for model: %s' % name)
             return orb.Table
 
         return None
@@ -950,9 +950,6 @@ class Manager(object):
                 new_bases.remove(old_model)
                 new_bases.insert(index, model)
                 other_model.__bases__ = tuple(new_bases)
-
-                log.info('Replaced %s base with %s',
-                         other_model, model)
 
         schema.setModel(model)
         return True
