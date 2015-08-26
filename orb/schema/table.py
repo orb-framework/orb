@@ -913,7 +913,7 @@ class Table(object):
         # hide private columns
         schema = self.schema()
         columns = [schema.column(x) for x in lookup.columns] if lookup.columns else schema.columns()
-        columns = [x for x in columns if not x.testFlag(x.Flags.Private)]
+        columns = [x for x in columns if x and not x.testFlag(x.Flags.Private)]
 
         # simple json conversion
         output = self.recordValues(key='field', columns=columns, inflated=False)
