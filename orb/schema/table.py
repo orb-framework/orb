@@ -1151,7 +1151,7 @@ class Table(object):
             return value
 
         # inflate the value to the class value
-        inst = refmodel(value, db=self.database())
+        inst = refmodel(value, db=self.database(), options=self.contextOptions())
         if value == self.__record_defaults.get(col):
             self.__record_defaults[col] = inst
 
