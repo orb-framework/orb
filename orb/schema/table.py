@@ -472,10 +472,6 @@ class Table(object):
                 elif type(value) in (str, unicode):
                     value = orb.Query.fromXmlString(value)
 
-            # restore the value from teh database
-            else:
-                value = column.restoreValue(value, options)
-
             dvalues[column] = value
             self.__record_dbloaded.add(column)
 
@@ -1139,7 +1135,8 @@ class Table(object):
 
         # return none output's and non-auto inflated values immediately
         if value is None or not (col.isReference() and inflated):
-            return value if not Table.recordcheck(value) else value.id()
+            options = self.contextOptions()
+            return col.restoreValue(value, options) if not Table.recordcheck(value) else value.id()
 
         # ensure we have a proper reference model
         refmodel = col.referenceModel()
