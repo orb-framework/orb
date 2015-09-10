@@ -131,7 +131,7 @@ class PipeRecordSet(RecordSet):
         for key, value in options.items():
             q &= orb.Query(pipe, key) == value
 
-        return pipe.select(where=q).remove()
+        return pipe.select(where=q).first().remove()
 
     def remove(self, **options):
         """

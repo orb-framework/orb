@@ -1133,29 +1133,30 @@ class Table(object):
             if not value:
                 value = default
 
-        # return none output's and non-auto inflated values immediately
-        if value is None or not (col.isReference() and inflated):
+        # return a reference when desired
+        if col.isReference() and inflated and value is not None:
+            # ensure we have a proper reference model
+            refmodel = col.referenceModel()
+            if refmodel is None:
+                raise errors.TableNotFound(col.reference())
+
+            # make sure our value already meets the criteria
+            elif refmodel.recordcheck(value):
+                return value
+
+            # inflate the value to the class value
+            inst = refmodel(value, db=self.database(), options=self.contextOptions())
+            if value == self.__record_defaults.get(col):
+                self.__record_defaults[col] = inst
+
+            # cache the record value
+            with WriteLocker(self.__record_value_lock):
+                self.__record_values[col] = inst
+            return inst
+
+        else:
             options = self.contextOptions()
             return col.restoreValue(value, options) if not Table.recordcheck(value) else value.id()
-
-        # ensure we have a proper reference model
-        refmodel = col.referenceModel()
-        if refmodel is None:
-            raise errors.TableNotFound(col.reference())
-
-        # make sure our value already meets the criteria
-        elif refmodel.recordcheck(value):
-            return value
-
-        # inflate the value to the class value
-        inst = refmodel(value, db=self.database(), options=self.contextOptions())
-        if value == self.__record_defaults.get(col):
-            self.__record_defaults[col] = inst
-
-        # cache the record value
-        with WriteLocker(self.__record_value_lock):
-            self.__record_values[col] = inst
-        return inst
 
     def recordValues(self,
                      columns=None,
