@@ -73,7 +73,7 @@ class PSQLConnection(SQLConnection):
         try:
             cursor = db.cursor(cursor_factory=DictCursor)
         except pg.InterfaceError as err:
-            if self.connect(force=True):
+            if self.open(force=True):
                 cursor = db.cursor(cursor_factory=DictCursor)
             else:
                 raise err
