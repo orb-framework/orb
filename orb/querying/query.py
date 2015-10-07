@@ -1295,7 +1295,7 @@ class Query(object):
         if type(value) == set:
             value = list(value)
 
-        if type(value) not in (list, tuple):
+        elif type(value) not in (list, tuple) and not orb.RecordSet.typecheck(value):
             value = [value]
 
         newq.setValue(value)
