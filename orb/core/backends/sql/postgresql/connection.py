@@ -69,7 +69,14 @@ class PSQLConnection(SQLConnection):
         if db is None:
             raise errors.ConnectionLost()
 
-        cursor = db.cursor(cursor_factory=DictCursor)
+        # check to make sure the connection hasn't been reset or lost
+        try:
+            cursor = db.cursor(cursor_factory=DictCursor)
+        except pg.InterfaceError as err:
+            if self.connect(force=True):
+                cursor = db.cursor(cursor_factory=DictCursor)
+            else:
+                raise err
 
         # register the hstore option
         try:

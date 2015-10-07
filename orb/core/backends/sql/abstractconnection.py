@@ -550,7 +550,7 @@ class SQLConnection(orb.Connection):
         tid = threading.current_thread().ident
         return self.__threads.get(tid)
 
-    def open(self):
+    def open(self, force=False):
         """
         Opens a new database connection to the database defined
         by the inputted database.
@@ -567,7 +567,7 @@ class SQLConnection(orb.Connection):
         conn = self.__threads.get(tid)
 
         # check to see if we already have a connection going
-        if conn:
+        if conn and not force:
             return True
 
         # make sure we have a database assigned to this backend

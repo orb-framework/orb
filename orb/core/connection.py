@@ -398,11 +398,14 @@ class Connection(AddonManager):
         return self._threadEnabled
 
     @abstractmethod()
-    def open(self):
+    def open(self, force=False):
         """
         Opens a new database connection to the database defined
-        by the inputted database.
-        
+        by the inputted database.  If the force parameter is provided, then
+        it will re-open a connection regardless if one is open already
+
+        :param      force | <bool>
+
         :return     <bool> success
         """
         return False
