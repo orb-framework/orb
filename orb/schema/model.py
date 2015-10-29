@@ -8,7 +8,6 @@ import logging
 import projex.rest
 import projex.security
 import projex.text
-import re
 
 from projex.enum import enum
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
@@ -17,8 +16,9 @@ from projex.text import nativestring as nstr
 from projex.callbacks import CallbackSet
 from projex.addon import AddonManager
 
-from .modeltype import ModelType
+from .model_type import ModelType
 from .column import Column
+from .column_addons.reference import ReferenceColumn
 from ..querying import Query as Q
 
 log = logging.getLogger(__name__)
@@ -39,125 +39,10 @@ class Model(AddonManager):
     # define the table meta class
     __metaclass__ = ModelType
 
-    # meta database information
-    __db__ = ''  # name of DB in Environment for this model
-    __db_group__ = 'Default'  # name of database group
-    __db_name__ = ''  # name of database schema
-    __db_tablename__ = ''  # name of table in database
-    __db_schema__ = None  # <orb.TableSchema> for direct creation
-    __db_ignore__ = True  # bypass database table processing
-    __db_archive__ = False
-    __db_implements__ = None
-
     ReloadOptions = enum('Conflicts',
                          'Modified',
                          'Unmodified',
                          'IgnoreConflicts')
-
-    Signals = enum(
-        AboutToCommit='aboutToCommit(Record,LookupOptions,ContextOptions)',
-        CommitFinished='commitFinished(Record,LookupOptions,ContextOptions)'
-    )
-
-    # ----------------------------------------------------------------------
-    # PRIVATE CLASS METHODS
-    #----------------------------------------------------------------------
-
-    @classmethod
-    def __syncdatabase__(cls):
-        """
-        This method will be called after all creation and updating syncing
-        is called for a database sync.  It will allow a developer to specify
-        default information for their class type.
-        """
-        pass
-
-    #----------------------------------------------------------------------
-    #                       PRIVATE STATIC METHODS
-    #----------------------------------------------------------------------
-
-    @staticmethod
-    def __getKeywords(func):
-        """
-        Parses the keywords from the given function.
-
-        :param      func | <function>
-        """
-        if hasattr(func, 'im_func'):
-            func = func.im_func
-
-        try:
-            return func.func_code.co_varnames[-len(func.func_defaults):]
-        except (TypeError, ValueError, IndexError):
-            return tuple()
-
-    @staticmethod
-    def __groupingKey(record,
-                      schema,
-                      grouping,
-                      ref_cache,
-                      inflated=False,
-                      locale=None):
-        """
-        Looks up the grouping key for the inputted record.  If the cache
-        value is specified, then it will lookup any reference information within
-        the cache and return it.
-
-        :param      record | <orb.Table>
-                    grouping | <str>
-                    cache    | <dict> || None
-                    inflated | <bool>
-
-        :return     <str>
-        """
-        columnName = grouping
-
-        # lookup template patterns
-        if '[' in columnName:
-            pattern = re.compile('\[([^\]:]+[^\]]*)\]')
-            columnNames = pattern.findall(columnName)
-            syntax = columnName
-        else:
-            columnNames = [columnName]
-            syntax = None
-
-        column_data = {}
-        for columnName in columnNames:
-            columnName = columnName.split(':')[0]
-            column = schema.column(columnName)
-
-            if not column:
-                log.warning('%s is not a valid column of %s',
-                            columnName,
-                            schema.name())
-                continue
-
-            # lookup references
-            if column.isReference():
-                ref_key = record.recordValue(columnName,
-                                             inflated=False,
-                                             locale=locale)
-                ref_cache_key = (column.reference(), ref_key)
-
-                # cache this record so that we only access 1 of them
-                if ref_cache_key not in ref_cache:
-                    col_value = record.recordValue(columnName,
-                                                   inflated=inflated,
-                                                   locale=locale)
-                    ref_cache[ref_cache_key] = col_value
-                else:
-                    col_value = ref_cache[ref_cache_key]
-            else:
-                col_value = record.recordValue(columnName, locale=locale)
-
-            column_data[columnName] = col_value
-
-        if syntax:
-            return projex.text.render(syntax, column_data)
-        else:
-            return column_data[columnName]
-
-    #----------------------------------------------------------------------
 
     def __reduce__(self):
         return type(self), (self.__getstate__(),)
@@ -185,11 +70,10 @@ class Model(AddonManager):
         self.__context_options = orb.ContextOptions(**state.get('context')) if state.get('context') else None
 
     def __getitem__(self, key):
-        column = self.schema().column(key)
-        if column:
-            return self.recordValue(column)
+        if self.has(key):
+            return self.get(key)
         else:
-            raise KeyError(key)
+            raise KeyError
 
     def __json__(self, *args):
         """
@@ -213,45 +97,42 @@ class Model(AddonManager):
 
         :return     <iter>
         """
-        data = self.recordValues(key='field', inflated=False)
-        for key, value in data.items():
-            yield key, value
+        for col in self.schema().columns():
+            yield col.field(), self.get(col, inflated=False)
 
-    def __format__(self, format_spec):
+    def __format__(self, spec):
         """
         Formats this record based on the inputted format_spec.  If no spec
         is supplied, this is the same as calling str(record).
 
-        :param      format_spec | <str>
+        :param      spec | <str>
 
         :return     <str>
         """
-        if not format_spec:
-            return nstr(self)
-        if format_spec == 'primaryKey':
-            return nstr(self.primaryKey())
+        if not spec:
+            return projex.text.nativestring(self)
+        elif spec == 'id':
+            return projex.text.nativestring(self.id())
+        elif self.has(spec):
+            return projex.text.nativestring(self.get(spec))
         else:
-            column = self.schema().column(format_spec)
-            if column:
-                return nstr(self.recordValue(format_spec))
-
-        return super(Table, self).__format__(format_spec)
+            return super(Model, self).__format__(spec)
 
     def __str__(self):
         """
         Defines the custom string format for this table.
         """
-        return projex.text.toBytes(unicode(self))
+        return projex.text.toAscii(unicode(self))
 
     def __unicode__(self):
         """
         Defines the custom string format for this table.
         """
         schema = self.schema()
-        sform = None
+        sform = schema.stringFormat()
 
         # extract any inherited
-        while schema:
+        while schema and not sform:
             sform = schema.stringFormat()
             if sform:
                 break
@@ -259,7 +140,7 @@ class Model(AddonManager):
                 schema = orb.system.schema(schema.inherits())
 
         if not sform:
-            return unicode(super(Table, self).__str__())
+            return unicode(super(Model, self).__str__())
         else:
             return unicode(sform).format(self, self=self)
 
@@ -272,12 +153,7 @@ class Model(AddonManager):
 
         :return     <bool>
         """
-        if id(self) == id(other):
-            return True
-        elif isinstance(other, Table) and hash(self) == hash(other):
-            return True
-        else:
-            return False
+        return id(self) == id(other) or (isinstance(other, Model) and hash(self) == hash(other))
 
     def __ne__(self, other):
         """
@@ -295,12 +171,10 @@ class Model(AddonManager):
 
         :return     <int>
         """
-        # use the base id information
-        if not self.isRecord():
-            return super(Table, self).__hash__()
-
-        # return a combination of its table and its primary key hashes
-        return hash((self.__class__, self.database(), self.primaryKey()))
+        if not self.exists():
+            return super(Model, self).__hash__()
+        else:
+            return hash((self.__class__, self.db(), self.id()))
 
     def __cmp__(self, other):
         """
@@ -310,9 +184,18 @@ class Model(AddonManager):
 
         :return     -1 || 0 || 1
         """
-        return cmp(nstr(self), nstr(other))
+        try:
+            my_str = '{0}({1})'.format(type(self).__name__, self.id())
+            other_str = '{0}({1})'.format(type(self).__name__, other.id())
+            return cmp(my_str, other_str)
+        except StandardError:
+            return -1
 
-    def __init__(self, *args, **kwds):
+    def __init__(self,
+                 lookup=None,
+                 context=None,
+                 *record,
+                 **values):
         """
         Initializes a database record for the table class.  A
         table model can be initialized in a few ways.  Passing
@@ -326,180 +209,119 @@ class Model(AddonManager):
         :param      *args       <tuple> primary key
         :param      **kwds      <dict>  column default values
         """
-        # define table properties in a way that shouldn't be accidentally
-        # overwritten
-        self.__local_cache_lock = ReadWriteLock()
-        self.__local_cache = {}
-        self.__record_defaults = {}
-        self.__record_value_lock = ReadWriteLock()
-        self.__record_values = {}
-        self.__record_dbloaded = set()
-        self.__record_datacache = None
+        self.__cacheLock = ReadWriteLock()
+        self.__cache = {}
 
-        self.__lookup_options = orb.LookupOptions(**kwds)
-        self.__context_options = orb.ContextOptions(**kwds)
+        self.__dataLock = ReadWriteLock()
+        self.__loaded = set()
+        self.__values = {}
 
-        # initialize the defaults
-        if len(args) == 1 and type(args[0]) == dict and args[0].get('__pickle'):
-            self.__setstate__(args[0].pop('__pickle'))
+        self.__lookup = lookup or orb.LookupOptions()
+        self.__context = context or orb.ContextOptions()
 
-        elif '__values' in kwds:
-            self._updateFromDatabase(kwds.pop('__values'))
+        # restore the pickled state for this object
+        if len(record) == 1 and type(record[0]) == dict and record[0].get('__pickle'):
+            self.__setstate__(record[0].pop('__pickle'))
 
-        elif not args:
-            self.initRecord()
-            self.resetRecord()
+        # restore the database update values
+        elif '_db_update' in values:
+            self._db_update(values.pop('_db_update'))
 
-        # initialize from the database
+        # initialize a new record if no record is provided
+        elif not record:
+            self.init()
+
+        # otherwise, fetch the record from the database
         else:
-            # extract the primary key for initializing from a record
-            if len(args) == 1 and (Table.recordcheck(args[0]) or orb.View.recordcheck(args[0])):
-                record = args[0]
-                args = record.id()
-                self._updateFromDatabase(dict(record))
+            if len(record) == 1 and isinstance(record[0], Model):
+                record = record.id()
+                event = orb.events.DatabaseLoadEvent(data=dict(record[0]))
+                self.onDatabaseLoad(event)
+            elif len(record) == 1:
+                record = record[0]  # don't use tuples unless multiple ID columns are used
 
-            elif len(args) == 1:
-                args = args[0]
-
-            cache = self.tableCache()
-            cache_key = '__init__({0})'.format(args)
-            try:
-                data = cache[cache_key]
-            except (TypeError, KeyError):
-                data = self.getRecord(args, inflated=False, options=self.__context_options)
-                if data is not None and cache:
-                    cache[cache_key] = data
-
+            data = self.fetch(record, inflated=False, context=context)
             if data:
-                self._updateFromDatabase(data)
+                event = orb.events.DatabaseLoadEvent(data=data)
+                self.onDatabaseLoad(event)
             else:
-                raise errors.RecordNotFound(self, args)
+                raise errors.RecordNotFound(self, record)
 
-        self.setRecordValues(**{k: v for k, v in kwds.items() if self.schema().column(k)})
+        # after loading everything else, update the values for this model
+        self.update(**{k: v for k, v in values.items() if self.schema().column(k)})
 
-    #----------------------------------------------------------------------
-    #                       PROTECTED METHODS
-    #----------------------------------------------------------------------
-    def _markAsLoaded(self, database=None, columns=None):
-        """
-        Goes through and marks all the columns as loaded from the database.
+    # --------------------------------------------------------------------
+    #                       EVENT HANDLERS
+    # --------------------------------------------------------------------
 
-        :param      columns | [<str>, ..] || None
-        """
-        columns = [self.schema().column(column) for column in columns] if columns else self.schema().columns()
-
-        with WriteLocker(self.__record_value_lock):
-            for column in columns:
-                data = self.__record_values.get(column)
-                if type(data) == dict:
-                    data = data.copy()
-                self.__record_defaults[column] = data
-
-            self.__context_options.database = database
-            self.__record_dbloaded.update(columns)
-
-    def _updateFromDatabase(self, data):
-        """
-        Called from the backend class when it needs to
-        manipulate information on this record instance.
-
-        :param      data    | {<str> column_name: <variant>, ..}
-                    options | <orb.ContextOptions>
-        """
-        lookup = self.lookupOptions()
-        options = self.contextOptions()
+    def onDatabaseLoad(self, event):
+        context = self.context()
         schema = self.schema()
         dbname = schema.dbname()
-        dvalues = {}
         loaders = []
+        clean = {}
 
-        for column_name, value in data.items():
+        for col, value in event.data.items():
             try:
-                tname, colname = column_name.split('.')
+                model_dbname, col_name = col.split('.')
             except ValueError:
-                colname = column_name
-                tname = dbname
+                col_name = column
+                model_dbname = dbname
 
-            # make sure this value is from the database
-            if tname != dbname:
+            # make sure the value we're setting is specific to this model
+            column = schema.column(col_name)
+            if not model_dbname != dbname:
                 continue
 
-            # retrieve the column information
-            column = schema.column(colname)
-
-            # use the expanded option when possible
-            if column in dvalues and (orb.Table.recordcheck(dvalues[column]) or orb.View.recordcheck(dvalues[column])):
+            # prefer to use record objects
+            elif column in clean and isinstance(clean[column], Model):
                 continue
 
-            if not column:
-                # preload records for reverse lookups and pipes
+            # look for preloaded reverse lookups and pipes
+            elif not column:
                 try:
-                    loader = getattr(self, colname).preload
-                    loaders.append((loader, value))
+                    loader = getattr(self, col_name).preload
                 except AttributeError:
-                    pass
-                continue
-
-            # preload a reference column
-            elif column.isReference() and (type(value) == dict or
-                                           (type(value) in (str, unicode) and value.startswith('{'))):
-                if type(value) in (str, unicode) and value.startswith('{'):
-                    try:
-                        value = eval(value)
-                    except StandardError:
-                        raise errors.OrbError('Invalid reference found: {0}'.format(value))
-
-                model = column.referenceModel()
-                if not model:
-                    raise errors.TableNotFound(column.reference())
-                value = model(__values=value, options=options)
-
-            # restore translatable columns
-            elif column.isTranslatable():
-                if type(value) in (str, unicode) and value.startswith('{'):
-                    try:
-                        value = eval(value)
-                    except StandardError:
-                        value = None
-                elif options and options.locale != 'all':
-                    value = {options.locale: value}
+                    continue
                 else:
-                    value = {self.recordLocale(): value}
+                    loaders.append((loader, value))
+                    continue
 
-            # map a query value to a query
-            elif column.columnType() == ColumnType.Query:
-                if type(value) == dict:
-                    value = orb.Query.fromDict(value)
-                elif type(value) in (str, unicode):
-                    value = orb.Query.fromXmlString(value)
+            # extract the value from the database
+            else:
+                value = column.extract(value, context=context)
 
-            dvalues[column] = value
-            self.__record_dbloaded.add(column)
+            clean[column] = value
 
-        # set data properties
-        with WriteLocker(self.__record_value_lock):
-            column_values = {k: v if type(v) != dict else v.copy() for k, v in dvalues.items()}
-            self.__record_values.update(column_values)
-            self.__record_defaults.update({k: v if type(v) != dict else v.copy() for k, v in dvalues.items()})
+        # update the local values
+        with WriteLocker(self.__dataLock):
+            for col, val in clean.items():
+                default = val if not isinstance(val, dict) else val.copy()
+                self.__values[col] = (default, val)
+                self.__loaded.add(col)
 
         # load pre-loaded information from database
         for loader, value in loaders:
             for preload_type, preload_value in value.items():
-                loader(self, preload_value, options, type=preload_type)
+                loader(self, preload_value, context, type=preload_type)
 
-    def _removedFromDatabase(self):
-        """
-        Called after a record has been removed from the
-        database, so the record instance can clean up
-        any additional information.
-        """
-        self.__record_defaults.clear()
-        self.__record_dbloaded.clear()
+    def onPreCommit(self, event):
+        pass
 
-    #----------------------------------------------------------------------
-    #                       PRIVATE METHODS
-    #----------------------------------------------------------------------
-    def changeset(self, columns=None, recurse=True, flags=0, kind=0, inflated=False):
+    def onPostCommit(self, event):
+        pass
+
+    def onPreRemove(self, event):
+        pass
+
+    def onPostRemove(self, event):
+        with WriteLocker(self.__dataLock):
+            self.__loaded.clear()
+
+    # ---------------------------------------------------------------------
+    #                       PUBLIC METHODS
+    # ---------------------------------------------------------------------
+    def changes(self, columns=None, recurse=True, flags=0, inflated=False):
         """
         Returns a dictionary of changes that have been made
         to the data from this record.
@@ -508,8 +330,7 @@ class Model(AddonManager):
         """
         changes = {}
         is_record = self.isRecord()
-        kind = kind or orb.Column.Kind.Field
-        columns = columns or self.schema().columns(recurse=recurse, flags=flags, kind=kind)
+        columns = columns or self.schema().columns(recurse=recurse, flags=flags)
 
         with ReadLocker(self.__record_value_lock):
             for column in columns:
@@ -768,7 +589,7 @@ class Model(AddonManager):
 
         return conflicts
 
-    def database(self):
+    def db(self):
         """
         Returns the database instance for this record.  If no
         specific database is defined, then the database will be looked up
@@ -777,7 +598,7 @@ class Model(AddonManager):
 
         :return     <Database> || None
         """
-        return self.__context_options.raw_values.get('database') or self.getDatabase()
+        return self.__context_options.raw_values.get('database') or self.classdb()
 
     def dataCache(self):
         """
@@ -788,6 +609,28 @@ class Model(AddonManager):
         if not self.__record_datacache:
             self.__record_datacache = orb.DataCache.create()
         return self.__record_datacache
+
+    def define(self, column, value, overwrite=False):
+        """
+        Defines the value for this column.  This will set both the current and
+        default value for the column, vs. set which only updates the current value.
+
+        :param column: <orb.Column> || <str>
+        :param value: <variant>
+        :param overwrite: <bool>
+
+        :return: <bool> changed
+        """
+        col = self.schema().column(column)
+        if not col:
+            raise orb.errors.ColumnNotFound(column)
+
+        with WriteLocker(self.__dataLock):
+            if overwrite or not col in self.__values:
+                self.__values[col] = (value, value)
+                return True
+            else:
+                return False
 
     def contextOptions(self, **options):
         """
@@ -816,6 +659,115 @@ class Model(AddonManager):
             inst._Table__record_values = db_values
         return inst
 
+    def get(self, column, default=None, locale=None, inflated=True, useMethod=True):
+        """
+        Returns the value for the column for this record.
+
+        :param      column      | <orb.Column> || <str>
+                    default     | <variant>
+                    inflated    | <bool>
+
+        :return     <variant>
+        """
+        col = self.schema().column(column)
+        if not col:
+            raise errors.ColumnNotFound(self.schema().name(), column)
+
+        if useMethod:
+            method = getattr(self.__class__, col.getterName(), None)
+            try:
+                orb_getter = type(method.im_func).__name__ == 'gettermethod'
+            except AttributeError:
+                orb_getter = False
+
+            if method is not None and not orb_getter:
+                keywords = list(self.__getKeywords(method))
+                kwds = {}
+
+                if 'locale' in keywords:
+                    kwds['locale'] = locale
+                if 'default' in keywords:
+                    kwds['default'] = default
+                if 'inflated' in keywords:
+                    kwds['inflated'] = inflated
+
+                return method(self, **kwds)
+
+        try:
+            with ReadLocker(self.__record_value_lock):
+                value = self.__record_values[col]
+        except KeyError:
+            proxy = self.proxyColumn(column)
+            if proxy and proxy.getter():
+                return proxy.getter()(self)
+            return default
+
+        # return the translatable value
+        if col.isTranslatable():
+            if value is None:
+                return ''
+
+            # return all the locales
+            if locale == 'all':
+                return value
+
+            # return specific locales
+            elif type(locale) in (list, tuple, set):
+                output = {}
+                for lang in locale:
+                    output[lang] = value.get(lang)
+                return output
+
+            # return a set of locales
+            elif type(locale) == dict:
+                # return first in the set
+                if 'first' in locale:
+                    langs = set(value.keys())
+                    first = list(locale['first'])
+                    remain = list(langs.difference(first))
+
+                    for lang in first + remain:
+                        val = value.get(lang)
+                        if val:
+                            return val
+                return ''
+
+            # return the current locale
+            elif locale is None:
+                locale = self.recordLocale()
+
+            value = value.get(locale)
+            if not value:
+                value = default
+
+        # return a reference when desired
+        if col.isReference() and inflated and value is not None:
+            # ensure we have a proper reference model
+            refmodel = col.referenceModel()
+            if refmodel is None:
+                raise errors.TableNotFound(col.reference())
+
+            # make sure our value already meets the criteria
+            elif refmodel.recordcheck(value):
+                return value
+
+            # inflate the value to the class value
+            inst = refmodel(value, db=self.database(), options=self.contextOptions())
+            if value == self.__record_defaults.get(col):
+                self.__record_defaults[col] = inst
+
+            # cache the record value
+            with WriteLocker(self.__record_value_lock):
+                self.__record_values[col] = inst
+            return inst
+
+        else:
+            options = self.contextOptions()
+            return col.restoreValue(value, options) if not Table.recordcheck(value) else value.id()
+
+    def has(self, column):
+        pass
+
     def findAllRelatedRecords(self):
         """
         Looks up all related records to this record via all the relations
@@ -833,18 +785,19 @@ class Model(AddonManager):
 
         return output
 
-    def initRecord(self):
+    def init(self):
         """
         Initializes the default values for this record.
         """
-        for column in self.schema().columns(kind=orb.Column.Kind.Field):
-            value = column.default(resolve=True)
-            if column.isTranslatable():
-                value = {self.recordLocale(): value}
-            elif column.isString() and column.testFlag(column.Flags.Polymorphic):
-                value = type(self).__name__
+        for column in self.schema().columns():
+            if not column.testFlag(column.Flags.Virtual):
+                value = column.default()
+                if column.testFlag(column.Flags.Translatable):
+                    value = {self.currentLocale(): value}
+                elif column.testFlag(column.Flags.Polymorphic):
+                    value = type(self).__name__
 
-            self.__record_defaults[column] = value
+                self.define(column, value)
 
     def insertInto(self, db, **options):
         """
@@ -1048,117 +1001,6 @@ class Model(AddonManager):
         """
         return self.contextOptions().locale
 
-    def recordValue(self,
-                    column,
-                    locale=None,
-                    default=None,
-                    inflated=True,
-                    useMethod=True):
-        """
-        Returns the value for the column for this record.
-
-        :param      column      | <orb.Column> || <str>
-                    default     | <variant>
-                    inflated    | <bool>
-
-        :return     <variant>
-        """
-        col = self.schema().column(column)
-        if not col:
-            raise errors.ColumnNotFound(self.schema().name(), column)
-
-        if useMethod:
-            method = getattr(self.__class__, col.getterName(), None)
-            try:
-                orb_getter = type(method.im_func).__name__ == 'gettermethod'
-            except AttributeError:
-                orb_getter = False
-
-            if method is not None and not orb_getter:
-                keywords = list(self.__getKeywords(method))
-                kwds = {}
-
-                if 'locale' in keywords:
-                    kwds['locale'] = locale
-                if 'default' in keywords:
-                    kwds['default'] = default
-                if 'inflated' in keywords:
-                    kwds['inflated'] = inflated
-
-                return method(self, **kwds)
-
-        try:
-            with ReadLocker(self.__record_value_lock):
-                value = self.__record_values[col]
-        except KeyError:
-            proxy = self.proxyColumn(column)
-            if proxy and proxy.getter():
-                return proxy.getter()(self)
-            return default
-
-        # return the translatable value
-        if col.isTranslatable():
-            if value is None:
-                return ''
-
-            # return all the locales
-            if locale == 'all':
-                return value
-
-            # return specific locales
-            elif type(locale) in (list, tuple, set):
-                output = {}
-                for lang in locale:
-                    output[lang] = value.get(lang)
-                return output
-
-            # return a set of locales
-            elif type(locale) == dict:
-                # return first in the set
-                if 'first' in locale:
-                    langs = set(value.keys())
-                    first = list(locale['first'])
-                    remain = list(langs.difference(first))
-
-                    for lang in first + remain:
-                        val = value.get(lang)
-                        if val:
-                            return val
-                return ''
-
-            # return the current locale
-            elif locale is None:
-                locale = self.recordLocale()
-
-            value = value.get(locale)
-            if not value:
-                value = default
-
-        # return a reference when desired
-        if col.isReference() and inflated and value is not None:
-            # ensure we have a proper reference model
-            refmodel = col.referenceModel()
-            if refmodel is None:
-                raise errors.TableNotFound(col.reference())
-
-            # make sure our value already meets the criteria
-            elif refmodel.recordcheck(value):
-                return value
-
-            # inflate the value to the class value
-            inst = refmodel(value, db=self.database(), options=self.contextOptions())
-            if value == self.__record_defaults.get(col):
-                self.__record_defaults[col] = inst
-
-            # cache the record value
-            with WriteLocker(self.__record_value_lock):
-                self.__record_values[col] = inst
-            return inst
-
-        else:
-            options = self.contextOptions()
-            return col.restoreValue(value, options) if not Table.recordcheck(value) else value.id()
-
     def recordValues(self,
                      columns=None,
                      inflated=False,
@@ -1341,7 +1183,7 @@ class Model(AddonManager):
         except AttributeError:
             return 0
 
-    def resetRecord(self):
+    def reset(self):
         """
         Resets the values for this record to the database
         defaults.  This will only reset to the local cache, not reload from
@@ -1350,9 +1192,9 @@ class Model(AddonManager):
 
         :sa     reload
         """
-        with WriteLocker(self.__record_value_lock):
-            values = {k: v if type(v) != dict else v.copy() for k, v in self.__record_defaults.items()}
-            self.__record_values = values
+        with WriteLocker(self.__dataLock):
+            for k, v in self.__values:
+                self.__values[k] = (v[0], v[0])
 
     def revert(self, *columnNames, **kwds):
         """
@@ -1762,19 +1604,19 @@ class Model(AddonManager):
                 return token
 
     @classmethod
-    def getDatabase(cls):
+    def classdb(cls):
         """
         Returns the database instance for this class.
 
         :return     <Database> || None
         """
-        db = cls.__db__
+        db = getattr(cls, 'db', None)
         if isinstance(db, orb.Database):
             return db
-        elif db:
+        elif isinstance(db, (str, unicode)):
             return orb.system.database(db)
         else:
-            return cls.schema().database()
+            return cls.schema().db()
 
     @classmethod
     def getRecord(cls, key, **options):
@@ -1786,51 +1628,6 @@ class Model(AddonManager):
                     raise orb.errors.RecordNotFound(cls, key)
             options['where'] = Q(cls) == key
         return cls.selectFirst(**options)
-
-    @staticmethod
-    def groupRecords(records, groupings, inflated=False):
-        """
-        Creates a grouping of the records based on the inputted columns.  You \
-        can supply as many column values as you'd like creating nested \
-        groups.
-
-        :param      records     | <Table>
-                    groupings     | [<str>, ..]
-                    inflated | <bool>
-
-        :return     <dict>
-        """
-        if inflated is None:
-            inflated = True
-
-        output = {}
-        ref_cache = {}  # stores the grouping options for auto-inflated vars
-
-        for record in records:
-            data = output
-            schema = record.schema()
-
-            # make sure we have the proper level
-            for i in range(len(groupings) - 1):
-                grouping_key = Table.__groupingKey(record,
-                                                   schema,
-                                                   groupings[i],
-                                                   ref_cache,
-                                                   inflated)
-
-                data.setdefault(grouping_key, {})
-                data = data[grouping_key]
-
-            grouping_key = Table.__groupingKey(record,
-                                               schema,
-                                               groupings[-1],
-                                               ref_cache,
-                                               inflated)
-
-            data.setdefault(grouping_key, [])
-            data[grouping_key].append(record)
-
-        return output
 
     @classmethod
     def inflateRecord(cls, values, **options):

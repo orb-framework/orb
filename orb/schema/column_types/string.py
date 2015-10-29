@@ -12,6 +12,31 @@ class AbstractStringColumn(Column):
 
         super(AbstractStringColumn, self).__init__(**kwds)
 
+    def extract(self, value, context=None):
+        """
+        Extracts data from the database.
+
+        :param value: <variant>
+        :param context: <orb.ContextOptions>
+
+        :return: <variant>
+        """
+
+        # restore translatable column
+        if self.testFlag(self.Flags.Translatable):
+            if isinstance(value, (str, unicode)) and value.startswith('{'):
+                try:
+                    value = projex.text.safe_eval(value)
+                except StandardError:
+                    value = None
+            elif context and context.locale != 'all':
+                value = {context.locale: value}
+            else:
+                value = {self.currentLocale(): value}
+            return value
+        else:
+            return super(AbstractStringColumn, self).extract(value, context=context)
+
     def restore(self, value, context=None):
         """
         Restores the value from a table cache for usage.
@@ -47,16 +72,35 @@ class StringColumn(AbstractStringColumn):
         super(AbstractStringColumn, self).__init__(name, **kwds)
 
         # define custom properties
-        self._maxlength = maxlength
+        self.__maxlength = maxlength
 
-    def maxlength(self):
+    def loadJSON(self, jdata):
+        """
+        Loads JSON data for this column type.
+
+        :param jdata: <dict>
+        """
+        super(StringColumn, self).loadJSON(jdata)
+
+        # load additional info
+        self.__maxlength = jdata.get('maxlength') or self.__maxlength
+
+    def maxLength(self):
         """
         Returns the max length for this column.  This property
         is used for the varchar data type.
 
         :return     <int>
         """
-        return self._maxlength
+        return self.__maxlength
+
+    def setMaxLength(self, length):
+        """
+        Sets the maximum length for this string column to the given length.
+
+        :param length: <int>
+        """
+        self.__maxlength = length
 
 class TextColumn(AbstractStringColumn):
     pass
@@ -74,7 +118,7 @@ class EmailColumn(StringColumn):
         super(EmailColumn, self).__init__(**kwds)
 
         # define custom properties
-        self._pattern = pattern
+        self.__pattern = pattern
 
     def validate(self, value):
         """
@@ -85,7 +129,7 @@ class EmailColumn(StringColumn):
 
         :return: <bool>
         """
-        if not re.match(self._pattern, value):
+        if not re.match(self.__pattern, value):
             raise orb.errors.ColumnValidationError(self, 'The email provided is not valid.')
         else:
             return super(EmailColumn, self).validate(value)
@@ -113,14 +157,14 @@ class PasswordColumn(StringColumn):
         self.setFlag(self.Flags.Encrypted)
 
         # define custom properties
-        self._minlength = minlength
-        self._allowUnicode = allowUnicode
-        self._requireUppercase = requireUppercase
-        self._requireLowercase = requireLowercase
-        self._requireNumber = requireNumber
-        self._requireWildcard = requireWildcard
-        self._invalidCharacters = invalidCharacters
-        self._invalidCharacterRule = invalidCharacterRule
+        self.__minlength = minlength
+        self.__allowUnicode = allowUnicode
+        self.__requireUppercase = requireUppercase
+        self.__requireLowercase = requireLowercase
+        self.__requireNumber = requireNumber
+        self.__requireWildcard = requireWildcard
+        self.__invalidCharacters = invalidCharacters
+        self.__invalidCharacterRule = invalidCharacterRule
 
     def rules(self):
         """
@@ -129,15 +173,15 @@ class PasswordColumn(StringColumn):
 
         :return: <str>
         """
-        rules = ['Passwords need to be at least {0} characters long'.format(self._minlength)]
+        rules = ['Passwords need to be at least {0} characters long'.format(self.__minlength)]
 
-        if self._requireUppercase:
+        if self.__requireUppercase:
             rules.append('have at least one uppercase letter')
-        if self._requireLowercase:
+        if self.__requireLowercase:
             rules.append('have at least one lowercase letter')
-        if self._requireNumber:
+        if self.__requireNumber:
             rules.append('have at least one number')
-        if self._requireWildcard:
+        if self.__requireWildcard:
             rules.append('have at least one non alpha-number character')
 
         if len(rules) == 1:
@@ -157,19 +201,19 @@ class PasswordColumn(StringColumn):
         if not isinstance(value, (str, unicode)):
             raise orb.errors.ColumnValidationError(self, 'Invalid password.')
 
-        elif not self._allowUnicode and value != projex.text.toAscii(value):
+        elif not self.__allowUnicode and value != projex.text.toAscii(value):
             raise orb.errors.ColumnValidationError(self, 'Only ASCII characters are allowed for your password.')
 
-        elif len(value) < self._minlength or \
-                (self._requireUppercase and not re.search('[A-Z]', value)) or \
-                (self._requirLowercase and not re.search('[a-z]', value)) or \
-                (self._requireNumber and not re.search('[0-9]', value)) or \
-                (self._requireWildcard and not re.search('[^a-zA-Z0-9]', value)):
+        elif len(value) < self.__minlength or \
+                (self.__requireUppercase and not re.search('[A-Z]', value)) or \
+                (self.__requirLowercase and not re.search('[a-z]', value)) or \
+                (self.__requireNumber and not re.search('[0-9]', value)) or \
+                (self.__requireWildcard and not re.search('[^a-zA-Z0-9]', value)):
             raise orb.errors.ColumnValidationError(self, self.rules())
 
         # check for invalid characters
-        elif self._invalidCharacters and re.search(self._invalidCharacters, value):
-            raise orb.errors.ColumnValidationError(self, self._invalidCharactersRule)
+        elif self.__invalidCharacters and re.search(self.__invalidCharacters, value):
+            raise orb.errors.ColumnValidationError(self, self.__invalidCharactersRule)
 
         else:
             return super(PasswordColumn, self).validate(value)

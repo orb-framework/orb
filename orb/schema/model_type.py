@@ -353,7 +353,7 @@ class ModelType(type):
         # ignore initial class
         db_ignore = attrs.pop('__db_ignore__', False)
         if db_ignore:
-            return super(MetaTable, mcs).__new__(mcs, name, bases, attrs)
+            return super(ModelType, mcs).__new__(mcs, name, bases, attrs)
 
         base_tables = [base for base in bases if isinstance(base, MetaTable)]
         base_data = {key: value for base_table in base_tables

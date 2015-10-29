@@ -1,19 +1,18 @@
-from ..column import Column
+from ..column import Column, VirtualColumn
 
 
-class JoinColumn(Column):
+class JoinColumn(VirtualColumn):
     def __init__(self, joiner=None, **kwds):
         super(JoinColumn, self).__init__(**kwds)
 
         # set standard properties
         self.setFlag(Column.Flags.ReadOnly)
-        self.setFlag(Column.Flags.Field, False)
 
         # define custom properties
-        self._joiner = joiner
+        self.__joiner = joiner
 
     def joiner(self):
-        return self._joiner
+        return self.__joiner
 
     def setJoiner(self, joiner):
         """
@@ -21,7 +20,7 @@ class JoinColumn(Column):
 
         :param      query | (<orb.Column>, <orb.Query>) || <callable> || None
         """
-        self._joiner = joiner
+        self.__joiner = joiner
 
 
 # register the column type

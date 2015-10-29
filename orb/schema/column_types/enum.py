@@ -7,7 +7,7 @@ class EnumColumn(LongColumn):
         super(EnumColumn, self).__init__(**kwds)
 
         # define custom properties
-        self._enum = enum
+        self.__enum = enum
 
     def enum(self):
         """
@@ -16,7 +16,7 @@ class EnumColumn(LongColumn):
 
         :return     <projex.enum.enum> || None
         """
-        return self._enum
+        return self.__enum
 
 
     def setEnum(self, cls):
@@ -27,7 +27,7 @@ class EnumColumn(LongColumn):
 
         :param      cls | <projex.enum.enum> || None
         """
-        self._enum = cls
+        self.__enum = cls
 
 
 Column.registerAddon('Enum', EnumColumn)

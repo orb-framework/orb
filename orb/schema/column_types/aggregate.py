@@ -9,7 +9,7 @@ class AggregateColumn(Column):
         self.setFlag(Column.Flags.Field, False)
 
         # define custom properties
-        self._aggregator = aggregator
+        self.__aggregator = aggregator
 
     def aggregate(self):
         """
@@ -17,8 +17,8 @@ class AggregateColumn(Column):
 
         :return     <orb.QueryAggregate> || None
         """
-        if self._aggregator:
-            return self._aggregator.generate(self)
+        if self.__aggregator:
+            return self.__aggregator.generate(self)
         return None
 
     def aggregator(self):
@@ -29,7 +29,7 @@ class AggregateColumn(Column):
 
         :return     <orb.ColumnAggregator> || None
         """
-        return self._aggregator
+        return self.__aggregator
 
 
 Column.registerAddon('Aggregate', AggregateColumn)

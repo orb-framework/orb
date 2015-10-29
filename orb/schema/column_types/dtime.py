@@ -95,6 +95,12 @@ class DatetimeColumn(AbstractDatetimeColumn):
 
 
 class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
+    def __init__(self, timezone=None, **kwds):
+        super(DatetimeWithTimezoneColumn, self).__init__(**kwds)
+
+        # define custom properties
+        self.__timezone = timezone
+
     def restore(self, value, context=None):
         """
         Restores the value from a table cache for usage.
@@ -135,7 +141,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 
         :param     timezone | <pytz.tzfile> || None
         """
-        self._timezone = timezone
+        self.__timezone = timezone
 
     def store(self, value):
         """
@@ -174,7 +180,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 
         :return     <pytz.tzfile> || None
         """
-        return self._timezone or self.schema().timezone(context)
+        return self.__timezone or self.schema().timezone(context)
 
     def valueFromString(self, value, extra=None, db=None):
         """

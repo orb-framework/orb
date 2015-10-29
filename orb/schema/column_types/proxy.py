@@ -1,7 +1,7 @@
-from ..column import Column
+from ..column import Column, VirtualColumn
 
 
-class ProxyColumn(Column):
+class ProxyColumn(VirtualColumn):
     """
     Defines a way to define methods as fake columns for a model.
 
@@ -21,19 +21,19 @@ class ProxyColumn(Column):
     def __init__(self, gettermethod=None, settermethod=None, **kwds):
         super(ProxyColumn, self).__init__(**kwds)
 
-        # set default properties
-        self.setFlag(Column.Flags.Field, False)
+        # set standard properties
+        self.setFlag(Column.Flags.Queryable, False)
 
         # define custom properties
-        self._gettermethod = gettermethod
-        self._settermethod = settermethod
+        self.__gettermethod = gettermethod
+        self.__settermethod = settermethod
 
     def getter(self, func):
-        self._getter = func
+        self.__getter = func
         return func
 
     def setter(self, func):
-        self._setter = func
+        self.__setter = func
         return func
 
 

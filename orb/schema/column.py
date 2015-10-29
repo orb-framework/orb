@@ -1,29 +1,14 @@
 """ Defines the meta information for a column within a table schema. """
 
-import datetime
-import decimal
 import logging
-import projex.regex
 import projex.text
-import time
 
 from projex.addon import AddonManager
 from projex.enum import enum
 from projex.lazymodule import lazy_import
-from projex.text import nativestring as nstr
-from xml.etree import ElementTree
-
-from ..common import ColumnType, RemovedAction
-
-try:
-    from dateutil import parser as dateutil_parser
-except ImportError:
-    dateutil_parser = None
 
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
-pytz = lazy_import('pytz')
-errors = lazy_import('orb.errors')
 
 
 class Column(AddonManager):
@@ -33,25 +18,6 @@ class Column(AddonManager):
             self.name = name
             self.cached = cached
             self.timeout = timeout
-
-    # define default naming system
-    TEMPLATE_PRIMARY_KEY = 'id'
-    TEMPLATE_GETTER = '[name::camelHump::lower_first]'
-    TEMPLATE_SETTER = 'set[name::camelHump::upper_first::lstrip(Is)]'
-    TEMPLATE_FIELD = '[name::underscore::lower]'
-    TEMPLATE_DISPLAY = '[name::upper_first::words]'
-    TEMPLATE_INDEX = 'by[name::camelHump::upper_first]'
-    TEMPLATE_REVERSED = '[name::reversed::camelHump::lower_first]'
-    TEMPLATE_REFERENCE = '[name::underscore::lower]_id'
-
-    TEMPLATE_MAP = {
-        'getterName': TEMPLATE_GETTER,
-        'setterName': TEMPLATE_SETTER,
-        'fieldName': TEMPLATE_FIELD,
-        'displayName': TEMPLATE_DISPLAY,
-        'indexName': TEMPLATE_INDEX,
-        'primaryKey': TEMPLATE_PRIMARY_KEY,
-    }
 
     Flags = enum(
         'ReadOnly',             # 1
@@ -66,7 +32,9 @@ class Column(AddonManager):
         'Searchable',           # 512
         'IgnoreByDefault',      # 1024
         'Translatable',         # 2048
-        'CaseSensitive'         # 4096
+        'CaseSensitive',        # 4096
+        'Virtual'               # 8192,
+        'Queryable'             # 16384
     )
 
     def __init__(self,
@@ -78,43 +46,29 @@ class Column(AddonManager):
                  default=None,
                  defaultOrder='asc'):
         # constructor items
-        self._name = name
-        self._field = field
-        self._display = display
-        self._index = index
-        self._flags = flags
-        self._default = default
-        self._defaultOrder = defaultOrder
+        self.__name = name
+        self.__field = field
+        self.__display = display
+        self.__index = index
+        self.__flags = flags
+        self.__default = default
+        self.__defaultOrder = defaultOrder
 
         # custom options
-        self._schema = None
-        self._timezone = None
-        self._customData = {}
+        self.__schema = None
+        self.__timezone = None
 
-    def customData(self, key, default=None):
-        """
-        Returns custom information that was assigned to this column for the \
-        inputted key.  If no value was assigned to the given key, the inputted \
-        default value will be returned.
-        
-        :param      key     | <str>
-                    default | <variant>
-            
-        :return     <variant>
-        """
-        return self._customData.get(key, default)
-
-    def default(self, resolve=False):
+    def default(self):
         """
         Returns the default value for this column to return
         when generating new instances.
         
         :return     <variant>
         """
-        if isinstance(self._default, (str, unicode)):
-            return self.valueFromString(self._default)
+        if isinstance(self.__default, (str, unicode)):
+            return self.valueFromString(self.__default)
         else:
-            return self._default
+            return self.__default
 
     def defaultOrder(self):
         """
@@ -122,7 +76,7 @@ class Column(AddonManager):
 
         :return     <str>
         """
-        return self._defaultOrder
+        return self.__defaultOrder
 
     def display(self):
         """
@@ -130,7 +84,18 @@ class Column(AddonManager):
 
         :return     <str>
         """
-        return self._display or projex.text.pretty(self._name)
+        return self.__display or projex.text.pretty(self.__name)
+
+    def extract(self, value, context=None):
+        """
+        Extracts the database value information during a load.
+
+        :param value: <variant>
+        :param context: <orb.ContextOptions>
+
+        :return: <variant>
+        """
+        return value
 
     def field(self):
         """
@@ -138,7 +103,7 @@ class Column(AddonManager):
                     
         :return     <str>
         """
-        return self._field
+        return self.__field
 
     def firstMemberSchema(self, schemas):
         """
@@ -160,7 +125,7 @@ class Column(AddonManager):
         
         :return     <Column.Flags>
         """
-        return self._flags
+        return self.__flags
 
     def index(self):
         """
@@ -168,7 +133,7 @@ class Column(AddonManager):
 
         :return:    <orb.Column.Index> || None
         """
-        return self._index
+        return self.__index
 
     def isMemberOf(self, schemas):
         """
@@ -204,14 +169,18 @@ class Column(AddonManager):
         :param jdata: <dict>
         """
         # required params
-        self._name = jdata['name']
-        self._field = jdata['field']
+        self.__name = jdata['name']
+        self.__field = jdata['field']
 
         # optional fields
-        self._display = jdata.get('display') or self._display
-        self._flags = jdata.get('flags') or self._flags
-        self._defaultOrder = jdata.get('defaultOrder') or self._defaultOrder
-        self._default = jdata.get('default') or self._default
+        self.__display = jdata.get('display') or self.__display
+        self.__flags = jdata.get('flags') or self.__flags
+        self.__defaultOrder = jdata.get('defaultOrder') or self.__defaultOrder
+        self.__default = jdata.get('default') or self.__default
+
+        index = jdata.get('index')
+        if index:
+            self.__index = Column.Index(**index)
 
     def memberOf(self, schemas):
         """
@@ -233,7 +202,7 @@ class Column(AddonManager):
         
         :return     <str>
         """
-        return self._name
+        return self.__name
 
     def restore(self, value, context=None):
         """
@@ -264,16 +233,7 @@ class Column(AddonManager):
         
         :return     <TableSchema>
         """
-        return self._schema
-
-    def setCustomData(self, key, value):
-        """
-        Sets the custom data at the inputted key to the given value.
-        
-        :param      key     | <str>
-                    value   | <variant>
-        """
-        self._customData[nstr(key)] = value
+        return self.__schema
 
     def setDefault(self, default):
         """
@@ -281,7 +241,7 @@ class Column(AddonManager):
         
         :param      default | <str>
         """
-        self._default = default
+        self.__default = default
 
     def setDisplay(self, display):
         """
@@ -289,7 +249,7 @@ class Column(AddonManager):
         
         :param      displayName | <str>
         """
-        self._display = display
+        self.__display = display
 
     def setField(self, field):
         """
@@ -297,7 +257,7 @@ class Column(AddonManager):
         
         :param      field | <str>
         """
-        self._field = field
+        self.__field = field
 
     def setFlag(self, flag, state=True):
         """
@@ -307,9 +267,9 @@ class Column(AddonManager):
                     state | <bool>
         """
         if state:
-            self._flags |= flag
+            self.__flags |= flag
         else:
-            self._flags &= ~flag
+            self.__flags &= ~flag
 
     def setFlags(self, flags):
         """
@@ -317,7 +277,7 @@ class Column(AddonManager):
         
         :param      flags | <Column.Flags>
         """
-        self._flags = flags
+        self.__flags = flags
 
     def setName(self, name):
         """
@@ -325,7 +285,7 @@ class Column(AddonManager):
         
         :param      name    | <str>
         """
-        self._name = name
+        self.__name = name
 
     def setIndex(self, index):
         """
@@ -333,7 +293,7 @@ class Column(AddonManager):
         
         :param      index   | <orb.Column.Index> || None
         """
-        self._index = index
+        self.__index = index
 
     def testFlag(self, flag):
         """
@@ -357,7 +317,7 @@ class Column(AddonManager):
         if self.testFlag(self.Flags.Required) and not self.testFlag(self.Flags.AutoIncrement):
             if self.isNull(value):
                 msg = '{0} is a required column.'.format(self.name())
-                raise errors.ColumnValidationError(self, msg)
+                raise orb.errors.ColumnValidationError(self, msg)
 
         # otherwise, we're good
         return True
@@ -403,3 +363,15 @@ class Column(AddonManager):
             col = col_cls()
             col.loadJSON(jdata)
             return col
+
+
+class VirtualColumn(Column):
+    def __init__(self, **kwds):
+        super(VirtualColumn, self).__init__(**kwds)
+
+        # set default properties
+        self.setFlag(Column.Flags.Virtual, True)
+
+
+# register the importable space for class types
+Column.registerAddonModule('orb.schema.column_types')
