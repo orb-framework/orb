@@ -1,5 +1,4 @@
-""" Defines an overall management class for all environments, databases,
-    and schemas. """
+""" Defines an overall management class for all databases and schemas. """
 
 import datetime
 import glob
@@ -26,7 +25,6 @@ class Manager(object):
 
     def __init__(self):
         # system wide options
-        self._environment = None  # current environment
         self._database = None  # current database
         self._tableclass = None  # base table class (default: orb.Table)
         self._namespace = ''  # current namespace
@@ -49,7 +47,6 @@ class Manager(object):
         self._timezone = None
 
         # registry
-        self._environments = set()
         self._databases = set()
         self._groups = set()
         self._schemas = set()
@@ -109,21 +106,15 @@ class Manager(object):
         """
         Clears out all the current data from this orb instance.
         """
-        self._environment = None
         self._database = None
 
         # close any active connections
         for db in self._databases:
             db.disconnect()
 
-        # close any active environments
-        for env in self._environments:
-            env.clear()
-
         self._filename = ''
         self._referenceFiles = []
         self._groups.clear()
-        self._environments.clear()
         self._databases.clear()
         self._schemas.clear()
         self._properties.clear()
@@ -141,13 +132,11 @@ class Manager(object):
         except (KeyError, AttributeError):
             return []
 
-    def database(self, name=None, environment=None):
+    def database(self, name=None):
         """
         Returns the database for this manager based on the inputted name. \
         If no name is supplied, then the currently active database is \
-        returned.  If the environment variable is specified then the \
-        database lookup will occur in the specific environment, otherwise \
-        the active environment is used.
+        returned.
         
         :usage      |>>> import orb
                     |>>> orb.system.database() # returns active database
@@ -155,50 +144,18 @@ class Manager(object):
                     |>>> orb.system.database('User', 'Debug') # from Debug
         
         :param      name | <str> || None
-                    environment | <str> || <orb.environment.Environment> || None
-        
+
         :return     <orb.database.Database> || None
         """
-        # if no name is given, then return the current database
-        if not name:
-            return self._database
+        return self._databases.get(name) if name is not None else self._database
 
-        # otherwise, if the environment is provided, then use the environments
-        # database for the given name
-        if environment is None:
-            environment = self._environment
-        elif not isinstance(environment, orb.Environment):
-            environment = self.environment(environment)
-
-        if environment:
-            db = environment.database(name)
-        else:
-            db = None
-
-        if db:
-            return db
-
-        for db in self._databases:
-            if db.name() == name:
-                return db
-
-        return None
-
-    def databases(self, recursive=False):
+    def databases(self):
         """
-        Returns the databases for this system.  If the recursive flag is \
-        set, then all databases defined by all environments will also be \
-        returned.
+        Returns the databases for this system.
         
-        :return     [<orb.database.Database>, ..]
+        :return     {<str> name: <orb.Database>, ..}
         """
-        output = list(self._databases)
-
-        if recursive:
-            for env in self.environments():
-                output += env.databases()
-
-        return output
+        return self._databases
 
     def databaseSchemas(self, db, base=None):
         """
@@ -236,33 +193,6 @@ class Manager(object):
         :return     <str>
         """
         return projex.security.encrypt(text, self.token())
-
-    def environment(self, name=None):
-        """
-        Returns the environment for this manager based on the inputted name. \
-        If no name is supplied, then the currently active environment is \
-        returned.
-        
-        :param      name | <str> || None
-        
-        :return     <orb.environment.Environment> || None
-        """
-        if name is None:
-            return self._environment
-
-        for env in self._environments:
-            if env.name() == name:
-                return env
-        return None
-
-    def environments(self):
-        """
-        Returns a list of all the environments that are used by this orb \
-        instance.
-        
-        :return     [<orb.environment.Environment>, ..]
-        """
-        return list(self._environments)
 
     def findRelatedColumns(self, schema):
         """
@@ -543,13 +473,6 @@ class Manager(object):
             for xprop in xprops:
                 self.setProperty(xprop.get('key'), xprop.get('value'))
 
-        # load environments
-        xenvs = xorb.find('environments')
-        if xenvs is not None:
-            for xenv in xenvs:
-                env = orb.Environment.fromXml(xenv, referenced)
-                self.registerEnvironment(env, env.isDefault())
-
         # load databases
         xdbs = xorb.find('databases')
         if xdbs is not None:
@@ -643,27 +566,14 @@ class Manager(object):
 
     def registerDatabase(self, database, active=True):
         """
-        Registers a particular database with this environment.
+        Registers a particular database.
         
         :param      database | <orb.database.Database>
                     active   | <bool>
         """
-        self._databases.add(database)
-        if active or not self._database:
-            self._database = database
-
-    def registerEnvironment(self, environment, active=False):
-        """
-        Registers a particular environment with this environment.
-        
-        :param      database | <orb.environment.Environment>
-                    active | <bool>
-        """
-        self._environments.add(environment)
-
-        # set the active environment
-        if active or not self._environment:
-            self.setEnvironment(environment)
+        self._databases[database.name()] = database
+        if not self.__currentDatabase or active:
+            self.__currentDatabase = database.name()
 
     def registerGroup(self, group, database=None):
         """
@@ -733,12 +643,6 @@ class Manager(object):
             xprop = ElementTree.SubElement(xprops, 'property')
             xprop.set('key', key)
             xprop.set('value', value)
-
-        # save out the environments
-        xenvs = ElementTree.SubElement(xorb, 'environments')
-        for env in sorted(self.environments(), key=lambda x: x.name()):
-            if not env.isReferenced():
-                env.toXml(xenvs)
 
         # save out the global databases
         xdbs = ElementTree.SubElement(xorb, 'databases')
@@ -862,18 +766,6 @@ class Manager(object):
         self._customEngines.setdefault(databaseType, {})
         self._customEngines[databaseType][columnType] = engineClass
 
-    def setDatabase(self, database, environment=None):
-        """
-        Sets the active database to the inputted database.
-        
-        :param      database | <str> || <orb.database.Database> || None
-                    environment | <str> || <orb.environment.Environment> || None
-        """
-        if not isinstance(database, orb.Database):
-            database = self.database(database, environment)
-
-        self._database = database
-
     def setLocale(self, locale):
         """
         Sets the locale that the orb file will be using.
@@ -882,18 +774,6 @@ class Manager(object):
         """
         if locale:
             self._locale = locale
-
-    def setEnvironment(self, environment):
-        """
-        Sets the active environment to the inputted environment.
-        
-        :param      environment | <str> || <orb.environment.Environment> || None
-        """
-        if not isinstance(environment, orb.Environment):
-            environment = self.environment(environment)
-
-        self._environment = environment
-        self.setDatabase(environment.defaultDatabase())
 
     def setMaxCacheTimeout(self, minutes):
         """
@@ -1045,18 +925,6 @@ class Manager(object):
         """
         return self._token
 
-    def unregisterDatabase(self, database):
-        """
-        Un-registers a particular database with this environment.
-        
-        :param      database | <orb.database.Database>
-        """
-        database.disconnect()
-        try:
-            self._database.remove(database)
-        except KeyError:
-            pass
-
     def unregisterGroup(self, group):
         """
         Un-registers the inputted orb group to the system.
@@ -1065,17 +933,6 @@ class Manager(object):
         """
         try:
             self._groups.remove(group)
-        except KeyError:
-            pass
-
-    def unregisterEnvironment(self, environment):
-        """
-        Un-registers a particular environment with this environment.
-        
-        :param      database | <orb.environment.Environment>
-        """
-        try:
-            self._environments.remove(environment)
         except KeyError:
             pass
 

@@ -37,19 +37,40 @@ class AbstractStringColumn(Column):
         else:
             return super(AbstractStringColumn, self).extract(value, context=context)
 
-    def restore(self, value, context=None):
+    def restore(self, value, context=None, inflated=False):
         """
         Restores the value from a table cache for usage.
 
         :param      value   | <variant>
                     context | <orb.ContextOptions> || None
         """
-        if isinstance(value, (str, unicode)):
+        context = context or orb.ContextOptions()
+
+        # check to see if this column is translatable before restoring
+        if self.testFlag(self.Flags.Translatable):
+            locales = context.locale.split(',')
+            if isinstance(value, (str, unicode)):
+                value = {locales[0]: value}
+
+            if value is None:
+                return ''
+
+            # return all the locales
+            elif 'all' in locales:
+                return value
+
+            if len(locales) == 1:
+                return value.get(locales[0])
+            else:
+                return {locale: value.get(locale) or '' for locale in locales}
+
+        # ensure this value is a string type
+        elif isinstance(value, (str, unicode)):
             return projex.text.decoded(value)
         else:
             return super(AbstractStringColumn, self).restore(value, context)
 
-    def store(self, value):
+    def store(self, value, context):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
@@ -58,7 +79,10 @@ class AbstractStringColumn(Column):
 
         :return     <variant>
         """
-        if isinstance(value, (str, unicode)) and self.testFlag(self.Flags.Encrypted):
+        if self.testFlag(self.Flags.Translatable):
+            if isinstance(value, (str, unicode)):
+                return {context.locale: value}
+        elif isinstance(value, (str, unicode)) and self.testFlag(self.Flags.Encrypted):
             return orb.system.encrypt(value)
         else:
             return super(AbstractStringColumn, self).store(value)

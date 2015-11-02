@@ -44,6 +44,21 @@ class Connection(AddonManager):
         """
         self.close()
 
+    @abstractmethod
+    def _delete(self, records, context):
+        """
+        Removes the given records from the inputted schema.  This method is
+        called from the <Connection.remove> method that handles the pre
+        processing of grouping records together by schema and only works
+        on the primary key.
+
+        :param      records  | {<orb.Table>: [<orb.Query>, ..], ..}
+                    context  | <orb.ContextOptions>
+
+        :return     <int> | number of rows removed
+        """
+        return 0
+
     # noinspection PyUnusedLocal
     def backup(self, filename, **options):
         """
@@ -83,7 +98,7 @@ class Connection(AddonManager):
         """
         return True
 
-    def collectRemoveRecords(self, table, lookup, options, collection=None):
+    def collectDeleteRecords(self, table, lookup, options, collection=None):
         """
         Collects records for removal by looking up the schema's relations
         in reference to the given records.  If there are records that should
@@ -147,7 +162,7 @@ class Connection(AddonManager):
                 # cascade additional removals
                 elif flags & orb.DeleteFlags.Cascaded and action == orb.RemovedAction.Cascade:
                     ref_lookup = orb.LookupOptions(where=ref_query)
-                    self.collectRemoveRecords(ref_table,
+                    self.collectDeleteRecords(ref_table,
                                               ref_lookup,
                                               options,
                                               collection)
@@ -241,6 +256,22 @@ class Connection(AddonManager):
         :return     <Database>
         """
         return self._database
+
+    def delete(self, table, context):
+        """
+        Removes the given records from the inputted schema.  This method is
+        called from the <Connection.remove> method that handles the pre
+        processing of grouping records together by schema and only works
+        on the primary key.
+
+        :param      table     | <subclass of orb.Table>
+                    context   | <orb.ContextOptions>
+
+        :return     <int> | number of rows removed
+        """
+        records = self.collectDeleteRecords(table, context)
+        with orb.Transaction():
+            return self._delete(records, context)
 
     def defaultPrimaryColumn(self):
         """
@@ -410,44 +441,6 @@ class Connection(AddonManager):
         """
         return False
 
-    def remove(self, table, lookup, options):
-        """
-        Removes the given records from the inputted schema.  This method is
-        called from the <Connection.remove> method that handles the pre
-        processing of grouping records together by schema and only works
-        on the primary key.
-        
-        :param      table     | <subclass of orb.Table>
-                    lookup    | <orb.LookupOptions>
-                    options   | <orb.ContextOptions>
-        
-        :return     <int> | number of rows removed
-        """
-        removals = self.collectRemoveRecords(table, lookup, options)
-        with orb.Transaction():
-            count = self.removeRecords(removals, options)
-
-        # mark the tables caches expired
-        for rem_table in removals:
-            rem_table.markTableCacheExpired()
-
-        return count
-
-    @abstractmethod
-    def removeRecords(self, remove, options):
-        """
-        Removes the given records from the inputted schema.  This method is
-        called from the <Connection.remove> method that handles the pre
-        processing of grouping records together by schema and only works
-        on the primary key.
-        
-        :param      remove  | {<orb.Table>: [<orb.Query>, ..], ..}
-                    options | <orb.ContextOptions>
-        
-        :return     <int> | number of rows removed
-        """
-        return 0
-
     def restore(self, filename, **options):
         """
         Restores this backend database from the inputted pickle file.
@@ -602,7 +595,7 @@ class Connection(AddonManager):
         """
         return {}
 
-    def storeRecord(self, record, lookup, options):
+    def save(self, record, lookup, options):
         """
         Syncs the record to the current database, checking to \
         see if the record exists, and if so - updates the records \

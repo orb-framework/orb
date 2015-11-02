@@ -204,7 +204,7 @@ class Column(AddonManager):
         """
         return self.__name
 
-    def restore(self, value, context=None):
+    def restore(self, value, context=None, inflated=True):
         """
         Restores the value from a table cache for usage.
         

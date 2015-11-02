@@ -104,6 +104,20 @@ class ReferenceColumn(Column):
             raise orb.errors.TableNotFound(self.reference())
         return model
 
+    def restore(self, value, context=None, inflated=True):
+        """
+        Returns the inflated value state.  This method will match the desired inflated state.
+
+        :param value: <variant>
+        :param inflated: <bool>
+
+        :return: <variant>
+        """
+        if inflated and not isinstance(value, orb.Model):
+            return self.referenceModel().inflatedRecord(value)
+        elif isinstance(value, orb.Model):
+            return value.id()
+
     def reverseInfo(self):
         """
         Returns the reversal information for this column type, if any.
