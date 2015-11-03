@@ -372,6 +372,3 @@ class VirtualColumn(Column):
         # set default properties
         self.setFlag(Column.Flags.Virtual, True)
 
-
-# register the importable space for class types
-Column.registerAddonModule('orb.schema.column_types')

@@ -31,12 +31,7 @@ class Connection(AddonManager):
         super(Connection, self).__init__()
 
         # define custom properties
-        self._database = database
-        self._threadEnabled = False
-        self._internalsEnabled = True
-        self._commitEnabled = True
-        self._engine = None
-        self._columnEngines = {}
+        self.__database = database
 
     def __del__(self):
         """
@@ -58,29 +53,6 @@ class Connection(AddonManager):
         :return     <int> | number of rows removed
         """
         return 0
-
-    # noinspection PyUnusedLocal
-    def backup(self, filename, **options):
-        """
-        Backs up the data from this database backend to the inputted filename.
-        
-        :param      filename | <str>
-        
-        :return     <bool> | success
-        """
-        db = self.database()
-        data = {}
-        for schema in self.database().schemas():
-            colnames = schema.columnNames(orb.Column.Flags.Field)
-            values = schema.model().select(colnames,
-                                           inflated=False,
-                                           db=db).records()
-            data[schema.name()] = [dict(zip(colnames, x)) for x in values]
-
-        # save this backup to the database file
-        f = open(filename, 'wb')
-        cPickle.dump(data, f)
-        f.close()
 
     @abstractmethod()
     def cleanup(self):
@@ -182,14 +154,6 @@ class Connection(AddonManager):
         """
         return False
 
-    def commitEnabled(self):
-        """
-        Returns whether or not committing is currently enabled.
-        
-        :return     <bool>
-        """
-        return self._commitEnabled and self.internalsEnabled()
-
     @abstractmethod()
     def count(self, table_or_join, lookup, options):
         """
@@ -231,23 +195,6 @@ class Connection(AddonManager):
         """
         return False
 
-    def columnEngine(self, columnType):
-        """
-        Returns the data engine associated with this backend for the given
-        column type.
-        
-        :param      columnType | <orb.ColumnType>
-        """
-        return self._columnEngines.get(columnType)
-
-    def columnEngines(self):
-        """
-        Returns a dict of the column engines associated with this connection.
-        
-        :return     {<orb.ColumnType> coltype: <orb.ColumnEngine>, ..}
-        """
-        return self._columnEngines
-
     def database(self):
         """
         Returns the database instance that this connection is
@@ -255,7 +202,7 @@ class Connection(AddonManager):
         
         :return     <Database>
         """
-        return self._database
+        return self.__database
 
     def delete(self, table, context):
         """
@@ -315,18 +262,6 @@ class Connection(AddonManager):
 
         return col
 
-    def disableInternals(self):
-        """
-        Disables the internal checks and update system.  This method should
-        be used at your own risk, as it will ignore errors and internal checks
-        like auto-incrementation.  This should be used in conjunction with
-        the enableInternals method, usually these are used when doing a
-        bulk import of data.
-        
-        :sa     enableInternals
-        """
-        self._internalsEnabled = False
-
     @abstractmethod()
     def distinct(self, table_or_join, lookup, options):
         """
@@ -342,26 +277,6 @@ class Connection(AddonManager):
         :return     {<str> columnName: <list> value, ..}
         """
         return 0
-
-    def enableInternals(self):
-        """
-        Enables the internal checks and update system.  This method should
-        be used at your own risk, as it will ignore errors and internal checks
-        like auto-incrementation.  This should be used in conjunction with
-        the disableInternals method, usually these are used when doing a
-        bulk import of data.
-        
-        :sa     disableInternals
-        """
-        self._internalsEnabled = True
-
-    def engine(self):
-        """
-        Returns the engine associated with this connection backend.
-        
-        :return     <orb.SchemaEngine>
-        """
-        return self._engine
 
     @abstractmethod()
     def execute(self, command, data=None, flags=0):
@@ -391,17 +306,6 @@ class Connection(AddonManager):
         """
         return False
 
-    def internalsEnabled(self):
-        """
-        Returns whether or not this connection has its internal checks and
-        optimizations enabled or not.
-        
-        :sa         disableInternals, enableInternals
-        
-        :return     <bool>
-        """
-        return self._internalsEnabled
-
     def interrupt(self, threadId=None):
         """
         Interrupts/stops the database access through a particular thread.
@@ -420,14 +324,6 @@ class Connection(AddonManager):
         """
         return False
 
-    def isThreadEnabled(self):
-        """
-        Returns whether or not this connection can be threaded.
-        
-        :return     <bool>
-        """
-        return self._threadEnabled
-
     @abstractmethod()
     def open(self, force=False):
         """
@@ -440,57 +336,6 @@ class Connection(AddonManager):
         :return     <bool> success
         """
         return False
-
-    def restore(self, filename, **options):
-        """
-        Restores this backend database from the inputted pickle file.
-        
-        :param      filename | <str>
-        
-        :return     <bool> | success
-        """
-        # save this backup to the database file
-        print '0% complete: loading data dump...'
-
-        f = open(filename, 'rb')
-        data = cPickle.load(f)
-        f.close()
-
-        items = data.items()
-        count = float(len(items))
-        db_name = self.database().name()
-        i = 0
-
-        ignore = options.get('ignore', [])
-        include = options.get('include', [])
-
-        self.disableInternals()
-        options.setdefault('autoCommit', False)
-        for schema_name, records in items:
-            i += 1
-            print '{0:.0%} complete: restoring {1}...'.format(i / count,
-                                                              schema_name)
-
-            # determine if this schema should be ignored
-            if schema_name in ignore:
-                print 'ignoring {0}...'.format(schema_name)
-                continue
-
-            elif include and schema_name not in include:
-                print 'ignoring {0}...'.format(schema_name)
-                continue
-
-            schema = orb.Orb.instance().schema(schema_name,
-                                               database=db_name)
-            if schema:
-                self.setRecords(schema, records, **options)
-            else:
-                print schema_name, 'not found'
-
-        self.enableInternals()
-        self.commit()
-
-        return True
 
     @abstractmethod()
     def rollback(self):
@@ -513,28 +358,6 @@ class Connection(AddonManager):
         """
         return []
 
-    def selectFirst(self, table_or_join, lookup, options):
-        """
-        Returns the first result based on the inputted query options \
-        from the database.database.
-        
-        
-        :param      table    | <subclass of Table>
-                    lookup   | <orb.LookupOptions>
-                    options  | <orb.ContextOptions>
-        
-        :return     <Table> || None
-        """
-        # limit the lookup information to 1
-        lookup.limit = 1
-
-        # load the results
-        results = self.select(table_or_join, lookup, options)
-
-        if results:
-            return results[0]
-        return None
-
     def setupDatabase(self, options):
         """
         Initializes the database with any additional information that is required.
@@ -550,41 +373,6 @@ class Connection(AddonManager):
                     records | [<dict> record, ..]
         """
         pass
-
-    def setCommitEnabled(self, state):
-        """
-        Sets whether or not committing changes to the database is currently
-        enabled.
-        
-        :param      state | <bool>
-        """
-        self._commitEnabled = state
-
-    def setColumnEngine(self, columnType, engine):
-        """
-        Sets the data engine associated with this backend for the given
-        column type.
-        
-        :param      columnType | <orb.ColumnType>
-                    engine     | <orb.ColumnEngine>
-        """
-        self._columnEngines[columnType] = engine
-
-    def setEngine(self, engine):
-        """
-        Returns the table engine associated with this connection backend.
-        
-        :param     engine | <orb.SchemaEngine>
-        """
-        self._engine = engine
-
-    def setThreadEnabled(self, state):
-        """
-        Sets whether or not this database backend supports threading.
-        
-        :param      state | <bool>
-        """
-        self._threadEnabled = state
 
     @abstractmethod()
     def schemaInfo(self, options):

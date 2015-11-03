@@ -13,7 +13,7 @@ from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from projex.addon import AddonManager
 
-from .model_type import ModelType
+from .metamodel import MetaModel
 from ..querying import Query as Q
 from ..util import funcutil
 
@@ -27,7 +27,8 @@ class Model(AddonManager):
     Defines the base class type that all database records should inherit from.
     """
     # define the table meta class
-    __metaclass__ = ModelType
+    __metaclass__ = MetaModel
+    __orb__ = {'bypass': True}
 
     def __reduce__(self):
         return type(self), (self.__getstate__(),)
@@ -517,7 +518,7 @@ class Model(AddonManager):
         db = context.database.backend()
         return db.delete(cls, context)
 
-    def get(self, column, default=None, locale=None, inflated=True, useMethod=True):
+    def get(self, column, default=None, useMethod=True, **context):
         """
         Returns the value for the column for this record.
 
@@ -527,6 +528,8 @@ class Model(AddonManager):
 
         :return     <variant>
         """
+        context = self.context(**context)
+
         # normalize the given column
         col = self.schema().column(column)
         if not col:
@@ -540,11 +543,11 @@ class Model(AddonManager):
                 kwds = {}
 
                 if 'locale' in keywords:
-                    kwds['locale'] = locale
+                    kwds['locale'] = context.locale
                 if 'default' in keywords:
                     kwds['default'] = default
                 if 'inflated' in keywords:
-                    kwds['inflated'] = inflated
+                    kwds['inflated'] = context.inflated
 
                 return method(self, **kwds)
 
@@ -553,7 +556,7 @@ class Model(AddonManager):
             _, value = self.__data[col]
 
         # return a reference when desired
-        return col.restore(value, inflated=inflated)
+        return col.restore(value, inflated=context.inflated)
 
     def init(self):
         """
@@ -875,3 +878,4 @@ class Model(AddonManager):
         :param      query | <orb.Query> || None
         """
         setattr(cls, '_%s__baseQuery' % cls.__name__, query)
+

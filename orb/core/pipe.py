@@ -1,0 +1,4 @@
+
+
+class Pipe(object):
+    pass

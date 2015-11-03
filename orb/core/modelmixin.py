@@ -1,0 +1,4 @@
+
+
+class ModelMixin(object):
+    pass
