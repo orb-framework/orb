@@ -31,23 +31,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 # import global symbols
-from .common import *
-from .caching import *
-from .core import *
+from . import events
+from . import errors
+
 from .data import *
 from .querying import *
 from .schema import *
-from .searching import *
-from .contexts import *
 from .decorators import lookupmethod
 
 # create the global manager instance
-from .manager import Manager
+from ._system import System
 
-system = Manager.instance()
-
-# backwards compatibility support (pre: 4.0.0)
-OrbGroup = TableGroup
-OrbThesaurus = SearchThesaurus
-Orb = Manager
-
+system = System()

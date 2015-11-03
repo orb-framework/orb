@@ -6,7 +6,6 @@ from .columnjoiner import ColumnJoiner
 from .index import Index
 from .pipe import Pipe
 from .table import Table
-from .tablegroup import TableGroup
 from .tableschema import TableSchema
 from .view import View
 from .viewschema import ViewSchema

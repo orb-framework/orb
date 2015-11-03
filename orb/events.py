@@ -2,6 +2,9 @@ class Event(object):
     def __init__(self):
         self.preventDefault = False
 
+class ConnectionEvent(Event):
+    def __init__(self, success=True):
+        self.success = success
 
 class ChangeEvent(Event):
     def __init__(self, column=None, old=None, value=None):
