@@ -37,7 +37,7 @@ class Model(AddonManager):
         state = {
             '__pickle': {
                 'data': {col.name(): (col.restore(v[0], inflated=False), col.restore(v[1], inflated=False))
-                         for col, v in self.__data.items()},
+                         for col, v in self.__values.items()},
                 'loaded': {x.name() for x in self.__loaded},
                 'context': dict(self.__context) if self.__context else None
             }
@@ -47,7 +47,7 @@ class Model(AddonManager):
     def __setstate__(self, state):
         schema = self.schema()
 
-        self.__data = {schema.column(k): v for k, v in state.get('values', {}).items()}
+        self.__values = {schema.column(k): v for k, v in state.get('values', {}).items()}
         self.__loaded = {schema.column(x) for x in state.get('loaded', [])}
         self.__context = orb.ContextOptions(**state.get('context')) if state.get('context') else None
 
@@ -191,7 +191,7 @@ class Model(AddonManager):
 
         :return     <int>
         """
-        if not self.exists():
+        if not self.isRecord():
             return super(Model, self).__hash__()
         else:
             return hash((self.__class__, self.db(), self.id()))
@@ -229,8 +229,8 @@ class Model(AddonManager):
         :param      **kwds      <dict>  column default values
         """
         self.__dataLock = ReadWriteLock()
-        self.__loaded = set()
         self.__values = {}
+        self.__loaded = set()
         self.__context = context or orb.ContextOptions()
 
         # restore the pickled state for this object
@@ -267,6 +267,9 @@ class Model(AddonManager):
     # --------------------------------------------------------------------
     #                       EVENT HANDLERS
     # --------------------------------------------------------------------
+
+    def onChange(self, event):
+        pass
 
     def onDatabaseLoad(self, event):
         context = self.context()
@@ -348,7 +351,7 @@ class Model(AddonManager):
 
         with ReadLocker(self.__dataLock):
             for col in columns:
-                old, curr = self.__data.get(col, (None, None))
+                old, curr = self.__values.get(col, (None, None))
                 if col.isReadOnly():
                     continue
                 elif is_record:
@@ -553,7 +556,7 @@ class Model(AddonManager):
 
         # grab the current value
         with ReadLocker(self.__dataLock):
-            _, value = self.__data[col]
+            _, value = self.__values[col]
 
         # return a reference when desired
         return col.restore(value, inflated=context.inflated)
@@ -562,7 +565,7 @@ class Model(AddonManager):
         """
         Initializes the default values for this record.
         """
-        for column in self.schema().columns():
+        for column in self.schema().columns().values():
             if not column.testFlag(column.Flags.Virtual):
                 value = column.default()
                 if column.testFlag(column.Flags.Translatable):
@@ -571,6 +574,9 @@ class Model(AddonManager):
                     value = type(self).__name__
 
                 self.define(column, value)
+
+    def id(self, **context):
+        return self.get(self.schema().idColumn(), useMethod=False, **context)
 
     def isModified(self):
         """
@@ -592,7 +598,7 @@ class Model(AddonManager):
             cols = self.schema().idColumns()
             with ReadLocker(self.__dataLock):
                 for col in cols:
-                    if self.__data[col][1] is None:
+                    if self.__values[col][1] is None:
                         return False
                 return True
         else:
@@ -613,7 +619,7 @@ class Model(AddonManager):
         col = self.schema().column(column)
         if col is None:
             raise errors.ColumnNotFound(self.schema().name(), column)
-        elif col.testFlags(col.Flags.ReadOnly):
+        elif col.testFlag(col.Flags.ReadOnly):
             raise errors.ColumnReadOnly(column)
 
         context = self.context(**context)
@@ -631,17 +637,17 @@ class Model(AddonManager):
                         return method(self, value)
 
         with WriteLocker(self.__dataLock):
-            orig, curr = self.__data[col]
+            orig, curr = self.__values[col]
             value = col.store(value, context)
 
             # update the context based on the locale value
-            if col.testFlags(col.Flags.Translatable):
+            if col.testFlag(col.Flags.Translatable):
                 new_value = curr.copy()
                 new_value.update(value)
 
             change = curr != value
             if change:
-                self.__data[col] = (orig, value)
+                self.__values[col] = (orig, value)
 
         # broadcast the change event
         if change:
@@ -649,13 +655,16 @@ class Model(AddonManager):
             self.onChange(event)
             if event.preventDefault:
                 with WriteLocker(self.__dataLock):
-                    orig, _ = self.__data[col]
-                    self.__data[col] = (orig, curr)
+                    orig, _ = self.__values[col]
+                    self.__values[col] = (orig, curr)
                 return False
             else:
                 return change
         else:
             return False
+
+    def setId(self, value, **context):
+        return self.get(self.schema().idColumn(), value, useMethod=False, **context)
 
     def update(self, *records, **values):
         # update from records
@@ -780,7 +789,7 @@ class Model(AddonManager):
         return cls.select(**context).first()
 
     @classmethod
-    def inflate(cls, values, **options):
+    def inflate(cls, values, **context):
         """
         Returns a new record instance for the given class with the values
         defined from the database.
@@ -790,11 +799,10 @@ class Model(AddonManager):
 
         :return     <orb.Table>
         """
-        lookup = orb.LookupOptions(**options)
         context = orb.ContextOptions(**options)
 
         # inflate values from the database into the given class type
-        if Table.recordcheck(values):
+        if isinstance(values, Model):
             record = values
             values = dict(values)
         else:
@@ -817,10 +825,10 @@ class Model(AddonManager):
                     pkeys = [values.get(pcol.name(), values.get(pcol.field())) for pcol in pcols if pcol.field() in values]
                     record = morph_cls(*pkeys, options=context)
                 elif not morph_cls:
-                    raise orb.errors.TableNotFound(morph_name)
+                    raise orb.errors.ModelNotFound(morph_name)
 
             # expand based on postgres-style OO inheritance
-            elif column.isString():
+            elif isinstance(column, orb.StringColumn):
                 table_type = column.field()
                 dbname = cls.schema().databaseName()
                 morph_cls = orb.system.model(values[table_type], database=dbname)
@@ -829,7 +837,7 @@ class Model(AddonManager):
                     pkeys = [values.get(pcol.name(), values.get(pcol.field())) for pcol in pcols if pcol.field() in values]
                     record = morph_cls(*pkeys, options=context)
                 elif not morph_cls:
-                    raise orb.errors.TableNotFound(table_type)
+                    raise orb.errors.ModelNotFound(table_type)
 
         if record is None:
             record = cls(__values=values, options=context)
@@ -839,7 +847,7 @@ class Model(AddonManager):
     @classmethod
     def schema(cls):
         """  Returns the class object's schema information. """
-        return cls.__db_schema__
+        return getattr(cls, '_{0}__schema'.format(cls.__name__), None)
 
     @classmethod
     def select(cls, **context):

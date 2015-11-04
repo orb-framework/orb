@@ -139,19 +139,31 @@ class MetaModel(type):
             items = [item for mixin in mixins for item in vars(mixin).items()] + attrs.items()
 
             # define inherited options
-            for name, value in items:
+            for key, value in items:
                 if isinstance(value, orb.Column):
-                    columns[name] = attrs.pop(name)
+                    col = value
+                    col.setName(key)
+                    columns[key] = col
                 elif isinstance(value, orb.Index):
-                    indexes[name] = attrs.pop(name)
+                    index = value
+                    index.setName(key)
+                    indexes[key] = index
                 elif isinstance(value, orb.Pipe):
-                    pipes[name] = attrs.pop(name)
+                    pipe = value
+                    pipe.setName(key)
+                    pipes[key] = pipe
                 else:
                     try:
                         if issubclass(value, orb.View):
-                            views[name] = value
+                            views[key] = value
                     except TypeError:
                         pass
+
+            new_attrs = {k: v for k, v in attrs.items() if
+                         k not in columns and
+                         k not in indexes and
+                         k not in pipes and
+                         k not in views}
 
             # create the schema
             schema = orb.Schema(name, **schema_attrs)
@@ -161,9 +173,12 @@ class MetaModel(type):
             schema.setViews(views)
 
             if inherits:
-                schema.setInherits(inherits[0].schema().name())
+                inherited_schema = inherits[0].schema()
+                if inherited_schema:
+                    schema.setInherits(inherited_schema.name())
 
-            new_model = super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
+            new_model = super(MetaModel, mcs).__new__(mcs, name, bases, new_attrs)
+            setattr(new_model, '_{0}__schema'.format(name), schema)
 
             # create class methods for indexes
             for key, index in indexes.items():
@@ -189,14 +204,14 @@ class MetaModel(type):
                 if getter_name and not hasattr(new_model, getter_name):
                     gmethod = orb_getter_method(column=column)
                     getter = instancemethod(gmethod, None, new_model)
-                    setattr(new_model, key, getter)
+                    setattr(new_model, getter_name, getter)
 
                 # create the setter method
                 setter_name = column.setter()
                 if setter_name and not (column.testFlag(column.Flags.ReadOnly) or hasattr(new_model, setter_name)):
                     smethod = orb_setter_method(column=column)
                     setter = instancemethod(smethod, None, new_model)
-                    setattr(new_model, key, setter)
+                    setattr(new_model, setter_name, setter)
 
                 # create a column index
                 col_index = column.index()

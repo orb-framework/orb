@@ -3,7 +3,7 @@
 import logging
 
 from projex.lazymodule import lazy_import
-from .settings import Settings
+from ..settings import Settings
 
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
@@ -17,6 +17,7 @@ class System(object):
         self.__schemas = {}
         self.__settings = Settings()
         self.__locale = None
+        self.__syntax = None
 
     def database(self, code=''):
         """
@@ -69,6 +70,116 @@ class System(object):
         for schema in schemas:
             scope[schema.name()] = schema.model()
 
+    def generateModel(self, schema):
+        if self._model:
+            return self._model
+
+        # generate the base models
+        if self.inherits():
+            inherits = self.inherits()
+            inherited = orb.system.schema(inherits)
+
+            if not inherited:
+                raise orb.errors.ModelNotFound(inherits)
+            else:
+                base = inherited.model(autoGenerate=True)
+
+            if base:
+                bases = [base]
+            else:
+                bases = [orb.system.baseTableType()]
+        else:
+            bases = [orb.system.baseTableType()]
+
+        # generate the attributes
+        attrs = {'__db_schema__': self, '__module__': 'orb.schema.dynamic'}
+        grp = self.group()
+        prefix = ''
+        if grp:
+            prefix = grp.modelPrefix()
+
+        # generate archive layer
+        if self.isArchived():
+            # create the archive column
+            archive_columns = []
+            colname = projex.text.camelHump(self.name())
+
+            # create a duplicate of the existing columns, disabling translations since we'll store
+            # a single record per change
+            found_locale = False
+            for column in self.columns(recurse=False):
+                if column.name() == 'id':
+                    continue
+
+                new_column = column.copy()
+                new_column.setTranslatable(False)
+                new_column.setUnique(False)
+                archive_columns.append(new_column)
+                if column.name() == 'locale':
+                    found_locale = True
+
+            archive_columns += [
+                # primary key for the archives is a reference to the article
+                orb.Column(orb.ColumnType.ForeignKey,
+                           colname,
+                           fieldName='{0}_archived_id'.format(projex.text.underscore(self.name())),
+                           required=True,
+                           reference=self.name(),
+                           reversed=True,
+                           reversedName='archives'),
+
+                # and its version
+                orb.Column(orb.ColumnType.Integer,
+                           'archiveNumber',
+                           required=True),
+
+                # created the archive at method
+                orb.Column(orb.ColumnType.DatetimeWithTimezone,
+                           'archivedAt',
+                           default='now')
+            ]
+            archive_indexes = [
+                orb.Index('byRecordAndVersion', [colname, 'archiveNumber'], unique=True)
+            ]
+
+            # store data per locale
+            if not found_locale:
+                archive_columns.append(orb.Column(orb.ColumnType.String,
+                                                  'locale',
+                                                  fieldName='locale',
+                                                  required=True,
+                                                  maxLength=5))
+
+            # create the new archive schema
+            archive_name = '{0}Archive'.format(self.name())
+            archive_schema = TableSchema()
+            archive_schema.setDatabaseName(self.databaseName())
+            archive_schema.setName(archive_name)
+            archive_schema.setDbName('{0}_archives'.format(projex.text.underscore(self.name())))
+            archive_schema.setColumns(archive_columns)
+            archive_schema.setIndexes(archive_indexes)
+            archive_schema.setAutoLocalize(self.autoLocalize())
+            archive_schema.setArchived(False)
+            archive_schema.setDefaultOrder([('archiveNumber', 'asc')])
+
+            # define the class properties
+            class_data = {
+                '__module__': 'orb.schema.dynamic',
+                '__db_schema__': archive_schema
+            }
+
+            model = MetaTable(archive_name, tuple(bases), class_data)
+            archive_schema.setModel(model)
+            self.setArchiveModel(model)
+            orb.system.registerSchema(archive_schema)
+
+            setattr(dynamic, archive_name, model)
+
+        # finally, create the new model
+        cls = MetaTable(prefix + self.name(), tuple(bases), attrs)
+        setattr(dynamic, cls.__name__, cls)
+        return cls
+
     def register(self, obj):
         """
         Registers a particular database.
@@ -116,3 +227,20 @@ class System(object):
         if locale:
             self.__locale = locale
 
+    def setSyntax(self, syntax):
+        if not isinstance(syntax, orb.Syntax):
+            syntax = orb.Syntax.byName(syntax)
+            if syntax:
+                self.__syntax = syntax()
+        else:
+            self.__syntax = syntax
+
+    def syntax(self):
+        """
+        Returns the syntax that is being used for this system.
+
+        :return:    <orb.Syntax>
+        """
+        if self.__syntax is None:
+            self.__syntax = orb.Syntax.byName(self.__settings.syntax)()
+        return self.__syntax

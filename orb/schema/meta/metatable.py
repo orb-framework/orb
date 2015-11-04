@@ -523,7 +523,7 @@ class MetaTable(type):
 
                 try:
                     ref_model = column.referenceModel()
-                except errors.TableNotFound:
+                except errors.ModelNotFound:
                     ref_model = None
 
                 rev_cacheTimeout = column.reversedCacheTimeout()

@@ -4,10 +4,14 @@ class Event(object):
 
 class ConnectionEvent(Event):
     def __init__(self, success=True):
+        super(ConnectionEvent, self).__init__()
+
         self.success = success
 
 class ChangeEvent(Event):
     def __init__(self, column=None, old=None, value=None):
+        super(ChangeEvent, self).__init__()
+
         self.column = column
         self.old = old
         self.value = value
@@ -15,12 +19,16 @@ class ChangeEvent(Event):
 
 class CommitEvent(Event):
     def __init__(self, context=None, result=True):
+        super(CommitEvent, self).__init__()
+
         self.context = context
         self.result = result
 
 
 class DatabaseLoadEvent(Event):
     def __init__(self, data):
+        super(DatabaseLoadEvent, self).__init__()
+
         self.data = data
 
 

@@ -93,7 +93,7 @@ class StringColumn(AbstractStringColumn):
     def __init__(self,
                  maxlength=None,
                  **kwds):
-        super(AbstractStringColumn, self).__init__(name, **kwds)
+        super(AbstractStringColumn, self).__init__(**kwds)
 
         # define custom properties
         self.__maxlength = maxlength

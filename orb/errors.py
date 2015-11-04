@@ -247,11 +247,11 @@ class ReferenceNotFound(OrbError):
 # T
 #------------------------------------------------------------------------------
 
-class TableNotFound(OrbError):
+class ModelNotFound(OrbError):
     code = 410  # HTTPGone
 
     def __init__(self, table):
-        super(TableNotFound, self).__init__('Could not find `{0}` table.'.format(table))
+        super(ModelNotFound, self).__init__('Could not find `{0}` table.'.format(table))
 
 
 # V

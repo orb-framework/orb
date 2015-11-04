@@ -33,14 +33,20 @@ logger = logging.getLogger(__name__)
 # import global symbols
 from . import errors
 from .core import events
+from .core.context import ContextOptions
 from .core.model import Model
 from .core.index import Index
 from .core.pipe import Pipe
 from .core.modelmixin import ModelMixin
 from .core.column import Column
 from .core.schema import Schema
+from .core.syntax import Syntax
+from .core.system import System
 from .core.model_types import *
 from .core.column_types import *
+from .core.syntax_types import *
+
+system = System()
 
 # from .data import *
 # from .querying import *

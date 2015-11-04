@@ -27,6 +27,7 @@ class ContextOptions(object):
         'dryRun': False,
         'expand': None,
         'force': False,
+        'inflated': True,
         'limit': None,
         'locale': None,
         'namespace': '',
@@ -42,7 +43,7 @@ class ContextOptions(object):
 
     def __init__(self, **kwds):
         # utilize values from another context
-        other = kwds.pop('context')
+        other = kwds.pop('context', None)
         if other:
             ignore = ('columns', 'where')
             # extract expandable information

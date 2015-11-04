@@ -20,29 +20,29 @@ class Column(AddonManager):
             self.timeout = timeout
 
     Flags = enum(
-        'ReadOnly',             # 1
-        'Private',              # 2
-        'Referenced',           # 4
-        'Polymorphic',          # 8
-        'Primary',              # 16
-        'AutoIncrement',        # 32
-        'Required',             # 64
-        'Unique',               # 128
-        'Encrypted',            # 256
-        'Searchable',           # 512
-        'IgnoreByDefault',      # 1024
-        'Translatable',         # 2048
-        'CaseSensitive',        # 4096
-        'Virtual'               # 8192,
-        'Queryable'             # 16384
+        'ReadOnly',
+        'Private',
+        'Polymorphic',
+        'Primary',
+        'AutoIncrement',
+        'Required',
+        'Unique',
+        'Encrypted',
+        'Searchable',
+        'Translatable',
+        'CaseSensitive',
+        'Virtual',
+        'Queryable'
     )
 
     def __init__(self,
                  name=None,
                  field=None,
                  display=None,
+                 getter=None,
+                 setter=None,
                  index=None,
-                 flags=None,
+                 flags=0,
                  default=None,
                  defaultOrder='asc'):
         # constructor items
@@ -53,6 +53,8 @@ class Column(AddonManager):
         self.__flags = flags
         self.__default = default
         self.__defaultOrder = defaultOrder
+        self.__getter = getter
+        self.__setter = setter
 
         # custom options
         self.__schema = None
@@ -84,7 +86,7 @@ class Column(AddonManager):
 
         :return     <str>
         """
-        return self.__display or projex.text.pretty(self.__name)
+        return self.__display or orb.system.syntax().display(self.__name)
 
     def extract(self, value, context=None):
         """
@@ -103,7 +105,7 @@ class Column(AddonManager):
                     
         :return     <str>
         """
-        return self.__field
+        return self.__field or orb.system.syntax().field(self.__name, isinstance(self, orb.ReferenceColumn))
 
     def firstMemberSchema(self, schemas):
         """
@@ -126,6 +128,9 @@ class Column(AddonManager):
         :return     <Column.Flags>
         """
         return self.__flags
+
+    def getter(self):
+        return self.__getter or orb.system.syntax().getter(self.__name)
 
     def index(self):
         """
@@ -213,7 +218,7 @@ class Column(AddonManager):
         """
         return value
 
-    def store(self, value):
+    def store(self, value, context=None):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
@@ -234,6 +239,9 @@ class Column(AddonManager):
         :return     <TableSchema>
         """
         return self.__schema
+
+    def setter(self):
+        return self.__setter or orb.system.syntax().setter(self.__name)
 
     def setDefault(self, default):
         """
@@ -294,6 +302,9 @@ class Column(AddonManager):
         :param      index   | <orb.Column.Index> || None
         """
         self.__index = index
+
+    def setSchema(self, schema):
+        self.__schema = schema
 
     def testFlag(self, flag):
         """

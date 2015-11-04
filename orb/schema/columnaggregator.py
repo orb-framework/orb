@@ -77,7 +77,7 @@ class ColumnAggregator(object):
         """
         table = orb.system.model(self._reference)
         if not table:
-            raise orb.errors.TableNotFound(self._reference)
+            raise orb.errors.ModelNotFound(self._reference)
         return table
 
     def referenceColumn(self):
@@ -91,7 +91,7 @@ class ColumnAggregator(object):
             if ref:
                 return ref.column(self._referenceColumn)
             else:
-                raise orb.errors.TableNotFound(self._reference)
+                raise orb.errors.ModelNotFound(self._reference)
         else:
             return None
 
@@ -107,7 +107,7 @@ class ColumnAggregator(object):
             if ref:
                 return ref.column(self._targetColumn)
             else:
-                raise orb.errors.TableNotFound(self._reference)
+                raise orb.errors.ModelNotFound(self._reference)
         else:
             return None
 

@@ -39,7 +39,7 @@ class ColumnJoiner(object):
         """
         model = orb.system.model(self._reference)
         if not model:
-            raise orb.errors.TableNotFound(self._reference)
+            raise orb.errors.ModelNotFound(self._reference)
         return model
 
     def referenceColumn(self):
@@ -50,7 +50,7 @@ class ColumnJoiner(object):
         """
         ref = orb.system.schema(self._reference)
         if not ref:
-            raise orb.errors.TableNotFound(self._reference)
+            raise orb.errors.ModelNotFound(self._reference)
 
         return ref.column(self._referenceColumn)
 
@@ -62,7 +62,7 @@ class ColumnJoiner(object):
         """
         ref = orb.system.schema(self._reference)
         if not ref:
-            raise orb.errors.TableNotFound(self._reference)
+            raise orb.errors.ModelNotFound(self._reference)
 
         return ref.column(self._targetColumn)
 

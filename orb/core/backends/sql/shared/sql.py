@@ -32,7 +32,7 @@ class ADD_COLUMN(SQL):
         :return     <str>
         """
         if column.reference() and not column.referenceModel():
-            raise errors.TableNotFound(column.reference())
+            raise errors.ModelNotFound(column.reference())
 
         type_name = column.columnTypeText()
         sql_type = self.baseSQL().byName('Type::{0}'.format(type_name))

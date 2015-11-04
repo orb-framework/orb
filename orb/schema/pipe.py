@@ -205,7 +205,7 @@ class Pipe(object):
 
             self._pipeTable = pipeTable
             if not self._pipeTable:
-                raise errors.TableNotFound(self._pipeReference)
+                raise errors.ModelNotFound(self._pipeReference)
 
         return self._pipeTable
 
@@ -281,7 +281,7 @@ class Pipe(object):
         if self._targetTable is None:
             self._targetTable = orb.system.model(self.targetReference())
             if not self._targetTable:
-                raise errors.TableNotFound(self.targetReference())
+                raise errors.ModelNotFound(self.targetReference())
         return self._targetTable
 
     def toolTip(self, context='pipe'):

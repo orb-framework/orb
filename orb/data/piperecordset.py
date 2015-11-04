@@ -172,7 +172,7 @@ class PipeRecordSet(RecordSet):
         """
         pipe = self._pipeTable
         if not pipe:
-            raise orb.errors.TableNotFound(self)
+            raise orb.errors.ModelNotFound(self)
         elif not isinstance(records, (orb.RecordSet, list, tuple)):
             records = [records]
 
