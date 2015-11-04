@@ -795,7 +795,7 @@ class Table(object):
 
         :return     <orb.LookupOptions>
         """
-        output = self.__context_options or orb.ContextOptions()
+        output = self.__context_options.copy()
         output.update(options)
         return output
 
