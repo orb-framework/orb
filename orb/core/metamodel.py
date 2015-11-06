@@ -87,7 +87,7 @@ class orb_lookup_method(object):
         if not model:
             raise orb.errors.ModelNotFound(self.column.reference)
         elif not record.isRecord():
-            return None if self.column.testFlag(self.column.Flags.Unique) else orb.RecordSet()
+            return None if self.column.testFlag(self.column.Flags.Unique) else orb.Collection()
         else:
             q = orb.Query(self.column) == record
             context['where'] = q & context.get('where')

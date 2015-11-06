@@ -362,7 +362,7 @@ class Quickbase(orb.Connection):
             value = ','.join([str(x) for x in value])
 
         # extract the primary key information from a record set
-        elif isinstance(value, orb.RecordSet):
+        elif isinstance(value, orb.Collection):
             field = orb.system.settings.primaryField()
             value = ','.join([str(x) for x in value.values(field)])
 

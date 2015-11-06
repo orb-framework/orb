@@ -406,7 +406,7 @@ class SELECT(SQL):
         """
         Generates the TABLE EXISTS sql for an <orb.Table>.
 
-        :param      table_or_records   | <orb.Table> or <orb.RecordSet>
+        :param      table_or_records   | <orb.Table> or <orb.Collection>
                     lookup             | <orb.LookupOptions>
                     options            | <orb.ContextOptions>
                     **scope            | <dict>

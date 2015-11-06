@@ -18,6 +18,7 @@ class Comment(CreationMixin, orb.Table):
 class Session(CreationMixin, orb.Table):
     id = orb.SerialColumn()
     description = orb.StringColumn()
+    comments = orb.Pipe(through='SessionComment', source='session', target='comment')
 
 class SessionComment(orb.Table):
     id = orb.SerialColumn()

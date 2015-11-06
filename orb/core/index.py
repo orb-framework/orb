@@ -44,7 +44,7 @@ class Index(object):
             column = schema.column(col)
 
             if isinstance(value, orb.Model) and not value.isRecord():
-                return None if self.__unique else orb.RecordSet()
+                return None if self.__unique else orb.Collection()
             elif not column:
                 raise errors.ColumnNotFound(schema.name(), col)
 

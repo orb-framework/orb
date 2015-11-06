@@ -212,9 +212,8 @@ class Model(AddonManager):
             return -1
 
     def __init__(self,
-                 context=None,
                  *record,
-                 **values):
+                 **context):
         """
         Initializes a database record for the table class.  A
         table model can be initialized in a few ways.  Passing
@@ -234,6 +233,10 @@ class Model(AddonManager):
         self.__context = context or orb.ContextOptions()
 
         # restore the pickled state for this object
+        if isinstance(record, dict):
+            values = record
+            record = []
+
         if len(record) == 1 and type(record[0]) == dict and record[0].get('__pickle'):
             self.__setstate__(record[0].pop('__pickle'))
 
@@ -322,18 +325,15 @@ class Model(AddonManager):
             for preload_type, preload_value in value.items():
                 loader(self, preload_value, context, type=preload_type)
 
+    def onDelete(self, event):
+        with WriteLocker(self.__dataLock):
+            self.__loaded.clear()
+
     def onPreCommit(self, event):
         pass
 
     def onPostCommit(self, event):
         pass
-
-    def onPreRemove(self, event):
-        pass
-
-    def onPostRemove(self, event):
-        with WriteLocker(self.__dataLock):
-            self.__loaded.clear()
 
     # ---------------------------------------------------------------------
     #                       PUBLIC METHODS
@@ -518,7 +518,7 @@ class Model(AddonManager):
         context = self.context(**context)
         context.where = Q(cls) == self
 
-        db = context.database.backend()
+        db = context.database.connection()
         return db.delete(cls, context)
 
     def get(self, column, default=None, useMethod=True, **context):
@@ -666,7 +666,7 @@ class Model(AddonManager):
     def setId(self, value, **context):
         return self.get(self.schema().idColumn(), value, useMethod=False, **context)
 
-    def update(self, *records, **values):
+    def update(self, values, **context):
         # update from records
         for record in records:
             changes = record.changes()
@@ -710,7 +710,7 @@ class Model(AddonManager):
 
         :param      **options | <orb.LookupOptions> & <orb.ContextOptions>
 
-        :return     <orb.RecordSet>
+        :return     <orb.Collection>
         """
         return cls.select(**options)
 
@@ -874,7 +874,7 @@ class Model(AddonManager):
 
         :return     [ <cls>, .. ] || { <variant> grp: <variant> result, .. }
         """
-        rset_type = getattr(cls, 'RecordSet', orb.RecordSet)
+        rset_type = getattr(cls, 'Collection', orb.Collection)
         return rset_type(model=cls, **context)
 
     @classmethod
