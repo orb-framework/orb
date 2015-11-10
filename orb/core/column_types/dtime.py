@@ -72,7 +72,7 @@ class DateColumn(AbstractDatetimeColumn):
                                  time_struct.tm_month,
                                  time_struct.tm_day)
 
-    def valueToString(self, value, context=context):
+    def valueToString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.

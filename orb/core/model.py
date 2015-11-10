@@ -12,10 +12,9 @@ from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
 from projex.addon import AddonManager
+from projex import funcutil
 
 from .metamodel import MetaModel
-from ..querying import Query as Q
-from ..util import funcutil
 
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
@@ -763,7 +762,7 @@ class Model(AddonManager):
 
         # lookup the record from the database
         db = kwds.pop('db', None)
-        q = Q()
+        q = orb.Query()
 
         for key, value in kwds.items():
             column = cls.schema().column(key)
@@ -773,9 +772,9 @@ class Model(AddonManager):
             if column.isString() and \
                     not column.testFlag(column.Flags.CaseSensitive) and \
                     isinstance(value, (str, unicode)):
-                q &= Q(column.name()).lower() == value.lower()
+                q &= orb.Query(column.name()).lower() == value.lower()
             else:
-                q &= Q(key) == value
+                q &= orb.Query(key) == value
 
         record = cls.select(where=q, db=db).first()
         if not record:
@@ -786,7 +785,7 @@ class Model(AddonManager):
 
     @classmethod
     def fetch(cls, key, **context):
-        context.setdefault('where', Q(cls) == key)
+        context.setdefault('where', orb.Query(cls) == key)
         context['limit'] = 1
         return cls.select(**context).first()
 

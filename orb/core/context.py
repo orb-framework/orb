@@ -48,7 +48,7 @@ class Context(object):
         return hash(self) != hash(other)
 
     def __hash__(self):
-        return hash((k, self.raw_values[k] for k, v in self.Defaults.items() if self.raw_values[k] != v))
+        return hash(((k, self.raw_values[k]) for k, v in self.Defaults.items() if self.raw_values[k] != v))
 
     def __init__(self, **kwds):
         # utilize values from another context

@@ -7,7 +7,6 @@ import orb
 import re
 import traceback
 
-from orb import errors
 from projex.text import nativestring as nstr
 
 from ..abstractconnection import SQLConnection
@@ -23,7 +22,7 @@ try:
 except ImportError:
     log.debug('For PostgreSQL backend, download the psycopg2 module')
 
-    QueryCanceledError = errors.DatabaseError
+    QueryCanceledError = orb.errors.DatabaseError
     DictCursor = None
     register_hstore = None
     register_json = None
@@ -67,7 +66,7 @@ class PSQLConnection(SQLConnection):
         # create a new cursor for this transaction
         db = self.nativeConnection()
         if db is None:
-            raise errors.ConnectionLost()
+            raise orb.errors.ConnectionLost()
 
         # check to make sure the connection hasn't been reset or lost
         try:
@@ -108,13 +107,13 @@ class PSQLConnection(SQLConnection):
 
             # raise more useful errors
             if 'statement timeout' in str(cancelled):
-                raise errors.QueryTimeout(command, (datetime.datetime.now() - start).total_seconds())
+                raise orb.errors.QueryTimeout(command, (datetime.datetime.now() - start).total_seconds())
             else:
-                raise errors.Interruption()
+                raise orb.errors.Interruption()
 
         # look for a disconnection error
         except pg.InterfaceError:
-            raise errors.ConnectionLost()
+            raise orb.errors.ConnectionLost()
 
         # look for integrity errors
         except (pg.IntegrityError, pg.OperationalError), err:
@@ -133,19 +132,19 @@ class PSQLConnection(SQLConnection):
 
                 if result:
                     msg = '{value} is already being used.'.format(**result.groupdict())
-                    raise errors.DuplicateEntryFound(msg)
+                    raise orb.errors.DuplicateEntryFound(msg)
                 else:
-                    raise errors.DuplicateEntryFound(duplicate_error.group())
+                    raise orb.errors.DuplicateEntryFound(duplicate_error.group())
 
             # look for a reference error
             reference_error = re.search('Key .* is still referenced from table ".*"', nstr(err))
             if reference_error:
                 msg = 'Cannot remove this record, it is still being referenced.'
-                raise errors.CannotDelete(msg)
+                raise orb.errors.CannotDelete(msg)
 
             # unknown error
             log.debug(traceback.print_exc())
-            raise errors.QueryFailed(command, data, nstr(err))
+            raise orb.errors.QueryFailed(command, data, nstr(err))
 
         # connection has closed underneath the hood
         except pg.Error, err:
@@ -155,7 +154,7 @@ class PSQLConnection(SQLConnection):
                 pass
 
             log.error(traceback.print_exc())
-            raise errors.QueryFailed(command, data, nstr(err))
+            raise orb.errors.QueryFailed(command, data, nstr(err))
 
         try:
             results = [mapper(record) for record in cursor.fetchall()]
@@ -180,7 +179,7 @@ class PSQLConnection(SQLConnection):
         :return     <variant> | backend specific database connection
         """
         if not pg:
-            raise errors.BackendNotFound('psycopg2 is not installed.')
+            raise orb.errors.BackendNotFound('psycopg2 is not installed.')
 
         dbname = db.databaseName()
         user = db.username()
@@ -204,7 +203,7 @@ class PSQLConnection(SQLConnection):
                               port=port)
         except pg.OperationalError, err:
             log.error(err)
-            raise errors.ConnectionFailed('Failed to connect to Postgres', db)
+            raise orb.errors.ConnectionFailed('Failed to connect to Postgres', db)
 
     def _interrupt(self, threadId, connection):
         """

@@ -10,6 +10,7 @@ class Pipe(object):
         self.__source = source
         self.__target = target
         self.__unique = unique
+        self.__schema = None
 
     def __call__(self, record, **context):
         if not record.isRecord():
@@ -31,6 +32,15 @@ class Pipe(object):
 
     def name(self):
         return self.__name
+
+    def schema(self):
+        return self.__schema
+
+    def setName(self, name):
+        self.__name = self.__name__ = name
+
+    def setSchema(self, schema):
+        self.__schema = schema
 
     def setUnique(self, state):
         self.__unique = state

@@ -347,7 +347,7 @@ class Schema(object):
         self.__pipes = {}
         for name, pipe in pipes.items():
             self.__pipes[name] = pipe
-            pipe.setSchema(pipe)
+            pipe.setSchema(self)
 
     def setDbName(self, dbname):
         """
@@ -370,7 +370,6 @@ class Schema(object):
         self.__views = {}
         for view in views:
             self.__views[view.name()] = view
-            view.setSchema(view)
 
     def dbname(self):
         """

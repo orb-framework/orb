@@ -11,11 +11,9 @@ import threading
 import time
 
 from collections import defaultdict
-from orb import errors
 from projex.decorators import abstractmethod
 from projex.contexts import MultiContext
 from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
-from projex.text import nativestring as nstr
 
 log = logging.getLogger(__name__)
 
@@ -133,7 +131,7 @@ class SQLConnection(orb.Connection):
                                lookup=lookup,
                                options=options,
                                IO=data)
-        except errors.QueryIsNull:
+        except orb.errors.QueryIsNull:
             return 0
 
         if options.dryRun:
@@ -321,7 +319,7 @@ class SQLConnection(orb.Connection):
             return [], 0
 
         if not self.open():
-            raise errors.ConnectionFailed('Failed to open connection.',
+            raise orb.errors.ConnectionFailed('Failed to open connection.',
                                           self.database())
 
         # when in debug mode, simply log the command to the logger
@@ -345,14 +343,14 @@ class SQLConnection(orb.Connection):
 
             # always raise interruption errors as these need to be handled
             # from a thread properly
-            except errors.Interruption:
+            except orb.errors.Interruption:
                 delta = datetime.datetime.now() - start
                 log.critical('Query took: %s' % delta)
                 raise
 
             # attempt to reconnect as long as we have enough retries left
             # otherwise raise the error
-            except errors.ConnectionLost:
+            except orb.errors.ConnectionLost:
                 delta = datetime.datetime.now() - start
                 log.error('Query took: %s' % delta)
 
@@ -363,7 +361,7 @@ class SQLConnection(orb.Connection):
                     raise
 
             # handle any known a database errors with feedback information
-            except errors.DatabaseError as err:
+            except orb.errors.DatabaseError as err:
                 delta = datetime.datetime.now() - start
                 log.error('Query took: %s' % delta)
                 log.error(u'{0}: \n {1}'.format(err, command))
@@ -572,7 +570,7 @@ class SQLConnection(orb.Connection):
 
         # make sure we have a database assigned to this backend
         elif not self._database:
-            raise errors.DatabaseNotFound()
+            raise orb.errors.DatabaseNotFound()
 
         # open a new backend connection to the database for this thread
         conn = self._open(self._database)

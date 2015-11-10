@@ -2,12 +2,10 @@
 
 import datetime
 import logging
-import os
 import orb
 import re
 import traceback
 
-from orb import errors
 from projex.text import nativestring as nstr
 
 from ..abstractconnection import SQLConnection
@@ -59,7 +57,7 @@ class MySQLConnection(SQLConnection):
         # create a new cursor for this transaction
         db = self.nativeConnection()
         if db is None:
-            raise errors.ConnectionLost()
+            raise orb.errors.ConnectionLost()
 
         with db.cursor() as cursor:
             start = datetime.datetime.now()
@@ -86,7 +84,7 @@ class MySQLConnection(SQLConnection):
 
             # look for a disconnection error
             except pymysql.InterfaceError:
-                raise errors.ConnectionLost()
+                raise orb.errors.ConnectionLost()
 
             # look for integrity errors
             except (pymysql.IntegrityError, pymysql.OperationalError), err:
@@ -105,19 +103,19 @@ class MySQLConnection(SQLConnection):
 
                     if result:
                         msg = '{value} is already being used.'.format(**result.groupdict())
-                        raise errors.DuplicateEntryFound(msg)
+                        raise orb.errors.DuplicateEntryFound(msg)
                     else:
-                        raise errors.DuplicateEntryFound(duplicate_error.group())
+                        raise orb.errors.DuplicateEntryFound(duplicate_error.group())
 
                 # look for a reference error
                 reference_error = re.search('Key .* is still referenced from table ".*"', nstr(err))
                 if reference_error:
                     msg = 'Cannot remove this record, it is still being referenced.'
-                    raise errors.CannotDelete(msg)
+                    raise orb.errors.CannotDelete(msg)
 
                 # unknown error
                 log.debug(traceback.print_exc())
-                raise errors.QueryFailed(command, data, nstr(err))
+                raise orb.errors.QueryFailed(command, data, nstr(err))
 
             # connection has closed underneath the hood
             except pymysql.Error, err:
@@ -127,7 +125,7 @@ class MySQLConnection(SQLConnection):
                     pass
 
                 log.error(traceback.print_exc())
-                raise errors.QueryFailed(command, data, nstr(err))
+                raise orb.errors.QueryFailed(command, data, nstr(err))
 
             try:
                 results = [mapper(record) for record in cursor.fetchall()]
@@ -150,7 +148,7 @@ class MySQLConnection(SQLConnection):
         :return     <variant> | backend specific database connection
         """
         if not pymysql:
-            raise errors.BackendNotFound('PyMySQL is not installed.')
+            raise orb.errors.BackendNotFound('PyMySQL is not installed.')
 
         dbname = db.databaseName()
         user = db.username()
@@ -173,7 +171,7 @@ class MySQLConnection(SQLConnection):
                                   cursorclass=pymysql.cursors.DictCursor)
         except pymysql.OperationalError, err:
             log.error(err)
-            raise errors.ConnectionFailed('Failed to connect to MySQL', db)
+            raise orb.errors.ConnectionFailed('Failed to connect to MySQL', db)
 
     def _interrupt(self, threadId, connection):
         """
