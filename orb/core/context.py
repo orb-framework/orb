@@ -10,12 +10,12 @@ from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
 
-class ContextOptions(object):
+class Context(object):
     """"
     Defines a unique instance of information that will be bundled when
     calling different methods within the connections class.
 
-    The ContextOptions class will accept a set of keyword arguments to
+    The Context class will accept a set of keyword arguments to
     control how the action on the database will be affected.  The options are:
     """
     Defaults = {
@@ -40,6 +40,15 @@ class ContextOptions(object):
         'timezone': None,
         'where': None
     }
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __ne__(self, other):
+        return hash(self) != hash(other)
+
+    def __hash__(self):
+        return hash((k, self.raw_values[k] for k, v in self.Defaults.items() if self.raw_values[k] != v))
 
     def __init__(self, **kwds):
         # utilize values from another context
@@ -88,9 +97,9 @@ class ContextOptions(object):
         """
         Returns a copy of this database option set.
 
-        :return     <orb.ContextOptions>
+        :return     <orb.Context>
         """
-        return ContextOptions(**copy.deepcopy(self.raw_values))
+        return Context(**copy.deepcopy(self.raw_values))
 
     @property
     def expand(self):

@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # import global symbols
 from . import errors
 from .core import events
-from .core.context import ContextOptions
+from .core.context import Context
 from .core.model import Model
 from .core.index import Index
 from .core.pipe import Pipe

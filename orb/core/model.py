@@ -49,7 +49,7 @@ class Model(AddonManager):
 
         self.__values = {schema.column(k): v for k, v in state.get('values', {}).items()}
         self.__loaded = {schema.column(x) for x in state.get('loaded', [])}
-        self.__context = orb.ContextOptions(**state.get('context')) if state.get('context') else None
+        self.__context = orb.Context(**state.get('context')) if state.get('context') else None
 
     def __getitem__(self, key):
         if self.has(key):
@@ -230,7 +230,7 @@ class Model(AddonManager):
         self.__dataLock = ReadWriteLock()
         self.__values = {}
         self.__loaded = set()
-        self.__context = context or orb.ContextOptions()
+        self.__context = context or orb.Context()
 
         # restore the pickled state for this object
         if isinstance(record, dict):
@@ -421,8 +421,8 @@ class Model(AddonManager):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member
                     value for either the <orb.LookupOptions> or
-                    <orb.ContextOptions>, 'options' for
-                    an instance of the <orb.ContextOptions>
+                    <orb.Context>, 'options' for
+                    an instance of the <orb.Context>
 
         :return     <bool> success
         """
@@ -470,7 +470,7 @@ class Model(AddonManager):
 
         :return     <orb.LookupOptions>
         """
-        output = self.__context or orb.ContextOptions()
+        output = self.__context or orb.Context()
         output.update(options)
         return output
 
@@ -505,21 +505,23 @@ class Model(AddonManager):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member
                     value for either the <orb.LookupOptions> or
-                    <orb.ContextOptions>, as well as the keyword 'lookup' to
+                    <orb.Context>, as well as the keyword 'lookup' to
                     an instance of <orb.LookupOptions> and 'options' for
-                    an instance of the <orb.ContextOptions>
+                    an instance of the <orb.Context>
 
         :return     <int>
         """
         if not self.isRecord():
             return 0
 
-        cls = type(self)
-        context = self.context(**context)
-        context.where = Q(cls) == self
+        event = orb.events.DeleteEvent()
+        self.onDelete(event)
+        if event.preventDefault:
+            return 0
 
-        db = context.database.connection()
-        return db.delete(cls, context)
+        context = self.context(**context)
+        conn = context.database.connection()
+        return conn.delete([self], context)
 
     def get(self, column, default=None, useMethod=True, **context):
         """
@@ -708,7 +710,7 @@ class Model(AddonManager):
         Returns a record set containing all records for this table class.  This
         is a convenience method to the <orb.Table>.select method.
 
-        :param      **options | <orb.LookupOptions> & <orb.ContextOptions>
+        :param      **options | <orb.LookupOptions> & <orb.Context>
 
         :return     <orb.Collection>
         """
@@ -740,7 +742,7 @@ class Model(AddonManager):
         context.setdefault('expand', expand)
 
         # create the new record
-        record = cls(context=orb.ContextOptions(**context))
+        record = cls(context=orb.Context(**context))
         record.update(**values)
         record.commit()
         return record
@@ -799,7 +801,7 @@ class Model(AddonManager):
 
         :return     <orb.Table>
         """
-        context = orb.ContextOptions(**options)
+        context = orb.Context(**options)
 
         # inflate values from the database into the given class type
         if isinstance(values, Model):
@@ -868,9 +870,9 @@ class Model(AddonManager):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member
                     value for either the <orb.LookupOptions> or
-                    <orb.ContextOptions>, as well as the keyword 'lookup' to
+                    <orb.Context>, as well as the keyword 'lookup' to
                     an instance of <orb.LookupOptions> and 'options' for
-                    an instance of the <orb.ContextOptions>
+                    an instance of the <orb.Context>
 
         :return     [ <cls>, .. ] || { <variant> grp: <variant> result, .. }
         """

@@ -118,7 +118,7 @@ class SQLConnection(orb.Connection):
 
         :param      table_or_join | <subclass of orb.Table> || None
                     lookup        | <orb.LookupOptions>
-                    options       | <orb.ContextOptions>
+                    options       | <orb.Context>
 
         :return     <int>
         """
@@ -167,7 +167,7 @@ class SQLConnection(orb.Connection):
 
         :param      schema    | <orb.TableSchema>
                     info      | <dict>
-                    options   | <orb.ContextOptions>
+                    options   | <orb.Context>
 
         :return     <bool> success
         """
@@ -198,7 +198,7 @@ class SQLConnection(orb.Connection):
 
         :param      schema    | <orb.TableSchema>
                     info      | <dict>
-                    options   | <orb.ContextOptions>
+                    options   | <orb.Context>
 
         :return     <bool> success
         """
@@ -238,7 +238,7 @@ class SQLConnection(orb.Connection):
 
         :param      table_or_join | <subclass of orb.Table> || <orb.Join>
                     lookup        | <orb.LookupOptions>
-                    options       | <orb.ContextOptions>
+                    options       | <orb.Context>
 
         :return     {<str> columnName: <list> value, ..}
         """
@@ -276,7 +276,7 @@ class SQLConnection(orb.Connection):
         inputted schema and namespace information.
 
         :param      schema  | <orb.TableSchema>
-                    options | <orb.ContextOptions>
+                    options | <orb.Context>
 
         :return     [<str>, ..]
         """
@@ -399,7 +399,7 @@ class SQLConnection(orb.Connection):
 
         :param      records  | <orb.Table>
                     lookup   | <orb.LookupOptions>
-                    options  | <orb.ContextOptions>
+                    options  | <orb.Context>
 
         :return     <dict> changes
         """
@@ -603,7 +603,7 @@ class SQLConnection(orb.Connection):
         Removes the inputted record from the database.
 
         :param      remove  | {<orb.Table>: [<orb.Query>, ..], ..}
-                    options | <orb.ContextOptions>
+                    options | <orb.Context>
 
         :return     <int> number of rows removed
         """
@@ -754,7 +754,7 @@ class SQLConnection(orb.Connection):
         database or not.
 
         :param      schema  | <orb.TableSchema>
-                    options | <orb.ContextOptions>
+                    options | <orb.Context>
 
         :return     <bool> exists
         """
@@ -771,7 +771,7 @@ class SQLConnection(orb.Connection):
 
         :param      record   | <orb.Table>
                     lookup   | <orb.LookupOptions>
-                    options  | <orb.ContextOptions>
+                    options  | <orb.Context>
 
         :return     <dict> changes
         """
@@ -864,7 +864,7 @@ class SQLConnection(orb.Connection):
                     what they are doing and why.
 
         :param      schema     | <orb.TableSchema>
-                    options    | <orb.ContextOptions>
+                    options    | <orb.Context>
 
         :return     <bool> success
         """

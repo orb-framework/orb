@@ -53,7 +53,7 @@ class ReferenceColumn(Column):
         Extracts the value provided back from the database.
 
         :param value: <variant>
-        :param context: <orb.ContextOptions>
+        :param context: <orb.Context>
 
         :return: <variant>
         """

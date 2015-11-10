@@ -101,7 +101,7 @@ class Quickbase(orb.Connection):
         
         :param      table_or_join | <subclass of orb.Table> || <orb.Join>
                     lookup        | <orb.LookupOptions>
-                    options       | <orb.ContextOptions>
+                    options       | <orb.Context>
         
         :return     <variant>
         """
@@ -508,7 +508,7 @@ class Quickbase(orb.Connection):
                     
         :param      table_or_join   | <subclass of orb.Table>
                     lookup          | <orb.LookupOptions>
-                    options         | <orb.ContextOptions>
+                    options         | <orb.Context>
         
         :return     [<variant> result, ..]
         """

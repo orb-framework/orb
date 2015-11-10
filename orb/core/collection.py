@@ -36,7 +36,7 @@ class Collection(object):
             'records': {},
             'count': {}
         }
-        self.__context = orb.ContextOptions(**context)
+        self.__context = orb.Context(**context)
         self.__pipe = None
         self.__model = None
         self.__source = ''
@@ -98,7 +98,7 @@ class Collection(object):
             return self.__model.create(values, **context)
 
     def commit(self, **context):
-        context = self.contextOptions(**context)
+        context = self.context(**context)
         conn = context.database.connection()
 
         create_records = []
@@ -128,13 +128,13 @@ class Collection(object):
 
         return True
 
-    def contextOptions(self, **context):
+    def context(self, **context):
         context = self.__context.copy()
         context.update(context)
         return context
 
     def copy(self, **context):
-        context = self.contextOptions(**context)
+        context = self.context(**context)
         other = orb.Collection(
             records=self.__cache['records'].get(context),
             model=self.__model,
@@ -145,7 +145,7 @@ class Collection(object):
         return other
 
     def count(self, **context):
-        context = self.contextOptions(**context)
+        context = self.context(**context)
         try:
             return self.__cache['count'][context]
         except KeyError:
@@ -165,11 +165,25 @@ class Collection(object):
         # delete piped records
         if pipe:
             through = pipe.throughModel()
+
+            # collect the ids that are within this pipe
+            base_context = self.context()
+            ids = self.ids()
+
+            # remove them from the system
             q = orb.Query(pipe.target()).in_(ids)
-            context['where'] = q & context.get('where')
-            context = self.contextOptions(**context)
-            conn = context.connection()
-            return conn.delete(through, context)
+            base_context.where = q
+
+            records = through.select(where=q, context=base_context)
+            delete = []
+            for record in records:
+                event = orb.events.DeleteEvent()
+                record.onDelete(event)
+                if not event.preventDefault:
+                    delete.append(record)
+
+            conn = base_context.database.connection()
+            return conn.delete(delete, base_context)
 
         # delete normal records
         else:
@@ -186,15 +200,11 @@ class Collection(object):
                     remove.append(record)
 
             # remove the records
-            model = self.model()
-            q = orb.Query('id').in_(remove)
-            context['where'] = q & context.get('where')
-            context = self.contextOptions(**context)
-            conn = context.connection()
-            return conn.delete(model, context)
+            conn = context.database.connection()
+            return conn.delete(remove, context)
 
     def first(self, **context):
-        context = self.contextOptions(**context)
+        context = self.context(**context)
 
         try:
             return self.__cache['first'][context]
@@ -212,7 +222,7 @@ class Collection(object):
                 return record
 
     def hasRecord(self, record, **context):
-        context = self.contextOptions(**context)
+        context = self.context(**context)
         context.returning = 'values'
         context.columns = ['id']
         return self.first(context=context) is not None
@@ -221,7 +231,7 @@ class Collection(object):
         return self.values(['id'], **context)
 
     def index(self, record, **context):
-        context = self.contextOptions(**context)
+        context = self.context(**context)
         if not record:
             return -1
         else:
@@ -240,7 +250,7 @@ class Collection(object):
         return CollectionIterator(self, batch)
 
     def last(self, **context):
-        context = self.contextOptions(context)
+        context = self.context(context)
         try:
             return self.__cache['last'][context]
         except KeyError:
@@ -262,14 +272,14 @@ class Collection(object):
 
         :return     <orb.RecordSet>
         """
-        size = max(0, self.contextOptions(**context).pageSize)
+        size = max(0, self.context(**context).pageSize)
         if not size:
             return self.copy()
         else:
             return self.copy(page=number, pageSize=size)
 
     def pageCount(self, **context):
-        size = max(0, self.contextOptions(**context).pageSize)
+        size = max(0, self.context(**context).pageSize)
 
         if not size:
             return 1
@@ -284,7 +294,7 @@ class Collection(object):
         return self.__pipe
 
     def records(self, **context):
-        context = self.contextOptions(**context)
+        context = self.context(**context)
         try:
             return self.__cache['records'][context]
         except KeyError:
@@ -312,7 +322,7 @@ class Collection(object):
             return records
 
     def refine(self, **context):
-        context = self.contextOptions(**context)
+        context = self.context(**context)
         other = orb.Collection(
             records=self.__cache['records'].get(context),
             model=self.__model,
@@ -323,8 +333,27 @@ class Collection(object):
         return other
 
     def remove(self, record, **context):
-        if self.pipe():
-            pass
+        pipe = self.pipe()
+        if pipe:
+            through = pipe.throughModel()
+            q  = orb.Query(pipe.source()) == self.__owner
+            q &= orb.Query(pipe.target()) == record
+
+            context['where'] = q & context.get('where')
+            context = self.context(**context)
+
+            records = through.select(context=context)
+            delete = []
+            for record in records:
+                event = orb.events.DeleteEvent()
+                record.onDelete(event)
+                if not event.preventDefault:
+                    delete.append(record)
+
+            conn = context.database.connection()
+            conn.delete(records, context)
+
+            return len(delete)
         else:
             raise NotImplementedError
 

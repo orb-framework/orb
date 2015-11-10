@@ -48,7 +48,7 @@ class Connection(AddonManager):
         on the primary key.
 
         :param      records  | {<orb.Table>: [<orb.Query>, ..], ..}
-                    context  | <orb.ContextOptions>
+                    context  | <orb.Context>
 
         :return     <int> | number of rows removed
         """
@@ -78,7 +78,7 @@ class Connection(AddonManager):
         
         :param      table      | <orb.Table>
                     lookup     | <orb.LookupOptions>
-                    options    | <orb.ContextOptions>
+                    options    | <orb.Context>
                     collection | <dictionary> | input/output variable
         
         :return     {<orb.Table>: [<orb.Query>, ..], ..} | cascaded
@@ -164,7 +164,7 @@ class Connection(AddonManager):
         
         :param      table_or_join | <orb.Table> || <orb.Join>
                     lookup        | <orb.LookupOptions>
-                    options       | <orb.ContextOptions>
+                    options       | <orb.Context>
         
         :return     <int>
         """
@@ -177,7 +177,7 @@ class Connection(AddonManager):
         table information.
         
         :param      schema   | <orb.TableSchema>
-                    options  | <orb.ContextOptions>
+                    options  | <orb.Context>
         
         :return     <bool> success
         """
@@ -189,7 +189,7 @@ class Connection(AddonManager):
         Creates a new view in the database based off the inputted schema information.
 
         :param      schema  | <orb.ViewSchema>
-                    options | <orb.ContextOptions>
+                    options | <orb.Context>
 
         :return     <bool> | success
         """
@@ -204,7 +204,7 @@ class Connection(AddonManager):
         """
         return self.__database
 
-    def delete(self, table, context):
+    def delete(self, records, context):
         """
         Removes the given records from the inputted schema.  This method is
         called from the <Connection.remove> method that handles the pre
@@ -212,11 +212,10 @@ class Connection(AddonManager):
         on the primary key.
 
         :param      table     | <subclass of orb.Table>
-                    context   | <orb.ContextOptions>
+                    context   | <orb.Context>
 
         :return     <int> | number of rows removed
         """
-        records = self.collectDeleteRecords(table, context)
         with orb.Transaction():
             return self._delete(records, context)
 
@@ -272,7 +271,7 @@ class Connection(AddonManager):
         
         :param      table_or_join | <orb.Table> || <orb.Join>
                     lookup        | <orb.LookupOptions>
-                    options       | <orb.ContextOptions>
+                    options       | <orb.Context>
         
         :return     {<str> columnName: <list> value, ..}
         """
@@ -300,7 +299,7 @@ class Connection(AddonManager):
         
         :param      records     | <orb.Table>
                     lookup      | <orb.LookupOptions>
-                    options     | <orb.ContextOptions>
+                    options     | <orb.Context>
         
         :return     <bool>
         """
@@ -352,7 +351,7 @@ class Connection(AddonManager):
                     
         :param      table_or_join   | <subclass of orb.Table>
                     lookup          | <orb.LookupOptions>
-                    options         | <orb.ContextOptions>
+                    options         | <orb.Context>
         
         :return     [<variant> result, ..]
         """
@@ -392,7 +391,7 @@ class Connection(AddonManager):
         
         :param      record      | <orb.Table>
                     lookup      | <orb.LookupOptions>
-                    options     | <orb.ContextOptions>
+                    options     | <orb.Context>
         
         :return     <variant>
         """
@@ -409,7 +408,7 @@ class Connection(AddonManager):
         otherwise, creates the new table.
         
         :param      schema     | <orb.TableSchema>
-                    options    | <orb.ContextOptions>
+                    options    | <orb.Context>
         
         :return     <bool> changed
         """
@@ -425,7 +424,7 @@ class Connection(AddonManager):
         database table.
         
         :param      schema  | <orb.TableSchema>
-                    options | <orb.ContextOptions>
+                    options | <orb.Context>
         
         :return     <bool>
         """
@@ -438,7 +437,7 @@ class Connection(AddonManager):
         given values.
         
         :param      record  | <orb.Table>
-                    options | <orb.ContextOptions>
+                    options | <orb.Context>
         
         :return     <bool>
         """
@@ -462,7 +461,7 @@ class Connection(AddonManager):
                     what they are doing and why.
         
         :param      table    | <orb.TableSchema>
-                    options  | <orb.ContextOptions>
+                    options  | <orb.Context>
         
         :return     <bool> success
         """

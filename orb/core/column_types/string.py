@@ -12,12 +12,35 @@ class AbstractStringColumn(Column):
 
         super(AbstractStringColumn, self).__init__(**kwds)
 
+    def dbRestore(self, db_value, context=None):
+        """
+        Converts a stored database value to Python.
+
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        return projex.text.decoded(db_value)
+
+    def dbStore(self, py_value, context=None):
+        """
+        Prepares to store this column for the a particular backend database.
+
+        :param backend: <orb.Database>
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        return projex.text.decoded(py_value)
+
     def extract(self, value, context=None):
         """
         Extracts data from the database.
 
         :param value: <variant>
-        :param context: <orb.ContextOptions>
+        :param context: <orb.Context>
 
         :return: <variant>
         """
@@ -42,9 +65,9 @@ class AbstractStringColumn(Column):
         Restores the value from a table cache for usage.
 
         :param      value   | <variant>
-                    context | <orb.ContextOptions> || None
+                    context | <orb.Context> || None
         """
-        context = context or orb.ContextOptions()
+        context = context or orb.Context()
 
         # check to see if this column is translatable before restoring
         if self.testFlag(self.Flags.Translatable):

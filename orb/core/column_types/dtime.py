@@ -18,30 +18,61 @@ pytz = lazy_import('pytz')
 
 
 class AbstractDatetimeColumn(Column):
-    pass
+    def dbRestore(self, db_value, context=None):
+        """
+        Converts a stored database value to Python.
+
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        return self.valueFromString(db_value, context=context)
+
+    def dbStore(self, py_value, context=None):
+        """
+        Prepares to store this column for the a particular backend database.
+
+        :param backend: <orb.Database>
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        return self.valueToString(py_value, context=context)
 
 
 class DateColumn(AbstractDatetimeColumn):
-    def valueFromString(self, value, extra=None, db=None):
+    def dbRestore(self, database, db_value, context=None):
+        """
+        Converts a stored database value to Python.
+
+        :param backend: <orb.Database>
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        return db_value
+
+    def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
 
         :param      value | <str>
-                    extra | <variant>
         """
         if value in ('today', 'now'):
             return datetime.date.today()
         elif dateutil_parser:
             return dateutil_parser.parse(value).date()
         else:
-            extra = extra or '%Y-%m-%d'
-            time_struct = time.strptime(value, extra)
+            time_struct = time.strptime(value, '%Y-%m-%d')
             return datetime.date(time_struct.tm_year,
                                  time_struct.tm_month,
                                  time_struct.tm_day)
 
-    def valueToString(self, value, extra=None, db=None):
+    def valueToString(self, value, context=context):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -49,29 +80,24 @@ class DateColumn(AbstractDatetimeColumn):
         :sa         engine
 
         :param      value | <str>
-                    extra | <variant>
         """
-        if extra is None:
-            extra = '%Y-%m-%d'
-        return value.strftime(extra)
+        return value.strftime('%Y-%m-%d')
 
 
 class DatetimeColumn(AbstractDatetimeColumn):
-    def valueFromString(self, value, extra=None, db=None):
+    def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
 
         :param      value | <str>
-                    extra | <variant>
         """
         if out in ('today', 'now'):
             return datetime.date.now()
         elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            extra = extra or '%Y-%m-%d %h:%m:s'
-            time_struct = time.strptime(value, extra)
+            time_struct = time.strptime(value, '%Y-%m-%d %h:%m:%s')
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -79,7 +105,7 @@ class DatetimeColumn(AbstractDatetimeColumn):
                                      time_struct.tm_minute,
                                      time_struct.tm_sec)
 
-    def valueToString(self, value, extra=None, db=None):
+    def valueToString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -87,11 +113,8 @@ class DatetimeColumn(AbstractDatetimeColumn):
         :sa         engine
 
         :param      value | <str>
-                    extra | <variant>
         """
-        if extra is None:
-            extra = '%Y-%m-%d %h:%m:%s'
-        return value.strftime(extra)
+        return value.strftime('%Y-%m-%d %h:%m:%s')
 
 
 class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
@@ -106,7 +129,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         Restores the value from a table cache for usage.
 
         :param      value   | <variant>
-                    context | <orb.ContextOptions> || None
+                    context | <orb.Context> || None
         """
         if value in ('today', 'now'):
             return datetime.date.now()
@@ -176,25 +199,23 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 
         :sa     <orb.Manager>
 
-        :param      context | <orb.ContextOptions> || None
+        :param      context | <orb.Context> || None
 
         :return     <pytz.tzfile> || None
         """
         return self.__timezone or self.schema().timezone(context)
 
-    def valueFromString(self, value, extra=None, db=None):
+    def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
 
         :param      value | <str>
-                    extra | <variant>
         """
         if dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            extra = extra or '%Y-%m-%d %h:%m:s'
-            time_struct = time.strptime(value, extra)
+            time_struct = time.strptime(value, '%Y-%m-%d %h:%m:s')
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -202,7 +223,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
                                      time_struct.tm_minute,
                                      time_struct.tm_sec)
 
-    def valueToString(self, value, extra=None, db=None):
+    def valueToString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -210,37 +231,32 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         :sa         engine
 
         :param      value | <str>
-                    extra | <variant>
         """
-        if extra is None:
-            extra = '%Y-%m-%d %h:%m:%s'
-        return value.strftime(extra)
+        return value.strftime('%Y-%m-%d %h:%m:%s')
 
 class IntervalColumn(Column):
     pass
 
 
 class TimeColumn(AbstractDatetimeColumn):
-    def valueFromString(self, value, extra=None, db=None):
+    def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
 
         :param      value | <str>
-                    extra | <variant>
         """
         if value == 'now':
             return datetime.datetime.now().time()
         elif dateutil_parser:
             return dateutil_parser.parse(value).time()
         else:
-            extra = extra or '%h:%m:%s'
-            time_struct = time.strptime(value, extra)
+            time_struct = time.strptime(value, '%h:%m:%s')
             return datetime.time(time_struct.tm_hour,
                                  time_struct.tm_min,
                                  time_struct.tm_sec)
 
-    def valueToString(self, value, extra=None, db=None):
+    def valueToString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -248,11 +264,8 @@ class TimeColumn(AbstractDatetimeColumn):
         :sa         engine
 
         :param      value | <str>
-                    extra | <variant>
         """
-        if extra is None:
-            extra = '%h:%m:%s'
-        return value.strftime(extra)
+        return value.strftime('%h:%m:%s')
 
 
 class TimestampColumn(AbstractDatetimeColumn):
@@ -261,7 +274,7 @@ class TimestampColumn(AbstractDatetimeColumn):
         Restores the value from a table cache for usage.
 
         :param      value   | <variant>
-                    context | <orb.ContextOptions> || None
+                    context | <orb.Context> || None
         """
         if isinstance(value, (int, long, float)):
             return datetime.datetime.fromtimestamp(value)
@@ -282,13 +295,12 @@ class TimestampColumn(AbstractDatetimeColumn):
         else:
             return super(TimestampColumn, self).store(value)
 
-    def valueFromString(self, value, extra=None, db=None):
+    def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
 
         :param      value | <str>
-                    extra | <variant>
         """
         try:
             return datetime.datetime.fromtimestamp(float(value))
@@ -300,7 +312,7 @@ class TimestampColumn(AbstractDatetimeColumn):
 
 
 class UTC_DatetimeColumn(AbstractDatetimeColumn):
-    def valueFromString(self, value, extra=None, db=None):
+    def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -313,8 +325,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            extra = extra or '%Y-%m-%d %h:%m:s'
-            time_struct = time.strptime(value, extra)
+            time_struct = time.strptime(value, '%Y-%m-%d %h:%m:s')
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -322,7 +333,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
                                      time_struct.tm_minute,
                                      time_struct.tm_sec)
 
-    def valueToString(self, value, extra=None, db=None):
+    def valueToString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -330,11 +341,8 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
         :sa         engine
 
         :param      value | <str>
-                    extra | <variant>
         """
-        if extra is None:
-            extra = '%Y-%m-%d %h:%m:%s'
-        return value.strftime(extra)
+        return value.strftime('%Y-%m-%d %h:%m:%s')
 
 
 class UTC_TimestampColumn(AbstractDatetimeColumn):
@@ -343,7 +351,7 @@ class UTC_TimestampColumn(AbstractDatetimeColumn):
         Restores the value from a table cache for usage.
 
         :param      value   | <variant>
-                    context | <orb.ContextOptions> || None
+                    context | <orb.Context> || None
         """
         if isinstance(value, (int, long, float)):
             return datetime.datetime.fromtimestamp(value)
@@ -364,13 +372,12 @@ class UTC_TimestampColumn(AbstractDatetimeColumn):
         else:
             return super(UTC_TimestampColumn, self).store(value)
 
-    def valueFromString(self, value, extra=None, db=None):
+    def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
 
         :param      value | <str>
-                    extra | <variant>
         """
         if value in ('today', 'now'):
             return datetime.date.utcnow()

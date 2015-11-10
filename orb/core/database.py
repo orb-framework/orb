@@ -337,7 +337,7 @@ class Database(object):
         
         :sa     <orb.Manager>
 
-        :param      options | <orb.ContextOptions>
+        :param      options | <orb.Context>
 
         :return     <pytz.tzfile> || None
         """
@@ -357,8 +357,8 @@ class Database(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.ContextOptions>, 'options' for
-                    an instance of the <orb.ContextOptions>
+                    <orb.Context>, 'options' for
+                    an instance of the <orb.Context>
         
         :return     <bool> success
         """
@@ -367,7 +367,7 @@ class Database(object):
         schemas = self.schemas(orb.TableSchema)
         schemas.sort()
 
-        options = kwds.get('options', orb.ContextOptions(**kwds))
+        options = kwds.get('options', orb.Context(**kwds))
 
         # initialize the database
         con.setupDatabase(options)

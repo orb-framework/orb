@@ -60,6 +60,37 @@ class Column(AddonManager):
         self.__schema = None
         self.__timezone = None
 
+    def dbRestore(self, db_value, context=None):
+        """
+        Converts a stored database value to Python.
+
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        return db_value
+
+    def dbStore(self, py_value, context=None):
+        """
+        Prepares to store this column for the a particular backend database.
+
+        :param backend: <orb.Database>
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        # convert base types to work in the database
+        if isinstance(py_value, (list, tuple, set)):
+            py_value = tuple((self.dbStore(database, x, context=context) for x in py_value))
+        elif isinstance(py_value, orb.Collection):
+            py_value = py_value.ids()
+        elif isinstance(py_value, orb.Model):
+            py_value = py_value.id()
+
+        return py_value
+
     def default(self):
         """
         Returns the default value for this column to return
@@ -93,7 +124,7 @@ class Column(AddonManager):
         Extracts the database value information during a load.
 
         :param value: <variant>
-        :param context: <orb.ContextOptions>
+        :param context: <orb.Context>
 
         :return: <variant>
         """
@@ -214,7 +245,7 @@ class Column(AddonManager):
         Restores the value from a table cache for usage.
         
         :param      value   | <variant>
-                    context | <orb.ContextOptions> || None
+                    context | <orb.Context> || None
         """
         return value
 
@@ -229,7 +260,6 @@ class Column(AddonManager):
         """
         if isinstance(value, (str, unicode)):
             value = self.valueFromString(value)
-
         return value
 
     def schema(self):
@@ -333,17 +363,16 @@ class Column(AddonManager):
         # otherwise, we're good
         return True
 
-    def valueFromString(self, value, extra=None, db=None):
+    def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
         
         :param      value | <str>
-                    extra | <variant>
         """
         return projex.text.nativestring(value)
 
-    def valueToString(self, value, extra=None, db=None):
+    def valueToString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.

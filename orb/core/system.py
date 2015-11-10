@@ -48,7 +48,7 @@ class System(object):
         """
         Returns the current locale that the system is going to be in.
 
-        :param      context | <orb.ContextOptions>
+        :param      context | <orb.Context>
 
         :return     <str>
         """
