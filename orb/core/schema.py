@@ -48,6 +48,7 @@ class Schema(object):
 
         :param      column  | <orb.Column>
         """
+        column.setSchema(self)
         self.__columns[column.name()] = column
 
     def addIndex(self, index):
@@ -56,6 +57,7 @@ class Schema(object):
 
         :param      index   | <orb.Index>
         """
+        index.setSchema(self)
         self.__indexes[index.name()] = index
 
     def addPipe(self, pipe):
@@ -64,6 +66,7 @@ class Schema(object):
 
         :param      pipe | <orb.Pipe>
         """
+        pipe.setSchema(self)
         self.__pipes[pipe.name()] = pipe
 
     def archiveModel(self):
@@ -156,6 +159,9 @@ class Schema(object):
 
     def idColumn(self):
         return self.__idColumn
+
+    def index(self, name, recurse=True):
+        return self.indexes(recurse=recurse).get(name)
 
     def indexes(self, recurse=True):
         """

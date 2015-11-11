@@ -113,6 +113,11 @@ class AbstractStringColumn(Column):
 
 # define base string based class types
 class StringColumn(AbstractStringColumn):
+    TypeMap = {
+        'Postgres': 'CHARACTER VARYING',
+        'Default': 'VARCHAR'
+    }
+
     def __init__(self,
                  maxlength=None,
                  **kwds):
@@ -120,6 +125,14 @@ class StringColumn(AbstractStringColumn):
 
         # define custom properties
         self.__maxlength = maxlength
+
+    def dbType(self, connectionType):
+        typ = super(StringColumn, self).dbType(connectionType)
+
+        if self.maxLength():
+            return typ + '({0})'.format(self.maxLength())
+        else:
+            return typ
 
     def loadJSON(self, jdata):
         """
@@ -150,7 +163,9 @@ class StringColumn(AbstractStringColumn):
         self.__maxlength = length
 
 class TextColumn(AbstractStringColumn):
-    pass
+    TypeMap = {
+        'Default': 'TEXT'
+    }
 
 
 # define custom string class types

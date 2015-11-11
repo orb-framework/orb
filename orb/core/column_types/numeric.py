@@ -18,19 +18,31 @@ class AbstractNumericColumn(Column):
 
 
 class DecimalColumn(AbstractNumericColumn):
-    pass
+    TypeMap = {
+        'Postgres': 'DECIMAL',
+        'Default': 'DECIMAL UNSIGNED'
+    }
 
 
 class FloatColumn(AbstractNumericColumn):
-    pass
+    TypeMap = {
+        'Postgres': 'DOUBLE PRECISION',
+        'Default': 'DOUBLE UNSIGNED'
+    }
 
 
 class IntegerColumn(AbstractNumericColumn):
-    pass
+    TypeMap = {
+        'Postgres': 'INTEGER',
+        'Default': 'INT UNSIGNED'
+    }
 
 
 class LongColumn(AbstractNumericColumn):
-    pass
+    TypeMap = {
+        'Default': 'BIGINT'
+    }
+
 
 class SerialColumn(LongColumn):
     def __init__(self, **kwds):
@@ -39,6 +51,10 @@ class SerialColumn(LongColumn):
         # set default properties
         self.setFlag(self.Flags.Primary)
         self.setFlag(self.Flags.AutoIncrement)
+
+    def dbType(self, connectionType):
+        return 'SERIAL'
+
 
 Column.registerAddon('Decimal', DecimalColumn)
 Column.registerAddon('Float', FloatColumn)

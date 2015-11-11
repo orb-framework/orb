@@ -19,6 +19,9 @@ class System(object):
         self.__locale = None
         self.__syntax = None
 
+    def activate(self, db):
+        self.__currentDatabase = db.code()
+
     def database(self, code=''):
         """
         Returns the database for this manager based on the inputted name. \
@@ -152,8 +155,8 @@ class System(object):
 
             # create the new archive schema
             archive_name = '{0}Archive'.format(self.name())
-            archive_schema = TableSchema()
-            archive_schema.setDatabaseName(self.databaseName())
+            archive_schema = orb.Schema()
+            archive_schema.setDatabase(self.code())
             archive_schema.setName(archive_name)
             archive_schema.setDbName('{0}_archives'.format(projex.text.underscore(self.name())))
             archive_schema.setColumns(archive_columns)
@@ -190,6 +193,17 @@ class System(object):
             self.__databases[obj.code()] = obj
         elif isinstance(obj, orb.Schema):
             self.__schemas[obj.code()] = obj
+
+    def model(self, code, autoGenerate=True):
+        schema = self.schema(code)
+        if not schema:
+            return None
+
+        model = schema.model()
+        if not model and autoGenerate:
+            model = self.generateModel(schema)
+            schema.setModel(model)
+        return model
 
     def schema(self, code):
         """

@@ -218,6 +218,7 @@ class MetaModel(type):
                 if col_index and not hasattr(new_model, col_index.name):
                     index = orb.Index([column.name()], name=col_index.name,
                                       unique=column.testFlag(column.Flags.Unique))
+                    schema.addIndex(index)
                     setattr(new_model, col_index.name, classmethod(index))
 
                 # create reverse lookups

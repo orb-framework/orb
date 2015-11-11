@@ -24,7 +24,7 @@ class Database(object):
             raise orb.errors.BackendNotFound(connectionType)
 
         # define custom properties
-        self.__connection = conn.create(self)
+        self.__connection = conn(self)
         self.__code = code
         self.__name = name
         self.__host = host
@@ -121,14 +121,6 @@ class Database(object):
         event = orb.events.ConnectionEvent(success=success)
         self.onPostConnect(event)
         return success
-
-    def databaseType(self):
-        """
-        Returns the database type for this instance.
-        
-        :return     <str>
-        """
-        return self._databaseType
 
     def disconnect(self):
         """
@@ -244,14 +236,6 @@ class Database(object):
         :param      name | <str>
         """
         self.__name = name
-
-    def setDatabaseType(self, databaseType):
-        """
-        Sets the database type that will be used for this instance.
-        
-        :param      databaseType | <str>
-        """
-        self._databaseType = nstr(databaseType)
 
     def setCredentials(self, credentials):
         """

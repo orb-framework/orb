@@ -48,6 +48,13 @@ class ReferenceColumn(Column):
         self.__removeAction = removeAction
         self.__reverse = reverse
 
+    def dbType(self, connectionType):
+        if connectionType == 'Postgres':
+            model = self.referenceModel()
+            return 'BIGINT REFERENCES "{0}"'.format(model.schema().dbname())
+        else:
+            return ''
+
     def extract(self, value, context=None):
         """
         Extracts the value provided back from the database.
@@ -98,10 +105,9 @@ class ReferenceColumn(Column):
 
         :return     <Table> || None
         """
-        dbname = self.schema().databaseName() or None
-        model = orb.system.model(self.reference(), database=dbname)
+        model = orb.system.model(self.__reference)
         if not model:
-            raise orb.errors.ModelNotFound(self.reference())
+            raise orb.errors.ModelNotFound(self.__reference)
         return model
 
     def restore(self, value, context=None, inflated=True):

@@ -19,6 +19,8 @@ class Column(AddonManager):
             self.cached = cached
             self.timeout = timeout
 
+    TypeMap = {}
+
     Flags = enum(
         'ReadOnly',
         'Private',
@@ -90,6 +92,16 @@ class Column(AddonManager):
             py_value = py_value.id()
 
         return py_value
+
+    def dbType(self, connectionType):
+        """
+        Returns the database object type based on the given connection type.
+
+        :param connectionType:  <str>
+
+        :return: <str>
+        """
+        return self.TypeMap.get(connectionType, self.TypeMap.get('Default'))
 
     def default(self):
         """

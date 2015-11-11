@@ -11,6 +11,11 @@ orb = lazy_import('orb')
 yaml = lazy_import('yaml')
 
 class BinaryColumn(Column):
+    TypeMap = {
+        'Postgres': 'BYTEA',
+        'Default': 'BLOB'
+    }
+
     def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
@@ -35,6 +40,10 @@ class BinaryColumn(Column):
 
 
 class JSONColumn(Column):
+    TypeMap = {
+        'Default': 'TEXT'
+    }
+
     def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
@@ -73,6 +82,10 @@ class QueryColumn(JSONColumn):
 
 
 class YAMLColumn(Column):
+    TypeMap = {
+        'Default': 'TEXT'
+    }
+
     def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.

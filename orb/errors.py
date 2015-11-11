@@ -98,25 +98,8 @@ class ColumnRequired(OrbError):
 
 
 class ConnectionFailed(OrbError):
-    def __init__(self, msg, db):
-        msgs = [msg, '']
-
-        pwd = '*' * (len(db.password()) - 4) + db.password()[-4:]
-
-        msgs.append('type: %s' % db.databaseType())
-        msgs.append('database: %s' % db.databaseName())
-        msgs.append('username: %s' % db.username())
-        msgs.append('password: %s' % pwd)
-        msgs.append('host: %s' % db.host())
-        msgs.append('port: %s' % db.port())
-
-        msgs.append('')
-
-        connection_types = ','.join(orb.Connection.addons().keys())
-
-        msgs.append('valid types: %s' % connection_types)
-
-        super(ConnectionFailed, self).__init__('\n'.join(msgs))
+    def __init__(self):
+        super(ConnectionFailed, self).__init__('Failed to connect to database')
 
 
 class ConnectionLost(OrbError):
@@ -155,6 +138,8 @@ class DuplicateColumnFound(OrbError):
 class DuplicateEntryFound(OrbError):
     code = 409  # conflict
 
+class DryRun(OrbError):
+    pass
 
 # I
 # ------------------------------------------------------------------------------
@@ -169,6 +154,8 @@ class InvalidColumnType(OrbError):
         msg = '{0} is not a valid column type.'
         super(InvalidColumnType, self).__init__(msg.format(typ))
 
+class EmptyCommand(OrbError):
+    pass
 
 class InvalidResponse(OrbError):
     def __init__(self, method, err):

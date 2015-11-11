@@ -32,28 +32,26 @@ logger = logging.getLogger(__name__)
 
 # import global symbols
 from . import errors
+from .decorators import *
+
 from .core import events
-from .core.context import Context
-from .core.model import Model
-from .core.index import Index
-from .core.pipe import Pipe
-from .core.modelmixin import ModelMixin
 from .core.column import Column
+from .core.connection import Connection
+from .core.context import Context
+from .core.database import Database
+from .core.index import Index
+from .core.model import Model
+from .core.modelmixin import ModelMixin
+from .core.query import (Query, QueryCompound)
+from .core.pipe import Pipe
 from .core.schema import Schema
 from .core.syntax import Syntax
 from .core.system import System
+
 from .core.model_types import *
 from .core.column_types import *
+from .core.connection_types import *
 from .core.syntax_types import *
 
+# define the global system
 system = System()
-
-# from .data import *
-# from .querying import *
-# from .schema import *
-# from .decorators import lookupmethod
-#
-# # create the global manager instance
-# from ._system import System
-#
-# system = System()

@@ -20,11 +20,13 @@ class Index(object):
     has a preset query built into it, along with caching options.
     """
 
-    def __init__(self, columns=None, name='', unique=False, order=None):
+    def __init__(self, columns=None, name='', dbname='', unique=False, order=None):
         self.__name = self.__name__ = name
+        self.__dbname = dbname
         self.__columns = columns or []
         self.__unique = unique
         self.__order = order
+        self.__schema = None
 
     def __call__(self, model, *values, **context):
         # make sure we have the right number of arguments
@@ -62,7 +64,11 @@ class Index(object):
         
         :return     [<str>, ..]
         """
-        return self.__columns
+        schema = self.schema()
+        return [schema.column(col) for col in self.__columns]
+
+    def dbname(self):
+        return self.__dbname or orb.system.syntax().indexdb(self.__schema, self.__name)
 
     def name(self):
         """
@@ -71,6 +77,9 @@ class Index(object):
         :return     <str>
         """
         return self.__name
+
+    def schema(self):
+        return self.__schema
 
     def setColumns(self, columns):
         """
@@ -90,6 +99,9 @@ class Index(object):
         """
         self.__order = order
 
+    def setDbName(self, dbname):
+        self.__dbname = dbname
+
     def setName(self, name):
         """
         Sets the name for this index to this index.
@@ -97,6 +109,9 @@ class Index(object):
         :param      name    | <str>
         """
         self.__name = self.__name__ = name
+
+    def setSchema(self, schema):
+        self.__schema = schema
 
     def setUnique(self, state):
         """

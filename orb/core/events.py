@@ -3,10 +3,11 @@ class Event(object):
         self.preventDefault = False
 
 class ConnectionEvent(Event):
-    def __init__(self, success=True):
+    def __init__(self, success=True, native=None):
         super(ConnectionEvent, self).__init__()
 
         self.success = success
+        self.native = native
 
 class ChangeEvent(Event):
     def __init__(self, column=None, old=None, value=None):

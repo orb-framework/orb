@@ -43,6 +43,10 @@ class AbstractDatetimeColumn(Column):
 
 
 class DateColumn(AbstractDatetimeColumn):
+    TypeMap = {
+        'Default': 'DATE'
+    }
+
     def dbRestore(self, database, db_value, context=None):
         """
         Converts a stored database value to Python.
@@ -85,6 +89,11 @@ class DateColumn(AbstractDatetimeColumn):
 
 
 class DatetimeColumn(AbstractDatetimeColumn):
+    TypeMap = {
+        'Postgres': 'TIMESTAMP WITHOUT TIME ZONE',
+        'Default': 'DATETIME'
+    }
+
     def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
@@ -118,6 +127,11 @@ class DatetimeColumn(AbstractDatetimeColumn):
 
 
 class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
+    TypeMap = {
+        'Postgres': 'TIMESTAMP WITHOUT TIME ZONE',
+        'Default': 'DATETIME'
+    }
+
     def __init__(self, timezone=None, **kwds):
         super(DatetimeWithTimezoneColumn, self).__init__(**kwds)
 
@@ -235,10 +249,16 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         return value.strftime('%Y-%m-%d %h:%m:%s')
 
 class IntervalColumn(Column):
-    pass
+    TypeMap = {
+        'Postgres': 'TIMEDELTA'
+    }
 
 
 class TimeColumn(AbstractDatetimeColumn):
+    TypeMap = {
+        'Default': 'TIME'
+    }
+
     def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
@@ -269,6 +289,11 @@ class TimeColumn(AbstractDatetimeColumn):
 
 
 class TimestampColumn(AbstractDatetimeColumn):
+    TypeMap = {
+        'Postgres': 'TIMESTAMP WITHOUT TIMEZONE',
+        'Default': 'DATETIME'
+    }
+
     def restore(self, value, context=None):
         """
         Restores the value from a table cache for usage.
@@ -312,6 +337,10 @@ class TimestampColumn(AbstractDatetimeColumn):
 
 
 class UTC_DatetimeColumn(AbstractDatetimeColumn):
+    TypeMap = {
+        'Default': 'TIMESTAMP'
+    }
+
     def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
@@ -346,6 +375,10 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
 
 
 class UTC_TimestampColumn(AbstractDatetimeColumn):
+    TypeMap = {
+        'Default': 'TIMESTAMP'
+    }
+
     def restore(self, value, context=None):
         """
         Restores the value from a table cache for usage.

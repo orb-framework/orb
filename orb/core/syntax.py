@@ -15,6 +15,10 @@ class Syntax(AddonManager):
     def getter(self, name):
         pass
 
+    @abstractmethod()
+    def indexdb(self, schema, name):
+        pass
+
     @abstractmethod('Syntax', 'Generate a setter name based on the given column name')
     def schemadb(self, name):
         pass

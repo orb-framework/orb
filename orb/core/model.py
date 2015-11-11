@@ -818,7 +818,7 @@ class Model(AddonManager):
             morph = column.referenceModel()
             if morph:
                 morph_name = nstr(morph(values[column.field()], options=context))
-                dbname = cls.schema().databaseName()
+                dbname = cls.schema().name()
                 morph_cls = orb.system.model(morph_name, database=dbname)
 
                 if morph_cls and morph_cls != cls:
@@ -831,7 +831,7 @@ class Model(AddonManager):
             # expand based on postgres-style OO inheritance
             elif isinstance(column, orb.StringColumn):
                 table_type = column.field()
-                dbname = cls.schema().databaseName()
+                dbname = cls.schema().name()
                 morph_cls = orb.system.model(values[table_type], database=dbname)
                 if morph_cls and morph_cls != cls:
                     pcols = morph_cls.schema().primaryColumns()

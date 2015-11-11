@@ -467,22 +467,3 @@ class Connection(AddonManager):
         """
         return False
 
-    @staticmethod
-    def create(database):
-        """
-        Returns a new database connection for the inputted database
-        from the registered backends and the database type
-        
-        :return     <Connection> || None
-        """
-        cls = Connection.byName(database.databaseType())
-        if not cls:
-            raise errors.BackendNotFound(database.databaseType())
-        return cls(database)
-
-
-# register the addon module
-from orb.core.backends import __plugins__
-
-Connection.registerAddonModule(__plugins__)
-
