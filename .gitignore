@@ -49,3 +49,6 @@ dist
 _version.py
 testing.db
 _site
+htmlcov
+report.html
+.coverage
