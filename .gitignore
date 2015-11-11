@@ -51,3 +51,4 @@ testing.db
 _site
 .coverage
 htmlcov
+report.html
