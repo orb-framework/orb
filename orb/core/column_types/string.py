@@ -119,7 +119,7 @@ class StringColumn(AbstractStringColumn):
     }
 
     def __init__(self,
-                 maxlength=None,
+                 maxlength=256,
                  **kwds):
         super(AbstractStringColumn, self).__init__(**kwds)
 

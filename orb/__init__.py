@@ -36,6 +36,7 @@ from .decorators import *
 
 from .core import events
 from .core.column import Column
+from .core.collection import Collection
 from .core.connection import Connection
 from .core.context import Context
 from .core.database import Database

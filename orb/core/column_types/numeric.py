@@ -44,20 +44,18 @@ class LongColumn(AbstractNumericColumn):
     }
 
 
-class SerialColumn(LongColumn):
+class IdColumn(LongColumn):
     def __init__(self, **kwds):
-        super(SerialColumn, self).__init__(**kwds)
+        super(IdColumn, self).__init__(**kwds)
 
         # set default properties
+        self.setFlag(self.Flags.Required)
         self.setFlag(self.Flags.Primary)
         self.setFlag(self.Flags.AutoIncrement)
-
-    def dbType(self, connectionType):
-        return 'SERIAL'
 
 
 Column.registerAddon('Decimal', DecimalColumn)
 Column.registerAddon('Float', FloatColumn)
 Column.registerAddon('Integer', IntegerColumn)
 Column.registerAddon('Long', LongColumn)
-Column.registerAddon('Serial', SerialColumn)
+Column.registerAddon('Id', IdColumn)

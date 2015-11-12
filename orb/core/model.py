@@ -211,8 +211,9 @@ class Model(AddonManager):
             return -1
 
     def __init__(self,
+                 context=None,
                  *record,
-                 **context):
+                 **values):
         """
         Initializes a database record for the table class.  A
         table model can be initialized in a few ways.  Passing

@@ -252,4 +252,8 @@ class MetaModel(type):
                 ilookup = instancemethod(lookup, None, new_model)
                 setattr(new_model, rev_name, ilookup)
 
+            # register the class to the system
+            schema.setModel(new_model)
+            orb.system.register(schema)
+
             return new_model

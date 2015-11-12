@@ -31,16 +31,16 @@ class CollectionIterator(object):
 
 
 class Collection(object):
-    def __init__(self, records=None, model=None, source='', owner=None, **context):
+    def __init__(self, records=None, model=None, source='', owner=None, pipe=None, **context):
         self.__cache = {
             'records': {},
             'count': {}
         }
         self.__context = orb.Context(**context)
-        self.__pipe = None
-        self.__model = None
-        self.__source = ''
-        self.__owner = None
+        self.__model = model
+        self.__source = source
+        self.__owner = owner
+        self.__pipe = pipe
 
         if records is not None:
             self.__cache['records'][self.__context] = records
@@ -239,6 +239,10 @@ class Collection(object):
                 return self.__cache['records'][context].index(record)
             except KeyError:
                 return self.ids().index(record.id())
+
+    def isLoaded(self, **context):
+        context = self.context(**context)
+        return context in self.__cache['records']
 
     def isEmpty(self, **context):
         return self.count(**context) == 0

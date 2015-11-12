@@ -47,6 +47,13 @@ class Column(AddonManager):
                  flags=0,
                  default=None,
                  defaultOrder='asc'):
+        # support string based flag definition
+        if isinstance(flags, set):
+            flag_enum = 0
+            for flag in flags:
+                flag_enum |= self.Flags(flag)
+            flags = flag_enum
+
         # constructor items
         self.__name = name
         self.__field = field

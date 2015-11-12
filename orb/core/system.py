@@ -192,7 +192,7 @@ class System(object):
         if isinstance(obj, orb.Database):
             self.__databases[obj.code()] = obj
         elif isinstance(obj, orb.Schema):
-            self.__schemas[obj.code()] = obj
+            self.__schemas[obj.name()] = obj
 
     def model(self, code, autoGenerate=True):
         schema = self.schema(code)
