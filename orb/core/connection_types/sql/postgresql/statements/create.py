@@ -5,7 +5,7 @@ orb = lazy_import('orb')
 
 
 class CREATE(PSQLStatement):
-    def __call__(self, model, owner='postgres'):
+    def __call__(self, model, owner=''):
         if issubclass(model, orb.Table):
             return self._createTable(model, owner)
         elif issubclass(model, orb.View):
@@ -29,7 +29,7 @@ class CREATE(PSQLStatement):
         # create the standard model
         cmd_body = []
         if add_standard:
-            cmd_body += [ADD_COLUMN(col) for col in add_standard]
+            cmd_body += [ADD_COLUMN(col).replace('ADD COLUMN ', '') for col in add_standard]
 
         # get the primary column
         pcol = ''
@@ -50,13 +50,14 @@ class CREATE(PSQLStatement):
 
             inherits = '\nINHERITS "{0}"\n'.format(inherits_model.schema().dbname())
 
-        cmd  = 'CREATE TABLE IF NOT EXISTS "{table}" ({body}){inherits}WITH (OIDS=FALSE);\n'
-        cmd += 'ALTER TABLE "{table}" OWNER TO "{owner}";'
+        cmd  = 'CREATE TABLE IF NOT EXISTS "{table}" ({body}) {inherits}WITH (OIDS=FALSE);\n'
+        if owner:
+            cmd += 'ALTER TABLE "{table}" OWNER TO "{owner}";'
         cmd = cmd.format(table=model.schema().dbname(), body=body, inherits=inherits, owner=owner)
 
         # create the i18n model
         if add_i18n:
-            i18n_body = ',\n\t'.join([ADD_COLUMN(col) for col in add_i18n])
+            i18n_body = ',\n\t'.join([ADD_COLUMN(col).replace('ADD COLUMN ', '') for col in add_i18n])
 
             i18n_cmd  = 'CREATE TABLE "{table}_i81n" (\n'
             i18n_cmd += '   "locale" CHARACTER VARYING(5),\n'
@@ -64,7 +65,8 @@ class CREATE(PSQLStatement):
             i18n_cmd += '   {body},\n'
             i18n_cmd += '   CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("{table}_id", "locale")\n'
             i18n_cmd += ') WITH (OIDS=FALSE);\n'
-            i18n_cmd += 'ALTER TABLE "{table}_i18n" OWNER TO "{owner}";'
+            if owner:
+                i18n_cmd += 'ALTER TABLE "{table}_i18n" OWNER TO "{owner}";'
 
             i18n_cmd = i18n_cmd.format(table=model.schema().dbname(), pcol=pcol, body=i18n_body, owner=owner)
 

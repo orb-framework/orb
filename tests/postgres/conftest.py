@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.fixture(scope='session')
 def pg_db():
     import getpass
@@ -13,3 +14,8 @@ def pg_db():
     db.activate()
 
     return db
+
+@pytest.fixture(scope='session')
+def pg_sql():
+    import orb
+    return orb.Connection.byName('Postgres')

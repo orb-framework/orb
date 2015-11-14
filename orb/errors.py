@@ -141,6 +141,12 @@ class DuplicateEntryFound(OrbError):
 class DryRun(OrbError):
     pass
 
+# E
+# ------------------------------------------------------------------------------
+
+class EncryptionDisabled(OrbError):
+    pass
+
 # I
 # ------------------------------------------------------------------------------
 

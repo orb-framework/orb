@@ -44,7 +44,7 @@ class PSQLConnection(SQLConnection):
     # ----------------------------------------------------------------------
     # PROTECTED METHODS
     # ----------------------------------------------------------------------
-    def _execute(self, command, data=None, autoCommit=True, autoClose=True,
+    def _execute(self, native, command, data=None, autoCommit=True, autoClose=True,
                  returning=True, mapper=dict):
         """
         Executes the inputted command into the current \
@@ -61,22 +61,13 @@ class PSQLConnection(SQLConnection):
         if data is None:
             data = {}
 
-        # when in debug mode, simply log the command to the log
-        elif self.database().commandsBlocked():
-            log.info(command)
-            return [], rowcount
-
-        # create a new cursor for this transaction
-        db = self.nativeConnection()
-        if db is None:
-            raise orb.errors.ConnectionLost()
-
         # check to make sure the connection hasn't been reset or lost
         try:
-            cursor = db.cursor(cursor_factory=DictCursor)
+            cursor = native.cursor(cursor_factory=DictCursor)
         except pg.InterfaceError as err:
-            if self.open(force=True):
-                cursor = db.cursor(cursor_factory=DictCursor)
+            native = self.open(force=True)
+            if native:
+                cursor = native.cursor(cursor_factory=DictCursor)
             else:
                 raise err
 
@@ -101,7 +92,7 @@ class PSQLConnection(SQLConnection):
         # look for a cancelled query
         except QueryCanceledError as cancelled:
             try:
-                db.rollback()
+                native.rollback()
             except StandardError as err:
                 log.error('Rollback error: {0}'.format(err))
             log.critical(command)
@@ -121,7 +112,7 @@ class PSQLConnection(SQLConnection):
         # look for integrity errors
         except (pg.IntegrityError, pg.OperationalError), err:
             try:
-                db.rollback()
+                native.rollback()
             except StandardError:
                 pass
 
@@ -152,7 +143,7 @@ class PSQLConnection(SQLConnection):
         # connection has closed underneath the hood
         except pg.Error, err:
             try:
-                db.rollback()
+                native.rollback()
             except StandardError:
                 pass
 

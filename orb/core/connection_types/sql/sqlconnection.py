@@ -312,7 +312,7 @@ class SQLConnection(orb.Connection):
         else:
             lvl = logging.CRITICAL
 
-        log.log('{0}\n\ndata:{1}'.format(command, delta))
+        log.log(lvl, '{0}\n\ndata:{1}'.format(command, delta))
         log.log(lvl, 'Query took: %s' % delta)
 
         return results, rowcount
@@ -510,7 +510,7 @@ class SQLConnection(orb.Connection):
             # process a post-connect event
             event = orb.events.ConnectionEvent(success=conn is not None, native=conn)
             db.onPostConnect(event)
-            if not event.preventDefault and conn.success:
+            if not event.preventDefault and event.success:
                 with WriteLocker(self.__connectionLock):
                     self.__connections[tid] = conn
 

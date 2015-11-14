@@ -47,6 +47,7 @@ from .core.query import (Query, QueryCompound)
 from .core.pipe import Pipe
 from .core.schema import Schema
 from .core.syntax import Syntax
+from .core.security import Security
 from .core.system import System
 
 from .core.model_types import *

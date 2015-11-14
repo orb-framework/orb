@@ -361,6 +361,9 @@ class Column(AddonManager):
         
         :param      flag | <Column.Flags>
         """
+        if isinstance(flag, (str, unicode)):
+            flag = self.Flags(flag)
+
         return bool(self.flags() & flag) if flag >= 0 else not bool(self.flags() & ~flag)
 
     def validate(self, value):

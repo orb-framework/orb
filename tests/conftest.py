@@ -15,7 +15,17 @@ def pytest_runtest_setup(item):
 # --------------
 
 @pytest.fixture(scope='session')
-def empty_user_table():
+def orb():
+    import orb
+    from projex import security
+
+    key = security.generateKey('T3st!ng')
+    orb.system.security().setKey(key)
+
+    return orb
+
+@pytest.fixture(scope='session')
+def empty_user_table(orb):
     import orb
 
     class User(orb.Table):
@@ -24,11 +34,10 @@ def empty_user_table():
     return User
 
 @pytest.fixture(scope='session')
-def user_table():
-    import orb
+def user_table(orb):
 
     class User(orb.Table):
-        id = orb.SerialColumn()
+        id = orb.IdColumn()
         username = orb.StringColumn(flags=orb.Column.Flags.Unique, index=orb.Column.Index(name='byUsername'))
         password = orb.PasswordColumn()
 

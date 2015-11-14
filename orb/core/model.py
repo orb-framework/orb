@@ -241,8 +241,8 @@ class Model(AddonManager):
             self.__setstate__(record[0].pop('__pickle'))
 
         # restore the database update values
-        elif 'databaseLoadEvent' in values:
-            self.onDatabaseLoad(values.pop('databaseLoadEvent'))
+        elif 'loadEvent' in values:
+            self.onLoad(values.pop('loadEvent'))
 
         # initialize a new record if no record is provided
         elif not record:
@@ -252,20 +252,20 @@ class Model(AddonManager):
         else:
             if len(record) == 1 and isinstance(record[0], Model):
                 record = record.id()
-                event = orb.events.DatabaseLoadEvent(data=dict(record[0]))
-                self.onDatabaseLoad(event)
+                event = orb.events.LoadEvent(data=dict(record[0]))
+                self.onLoad(event)
             elif len(record) == 1:
                 record = record[0]  # don't use tuples unless multiple ID columns are used
 
             data = self.fetch(record, inflated=False, context=context)
             if data:
-                event = orb.events.DatabaseLoadEvent(data=data)
-                self.onDatabaseLoad(event)
+                event = orb.events.LoadEvent(data=data)
+                self.onLoad(event)
             else:
                 raise errors.RecordNotFound(self, record)
 
         # after loading everything else, update the values for this model
-        self.update(**{k: v for k, v in values.items() if self.schema().column(k)})
+        self.update({k: v for k, v in values.items() if self.schema().column(k)})
 
     # --------------------------------------------------------------------
     #                       EVENT HANDLERS
@@ -274,7 +274,7 @@ class Model(AddonManager):
     def onChange(self, event):
         pass
 
-    def onDatabaseLoad(self, event):
+    def onLoad(self, event):
         context = self.context()
         schema = self.schema()
         dbname = schema.dbname()
@@ -624,6 +624,9 @@ class Model(AddonManager):
         elif col.testFlag(col.Flags.ReadOnly):
             raise errors.ColumnReadOnly(column)
 
+        # ensure the value is good
+        col.validate(value)
+
         context = self.context(**context)
         if useMethod:
             try:
@@ -669,12 +672,6 @@ class Model(AddonManager):
         return self.get(self.schema().idColumn(), value, useMethod=False, **context)
 
     def update(self, values, **context):
-        # update from records
-        for record in records:
-            changes = record.changes()
-            for column, (_, value) in changes:
-                self.set(column, value)
-
         # update from value dictionary
         for col, value in values.items():
             self.set(col, value)

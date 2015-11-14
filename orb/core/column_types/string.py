@@ -21,7 +21,10 @@ class AbstractStringColumn(Column):
 
         :return: <variant>
         """
-        return projex.text.decoded(db_value)
+        if db_value is not None:
+            return projex.text.decoded(db_value)
+        else:
+            return db_value
 
     def dbStore(self, py_value, context=None):
         """
@@ -33,7 +36,10 @@ class AbstractStringColumn(Column):
 
         :return: <variant>
         """
-        return projex.text.decoded(py_value)
+        if py_value is not None:
+            return projex.text.decoded(py_value)
+        else:
+            return py_value
 
     def extract(self, value, context=None):
         """
@@ -106,7 +112,7 @@ class AbstractStringColumn(Column):
             if isinstance(value, (str, unicode)):
                 return {context.locale: value}
         elif isinstance(value, (str, unicode)) and self.testFlag(self.Flags.Encrypted):
-            return orb.system.encrypt(value)
+            return orb.system.security().encrypt(value)
         else:
             return super(AbstractStringColumn, self).store(value)
 
@@ -216,6 +222,7 @@ class PasswordColumn(StringColumn):
         super(PasswordColumn, self).__init__(**kwds)
 
         # setup default options
+        self.setFlag(self.Flags.Required)
         self.setFlag(self.Flags.Encrypted)
 
         # define custom properties
@@ -268,7 +275,7 @@ class PasswordColumn(StringColumn):
 
         elif len(value) < self.__minlength or \
                 (self.__requireUppercase and not re.search('[A-Z]', value)) or \
-                (self.__requirLowercase and not re.search('[a-z]', value)) or \
+                (self.__requireLowercase and not re.search('[a-z]', value)) or \
                 (self.__requireNumber and not re.search('[0-9]', value)) or \
                 (self.__requireWildcard and not re.search('[^a-zA-Z0-9]', value)):
             raise orb.errors.ColumnValidationError(self, self.rules())

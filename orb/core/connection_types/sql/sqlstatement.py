@@ -55,7 +55,6 @@ SQLStatement.registerAddon('Length::Directory', 500)
 # define the base flags
 SQLStatement.registerAddon('Flag::Unique', u'UNIQUE')
 SQLStatement.registerAddon('Flag::Required', u'NOT NULL')
-SQLStatement.registerAddon('Flag::AutoIncrement', u'AUTO_INCREMENT')
 
 # define the base operators
 SQLStatement.registerAddon('Op::Is', u'=')

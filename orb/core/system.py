@@ -10,6 +10,8 @@ orb = lazy_import('orb')
 pytz = lazy_import('pytz')
 tzlocal = lazy_import('tzlocal')
 
+from .security import Security
+
 
 class System(object):
     def __init__(self):
@@ -18,6 +20,7 @@ class System(object):
         self.__settings = Settings()
         self.__locale = None
         self.__syntax = None
+        self.__security = Security(self.__settings.security_key)
 
     def activate(self, db):
         self.__currentDatabase = db.code()
@@ -240,6 +243,12 @@ class System(object):
         """
         if locale:
             self.__locale = locale
+
+    def security(self):
+        return self.__security
+
+    def setSecurity(self, security):
+        self.__security = security
 
     def setSyntax(self, syntax):
         if not isinstance(syntax, orb.Syntax):

@@ -1,23 +1,20 @@
+import pytest
 
 
-def test_version():
-    import orb
+def test_version(orb):
     assert orb.__version__ != '0.0.0'
 
 # ----
 # Empty Table
 # ----
 
-def test_empty_model():
-    import orb
+def test_empty_model(orb):
     assert orb.Model.schema() is None
 
-def test_empty_table():
-    import orb
+def test_empty_table(orb):
     assert orb.Table.schema() is None
 
-def test_empty_view():
-    import orb
+def test_empty_view(orb):
     assert orb.View.schema() is None
 
 # -----
@@ -53,3 +50,24 @@ def test_user_properties(user_table):
                         getattr(user_table, 'setUsername', None) != None,
                         getattr(user_table, 'setPassword', None) != None,
                         getattr(user_table, 'byUsername', None) != None)
+
+def test_user_make_record(user_table):
+    assert user_table() is not None
+
+def test_user_create_with_properties(user_table):
+    record = user_table(username='bob')
+    assert record.username() == 'bob'
+    assert record.get('username') == 'bob'
+
+def test_user_collection(orb, user_table):
+    records = user_table.all()
+    assert isinstance(records, orb.Collection)
+
+def test_user_good_password(user_table):
+    record = user_table(username='bob')
+    assert record.setPassword('T3st1ng!')
+
+def test_user_bad_password(orb, user_table):
+    record = user_table(username='bob')
+    with pytest.raises(orb.errors.ColumnValidationError):
+        record.setPassword('bad')

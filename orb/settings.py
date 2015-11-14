@@ -7,6 +7,7 @@ class Settings(object):
     Defaults = {
         'locale': 'en_US',
         'server_timezone': '',
+        'security_key': '',
         'timezone': '',
         'raise_background_errors': 'True',
         'caching_enabled': 'False',

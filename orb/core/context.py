@@ -103,7 +103,7 @@ class Context(object):
 
     @property
     def expand(self):
-        out = self.raw_values['expand']
+        out = self.raw_values.get('expand')
         if isinstance(out, set):
             return list(out)
         elif isinstance(out, (str, unicode)):
@@ -149,7 +149,7 @@ class Context(object):
 
     @property
     def order(self):
-        out = self.raw_values['order']
+        out = self.raw_values.get('order')
         if isinstance(out, set):
             return list(out)
         elif isinstance(out, (str, unicode)):
@@ -162,14 +162,14 @@ class Context(object):
 
     @property
     def limit(self):
-        return self.raw_values['pageSize'] or self.raw_values['limit']
+        return self.raw_values.get('pageSize') or self.raw_values.get('limit')
 
     @property
     def start(self):
-        if self.raw_values['page'] is not None:
-            return (self.raw_values['page'] - 1) * self.limit
+        if self.raw_values.get('page') is not None:
+            return (self.raw_values.get('page') - 1) * self.limit
         else:
-            return self.raw_values['start']
+            return self.raw_values.get('start')
 
     def update(self, other):
         """

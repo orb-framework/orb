@@ -45,6 +45,10 @@ class LongColumn(AbstractNumericColumn):
 
 
 class IdColumn(LongColumn):
+    TypeMap = {
+        'Postgres': 'SERIAL',
+        'Default': 'BIGINT'
+    }
     def __init__(self, **kwds):
         super(IdColumn, self).__init__(**kwds)
 
@@ -52,6 +56,12 @@ class IdColumn(LongColumn):
         self.setFlag(self.Flags.Required)
         self.setFlag(self.Flags.Primary)
         self.setFlag(self.Flags.AutoIncrement)
+
+    def dbStore(self, py_value, context=None):
+        if py_value is None:
+            return 'DEFAULT'
+        else:
+            return py_value
 
 
 Column.registerAddon('Decimal', DecimalColumn)

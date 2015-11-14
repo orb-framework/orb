@@ -26,9 +26,9 @@ class CommitEvent(Event):
         self.result = result
 
 
-class DatabaseLoadEvent(Event):
+class LoadEvent(Event):
     def __init__(self, data):
-        super(DatabaseLoadEvent, self).__init__()
+        super(LoadEvent, self).__init__()
 
         self.data = data
 

@@ -21,7 +21,7 @@
     <% SELECT = SQL.byName('SELECT') %>
     ${field} ${op} (
        ${SELECT(value, default_columns=['id'], IO=IO).strip(';')}
-    )
+    )s
 % else:
     <%
     if operator in (orb.Query.Op.IsIn, orb.Query.Op.IsNotIn) and not value:
