@@ -37,11 +37,15 @@ class Context(object):
         'order': None,
         'page': None,
         'pageSize': None,
-        'request': None,
+        'scope': None,
         'returning': 'records',
         'start': None,
         'timezone': None,
         'where': None
+    }
+
+    UnhashableOptions = {
+        'scope'
     }
 
     def __eq__(self, other):
@@ -51,7 +55,8 @@ class Context(object):
         return hash(self) != hash(other)
 
     def __hash__(self):
-        return hash(((k, self.raw_values[k]) for k, v in self.Defaults.items() if self.raw_values[k] != v))
+        return hash(((k, self.raw_values[k]) for k, v in self.Defaults.items()
+                     if self.raw_values[k] != v and k not in self.UnhashableOptions))
 
     def __enter__(self):
         """
@@ -68,7 +73,7 @@ class Context(object):
         self.pushDefaultContext(self)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.popDefaultContext(self)
+        self.popDefaultContext()
 
     def __init__(self, **kwds):
         # utilize values from another context
@@ -120,7 +125,14 @@ class Context(object):
 
         :return     <orb.Context>
         """
-        return Context(**copy.deepcopy(self.raw_values))
+        properties = {}
+        for key, value in self.raw_values.items():
+            if key in self.UnhashableOptions:
+                properties[key] = value
+            else:
+                properties[key] = copy.deepcopy(value)
+
+        return Context(**properties)
 
     @property
     def expand(self):
@@ -209,7 +221,7 @@ class Context(object):
             setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
             setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
         else:
-            lock = getattr(cls, '_{0}__defaultsLock')
+            lock = getattr(cls, '_{0}__defaultsLock'.format(cls.__name__))
 
         tid = threading.currentThread().ident
         with ReadLocker(lock):
@@ -227,10 +239,10 @@ class Context(object):
             setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
             setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
         else:
-            lock = getattr(cls, '_{0}__defaultsLock')
+            lock = getattr(cls, '_{0}__defaultsLock'.format(cls.__name__))
 
         tid = threading.currentThread().ident
-        with WriteLocker(tid):
+        with WriteLocker(lock):
             defaults[tid].pop()
 
     @classmethod
@@ -242,7 +254,7 @@ class Context(object):
             setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
             setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
         else:
-            lock = getattr(cls, '_{0}__defaultsLock')
+            lock = getattr(cls, '_{0}__defaultsLock'.format(cls.__name__))
 
         tid = threading.currentThread().ident
         with WriteLocker(lock):
