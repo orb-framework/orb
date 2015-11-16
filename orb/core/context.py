@@ -6,7 +6,10 @@ will map to one of the classes defined in this module.
 """
 
 import copy
+import threading
+from collections import defaultdict
 from projex.lazymodule import lazy_import
+from projex.locks import ReadWriteLock, WriteLocker, ReadLocker
 
 orb = lazy_import('orb')
 
@@ -50,28 +53,46 @@ class Context(object):
     def __hash__(self):
         return hash(((k, self.raw_values[k]) for k, v in self.Defaults.items() if self.raw_values[k] != v))
 
+    def __enter__(self):
+        """
+        Creates a scope where this context is default, so all calls made while it is in scope will begin with
+        the default context information.
+
+        :usage      |import orb
+                    |with orb.Context(database=db):
+                    |   user = models.User()
+                    |   group = models.Group()
+
+        :return:  <orb.Context>
+        """
+        self.pushDefaultContext(self)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.popDefaultContext(self)
+
     def __init__(self, **kwds):
         # utilize values from another context
-        other = kwds.pop('context', None)
-        if other:
-            ignore = ('columns', 'where')
-            # extract expandable information
-            for k, v in copy.deepcopy(other.raw_values).items():
-                if k not in ignore:
-                    kwds.setdefault(k, v)
+        others = [kwds.pop('context', None), self.defaultContext()]
+        for other in others:
+            if other:
+                ignore = ('columns', 'where')
+                # extract expandable information
+                for k, v in copy.deepcopy(other.raw_values).items():
+                    if k not in ignore:
+                        kwds.setdefault(k, v)
 
-            # merge where queries
-            where = other.where
-            if where is not None:
-                q = orb.Query()
-                q &= where
-                q &= kwds.get('where')
-                kwds['where'] = q
+                # merge where queries
+                where = other.where
+                if where is not None:
+                    q = orb.Query()
+                    q &= where
+                    q &= kwds.get('where')
+                    kwds['where'] = q
 
-            # merge column queries
-            columns = other.columns
-            if columns is not None:
-                kwds['columns'] = columns + [col for col in kwds.get('columns', []) if not col in columns]
+                # merge column queries
+                columns = other.columns
+                if columns is not None:
+                    kwds['columns'] = columns + [col for col in kwds.get('columns', []) if not col in columns]
 
         self.__dict__['raw_values'] = {k: v for k, v in kwds.items() if k in self.Defaults}
 
@@ -179,3 +200,50 @@ class Context(object):
         """
         self.raw_values.update({k: v for k, v in other.items() if k in self.Defaults})
 
+    @classmethod
+    def defaultContext(cls):
+        defaults = getattr(cls, '_{0}__defaults'.format(cls.__name__), None)
+        if defaults is None:
+            defaults = defaultdict(list)
+            lock = ReadWriteLock()
+            setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
+            setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
+        else:
+            lock = getattr(cls, '_{0}__defaultsLock')
+
+        tid = threading.currentThread().ident
+        with ReadLocker(lock):
+            try:
+                return defaults[tid][-1]
+            except IndexError:
+                return None
+
+    @classmethod
+    def popDefaultContext(cls):
+        defaults = getattr(cls, '_{0}__defaults'.format(cls.__name__), None)
+        if defaults is None:
+            defaults = defaultdict(list)
+            lock = ReadWriteLock()
+            setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
+            setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
+        else:
+            lock = getattr(cls, '_{0}__defaultsLock')
+
+        tid = threading.currentThread().ident
+        with WriteLocker(tid):
+            defaults[tid].pop()
+
+    @classmethod
+    def pushDefaultContext(cls, context):
+        defaults = getattr(cls, '_{0}__defaults'.format(cls.__name__), None)
+        if defaults is None:
+            defaults = defaultdict(list)
+            lock = ReadWriteLock()
+            setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
+            setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
+        else:
+            lock = getattr(cls, '_{0}__defaultsLock')
+
+        tid = threading.currentThread().ident
+        with WriteLocker(lock):
+            defaults[tid].append(context)
