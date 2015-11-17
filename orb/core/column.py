@@ -20,6 +20,16 @@ class Column(AddonManager):
             self.timeout = timeout
 
     TypeMap = {}
+    MathMap = {
+        'Default': {
+            'Add': u'{field} + {value}',
+            'Subtract': u'{field} - {value}',
+            'Multiply': u'{field} * {value}',
+            'Divide': u'{field} / {value}',
+            'And': u'{field} & {value}',
+            'Or': u'{field} | {value}'
+        }
+    }
 
     Flags = enum(
         'ReadOnly',
@@ -69,10 +79,11 @@ class Column(AddonManager):
         self.__schema = None
         self.__timezone = None
 
-    def dbRestore(self, db_value, context=None):
+    def dbRestore(self, typ, db_value):
         """
         Converts a stored database value to Python.
 
+        :param typ: <str>
         :param py_value: <variant>
         :param context: <orb.Context>
 
@@ -80,7 +91,23 @@ class Column(AddonManager):
         """
         return db_value
 
-    def dbStore(self, py_value, context=None):
+    def dbMath(self, typ, field, op, value):
+        """
+        Performs some database math on the given field.  This will be database specific
+        implementations and should return the resulting database operation.
+
+        :param field: <str>
+        :param op: <orb.Query.Math>
+        :param target: <variant>
+        :param context: <orb.Context> || None
+
+        :return: <str>
+        """
+        ops = orb.Query.Math(op)
+        format = self.MathMap.get(typ, {}).get(ops) or self.MathMap.get('Default').get(ops) or '{field}'
+        return format.format(field=field, value=value)
+
+    def dbStore(self, typ, py_value):
         """
         Prepares to store this column for the a particular backend database.
 
@@ -92,7 +119,7 @@ class Column(AddonManager):
         """
         # convert base types to work in the database
         if isinstance(py_value, (list, tuple, set)):
-            py_value = tuple((self.dbStore(database, x, context=context) for x in py_value))
+            py_value = tuple((self.dbStore(x) for x in py_value))
         elif isinstance(py_value, orb.Collection):
             py_value = py_value.ids()
         elif isinstance(py_value, orb.Model):
@@ -100,15 +127,15 @@ class Column(AddonManager):
 
         return py_value
 
-    def dbType(self, connectionType):
+    def dbType(self, typ):
         """
         Returns the database object type based on the given connection type.
 
-        :param connectionType:  <str>
+        :param typ:  <str>
 
         :return: <str>
         """
-        return self.TypeMap.get(connectionType, self.TypeMap.get('Default'))
+        return self.TypeMap.get(typ, self.TypeMap.get('Default'))
 
     def default(self):
         """

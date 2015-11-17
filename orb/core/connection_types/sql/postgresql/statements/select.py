@@ -9,7 +9,7 @@ class SELECT(PSQLStatement):
     def cmpcol(self, col_a, col_b):
         return cmp(col_a.field(), col_b.field())
 
-    def __call__(self, model, context):
+    def __call__(self, model, context, fields=None):
         EXPAND = self.byName('EXPAND')
         WHERE = self.byName('WHERE')
 
@@ -27,7 +27,7 @@ class SELECT(PSQLStatement):
         columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
 
         data = {'locale': context.locale}
-        fields = {}
+        fields = fields or {}
         sql_group_by = set()
         sql_columns = defaultdict(list)
         sql_joins = []
@@ -36,13 +36,13 @@ class SELECT(PSQLStatement):
         for column in sorted(columns, self.cmpcol):
             if column.testFlag('Translatable'):
                 if context.inflated or context.locale == 'all':
-                    sql = 'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{0}"'
+                    sql = u'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{0}"'
                 else:
-                    sql = '(array_agg("i18n"."{0}"))[1] AS "{0}"'
+                    sql = u'(array_agg("i18n"."{0}"))[1] AS "{0}"'
 
                 sql_columns['i18n'].append(sql.format(column.field()))
-                sql_group_by.append('"{0}"."id"'.format(schema.dbname()))
-                fields[column] = '"i18n"."{0}"'.format(column.field())
+                sql_group_by.append(u'"{0}"."id"'.format(schema.dbname()))
+                fields[column] = u'"i18n"."{0}"'.format(column.field())
             else:
                 # expand a reference
                 if isinstance(column, orb.ReferenceColumn) and column.name() in expand:
@@ -53,7 +53,7 @@ class SELECT(PSQLStatement):
                         data.update(sub_data)
 
                 # select the base record
-                sql_columns['standard'].append('"{0}"."{1}" AS "{1}"'.format(schema.dbname(),
+                sql_columns['standard'].append(u'"{0}"."{1}" AS "{1}"'.format(schema.dbname(),
                                                                              column.field(),
                                                                              column.field()))
 
@@ -83,14 +83,6 @@ class SELECT(PSQLStatement):
                 if not expand:
                     break
 
-        # generate sql statements
-        try:
-            sql_where, sql_where_data = WHERE(model, where)
-        except orb.errors.QueryIsNull:
-            sql_where, sql_where_data = '', {}
-        else:
-            data.update(sql_where_data)
-
         # generate sql ordering
         sql_order_by = []
         if context.order:
@@ -99,9 +91,9 @@ class SELECT(PSQLStatement):
                 if not column:
                     raise orb.errors.ColumnNotFound(col)
 
-                field = fields.get(column) or '"{0}"."{1}"'.format(schema.dbname(), column.field())
+                field = fields.get(column) or u'"{0}"."{1}"'.format(schema.dbname(), column.field())
                 sql_group_by.add(field)
-                sql_order_by.append('{0} {1}'.format(field, dir.upper()))
+                sql_order_by.append(u'{0} {1}'.format(field, dir.upper()))
 
         if context.distinct is True:
             cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(', '.join(sql_columns['standard']), schema.dbname())]
@@ -112,13 +104,13 @@ class SELECT(PSQLStatement):
                 if not column:
                     raise orb.errors.ColumnNotFound(col)
                 else:
-                    on_.append(fields.get(col) or '"{0}"."{1}"'.format(schema.dbname(), col.field()))
+                    on_.append(fields.get(col) or u'"{0}"."{1}"'.format(schema.dbname(), col.field()))
 
-            cmd = ['SELECT DISTINCT ON ({0}) {1} FROM "{2}"'.format(', '.join(on_),
+            cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM "{2}"'.format(', '.join(on_),
                                                                     ', '.join(sql_columns['standard']),
                                                                     schema.dbname())]
         else:
-            cmd = ['SELECT {0} FROM "{1}"'.format(', '.join(sql_columns['standard']), schema.dbname())]
+            cmd = [u'SELECT {0} FROM "{1}"'.format(', '.join(sql_columns['standard']), schema.dbname())]
 
         # add sql joins to the statement
         if sql_joins:
@@ -127,59 +119,67 @@ class SELECT(PSQLStatement):
         # join in the i18n table
         if sql_columns['i18n']:
             if context.infalted or context.locale == 'all':
-                cmd.append('LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
+                cmd.append(u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
             else:
-                sql = 'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'
+                sql = u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'
                 cmd.append(sql.format(schema.dbname()))
+
+        # generate sql statements
+        try:
+            sql_where, sql_where_data = WHERE(model, where, fields=fields)
+        except orb.errors.QueryIsNull:
+            sql_where, sql_where_data = '', {}
+        else:
+            data.update(sql_where_data)
 
         if expanded:
             if sql_order_by:
-                distinct = 'ON ({0})'.format(', '.join(order.split(' ')[0] for order in sql_order_by))
+                distinct = u'ON ({0})'.format(', '.join(order.split(' ')[0] for order in sql_order_by))
 
-            cmd.append('WHERE "{0}"."id" IN (')
-            cmd.append('    SELECT DISTINCT {0} "{1}"."id"'.format(distinct, schema.dbname()))
+            cmd.append(u'WHERE "{0}"."id" IN (')
+            cmd.append(u'    SELECT DISTINCT {0} "{1}"."id"'.format(distinct, schema.dbname()))
 
             if sql_columns['i18n']:
                 if context.inflated or context.locale == 'all':
-                    cmd.append('    LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
+                    cmd.append(u'    LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
                 else:
-                    sql = 'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'
+                    sql = u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'
                     cmd.append('    ' + sql.format(schema.dbname()))
 
             if sql_where:
-                cmd.append('    WHERE {0}'.format(sql_where))
+                cmd.append(u'    WHERE {0}'.format(sql_where))
             if sql_group_by:
-                cmd.append('    GROUP BY {0}'.format(', '.join(sql_group_by + [order.split(' ')[0] for order in sql_order_by])))
+                cmd.append(u'    GROUP BY {0}'.format(', '.join(sql_group_by + [order.split(' ')[0] for order in sql_order_by])))
             if sql_order_by:
-                cmd.append('    ORDER BY {0}'.format(', '.join(sql_order_by)))
+                cmd.append(u'    ORDER BY {0}'.format(', '.join(sql_order_by)))
             if context.start:
                 if not isinstance(context.limit, (int, long)):
                     raise orb.errors.DatabaseError('Invalid value provided for start')
-                cmd.append('    OFFSET {0}'.format(context.start))
+                cmd.append(u'    OFFSET {0}'.format(context.start))
             if context.limit > 0:
                 if not isinstance(context.limit, (int, long)):
                     raise orb.errors.DatabaseError('Invalid value provided for limit')
-                cmd.append('    LIMIT {0}'.format(context.limit))
+                cmd.append(u'    LIMIT {0}'.format(context.limit))
 
-            cmd.append(')')
+            cmd.append(u')')
             if sql_group_by:
-                cmd.append('GROUP BY {0}'.format(', '.join(sql_group_by)))
+                cmd.append(u'GROUP BY {0}'.format(', '.join(sql_group_by)))
         else:
             if sql_where:
-                cmd.append('WHERE {0}'.format(sql_where))
+                cmd.append(u'WHERE {0}'.format(sql_where))
             if sql_group_by:
-                cmd.append('GROUP BY {0}'.format(sql_group_by))
+                cmd.append(u'GROUP BY {0}'.format(sql_group_by))
             if sql_order_by:
-                cmd.append('ORDER BY {0}'.format(sql_order_by))
+                cmd.append(u'ORDER BY {0}'.format(sql_order_by))
             if context.start:
                 if not isinstance(context.start, (int, long)):
                     raise orb.errors.DatabaseError('Invalid value provided for start')
-                cmd.append('OFFSET {0}'.format(context.start))
+                cmd.append(u'OFFSET {0}'.format(context.start))
             if context.limit > 0:
                 if not isinstance(context.limit, (int, long)):
                     raise orb.errors.DatabaseError('Invalid value provided for limit')
-                cmd.append('LIMIT {0}'.format(context.limit))
+                cmd.append(u'LIMIT {0}'.format(context.limit))
 
-        return '\n'.join(cmd), data
+        return u'\n'.join(cmd), data
 
 PSQLStatement.registerAddon('SELECT', SELECT())

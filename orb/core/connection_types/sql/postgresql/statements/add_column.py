@@ -15,7 +15,7 @@ class ADD_COLUMN(PSQLStatement):
                 if flag_sql:
                     flags.append(flag_sql)
 
-        return 'ADD COLUMN "{0}" {1} {2}'.format(column.field(), column.dbType('Postgres'), ' '.join(flags)).strip()
+        return u'ADD COLUMN "{0}" {1} {2}'.format(column.field(), column.dbType('Postgres'), ' '.join(flags)).strip()
 
 
 PSQLStatement.registerAddon('ADD COLUMN', ADD_COLUMN())

@@ -127,6 +127,7 @@ class Query(object):
         if len(column) == 2:
             self.__model, self.__column = column
         elif len(column) == 1:
+            column = column[0]
             if isinstance(column, orb.Model):
                 self.__model = column
                 self.__column = 'id'
@@ -538,7 +539,7 @@ class Query(object):
         """
         return self.__caseSensitive
 
-    def column(self, schema=None):
+    def column(self, model=None):
         """
         Returns the column instance for this query.
         
@@ -546,18 +547,18 @@ class Query(object):
         """
         if self.__model is not None:
             return self.__model.schema().column(self.__column)
-        elif schema is not None:
-            return schema.column(self.__column)
+        elif model is not None:
+            return model.schema().column(self.__column)
         else:
             return None
 
-    def columns(self, schema=None):
+    def columns(self, model=None):
         """
         Returns a generator that loops through the columns that are associated with this query.
         
         :return     <generator>(orb.Column)
         """
-        column = self.column(schema=schema)
+        column = self.column(model=model)
         if column:
             yield column
 
@@ -567,7 +568,7 @@ class Query(object):
 
         for val in check:
             if isinstance(val, (Query, QueryCompound)):
-                for col in val.columns(schema):
+                for col in val.columns(model):
                     yield col
 
     def columnName(self):
@@ -688,9 +689,9 @@ class Query(object):
 
         schema = model.schema()
         column = self.column(model)
-        try:
+        if isinstance(column, orb.ShortcutColumn):
             parts = column.shortcut().split('.')
-        except KeyError:
+        else:
             parts = self.__column.split('.')
 
         if len(parts) == 1:
@@ -1189,6 +1190,10 @@ class QueryCompound(object):
         self.__queries = queries
         self.__op = options.get('op', QueryCompound.Op.And)
 
+    def __iter__(self):
+        for query in self.__queries:
+            yield query
+
     def __and__(self, other):
         """
         Creates a new compound query using the
@@ -1274,16 +1279,16 @@ class QueryCompound(object):
 
         :return     <QueryCompound>
         """
-        return copy.deepcopy(self)
+        return type(self)(*self.__queries, op=self.__op)
 
-    def columns(self, schema=None):
+    def columns(self, model=None):
         """
         Returns any columns used within this query.
 
         :return     [<orb.Column>, ..]
         """
         for query in self.__queries:
-            for column in query.columns(schema=schema):
+            for column in query.columns(model=model):
                 yield column
 
     def expand(self, model=None):
@@ -1330,7 +1335,7 @@ class QueryCompound(object):
 
             else:
                 current_records = None
-                queries.append(queries)
+                queries.append(query)
 
         return QueryCompound(*queries, op=self.op())
 

@@ -16,7 +16,7 @@ class BinaryColumn(Column):
         'Default': 'BLOB'
     }
 
-    def dbRestore(self, db_value, context=None):
+    def dbRestore(self, typ, db_value):
         """
         Converts a stored database value to Python.
 
@@ -31,7 +31,7 @@ class BinaryColumn(Column):
             log.exception('Failed to restore pickle')
             raise orb.errors.DataStoreError('Failed to restore pickle.')
 
-    def dbStore(self, py_value, context=None):
+    def dbStore(self, typ, py_value):
         try:
             return pickle.dumps(py_value)
         except StandardError:
@@ -44,7 +44,7 @@ class JSONColumn(Column):
         'Default': 'TEXT'
     }
 
-    def dbRestore(self, db_value, context=None):
+    def dbRestore(self, typ, db_value):
         """
         Converts a stored database value to Python.
 
@@ -59,7 +59,7 @@ class JSONColumn(Column):
             log.exception('Failed to restore json')
             raise orb.errors.DataStoreError('Failed to restore json.')
 
-    def dbStore(self, py_value, context=None):
+    def dbStore(self, typ, py_value):
         try:
             return rest.jsonify(py_value)
         except StandardError:
@@ -68,7 +68,7 @@ class JSONColumn(Column):
 
 
 class QueryColumn(JSONColumn):
-    def dbRestore(self, db_value, context=None):
+    def dbRestore(self, typ, db_value):
         """
         Converts a stored database value to Python.
 
@@ -77,7 +77,7 @@ class QueryColumn(JSONColumn):
 
         :return: <variant>
         """
-        jdata = super(QueryColumn, self).dbRestore(db_value, context=context)
+        jdata = super(QueryColumn, self).dbRestore(typ, db_value)
         return orb.Query.fromJSON(jdata)
 
 
@@ -86,7 +86,7 @@ class YAMLColumn(Column):
         'Default': 'TEXT'
     }
 
-    def dbRestore(self, db_value, context=None):
+    def dbRestore(self, typ, db_value):
         """
         Converts a stored database value to Python.
 
@@ -101,7 +101,7 @@ class YAMLColumn(Column):
             log.exception('Failed to restore yaml')
             raise orb.errors.DataStoreError('Failed to restore yaml.')
 
-    def dbStore(self, py_value, context=None):
+    def dbStore(self, typ, py_value):
         try:
             return yaml.dumps(py_value)
         except ImportError:

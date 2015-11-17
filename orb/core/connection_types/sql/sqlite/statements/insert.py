@@ -32,7 +32,7 @@ class INSERT(SQLiteStatement):
                 schema_meta[schema] = {'i18n': [], 'standard': []}
 
             for key, columns in schema_meta[schema].items():
-                data.update({'{0}_{1}'.format(col.field(), i): col.dbStore(record.get(col)) for col in columns})
+                data.update({'{0}_{1}'.format(col.field(), i): col.dbStore('SQLite', record.get(col)) for col in columns})
                 values = ','.join(['%({0}_{1})s'.format(col.field(), i) for col in columns])
                 schema_records[schema][key].append(values)
 

@@ -107,3 +107,25 @@ def test_pg_select_count(orb, user_table, pg_sql, pg_db):
     results, _ = conn.execute(select_count_sql, data)
 
     assert results[0]['count'] == count
+
+@requires_pg
+def test_pg_select_bob_or_sally(orb, user_table, pg_sql, pg_db):
+    st = pg_sql.statement('SELECT')
+    q = orb.Query('username') == 'bob'
+    q |= orb.Query('username') == 'sally'
+
+    sql, data = st(user_table, orb.Context(where=q))
+    conn = pg_db.connection()
+    records, count = conn.execute(sql, data)
+    assert count == 2 and records[0]['username'] in ('bob', 'sally') and records[1]['username'] in ('bob', 'sally')
+
+@requires_pg
+def test_pg_select_bob_and_sally(orb, user_table, pg_sql, pg_db):
+    st = pg_sql.statement('SELECT')
+    q = orb.Query('username') == 'bob'
+    q &= orb.Query('username') == 'sally'
+
+    sql, data = st(user_table, orb.Context(where=q))
+    conn = pg_db.connection()
+    _, count = conn.execute(sql, data)
+    assert count == 0

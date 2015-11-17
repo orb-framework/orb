@@ -35,13 +35,13 @@ class ALTER(PSQLStatement):
         # add standard columns
         command = []
         if add_standard:
-            command.append('ALTER {0} "{1}"'.format(typ, model.schema().dbname()))
-            command.append('\t' + ',\n\t'.join([ADD_COLUMN(col) for col in add_standard]))
-            command.append(';')
+            command.append(u'ALTER {0} "{1}"'.format(typ, model.schema().dbname()))
+            command.append(u'\t' + ',\n\t'.join([ADD_COLUMN(col) for col in add_standard]))
+            command.append(u';')
 
         # add i18n columns
         if add_i18n:
-            template = """\
+            template = u"""\
             CREATE TABLE IF NOT EXISTS "{table}_i18n" (
               "locale" CHARACTER VARYING(5)
               "{table}_id" BIGINT REFERENCES "{table}" ("id") ON DELETE CASCADE,
@@ -50,9 +50,9 @@ class ALTER(PSQLStatement):
             ALTER TABLE "{table}_i18n" OWNER TO "{owner}";
             """
             command.append(template.format(table=model.schema().dbname(), owner=owner))
-            command.append('ALTER TABLE "{0}_i18n"'.format(model.schema().dbname()))
-            command.append('\t' + ',\n\t'.join([ADD_COLUMN(col) for col in add_i18n]))
-            command.append(';')
+            command.append(u'ALTER TABLE "{0}_i18n"'.format(model.schema().dbname()))
+            command.append(u'\t' + u',\n\t'.join([ADD_COLUMN(col) for col in add_i18n]))
+            command.append(u';')
 
         return '\n'.join(command)
 

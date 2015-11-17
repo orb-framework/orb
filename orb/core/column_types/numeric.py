@@ -57,9 +57,12 @@ class IdColumn(LongColumn):
         self.setFlag(self.Flags.Primary)
         self.setFlag(self.Flags.AutoIncrement)
 
-    def dbStore(self, py_value, context=None):
+    def dbStore(self, typ, py_value, context=None):
         if py_value is None:
-            return 'DEFAULT'
+            if typ == 'Postgres':
+                return 'DEFAULT'
+            else:
+                return py_value
         else:
             return py_value
 

@@ -1,3 +1,4 @@
+import os
 import projex.text
 import re
 
@@ -7,12 +8,15 @@ from ..column import Column
 orb = lazy_import('orb')
 
 class AbstractStringColumn(Column):
+    MathMap = Column.MathMap.copy()
+    MathMap['Default']['Add'] = '||'
+
     def __init__(self, **kwds):
         kwds.setdefault('defaultOrder', 'desc')
 
         super(AbstractStringColumn, self).__init__(**kwds)
 
-    def dbRestore(self, db_value, context=None):
+    def dbRestore(self, db_value):
         """
         Converts a stored database value to Python.
 
@@ -26,13 +30,12 @@ class AbstractStringColumn(Column):
         else:
             return db_value
 
-    def dbStore(self, py_value, context=None):
+    def dbStore(self, typ, py_value):
         """
         Prepares to store this column for the a particular backend database.
 
         :param backend: <orb.Database>
         :param py_value: <variant>
-        :param context: <orb.Context>
 
         :return: <variant>
         """
@@ -125,12 +128,12 @@ class StringColumn(AbstractStringColumn):
     }
 
     def __init__(self,
-                 maxlength=256,
+                 maxLength=256,
                  **kwds):
         super(AbstractStringColumn, self).__init__(**kwds)
 
         # define custom properties
-        self.__maxlength = maxlength
+        self.__maxLength = maxLength
 
     def dbType(self, connectionType):
         typ = super(StringColumn, self).dbType(connectionType)
@@ -149,7 +152,7 @@ class StringColumn(AbstractStringColumn):
         super(StringColumn, self).loadJSON(jdata)
 
         # load additional info
-        self.__maxlength = jdata.get('maxlength') or self.__maxlength
+        self.__maxLength = jdata.get('maxLength') or self.__maxLength
 
     def maxLength(self):
         """
@@ -158,7 +161,7 @@ class StringColumn(AbstractStringColumn):
 
         :return     <int>
         """
-        return self.__maxlength
+        return self.__maxLength
 
     def setMaxLength(self, length):
         """
@@ -166,7 +169,7 @@ class StringColumn(AbstractStringColumn):
 
         :param length: <int>
         """
-        self.__maxlength = length
+        self.__maxLength = length
 
 class TextColumn(AbstractStringColumn):
     TypeMap = {
@@ -287,6 +290,53 @@ class PasswordColumn(StringColumn):
         else:
             return super(PasswordColumn, self).validate(value)
 
+class TokenColumn(StringColumn):
+    def __init__(self, bits=32, **kwds):
+        kwds['maxLength'] = bits * 2
+
+        super(StringColumn, self).__init__(**kwds)
+
+        # set standard properties
+        self.setFlag(self.Flags.Unique)
+        self.setFlag(self.Flags.Required)
+
+        # set custom properties
+        self.__bits = bits
+
+    def bits(self):
+        """
+        Returns the bit length for this column.
+
+        :return:    <int>
+        """
+        return self.__bits
+
+    def default(self):
+        """
+        Returns the default value for this token.  This will be a random
+        string value based on the generated value.
+
+        :return:    <str>
+        """
+        return self.generate()
+
+    def generate(self):
+        """
+        Generates a new token for this column based on its bit length.  This method
+        will not ensure uniqueness in the model itself, that should be checked against
+        the model records in the database first.
+
+        :return:    <str>
+        """
+        return os.urandom(self.__bits).encode('hex')
+
+    def setBits(self, bits):
+        """
+        Sets the length in bits that this column will create a token for.
+
+        :param bits: <int>
+        """
+        self.__bits = bits
 
 class UrlColumn(StringColumn):
     pass
