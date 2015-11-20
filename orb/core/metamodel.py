@@ -84,9 +84,7 @@ class orb_lookup_method(object):
         :param      record      <Table>
         """
         model = self.column.schema().model()
-        if not model:
-            raise orb.errors.ModelNotFound(self.column.reference)
-        elif not record.isRecord():
+        if not record.isRecord():
             return None if self.column.testFlag(self.column.Flags.Unique) else orb.Collection()
         else:
             q = orb.Query(self.column) == record
@@ -144,14 +142,22 @@ class MetaModel(type):
                     col = value
                     col.setName(key)
                     columns[key] = col
+
+                    # create a column index
+                    col_index = col.index()
+                    if col_index:
+                        indexes[col_index.name] = orb.Index([col.name()], name=col_index.name, unique=col.testFlag(col.Flags.Unique))
+
                 elif isinstance(value, orb.Index):
                     index = value
                     index.setName(key)
                     indexes[key] = index
+
                 elif isinstance(value, orb.Pipe):
                     pipe = value
                     pipe.setName(key)
                     pipes[key] = pipe
+
                 else:
                     try:
                         if issubclass(value, orb.View):
@@ -213,24 +219,16 @@ class MetaModel(type):
                     setter = instancemethod(smethod, None, new_model)
                     setattr(new_model, setter_name, setter)
 
-                # create a column index
-                col_index = column.index()
-                if col_index and not hasattr(new_model, col_index.name):
-                    index = orb.Index([column.name()], name=col_index.name,
-                                      unique=column.testFlag(column.Flags.Unique))
-                    schema.addIndex(index)
-                    setattr(new_model, col_index.name, classmethod(index))
-
                 # create reverse lookups
                 if isinstance(column, orb.ReferenceColumn):
                     rev = column.reverseInfo()
                     if rev:
-                        lookup = orb_lookup_method(column=column, reference=name)
+                        lookup = orb_lookup_method(column=column)
 
                         def get_ref(model):
                             if model is None:
                                 return None
-                            elif model.__module__ == 'orb.dynamic':
+                            elif getattr(model, '_{0}__schema'.format(model.schema().name()), None):
                                 return model
                             else:
                                 for base in model.__bases__:
@@ -253,6 +251,7 @@ class MetaModel(type):
                 setattr(new_model, rev_name, ilookup)
 
             # register the class to the system
+            setattr(new_model, '_{0}__schema'.format(schema.name()), schema)
             schema.setModel(new_model)
             orb.system.register(schema)
 

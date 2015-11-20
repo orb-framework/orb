@@ -53,6 +53,10 @@ class Pipe(object):
         else:
             return schema.column(self.__source)
 
+    def sourceModel(self):
+        col = self.sourceColumn()
+        return col.referenceModel()
+
     def target(self):
         return self.__target
 
@@ -66,7 +70,7 @@ class Pipe(object):
     def targetModel(self):
         col = self.targetColumn()
         if col:
-            return col.throughModel()
+            return col.referenceModel()
         else:
             return None
 

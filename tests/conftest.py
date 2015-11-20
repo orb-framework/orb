@@ -25,20 +25,49 @@ def orb():
     return orb
 
 @pytest.fixture(scope='session')
-def empty_user_table(orb):
+def EmptyUser(orb):
     import orb
 
-    class User(orb.Table):
+    class EmptyUser(orb.Table):
         pass
 
-    return User
+    return EmptyUser
 
 @pytest.fixture(scope='session')
-def user_table(orb):
+def testing_schema(orb):
+
+    class Group(orb.Table):
+        id = orb.IdColumn()
+        name = orb.StringColumn(flags={'Unique'}, index=orb.Column.Index(name='byName'))
+        owner = orb.ReferenceColumn(reference='User')
+
+        users = orb.Pipe('users', through='GroupUser', source='group', target='user')
 
     class User(orb.Table):
         id = orb.IdColumn()
-        username = orb.StringColumn(flags=orb.Column.Flags.Unique, index=orb.Column.Index(name='byUsername'))
+        username = orb.StringColumn(flags={'Unique'}, index=orb.Column.Index(name='byUsername'))
         password = orb.PasswordColumn()
 
-    return User
+        groups = orb.Pipe('groups', through='GroupUser', source='user', target='group')
+
+    class GroupUser(orb.Table):
+        id = orb.IdColumn()
+        user = orb.ReferenceColumn(reference='User', reverse=orb.ReferenceColumn.Reversed(name='userGroups'))
+        group = orb.ReferenceColumn(reference='Group', reverse=orb.ReferenceColumn.Reversed(name='groupUsers'))
+
+        byUserAndGroup = orb.Index(('user', 'group'), unique=True)
+        byUser = orb.Index(('user',))
+
+    return {'User': User, 'Group': Group, 'GroupUser': GroupUser}
+
+@pytest.fixture(scope='session')
+def User(testing_schema):
+    return testing_schema['User']
+
+@pytest.fixture(scope='session')
+def GroupUser(testing_schema):
+    return testing_schema['GroupUser']
+
+@pytest.fixture(scope='session')
+def Group(testing_schema):
+    return testing_schema['Group']

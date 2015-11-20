@@ -4,6 +4,7 @@
 
 import logging
 
+from collections import defaultdict
 from multiprocessing.util import register_after_fork
 from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
@@ -182,18 +183,6 @@ class Database(object):
         """
         return self.__name
 
-    def namespace(self):
-        """
-        Returns the default namespace for this database.  If no namespace
-        is defined, then the global default namespace is returned.
-        
-        :return     <str>
-        """
-        if self.__namespace is not None:
-            return self.__namespace
-
-        return orb.system.namespace()
-
     def password(self):
         """
         Returns the password used for this database instance.
@@ -209,24 +198,6 @@ class Database(object):
         :return     <int>
         """
         return self.__port
-
-    def schemas(self, base=None):
-        """
-        Looks up all the table schemas in the manager that are mapped to \
-        this database.
-        
-        :return     [<TableSchema>, ..]
-        """
-        return orb.system.databaseSchemas(self, base)
-
-    def setCurrent(self):
-        """
-        Makes this database the current default database
-        connection for working with models.
-        
-        :param      database        <Database>
-        """
-        orb.system.setDatabase(self)
 
     def setName(self, name):
         """
@@ -271,14 +242,6 @@ class Database(object):
         """
         self.__name = nstr(name)
 
-    def setNamespace(self, namespace):
-        """
-        Sets the default namespace for this database to the inputted name.
-        
-        :param      namespace | <str> || None
-        """
-        self.__namespace = namespace
-
     def setHost(self, host):
         """
         Sets the host path location assigned to this
@@ -313,23 +276,7 @@ class Database(object):
         """
         self.__username = nstr(username)
 
-    def timezone(self, options=None):
-        """
-        Returns the timezone associated specifically with this database.  If
-        no timezone is directly associated, then it will return the timezone
-        that is associated with the system in general.
-        
-        :sa     <orb.Manager>
-
-        :param      options | <orb.Context>
-
-        :return     <pytz.tzfile> || None
-        """
-        if self.__timezone is None:
-            return orb.system.timezone(options)
-        return self.__timezone
-
-    def sync(self, **kwds):
+    def sync(self, **context):
         """
         Syncs the database by calling its schema sync method.  If
         no specific schema has been set for this database, then
@@ -346,42 +293,50 @@ class Database(object):
         
         :return     <bool> success
         """
-        # collect the information for this database
-        con = self.__connection
-        schemas = self.schemas(orb.TableSchema)
-        schemas.sort()
+        context = orb.Context(**context)
 
-        options = kwds.get('options', orb.Context(**kwds))
+        # collect the information for this database
+        conn = self.__connection
+        models = orb.system.models(orb.Model, database=self.code()).values()
+        models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
 
         # initialize the database
-        con.setupDatabase(options)
-        info = con.schemaInfo(options)
+        conn.setup(context)
+        info = conn.schemaInfo(context)
 
-        # first pass will add columns and default columns, but may miss
-        # certain foreign key references since one table may not exist before
-        # another yet
-        with orb.Transaction():
-            for schema in schemas:
-                if not schema.dbname() in info:
-                    con.createTable(schema, options)
+        # create new models
+        for model in models:
+            if not model.schema().dbname() in info:
+                conn.createModel(model, context, includeReferences=False, owner=self.username())
 
-            # update after any newly created tables get generated
-            info = con.schemaInfo(options)
+        # update after any newly created tables get generated
+        info = conn.schemaInfo(context)
 
-            # second pass will ensure that all columns, including foreign keys
-            # will be generated
-            for schema in schemas:
-                if schema.dbname() in info:
-                    con.updateTable(schema, info[schema.dbname()], options)
+        # second pass will ensure that ll columns, including references
+        # will be generated
+        for model in models:
+            try:
+                model_info = info[model.schema().dbname()]
+            except KeyError:
+                continue
+            else:
+                # collect the missing columns and indexes
+                add = defaultdict(list)
+                for col in model.schema().columns().values():
+                    if col.field() not in model_info['fields']:
+                        add['fields'].append(col)
 
-            # third pass will generate all the proper value information
-            for schema in schemas:
-                model = schema.model()
-                model.__syncdatabase__()
+                for index in model.schema().indexes().values():
+                    if index.dbname() not in model_info['indexes']:
+                        add['indexes'].append(index)
 
-            # create the views
-            for schema in self.schemas(orb.ViewSchema):
-                con.createView(schema, options)
+                # alter the model with the new indexes
+                if add['fields'] or add['indexes']:
+                    conn.alterModel(model, context, add=add, owner=self.username())
+
+            # call the sync event
+            event = orb.events.SyncEvent()
+            model.onSync(event)
 
     def username(self):
         """

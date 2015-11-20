@@ -15,6 +15,7 @@ from .security import Security
 
 class System(object):
     def __init__(self):
+        self.__current_db = None
         self.__databases = {}
         self.__schemas = {}
         self.__settings = Settings()
@@ -23,7 +24,12 @@ class System(object):
         self.__security = Security(self.__settings.security_key)
 
     def activate(self, db):
-        self.__currentDatabase = db.code()
+        """
+        Sets the currently active database instance.
+
+        :param db:  <orb.Database> || None
+        """
+        self.__current_db = db
 
     def database(self, code=''):
         """
@@ -40,7 +46,7 @@ class System(object):
 
         :return     <orb.database.Database> || None
         """
-        return self.__databases.get(code or self.__currentDatabase)
+        return self.__databases.get(code) or self.__current_db
 
     def databases(self):
         """
@@ -198,15 +204,17 @@ class System(object):
             self.__schemas[obj.name()] = obj
 
     def model(self, code, autoGenerate=True):
-        schema = self.schema(code)
-        if not schema:
-            return None
+        return self.models(autoGenerate=autoGenerate).get(code)
 
-        model = schema.model()
-        if not model and autoGenerate:
-            model = self.generateModel(schema)
-            schema.setModel(model)
-        return model
+    def models(self, base=None, database='', autoGenerate=True):
+        output = {}
+        for schema in self.__schemas.values():
+            model = schema.model(autoGenerate=autoGenerate)
+            if (model and
+                (base is None or issubclass(model, base)) and
+                (not database or not model.schema().database() or database == model.schema().database())):
+                output[schema.name()] = model
+        return output
 
     def schema(self, code):
         """

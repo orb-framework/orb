@@ -76,9 +76,9 @@ class ReferenceColumn(Column):
             if not cls:
                 raise orb.errors.ModelNotFound(self.reference())
             else:
-                load_event = orb.events.DatabaseLoadedEvent(data=value)
+                load_event = orb.events.LoadEvent(data=value)
                 value = cls(context=context)
-                value.onDatabaseLoad(load_event)
+                value.onLoad(load_event)
             return value
         else:
             return super(ReferenceColumn, self).extract(value, context=context)
@@ -98,6 +98,9 @@ class ReferenceColumn(Column):
         reverse = jdata.get('reverse')
         if reverse:
             self.__reverse = ReferenceColumn.Reversed(**reverse)
+
+    def reference(self):
+        return self.__reference
 
     def referenceModel(self):
         """
@@ -120,7 +123,7 @@ class ReferenceColumn(Column):
         :return: <variant>
         """
         if inflated and not isinstance(value, orb.Model):
-            return self.referenceModel().inflatedRecord(value)
+            return self.referenceModel().fetch(value)
         elif isinstance(value, orb.Model):
             return value.id()
 

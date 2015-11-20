@@ -10,7 +10,9 @@ class SELECT(PSQLStatement):
         return cmp(col_a.field(), col_b.field())
 
     def __call__(self, model, context, fields=None):
-        EXPAND = self.byName('EXPAND')
+        EXPAND_COL = self.byName('SELECT EXPAND COLUMN')
+        EXPAND_PIPE = self.byName('SELECT EXPAND PIPE')
+        EXPAND_REV = self.byName('SELECT EXPAND REVERSE')
         WHERE = self.byName('WHERE')
 
         # generate the where query
@@ -47,7 +49,7 @@ class SELECT(PSQLStatement):
                 # expand a reference
                 if isinstance(column, orb.ReferenceColumn) and column.name() in expand:
                     sub_tree = expand.pop(column.name())
-                    sql, sub_data = EXPAND(column, sub_tree, context)
+                    sql, sub_data = EXPAND_COL(column, sub_tree)
                     if sql:
                         sql_columns['standard'].append(sql)
                         data.update(sub_data)
@@ -59,10 +61,10 @@ class SELECT(PSQLStatement):
 
         # expand any pipes
         if expand:
-            for pipe in schema.pipes().valuess():
+            for pipe in schema.pipes().values():
                 sub_tree = expand.pop(schema.name(), None)
                 if sub_tree:
-                    sql, sub_data = EXPAND(pipe, sub_tree, context)
+                    sql, sub_data = EXPAND_PIPE(pipe, sub_tree)
                     if sql:
                         sql_columns['standard'].append(sql)
                         data.update(sub_data)
@@ -72,10 +74,10 @@ class SELECT(PSQLStatement):
 
         # expand any reverse lookups
         if expand:
-            for reverse in schema.reverseLookups():
+            for reverse in schema.reverseLookups().values():
                 sub_tree = expand.pop(reverse.reverseInfo().name, None)
                 if sub_tree:
-                    sql, sub_data = EXPAND(reverse, sub_tree, context, reverse=True)
+                    sql, sub_data = EXPAND_REV(reverse, sub_tree)
                     if sql:
                         sql_columns['standard'].append(sql)
                         data.update(sub_data)
@@ -134,9 +136,9 @@ class SELECT(PSQLStatement):
 
         if expanded:
             if sql_order_by:
-                distinct = u'ON ({0})'.format(', '.join(order.split(' ')[0] for order in sql_order_by))
+                distinct = u'ON ({0})'.format(', '.join((order.split(' ')[0] for order in sql_order_by)))
 
-            cmd.append(u'WHERE "{0}"."id" IN (')
+            cmd.append(u'WHERE "{0}"."id" IN ('.format(schema.dbname()))
             cmd.append(u'    SELECT DISTINCT {0} "{1}"."id"'.format(distinct, schema.dbname()))
 
             if sql_columns['i18n']:
@@ -149,7 +151,7 @@ class SELECT(PSQLStatement):
             if sql_where:
                 cmd.append(u'    WHERE {0}'.format(sql_where))
             if sql_group_by:
-                cmd.append(u'    GROUP BY {0}'.format(', '.join(sql_group_by + [order.split(' ')[0] for order in sql_order_by])))
+                cmd.append(u'    GROUP BY {0}'.format(', '.join(list(sql_group_by) + [order.split(' ')[0] for order in sql_order_by])))
             if sql_order_by:
                 cmd.append(u'    ORDER BY {0}'.format(', '.join(sql_order_by)))
             if context.start:
@@ -168,9 +170,9 @@ class SELECT(PSQLStatement):
             if sql_where:
                 cmd.append(u'WHERE {0}'.format(sql_where))
             if sql_group_by:
-                cmd.append(u'GROUP BY {0}'.format(sql_group_by))
+                cmd.append(u'GROUP BY {0}'.format(', '.join(sql_group_by)))
             if sql_order_by:
-                cmd.append(u'ORDER BY {0}'.format(sql_order_by))
+                cmd.append(u'ORDER BY {0}'.format(', '.join(sql_order_by)))
             if context.start:
                 if not isinstance(context.start, (int, long)):
                     raise orb.errors.DatabaseError('Invalid value provided for start')

@@ -128,15 +128,18 @@ class Query(object):
             self.__model, self.__column = column
         elif len(column) == 1:
             column = column[0]
-            if isinstance(column, orb.Model):
-                self.__model = column
-                self.__column = 'id'
-            elif isinstance(column, orb.Column):
-                self.__model = column.schema().model()
-                self.__column = column.name()
-            else:
-                self.__model = None
-                self.__column = column
+
+            try:
+                if issubclass(column, orb.Model):
+                    self.__model = column
+                    self.__column = column.schema().idColumn()
+            except StandardError:
+                if isinstance(column, orb.Column):
+                    self.__model = column.schema().model()
+                    self.__column = column.name()
+                else:
+                    self.__model = None
+                    self.__column = column
         else:
             self.__model = None
             self.__column = None
@@ -605,10 +608,18 @@ class Query(object):
     def copy(self):
         """
         Returns a duplicate of this instance.
-        
+
         :return     <Query>
         """
-        return copy.deepcopy(self)
+        options = {
+            'op': self.__op,
+            'caseSensitive': self.__caseSensitive,
+            'value': copy.copy(self.__value),
+            'inverted': self.__inverted,
+            'functions': copy.copy(self.__functions),
+            'math': copy.copy(self.__math)
+        }
+        return orb.Query(self.__model, self.__column, **options)
 
     def doesNotContain(self, value):
         """
@@ -700,6 +711,7 @@ class Query(object):
             lookup = schema.column(parts[0]) or schema.reverseLookup(parts[0]) or schema.pipe(parts[0])
             if not lookup:
                 raise orb.errors.QueryInvalid('Could not traverse: {0}'.format(self.__column))
+
             elif isinstance(lookup, orb.ReferenceColumn):
                 # non-reverse lookup
                 if lookup.schema() == schema:
@@ -707,7 +719,7 @@ class Query(object):
                     sub_q = self.copy()
                     sub_q._Query__column = '.'.join(parts[1:])
                     sub_q._Query__model = rmodel
-                    records = rmodel.select(where=sub_q)
+                    records = rmodel.select(columns=[rmodel.schema().idColumn()], where=sub_q)
                     return orb.Query(model, parts[0]).in_(records)
 
                 # reverse lookup
@@ -727,7 +739,7 @@ class Query(object):
                 sub_q = self.copy()
                 sub_q._Query__column = '.'.join(parts[1:])
                 sub_q._Query__model = targetModel
-                target_records = targetModel.select(where=sub_q)
+                target_records = targetModel.select(columns=['id'], where=sub_q)
                 pipe_q = orb.Query(through, lookup.target()).in_(target_records)
                 records = through.select(columns=[lookup.source()], where=pipe_q)
 
@@ -994,6 +1006,9 @@ class Query(object):
         newq.setValue(value)
         newq.setCaseSensitive(caseSensitive)
         return newq
+
+    def model(self, model=None):
+        return self.__model or model
 
     def negated(self):
         """
@@ -1331,7 +1346,7 @@ class QueryCompound(object):
             elif current_records is not None and (
                     (isinstance(query, orb.Query) and current_records.model() == query.model(model)) or
                     (isinstance(query, orb.QueryCompound) and current_records.model() in query.models(model))):
-                current_records.refine(query)
+                current_records.refine(where=query)
 
             else:
                 current_records = None

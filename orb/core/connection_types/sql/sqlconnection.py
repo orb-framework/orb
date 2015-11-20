@@ -100,6 +100,33 @@ class SQLConnection(orb.Connection):
     #                       PUBLIC METHODS
     #----------------------------------------------------------------------
 
+    def alterModel(self, model, context, add=None, remove=None, owner='postgres'):
+        add = add or {'fields': [], 'indexes': []}
+        remove = remove or {'fields': [], 'indexes': []}
+
+        # modify the table with the new fields and indexes
+        ALTER = self.statement('ALTER')
+        data = {}
+        sql = []
+
+        alter_sql, alter_data = ALTER(model, add=add['fields'], remove=remove['fields'], owner=owner)
+        if alter_sql:
+            sql.append(alter_sql)
+            data.update(alter_data)
+
+        # create new indexes
+        CREATE_INDEX = self.statement('CREATE INDEX')
+        for idx in add['indexes']:
+            idx_sql, idx_data = CREATE_INDEX(idx)
+            if idx_sql:
+                sql.append(idx_sql)
+                data.update(idx_data)
+
+        if context.dryRun:
+            print sql, data
+        else:
+            self.execute(u'\n'.join(sql), data, writeAccess=True)
+
     def close(self):
         """
         Closes the connection to the database for this connection.
@@ -129,19 +156,19 @@ class SQLConnection(orb.Connection):
 
         :return     <int>
         """
-        SQL = self.statement('SELECT COUNT')
+        SELECT_COUNT = self.statement('SELECT COUNT')
 
-        data = {}
         try:
-            cmd = SQL(model, context, data)
+            sql, data = SELECT_COUNT(model, context)
         except orb.errors.QueryIsNull:
             return 0
         else:
-            try:
-                rows, _ = self.execute(cmd, data, dryRun=context.dryRun)
-                return sum([row['count'] for row in rows])
-            except orb.errors.DryRun:
+            if context.dryRun:
+                print sql % data
                 return 0
+            else:
+                rows, _ = self.execute(sql, data)
+                return sum([row['count'] for row in rows])
 
     def commit(self):
         """
@@ -155,7 +182,7 @@ class SQLConnection(orb.Connection):
             result = self._commit(conn)
         return result
 
-    def create(self, model, context):
+    def createModel(self, model, context, owner='postgres', includeReferences=True):
         """
         Creates a new table in the database based cff the inputted
         schema information.  If the dryRun flag is specified, then
@@ -167,26 +194,14 @@ class SQLConnection(orb.Connection):
 
         :return     <bool> success
         """
-        if model.schema().isAbstract():
-            raise orb.errors.CannotCreateModel(model)
-
-        if isinstance(model, orb.Table):
-            kind = 'TABLE'
-        elif isinstance(model, orb.View):
-            kind = 'VIEW'
+        CREATE = self.statement('CREATE')
+        sql, data = CREATE(model, includeReferences=includeReferences, owner=owner)
+        if context.dryRun:
+            print sql % data
         else:
-            raise orb.errors.CannotCreateModel(model)
+            self.execute(sql, data, writeAccess=True)
 
-        SQL = self.statement('CREATE {0}'.format(kind))
-        data = {}
-        cmd = SQL(model, context, data)
-
-        try:
-            self.execute(cmd, data, dryRun=context.dryRun)
-        except orb.errors.DryRun:
-            pass
-
-        log.info('Created {0} {1}.'.format(model.schema().dbname(), kind.lower()))
+        log.info('Created {0}'.format(model.schema().dbname()))
         return True
 
     def delete(self, records, context):
@@ -199,30 +214,14 @@ class SQLConnection(orb.Connection):
         :return     <int> number of rows removed
         """
         # include various schema records to remove
-        SQL = self.statement('DELETE')
-        data = {}
-        cmd = SQL(records, context, data)
+        DELETE = self.statement('DELETE')
+        sql, data = DELETE(records, context)
 
-        try:
-            return self.execute(cmd, data, writeAccess=True, dryRun=context.dryRun)
-        except orb.errors.DryRun:
+        if context.dryRun:
+            print sql % data
             return 0
-
-    def existingColumns(self, model, context):
-        """
-        Looks up the existing columns from the database based on the
-        inputted schema and namespace information.
-
-        :param      schema  | <orb.TableSchema>
-                    options | <orb.Context>
-
-        :return     [<str>, ..]
-        """
-        TABLE_COLUMNS = self.sql('TABLE_COLUMNS')
-        data = {}
-        sql = TABLE_COLUMNS(schema, options=options, IO=data)
-        result = self.execute(sql, data)[0]
-        return [x['column_name'] for x in result]
+        else:
+            return self.execute(sql, data, writeAccess=True)
 
     def execute(self, command, data=None, autoCommit=True, autoClose=True, returning=True,
                 mapper=dict, writeAccess=False, retries=0, dryRun=False):
@@ -329,97 +328,13 @@ class SQLConnection(orb.Connection):
 
         :return     <dict> changes
         """
-        if isinstance(records, orb.Collection):
-            records = list(records)
-        elif isinstance(records, orb.Model):
-            records = [records]
-
-        # determine the proper records for insertion
-        inserter = defaultdict(list)
-        changes = []
-        for record in records:
-            # make sure we have some data to insert
-            rchanges = record.changes(columns=context.columns)
-            changes.append(rchanges)
-
-            # do not insert records that already exist
-            if context.force:
-                pass
-            elif record.isRecord() or not rchanges:
-                continue
-
-            inserter[record.schema()].append(record)
-
-        cmds = []
-        data = {}
-
-        autoinc = options.autoIncrement
-        INSERT = self.sql('INSERT')
-        INSERTED_KEYS = self.sql('INSERTED_KEYS')
-
-        locks = []
-        for schema, schema_records in inserter.items():
-            if not schema_records:
-                continue
-
-            colcount = len(schema.columns())
-            batchsize = self.batchSize()
-            size = batchsize / max(int(round(colcount / 10.0)), 1)
-
-            for batch in projex.iters.batch(schema_records, size):
-                batch = list(batch)
-                icmd = INSERT(schema,
-                              batch,
-                              columns=lookup.columns,
-                              autoincrement=autoinc,
-                              options=options,
-                              IO=data)
-                if icmd:
-                    cmds.append(icmd)
-
-            if cmds:
-                locks.append(WriteLocker(self.__concurrencyLocks[schema.name()], delay=0.1))
-
-            # for inherited schemas in non-OO tables, we'll define the
-            # primary keys before insertion
-            if autoinc and INSERTED_KEYS:
-                cmd = INSERTED_KEYS(schema, count=len(schema_records), IO=data)
-                cmds.append(cmd)
-
-        if not cmds:
-            return {}
-
-        cmd = u'\n'.join(cmds)
-
-        if options.dryRun:
-            print cmd % data
-
-            if len(changes) == 1:
-                return {}
-            else:
-                return []
+        INSERT = self.statement('INSERT')
+        sql, data = INSERT(records)
+        if context.dryRun:
+            print sql, data
+            return [], 0
         else:
-            with MultiContext(*locks):
-                results, _ = self.execute(cmd, data, autoCommit=False)
-
-        if not self.commit():
-            if len(changes) == 1:
-                return {}
-            return []
-
-        # update the values for the database
-        for i, record in enumerate(records):
-            try:
-                record.updateOptions(**options.assigned())
-                record._updateFromDatabase(results[i])
-            except IndexError:
-                pass
-
-            record._markAsLoaded(self.database(), columns=lookup.columns)
-
-        if len(changes) == 1:
-            return changes[0]
-        return changes
+            return self.execute(sql, data, writeAccess=True)
 
     def batchSize(self):
         """
@@ -542,57 +457,34 @@ class SQLConnection(orb.Connection):
         else:
             return False
 
-    def schemaInfo(self, options):
-        SCHEMA_INFO = self.sql('SCHEMA_INFO')
-        data = {}
-        sql = SCHEMA_INFO(options=options, IO=data)
-        info = self.execute(sql, data)[0]
+    def schemaInfo(self, context):
+        INFO = self.statement('SCHEMA INFO')
+        sql, data = INFO(context.namespace or 'public')
+        info, _ = self.execute(sql, data)
         return {table['name']: table for table in info}
 
     def select(self, model, context):
-        if orb.Table.typecheck(table_or_join) or orb.View.typecheck(table_or_join):
-            # ensure the primary record information is provided for orb.logger.setLevel(orb.logging.DEBUG)ions
-            if lookup.columns and options.inflated:
-                lookup.columns += [col.name() for col in
-                                   table_or_join.schema().primaryColumns()]
-
-            SELECT = self.sql().byName('SELECT')
-
-            schema = table_or_join.schema()
-            data = {}
-            sql = SELECT(table_or_join,
-                         lookup=lookup,
-                         options=options,
-                         IO=data)
-
-            # if we don't have any command to run, just return a blank list
-            if not sql:
-                return []
-            elif options.dryRun:
-                print sql % data
-                return []
-            else:
-                with ReadLocker(self.__concurrencyLocks[schema.name()]):
-                    records = self.execute(sql, data)[0]
-                return records
+        SELECT = self.statement('SELECT')
+        sql, data = SELECT(model, context)
+        if not sql:
+            return []
+        elif context.dryRun:
+            print sql % data
+            return []
         else:
-            raise orb.errors.DatabaseError('JOIN NOT DEFINED')
+            with ReadLocker(self.__concurrencyLocks[model.schema().name()]):
+                return self.execute(sql, data)[0]
 
-    def setup(self, options):
+    def setup(self, context):
         """
         Initializes the database by defining any additional structures that are required during selection.
         """
-        SETUP_DB = self.sql('SETUP_DB')
-        data = {}
-        try:
-            sql = SETUP_DB(IO=data)
-        except StandardError as err:
-            log.error(str(err))
+        SETUP = self.statement('SETUP')
+        sql, data = SETUP(self.database())
+        if context.dryRun:
+            print sql % data
         else:
-            if options.dryRun:
-                print sql % data
-            else:
-                self.execute(sql, data)
+            self.execute(sql, data, writeAccess=True)
 
     def setBatchSize(self, size):
         """
@@ -648,21 +540,6 @@ class SQLConnection(orb.Connection):
         self.execute(cmd, dat)
         self.commit()
 
-    def tableExists(self, model, context):
-        """
-        Checks to see if the inputted table class exists in the
-        database or not.
-
-        :param      schema  | <orb.TableSchema>
-                    options | <orb.Context>
-
-        :return     <bool> exists
-        """
-        TABLE_EXISTS = self.sql('TABLE_EXISTS')
-        data = {}
-        sql = TABLE_EXISTS(schema, options=options, IO=data)
-        return bool(self.execute(sql, data, autoCommit=False)[0])
-
     def update(self, records, context):
         """
         Updates the modified data in the database for the
@@ -675,132 +552,13 @@ class SQLConnection(orb.Connection):
 
         :return     <dict> changes
         """
-        # convert the recordset to a list
-        if orb.RecordSet.typecheck(records):
-            records = list(records)
-
-        # wrap the record in a list
-        elif orb.Table.recordcheck(records) or orb.View.recordcheck(records):
-            records = [records]
-
-        updater = defaultdict(list)
-        changes = []
-        for record in records:
-            rchanges = record.changeset(columns=lookup.columns)
-            changes.append(rchanges)
-
-            if options.force:
-                pass
-
-            elif not record.isRecord():
-                continue
-
-            elif not rchanges:
-                continue
-
-            schemas = [record.schema()]
-
-            for schema in schemas:
-                updater[schema].append((record, rchanges))
-
-        if not updater:
-            if len(records) > 1:
-                return []
-            else:
-                return {}
-
-        cmds = []
-        data = {}
-        locks = []
-
-        UPDATE = self.sql('UPDATE')
-
-        for schema, changes in updater.items():
-            locks.append(WriteLocker(self.__concurrencyLocks[schema.name()], delay=0.1))
-            icmd = UPDATE(schema, changes, options=options, IO=data)
-            cmds.append(icmd)
-
-        cmd = u'\n'.join(cmds)
-
-        if options.dryRun:
-            print cmd % data
-            if len(changes) == 1:
-                return {}
-            else:
-                return []
+        UPDATE = self.statement('UPDATE')
+        sql, data = UPDATE(records)
+        if context.dryRun:
+            print sql, data
+            return [], 0
         else:
-            with MultiContext(*locks):
-                results, _ = self.execute(cmd, data, autoCommit=False)
-
-        if not self.commit():
-            if len(changes) == 1:
-                return {}
-            return []
-
-        # update the values for the database
-        for record in records:
-            record._markAsLoaded(self.database(),
-                                 columns=lookup.columns)
-
-        if len(changes) == 1:
-            return changes[0]
-        return changes
-
-    def updateTable(self, model, info, context):
-        """
-        Determines the difference between the inputted schema
-        and the table in the database, creating new columns
-        for the columns that exist in the schema and do not
-        exist in the database.  If the dryRun flag is specified,
-        then the SQLConnection won't actually be executed, just logged.
-
-        :note       This method will NOT remove any columns, if a column
-                    is removed from the schema, it will simply no longer
-                    be considered part of the table when working with it.
-                    If the column was required by the db, then it will need to
-                    be manually removed by a database manager.  We do not
-                    wish to allow removing of columns to be a simple API
-                    call that can accidentally be run without someone knowing
-                    what they are doing and why.
-
-        :param      schema     | <orb.TableSchema>
-                    options    | <orb.Context>
-
-        :return     <bool> success
-        """
-        # determine the new columns
-        existing_columns = info['columns']
-        all_columns = schema.fieldNames(recurse=False, kind=orb.Column.Kind.Field)
-        missing_columns = set(all_columns).difference(existing_columns)
-
-        # determine new indexes
-        table_name = schema.dbname()
-        existing_indexes = info['indexes'] or []
-        all_indexes = [table_name + '_' + projex.text.underscore(index.name().lstrip('by')) + '_idx'
-                       for index in schema.indexes(recurse=False)]
-        all_indexes += [table_name + '_' + projex.text.underscore(column.indexName().lstrip('by')) + '_idx'
-                        for column in schema.columns(recurse=False, kind=orb.Column.Kind.Field)
-                        if column.indexed() and not column.primary()]
-        missing_indexes = set(all_indexes).difference(existing_indexes)
-
-        # if no columns are missing, return True to indicate the table is
-        # up to date
-        if not (missing_columns or missing_indexes):
-            return True
-
-        columns = [schema.column(col) for col in missing_columns]
-        ALTER = self.sql('ALTER_TABLE')
-        data = {}
-        sql = ALTER(schema, added=columns, options=options, IO=data)
-
-        if options.dryRun:
-            print sql % data
-        else:
-            self.execute(sql, data)
-            opts = (schema.name(), ','.join(missing_columns), ','.join(missing_indexes))
-            log.info('Updated {0} table, added {1} columns and {2} indexes.'.format(*opts))
-
-        return True
+            return self.execute(sql, data, writeAccess=True)
 
     @classmethod
     def statement(cls, code=''):

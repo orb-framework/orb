@@ -5,15 +5,15 @@ orb = lazy_import('orb')
 
 
 class CREATE(PSQLStatement):
-    def __call__(self, model, owner=''):
+    def __call__(self, model, owner='', includeReferences=True):
         if issubclass(model, orb.Table):
-            return self._createTable(model, owner)
+            return self._createTable(model, owner, includeReferences)
         elif issubclass(model, orb.View):
-            return self._createView(model, owner)
+            return self._createView(model, owner, includeReferences)
         else:
             raise orb.errors.OrbError('Cannot create model for type: '.format(type(model)))
 
-    def _createTable(self, model, owner):
+    def _createTable(self, model, owner, includeReferences):
         ADD_COLUMN = self.byName('ADD COLUMN')
 
         add_i18n = []
@@ -23,17 +23,17 @@ class CREATE(PSQLStatement):
         for col in model.schema().columns(recurse=False).values():
             if col.testFlag(col.Flags.Translatable):
                 add_i18n.append(col)
-            else:
+            elif includeReferences or not isinstance(col, orb.ReferenceColumn):
                 add_standard.append(col)
 
         # create the standard model
         cmd_body = []
         if add_standard:
-            cmd_body += [ADD_COLUMN(col).replace('ADD COLUMN ', '') for col in add_standard]
+            cmd_body += [ADD_COLUMN(col)[0].replace('ADD COLUMN ', '') for col in add_standard]
 
         # get the primary column
         pcol = ''
-        pcols = model.schema().columns(recurse=False, flags=col.Flags.Primary).values()
+        pcols = model.schema().columns(recurse=False, flags=orb.Column.Flags.Primary).values()
         if pcols:
             pcol = ', '.join(['"{0}"'.format(col.field()) for col in pcols])
             cmd_body.append('CONSTRAINT "{0}_pkey" PRIMARY KEY ({1})'.format(model.schema().dbname(), pcol))
@@ -57,7 +57,7 @@ class CREATE(PSQLStatement):
 
         # create the i18n model
         if add_i18n:
-            i18n_body = ',\n\t'.join([ADD_COLUMN(col).replace('ADD COLUMN ', '') for col in add_i18n])
+            i18n_body = ',\n\t'.join([ADD_COLUMN(col)[0].replace('ADD COLUMN ', '') for col in add_i18n])
 
             i18n_cmd  = 'CREATE TABLE "{table}_i81n" (\n'
             i18n_cmd += '   "locale" CHARACTER VARYING(5),\n'
@@ -72,6 +72,6 @@ class CREATE(PSQLStatement):
 
             cmd += '\n' + i18n_cmd
 
-        return cmd
+        return cmd, {}
 
 PSQLStatement.registerAddon('CREATE', CREATE())

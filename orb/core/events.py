@@ -18,13 +18,18 @@ class ChangeEvent(Event):
         self.value = value
 
 
-class CommitEvent(Event):
+class SaveEvent(Event):
     def __init__(self, context=None, result=True):
-        super(CommitEvent, self).__init__()
+        super(SaveEvent, self).__init__()
 
         self.context = context
         self.result = result
 
+class DeleteEvent(Event):
+    def __init__(self, context=None):
+        super(DeleteEvent, self).__init__()
+
+        self.context = context
 
 class LoadEvent(Event):
     def __init__(self, data):
@@ -33,5 +38,5 @@ class LoadEvent(Event):
         self.data = data
 
 
-class RemoveEvent(Event):
+class SyncEvent(Event):
     pass

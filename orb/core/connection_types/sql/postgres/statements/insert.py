@@ -6,7 +6,7 @@ orb = lazy_import('orb')
 
 
 class INSERT(PSQLStatement):
-    def __call__(self, records, data=None):
+    def __call__(self, records):
         # delete based on the collection's context
         if isinstance(records, orb.Collection):
             records = records.records()

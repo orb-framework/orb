@@ -34,7 +34,7 @@ class WHERE(PSQLStatement):
 
             # generate the sql field
             field = fields.get(column) or self.generateField(model, column, query, aliases)
-            value_key = field + u'_' + os.urandom(8).encode('hex')[:6]
+            value_key = u'{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
 
             # calculate any math operations to the sql field
             for op, target in query.math():
@@ -60,16 +60,16 @@ class WHERE(PSQLStatement):
                 val_column = value.column()
                 val_field = self.generateField(val_model, val_column, value, aliases)
                 if invert:
-                    sql =  u' '.join(val_field, sql_op, field)
+                    sql =  u' '.join((val_field, sql_op, field))
                 else:
-                    sql = u' '.join(field, sql_op, val_field)
+                    sql = u' '.join((field, sql_op, val_field))
 
             # convert a null value
             elif value is None:
                 if op == orb.Query.Op.Is:
-                    sql = u'{0} IS NULL'.format(value)
+                    sql = u'{0} IS NULL'.format(field)
                 elif op == orb.Query.Op.IsNot:
-                    sql = u'{0} IS NOT NULL'
+                    sql = u'{0} IS NOT NULL'.format(field)
                 else:
                     raise orb.QueryInvalid('Invalid operation for NULL: {0}'.format(orb.Query.Op(op)))
 
@@ -78,7 +78,7 @@ class WHERE(PSQLStatement):
                 SELECT = self.byName('SELECT')
                 sub_sql, sub_data = SELECT(value.model(), value.context(), fields=fields)
                 if sub_sql:
-                    sql = u' '.join(field, sql_op, sub_sql.strip(';'))
+                    sql = u'{0} {1} ({2})'.format(field, sql_op, sub_sql.strip(';'))
                     data.update(sub_data)
                 else:
                     raise orb.QueryInvalid('Could not create sub-query')

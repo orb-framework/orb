@@ -17,25 +17,30 @@ class DELETE(PSQLStatement):
             else:
                 where, data = '', {}
 
-            if where:
-                return 'DELETE FROM "{0}" WHERE {1} RETURNING *;'.format(model.schema().dbname(), where), data
-            else:
-                return 'DELETE FROM "{0}" RETURNING *;'.format(model.schema().dbname()), {}
+            sql_options = {
+                'table': model.schema().dbname(),
+                'where': 'WHERE {0}'.format(where) if where else ''
+            }
+            sql = (
+                u'DELETE FROM "{table}"\n'
+                u'{where}'
+                u'RETURNING *;'
+            ).format(**sql_options)
+            return sql, data
 
         # otherwise, delete based on the record's ids
         else:
             delete_info = defaultdict(list)
             for record in records:
                 schema = record.schema()
-                delete_info.setdefault(schema, {})
                 delete_info[schema].append(record.id())
 
             data = {}
-            cmd = []
+            sql = []
             for schema, ids in delete_info.items():
-                cmd.append('DELETE FROM "{0}" WHERE id IN %({0}_ids)s RETURNING *;'.format(schema.dbname()))
+                sql.append(u'DELETE FROM "{0}" WHERE id IN %({0}_ids)s RETURNING *;'.format(schema.dbname()))
                 data[schema.dbname() + '_ids'] = tuple(ids)
 
-            return '\n'.join(cmd), data
+            return u'\n'.join(sql), data
 
 PSQLStatement.registerAddon('DELETE', DELETE())

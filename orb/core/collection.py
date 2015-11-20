@@ -52,6 +52,13 @@ class Collection(object):
         for record in self.records():
             yield record
 
+    def __getitem__(self, index):
+        record = self.at(index)
+        if not record:
+            raise IndexError(index)
+        else:
+            return record
+
     def add(self, record):
         if self.pipe():
             cls = self.pipe().throughModel()
@@ -59,7 +66,7 @@ class Collection(object):
             data[self.pipe().source()] = self.__owner
             data[self.pipe().target()] = record
             new_record = cls(data)
-            new_record.commit()
+            new_record.save()
             return new_record
         else:
             raise NotImplementedError
@@ -88,7 +95,7 @@ class Collection(object):
                 self.add(record)
             else:
                 record = target_model(values)
-                record.commit()
+                record.save()
                 self.add(record)
 
         # create a new record for this collection
@@ -97,41 +104,10 @@ class Collection(object):
                 values.setdefault(self.__source, self.__owner)
             return self.__model.create(values, **context)
 
-    def commit(self, **context):
-        context = self.context(**context)
-        conn = context.database.connection()
-
-        create_records = []
-        update_records = []
-
-        # run the pre-commit event for each record
-        records = self.records(**context)
-        for record in records:
-            event = orb.events.CommitEvent()
-            record.onPreCommit(event)
-            if not event.preventDefault:
-                if record.isRecord():
-                    update_records.append(record)
-                else:
-                    create_records.append(record)
-
-        # save and update the records
-        if create_records:
-            conn.insert(create_records, context)
-        if update_records:
-            conn.update(update_records, context)
-
-        # run the post-commit event for each record
-        for record in records:
-            event = orb.events.CommitEvent(result=True)
-            record.onPostEvent(event)
-
-        return True
-
     def context(self, **context):
-        context = self.__context.copy()
-        context.update(context)
-        return context
+        new_context = self.__context.copy()
+        new_context.update(context)
+        return new_context
 
     def copy(self, **context):
         context = self.context(**context)
@@ -145,15 +121,18 @@ class Collection(object):
         return other
 
     def count(self, **context):
+        if self.isNull():
+            return 0
+
         context = self.context(**context)
         try:
             return self.__cache['count'][context]
         except KeyError:
-            context.columns = [self.__model.schema().idField()]
+            context.columns = [self.__model.schema().idColumn()]
             context.expand = None
             context.order = None
 
-            conn = context.database.connection()
+            conn = context.db.connection()
             count = conn.count(self.__model, context)
 
             self.__cache['count'][context] = count
@@ -182,7 +161,7 @@ class Collection(object):
                 if not event.preventDefault:
                     delete.append(record)
 
-            conn = base_context.database.connection()
+            conn = base_context.db.connection()
             return conn.delete(delete, base_context)
 
         # delete normal records
@@ -200,7 +179,7 @@ class Collection(object):
                     remove.append(record)
 
             # remove the records
-            conn = context.database.connection()
+            conn = context.db.connection()
             return conn.delete(remove, context)
 
     def first(self, **context):
@@ -215,7 +194,7 @@ class Collection(object):
                 return None
             except KeyError:
                 context.limit = 1
-                context.order = context.order or '-id'
+                context.order = '-id'
                 records = self.records(context=context)
                 record = records[0] if records else None
                 self.__cache['records'][context] = record
@@ -248,7 +227,7 @@ class Collection(object):
         return self.count(**context) == 0
 
     def isNull(self):
-        return self.__records is None and self.__model is None
+        return self.__cache['records'].get(self.__context) is None and self.__model is None
 
     def iterate(self, batch=1):
         return CollectionIterator(self, batch)
@@ -302,11 +281,11 @@ class Collection(object):
         try:
             return self.__cache['records'][context]
         except KeyError:
-            conn = context.database.connection()
+            conn = context.db.connection()
             raw = conn.select(self.__model, context)
 
             if context.inflated and context.returning != 'values':
-                records = [self.__table.inflate(x) for x in raw]
+                records = [self.__model.inflate(x, context=context) for x in raw]
             elif context.columns:
                 schema = self.__model.schema()
                 if context.returning == 'values':
@@ -354,7 +333,7 @@ class Collection(object):
                 if not event.preventDefault:
                     delete.append(record)
 
-            conn = context.database.connection()
+            conn = context.db.connection()
             conn.delete(records, context)
 
             return len(delete)
@@ -386,12 +365,43 @@ class Collection(object):
             if add_ids:
                 collection = orb.Collection([through({pipe.source(): self.__owner, pipe.target(): id})
                                              for id in add_ids])
-                collection.commit()
+                collection.save()
 
             return len(add_ids), len(remove_ids)
 
         else:
             raise NotImplementedError
+
+    def save(self, **context):
+        context = self.context(**context)
+        conn = context.db.connection()
+
+        create_records = []
+        update_records = []
+
+        # run the pre-commit event for each record
+        records = self.records(**context)
+        for record in records:
+            event = orb.events.SaveEvent()
+            record.onPreCommit(event)
+            if not event.preventDefault:
+                if record.isRecord():
+                    update_records.append(record)
+                else:
+                    create_records.append(record)
+
+        # save and update the records
+        if create_records:
+            conn.insert(create_records, context)
+        if update_records:
+            conn.update(update_records, context)
+
+        # run the post-commit event for each record
+        for record in records:
+            event = orb.events.SaveEvent(result=True)
+            record.onPostEvent(event)
+
+        return True
 
     def setModel(self, model):
         self.__model = model

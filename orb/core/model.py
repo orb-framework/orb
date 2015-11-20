@@ -21,34 +21,13 @@ orb = lazy_import('orb')
 errors = lazy_import('orb.errors')
 
 
-class Model(AddonManager):
+class Model(object):
     """
     Defines the base class type that all database records should inherit from.
     """
     # define the table meta class
     __metaclass__ = MetaModel
     __orb__ = {'bypass': True}
-
-    def __reduce__(self):
-        return type(self), (self.__getstate__(),)
-
-    def __getstate__(self):
-        state = {
-            '__pickle': {
-                'data': {col.name(): (col.restore(v[0], inflated=False), col.restore(v[1], inflated=False))
-                         for col, v in self.__values.items()},
-                'loaded': {x.name() for x in self.__loaded},
-                'context': dict(self.__context) if self.__context else None
-            }
-        }
-        return state
-
-    def __setstate__(self, state):
-        schema = self.schema()
-
-        self.__values = {schema.column(k): v for k, v in state.get('values', {}).items()}
-        self.__loaded = {schema.column(x) for x in state.get('loaded', [])}
-        self.__context = orb.Context(**state.get('context')) if state.get('context') else None
 
     def __getitem__(self, key):
         if self.has(key):
@@ -71,7 +50,7 @@ class Model(AddonManager):
 
         # hide private columns
         schema = self.schema()
-        columns = [schema.column(x) for x in context.columns] if context.columns else schema.columns()
+        columns = [schema.column(x) for x in context.columns] if context.columns else schema.columns().values()
         columns = [x for x in columns if x and not x.testFlag(x.Flags.Private)]
 
         # simple json conversion
@@ -116,7 +95,7 @@ class Model(AddonManager):
 
         :return     <iter>
         """
-        for col in self.schema().columns():
+        for col in self.schema().columns().values():
             yield col.field(), self.get(col, inflated=False)
 
     def __format__(self, spec):
@@ -193,7 +172,7 @@ class Model(AddonManager):
         if not self.isRecord():
             return super(Model, self).__hash__()
         else:
-            return hash((self.__class__, self.db(), self.id()))
+            return hash((self.__class__, self.id()))
 
     def __cmp__(self, other):
         """
@@ -237,11 +216,8 @@ class Model(AddonManager):
             values = record
             record = []
 
-        if len(record) == 1 and type(record[0]) == dict and record[0].get('__pickle'):
-            self.__setstate__(record[0].pop('__pickle'))
-
         # restore the database update values
-        elif 'loadEvent' in values:
+        if 'loadEvent' in values:
             self.onLoad(values.pop('loadEvent'))
 
         # initialize a new record if no record is provided
@@ -285,12 +261,12 @@ class Model(AddonManager):
             try:
                 model_dbname, col_name = col.split('.')
             except ValueError:
-                col_name = column
+                col_name = col
                 model_dbname = dbname
 
             # make sure the value we're setting is specific to this model
             column = schema.column(col_name)
-            if not model_dbname != dbname:
+            if model_dbname != dbname:
                 continue
 
             # prefer to use record objects
@@ -335,6 +311,10 @@ class Model(AddonManager):
     def onPostCommit(self, event):
         pass
 
+    @classmethod
+    def onSync(cls, event):
+        pass
+
     # ---------------------------------------------------------------------
     #                       PUBLIC METHODS
     # ---------------------------------------------------------------------
@@ -347,12 +327,14 @@ class Model(AddonManager):
         """
         pre_check = {}
         is_record = self.isRecord()
-        columns = columns or self.schema().columns(recurse=recurse, flags=flags)
+        schema = self.schema()
+        columns = [schema.column(c) for c in columns] if columns else \
+                   schema.columns(recurse=recurse, flags=flags).values()
 
         with ReadLocker(self.__dataLock):
             for col in columns:
                 old, curr = self.__values.get(col, (None, None))
-                if col.isReadOnly():
+                if col.testFlag(col.Flags.ReadOnly):
                     continue
                 elif is_record:
                     old = None
@@ -364,13 +346,12 @@ class Model(AddonManager):
                     pre_check[col] = (check_old, check_curr)
 
         return {col: (col.restore(old, inflated), col.restore(curr, inflated))
-                for col, (old, curr) in pre_check}
+                for col, (old, curr) in pre_check.items()}
 
     def collectData(self,
                     columns=None,
                     recurse=True,
                     flags=0,
-                    kind=0,
                     mapper=None,
                     key='name',
                     **get_options):
@@ -390,17 +371,20 @@ class Model(AddonManager):
         """
         output = {}
         schema = self.schema()
-        all_columns = schema.columns(recurse=recurse, flags=flags, kind=kind)
+        all_columns = schema.columns(recurse=recurse, flags=flags).values()
         req_columns = [schema.column(col) for col in columns] if columns else None
 
         for column in all_columns:
             if req_columns is not None and column not in req_columns:
                 continue
 
-            try:
-                val_key = getattr(column, key)()
-            except AttributeError:
-                raise errors.OrbError('Invalid key used in data collection.  Must be name, field, or column.')
+            if key == 'column':
+                val_key = column
+            else:
+                try:
+                    val_key = getattr(column, key)()
+                except AttributeError:
+                    raise errors.OrbError('Invalid key used in data collection.  Must be name, field, or column.')
 
             value = self.get(column, **get_options)
             if mapper:
@@ -408,60 +392,6 @@ class Model(AddonManager):
             output[val_key] = value
 
         return output
-
-    def commit(self, **context):
-        """
-        Commits the current change set information to the database,
-        or inserts this object as a new record into the database.
-        This method will only update the database if the record
-        has any local changes to it, otherwise, no commit will
-        take place.  If the dryRun flag is set, then the SQL
-        will be logged but not executed.
-
-        :note       From version 0.6.0 on, this method now accepts a mutable
-                    keyword dictionary of values.  You can supply any member
-                    value for either the <orb.LookupOptions> or
-                    <orb.Context>, 'options' for
-                    an instance of the <orb.Context>
-
-        :return     <bool> success
-        """
-        # check to see if we have any modifications to store
-        if not self.isModified():
-            return False
-
-        # make sure the record is validated before committed
-        elif not self.validate():
-            return False
-
-        # create the commit options
-        context = self.context(**context)
-
-        # create the pre-commit event
-        event = orb.events.CommitEvent(context=context)
-        self.onPreCommit(event)
-        if event.preventDefault:
-            return event.result
-
-        # check to see if we have any modifications to store
-        if not self.isModified():
-            return False
-
-        # determine the database to commit to
-        try:
-            db = context.database
-            backend = db.backend()
-        except AttributeError:
-            raise errors.DatabaseNotFound()
-
-        # grab the backend
-        result = backend.save(self, context)
-        self.__context.raw_values['database'] = db
-
-        # create post-commit event
-        event = orb.events.CommitEvent(context=context, result=result)
-        self.onPostCommit(event)
-        return result
 
     def context(self, **options):
         """
@@ -514,14 +444,22 @@ class Model(AddonManager):
         if not self.isRecord():
             return 0
 
-        event = orb.events.DeleteEvent()
+        event = orb.events.DeleteEvent(context=context)
         self.onDelete(event)
         if event.preventDefault:
             return 0
 
         context = self.context(**context)
-        conn = context.database.connection()
-        return conn.delete([self], context)
+        conn = context.db.connection()
+        _, count = conn.delete([self], context)
+
+        # clear out the old values
+        if count == 1:
+            col = self.schema().column(self.schema().idColumn())
+            with WriteLocker(self.__dataLock):
+                self.__values[col] = (None, None)
+
+        return count
 
     def get(self, column, default=None, useMethod=True, **context):
         """
@@ -596,15 +534,65 @@ class Model(AddonManager):
 
         :return     <bool>
         """
-        if db in (None, self.database()):
-            cols = self.schema().idColumns()
+        if db in (None, self.context().db):
+            col = self.schema().column(self.schema().idColumn())
             with ReadLocker(self.__dataLock):
-                for col in cols:
-                    if self.__values[col][1] is None:
-                        return False
+                if self.__values[col][1] is None:
+                    return False
                 return True
         else:
             return None
+
+    def save(self, **context):
+        """
+        Commits the current change set information to the database,
+        or inserts this object as a new record into the database.
+        This method will only update the database if the record
+        has any local changes to it, otherwise, no commit will
+        take place.  If the dryRun flag is set, then the SQL
+        will be logged but not executed.
+
+        :note       From version 0.6.0 on, this method now accepts a mutable
+                    keyword dictionary of values.  You can supply any member
+                    value for either the <orb.LookupOptions> or
+                    <orb.Context>, 'options' for
+                    an instance of the <orb.Context>
+
+        :return     <bool> success
+        """
+        # check to see if we have any modifications to store
+        if not (self.isModified() and self.validate()):
+            return False
+
+        # create the commit options
+        context = self.context(**context)
+
+        # create the pre-commit event
+        event = orb.events.SaveEvent(context=context)
+        self.onPreCommit(event)
+        if event.preventDefault:
+            return event.result
+
+        conn = context.db.connection()
+        if not self.isRecord():
+            records, _ = conn.insert([self], context)
+            if records:
+                event = orb.events.LoadEvent(records[0])
+                self.onLoad(event)
+        else:
+            conn.update([self], context)
+
+        # mark all the data as committed
+        cols = [self.schema().column(c) for c in context.columns or []]
+        with WriteLocker(self.__dataLock):
+            for col, (_, value) in self.__values.items():
+                if not cols or col in cols:
+                    self.__values[col] = (value, value)
+
+        # create post-commit event
+        event = orb.events.SaveEvent(context=context)
+        self.onPostCommit(event)
+        return True
 
     def set(self, column, value, useMethod=True, **context):
         """
@@ -688,14 +676,16 @@ class Model(AddonManager):
 
         :return     <bool>
         """
-        values = self.collectData()
+        values = self.collectData(key='column')
         for col, value in values.items():
             if not col.validate(value):
                 return False
 
-        for index in self.schema().indexes():
+        for index in self.schema().indexes().values():
             if not index.validate(self, values):
                 return False
+
+        return True
 
     #----------------------------------------------------------------------
     #                           CLASS METHODS
@@ -741,7 +731,7 @@ class Model(AddonManager):
         # create the new record
         record = cls(context=orb.Context(**context))
         record.update(**values)
-        record.commit()
+        record.save()
         return record
 
     @classmethod
@@ -759,7 +749,6 @@ class Model(AddonManager):
             return cls()
 
         # lookup the record from the database
-        db = kwds.pop('db', None)
         q = orb.Query()
 
         for key, value in kwds.items():
@@ -767,17 +756,17 @@ class Model(AddonManager):
             if not column:
                 raise orb.errors.ColumnNotFound(cls.schema().name(), key)
 
-            if column.isString() and \
-                    not column.testFlag(column.Flags.CaseSensitive) and \
-                    isinstance(value, (str, unicode)):
-                q &= orb.Query(column.name()).lower() == value.lower()
+            if (isinstance(column, orb.AbstractStringColumn) and
+                not column.testFlag(column.Flags.CaseSensitive) and
+                isinstance(value, (str, unicode))):
+                q &= orb.Query(key).lower() == value.lower()
             else:
                 q &= orb.Query(key) == value
 
-        record = cls.select(where=q, db=db).first()
+        record = cls.select(where=q).first()
         if not record:
             record = cls(**kwds)
-            record.commit(db=db)
+            record.save()
 
         return record
 
@@ -798,7 +787,7 @@ class Model(AddonManager):
 
         :return     <orb.Table>
         """
-        context = orb.Context(**options)
+        context = orb.Context(**context)
 
         # inflate values from the database into the given class type
         if isinstance(values, Model):
@@ -808,21 +797,22 @@ class Model(AddonManager):
             record = None
 
         schema = cls.schema()
-        column = schema.polymorphicColumn()
+        polymorphs = schema.columns(flags=orb.Column.Flags.Polymorphic)
+        column = polymorphs[0] if polymorphs else None
 
         # attempt to expand the class to its defined polymorphic type
         if column and column.field() in values:
             # expand based on SQL style reference inheritance
             morph = column.referenceModel()
             if morph:
-                morph_name = nstr(morph(values[column.field()], options=context))
+                morph_name = nstr(morph(values[column.field()], context=context))
                 dbname = cls.schema().name()
                 morph_cls = orb.system.model(morph_name, database=dbname)
 
                 if morph_cls and morph_cls != cls:
                     pcols = morph_cls.schema().primaryColumns()
                     pkeys = [values.get(pcol.name(), values.get(pcol.field())) for pcol in pcols if pcol.field() in values]
-                    record = morph_cls(*pkeys, options=context)
+                    record = morph_cls(*pkeys, context=context)
                 elif not morph_cls:
                     raise orb.errors.ModelNotFound(morph_name)
 
@@ -834,12 +824,13 @@ class Model(AddonManager):
                 if morph_cls and morph_cls != cls:
                     pcols = morph_cls.schema().primaryColumns()
                     pkeys = [values.get(pcol.name(), values.get(pcol.field())) for pcol in pcols if pcol.field() in values]
-                    record = morph_cls(*pkeys, options=context)
+                    record = morph_cls(*pkeys, context=context)
                 elif not morph_cls:
                     raise orb.errors.ModelNotFound(table_type)
 
         if record is None:
-            record = cls(__values=values, options=context)
+            event = orb.events.LoadEvent(values)
+            record = cls(loadEvent=event, context=context)
 
         return record
 
@@ -868,7 +859,7 @@ class Model(AddonManager):
                     keyword dictionary of values.  You can supply any member
                     value for either the <orb.LookupOptions> or
                     <orb.Context>, as well as the keyword 'lookup' to
-                    an instance of <orb.LookupOptions> and 'options' for
+                    an instance of <orb.LookupOptions> and 'context' for
                     an instance of the <orb.Context>
 
         :return     [ <cls>, .. ] || { <variant> grp: <variant> result, .. }

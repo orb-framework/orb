@@ -21,53 +21,79 @@ def test_empty_view(orb):
 # Empty Definition
 # -----
 
-def test_empty_user_table(empty_user_table):
-    assert empty_user_table.schema().name() == 'User'
+def test_empty_user(EmptyUser):
+    assert EmptyUser.schema().name() == 'EmptyUser'
 
-def test_empty_user_columns(empty_user_table):
-    assert len(empty_user_table.schema().columns()) == 0
+def test_empty_user_columns(EmptyUser):
+    assert len(EmptyUser.schema().columns()) == 0
 
-def test_empty_user_indexes(empty_user_table):
-    assert len(empty_user_table.schema().indexes()) == 0
+def test_empty_user_indexes(EmptyUser):
+    assert len(EmptyUser.schema().indexes()) == 0
 
-def test_empty_user_pipes(empty_user_table):
-    assert len(empty_user_table.schema().pipes()) == 0
+def test_empty_user_pipes(EmptyUser):
+    assert len(EmptyUser.schema().pipes()) == 0
 
 # ----
 # Basic Model Definition
 # ----
 
-def test_user_columns(user_table):
-    assert len(user_table.schema().columns()) == 3
+def test_user_columns(User):
+    assert len(User.schema().columns()) == 3
 
-def test_user_indexes(user_table):
-    assert len(user_table.schema().indexes()) == 1
+def test_user_indexes(User):
+    assert len(User.schema().indexes()) == 1
 
-def test_user_properties(user_table):
-    assert None not in (getattr(user_table, 'id', None) != None,
-                        getattr(user_table, 'username', None) != None,
-                        getattr(user_table, 'password', None) != None,
-                        getattr(user_table, 'setUsername', None) != None,
-                        getattr(user_table, 'setPassword', None) != None,
-                        getattr(user_table, 'byUsername', None) != None)
+def test_user_properties(User):
+    assert None not in (getattr(User, 'id', None) != None,
+                        getattr(User, 'username', None) != None,
+                        getattr(User, 'password', None) != None,
+                        getattr(User, 'setUsername', None) != None,
+                        getattr(User, 'setPassword', None) != None,
+                        getattr(User, 'byUsername', None) != None)
 
-def test_user_make_record(user_table):
-    assert user_table() is not None
+def test_user_make_record(User):
+    assert User() is not None
 
-def test_user_create_with_properties(user_table):
-    record = user_table(username='bob')
+def test_user_create_with_properties(User):
+    record = User(username='bob')
     assert record.username() == 'bob'
     assert record.get('username') == 'bob'
 
-def test_user_collection(orb, user_table):
-    records = user_table.all()
+def test_user_collection(orb, User):
+    records = User.all()
     assert isinstance(records, orb.Collection)
 
-def test_user_good_password(user_table):
-    record = user_table(username='bob')
+def test_user_good_password(User):
+    record = User(username='bob')
     assert record.setPassword('T3st1ng!')
 
-def test_user_bad_password(orb, user_table):
-    record = user_table(username='bob')
+def test_user_bad_password(orb, User):
+    record = User(username='bob')
     with pytest.raises(orb.errors.ColumnValidationError):
         record.setPassword('bad')
+
+def test_user_inflate(orb, User):
+    record = User.inflate({'username': 'bob'})
+    assert record.get('username') == 'bob'
+    assert record.username() == 'bob'
+
+def test_user_empty_reverse_lookup(orb, User):
+    user = User()
+    grps = user.userGroups()
+    assert len(grps) == 0
+
+def test_user_empty_pipe(orb, User):
+    user = User()
+    grps = user.groups()
+    assert len(grps) == 0
+
+# ----
+# Schema Definition
+# ----
+
+def test_schema_name(GroupUser):
+    schema = GroupUser.schema()
+
+    assert schema.display() == 'Group User'
+    assert schema.name() == 'GroupUser'
+    assert schema.dbname() == 'group_users'

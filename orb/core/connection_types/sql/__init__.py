@@ -1,5 +1,5 @@
 """ Defines all the SQL based connection classes. """
 
 # import the backend SQL implementations
-from .postgresql import *
+from .postgres import *
 from .sqlite import *

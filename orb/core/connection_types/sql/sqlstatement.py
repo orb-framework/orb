@@ -14,15 +14,6 @@ log = logging.getLogger(__name__)
 
 
 class SQLStatement(AddonManager):
-    def __init__(self, template=''):
-        super(SQLStatement, self).__init__()
-        
-        # define custom properties
-        if template:
-            self.__template = mako.template.Template(template, strict_undefined=True)
-        else:
-            self.__template = ''
-
     @abstractmethod()
     def __call__(self):
         """
@@ -33,15 +24,6 @@ class SQLStatement(AddonManager):
         """
         # this method will need to be implemented to render each individual template
         # based on its own needs
-
-
-    def template(self):
-        """
-        Returns the MAKO template used for rendering this SQLStatement statement.
-
-        :return:    <mako.template.Template>
-        """
-        return self.__template
 
 # define the default lengths
 SQLStatement.registerAddon('Length::Color', 25)

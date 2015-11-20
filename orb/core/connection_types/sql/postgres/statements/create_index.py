@@ -20,7 +20,7 @@ class CREATE_INDEX(PSQLStatement):
         cmd = 'CREATE' if not index.unique() else 'CREATE UNIQUE'
 
         cols = ['"{0}"'.format(col.field()) if col.testFlag(col.Flags.CaseSensitive)
-                else 'lower("{0}")'.format(col.field())
+                else 'lower("{0}"::varchar)'.format(col.field())
                 for col in index.columns()]
 
         cmd = '{0} INDEX "{1}" ON "{2}" ({3})'.format(cmd, index_name, schema_name, ', '.join(cols))
@@ -41,7 +41,7 @@ class CREATE_INDEX(PSQLStatement):
         else:
             cmd += ';'
 
-        return cmd
+        return cmd, {}
 
 
 PSQLStatement.registerAddon('CREATE INDEX', CREATE_INDEX())

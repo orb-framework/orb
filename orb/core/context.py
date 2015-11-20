@@ -24,11 +24,13 @@ class Context(object):
     Defaults = {
         'autoIncrementEnabled': True,
         'columns': None,
+        'db': None,
         'database': None,
         'distinct': False,
         'disinctOn': '',
         'dryRun': False,
         'expand': None,
+        'format': 'json',
         'force': False,
         'inflated': True,
         'limit': None,
@@ -45,6 +47,7 @@ class Context(object):
     }
 
     UnhashableOptions = {
+        'db',
         'scope'
     }
 
@@ -82,9 +85,9 @@ class Context(object):
             if other:
                 ignore = ('columns', 'where')
                 # extract expandable information
-                for k, v in copy.deepcopy(other.raw_values).items():
+                for k, v in other.raw_values.items():
                     if k not in ignore:
-                        kwds.setdefault(k, v)
+                        kwds.setdefault(k, copy.copy(v))
 
                 # merge where queries
                 where = other.where
@@ -130,9 +133,19 @@ class Context(object):
             if key in self.UnhashableOptions:
                 properties[key] = value
             else:
-                properties[key] = copy.deepcopy(value)
+                properties[key] = copy.copy(value)
 
         return Context(**properties)
+
+    @property
+    def db(self):
+        try:
+            return self.raw_values['db']
+        except KeyError:
+            db = orb.system.database(self.database)
+            if not db:
+                raise orb.errors.DatabaseNotFound()
+            return db
 
     @property
     def expand(self):
@@ -155,16 +168,17 @@ class Context(object):
         if not expand:
             return {}
 
-        def build_tree(tree, name):
-            name, _, remain = name.rpartition('.')
-
+        def build_tree(branch, tree):
+            parts = branch.split('.')
+            name = parts[0]
+            remain = parts[1:]
             tree.setdefault(name, {})
             if remain:
-                build_tree(tree[name], remain)
+                build_tree('.'.join(remain), tree[name])
 
         tree = {}
         for branch in expand:
-            build_tree(tree, branch)
+            build_tree(branch, tree)
         return tree
 
     def isNull(self):
@@ -179,6 +193,10 @@ class Context(object):
         defaults = self.Defaults.copy()
         defaults.update(self.raw_values)
         return defaults.items()
+
+    @property
+    def locale(self):
+        return self.raw_values.get('locale') or orb.system.settings().locale
 
     @property
     def order(self):
@@ -210,6 +228,16 @@ class Context(object):
 
         :param      other | <dict>
         """
+        if isinstance(other, dict):
+            other_context = other.pop('context', None)
+        elif isinstance(other, orb.Context):
+            other_context = other
+            other = {}
+
+        if other_context:
+            for k, v in other_context.raw_values.items():
+                other.setdefault(k, v)
+
         self.raw_values.update({k: v for k, v in other.items() if k in self.Defaults})
 
     @classmethod

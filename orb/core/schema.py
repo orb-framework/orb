@@ -25,10 +25,12 @@ class Schema(object):
                  columns=None,
                  indexes=None,
                  pipes=None,
-                 views=None):
+                 views=None,
+                 database=''):
         self.__name = name
         self.__abstract = abstract
         self.__dbname = dbname or orb.system.syntax().schemadb(name)
+        self.__database = database
         self.__inherits = inherits
         self.__display = display
         self.__archived = archived
@@ -41,6 +43,49 @@ class Schema(object):
         self.__indexes = indexes or {}
         self.__pipes = pipes or {}
         self.__views = views or {}
+
+    def __cmp__(self, other):
+        # check to see if this is the same instance
+        if id(self) == id(other):
+            return 0
+
+        # make sure this instance is a valid one for the other kind
+        if not isinstance(other, Schema):
+            return -1
+
+        # compare inheritance level
+        my_ancestry = self.ancestry()
+        other_ancestry = other.ancestry()
+
+        result = cmp(len(my_ancestry), len(other_ancestry))
+        if not result:
+            return cmp(self.name(), other.name())
+        return result
+
+    def ancestor(self):
+        """
+        Returns the direct ancestor for this schema that it inherits from.
+
+        :return     <TableSchema> || None
+        """
+        if self.inherits():
+            return orb.system.schema(self.inherits())
+        return None
+
+    def ancestry(self):
+        """
+        Returns the different inherited schemas for this instance.
+
+        :return     [<TableSchema>, ..]
+        """
+        if not self.inherits():
+            return []
+
+        schema = orb.system.schema(self.inherits())
+        if not schema:
+            return []
+
+        return schema.ancestry() + [schema]
 
     def addColumn(self, column):
         """
@@ -99,7 +144,7 @@ class Schema(object):
         if found and len(parts) > 1:
             ref = found.referenceModel()
             if ref:
-                found = ref.column('.'.join(parts[1:]), recurse=recurse, flags=flags)
+                found = ref.schema().column('.'.join(parts[1:]), recurse=recurse, flags=flags)
             else:
                 found = None
 
@@ -134,6 +179,9 @@ class Schema(object):
 
         return output
 
+    def database(self):
+        return self.__database
+
     def display(self):
         """
         Returns the display name for this table.
@@ -152,8 +200,8 @@ class Schema(object):
         return column in self.columns(recurse=recurse, flags=flags)
 
     def hasTranslations(self):
-        for col in self.columns():
-            if col.isTranslatable():
+        for col in self.columns().values():
+            if col.testFlag(col.Flags.Translatable):
                 return True
         return False
 
@@ -216,6 +264,7 @@ class Schema(object):
         """
         if self.__model is None and autoGenerate:
             self.__model = orb.system.generateModel(self)
+            self.setModel(self.__model)
         return self.__model
 
     def name(self):
@@ -263,8 +312,8 @@ class Schema(object):
 
         :return     [<orb.Column>, ..]
         """
-        return {col.reverseInfo().name: col for schema in orb.system.schemas()
-                for col in schema.columns()
+        return {col.reverseInfo().name: col for schema in orb.system.schemas().values()
+                for col in schema.columns().values()
                 if isinstance(col, orb.ReferenceColumn) and col.reference() == self.name() and col.reverseInfo()}
 
     def setAbstract(self, state):

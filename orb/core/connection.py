@@ -54,6 +54,30 @@ class Connection(AddonManager):
         """
         return 0
 
+    @abstractmethod
+    def alterModel(self, model, context, add=None, remove=None, owner=''):
+        """
+        Determines the difference between the inputted table
+        and the table in the database, creating new columns
+        for the columns that exist in the table and do not
+        exist in the database.
+
+        :note       This method will NOT remove any columns, if a column
+                    is removed from the table, it will simply no longer
+                    be considered part of the table when working with it.
+                    If the column was required by the db, then it will need
+                    to be manually removed by a database manager.  We do not
+                    wish to allow removing of columns to be a simple API
+                    call that can accidentally be run without someone knowing
+                    what they are doing and why.
+
+        :param      table    | <orb.TableSchema>
+                    options  | <orb.Context>
+
+        :return     <bool> success
+        """
+        return False
+
     @abstractmethod()
     def cleanup(self):
         """
@@ -171,7 +195,7 @@ class Connection(AddonManager):
         return 0
 
     @abstractmethod()
-    def createTable(self, schema, options):
+    def createModel(self, model, context, owner='', includeReferences=True):
         """
         Creates a new table in the database based cff the inputted
         table information.
@@ -180,18 +204,6 @@ class Connection(AddonManager):
                     options  | <orb.Context>
         
         :return     <bool> success
-        """
-        return False
-
-    @abstractmethod()
-    def createView(self, view, options):
-        """
-        Creates a new view in the database based off the inputted schema information.
-
-        :param      schema  | <orb.ViewSchema>
-                    options | <orb.Context>
-
-        :return     <bool> | success
         """
         return False
 
@@ -292,7 +304,7 @@ class Connection(AddonManager):
         return None
 
     @abstractmethod()
-    def insert(self, records, lookup, options):
+    def insert(self, records, context):
         """
         Inserts the database record into the database with the
         given values.
@@ -344,7 +356,7 @@ class Connection(AddonManager):
         return False
 
     @abstractmethod()
-    def select(self, table_or_join, lookup, options):
+    def select(self, model, context):
         """
         Selects the records from the database for the inputted table or join
         instance based on the given lookup and options.
@@ -357,7 +369,7 @@ class Connection(AddonManager):
         """
         return []
 
-    def setupDatabase(self, options):
+    def setup(self, context):
         """
         Initializes the database with any additional information that is required.
         """
@@ -382,56 +394,8 @@ class Connection(AddonManager):
         """
         return {}
 
-    def save(self, record, lookup, options):
-        """
-        Syncs the record to the current database, checking to \
-        see if the record exists, and if so - updates the records \
-        field values, otherwise, creates the new record.  The possible sync \
-        return types are 'created', 'updated', and 'errored'.
-        
-        :param      record      | <orb.Table>
-                    lookup      | <orb.LookupOptions>
-                    options     | <orb.Context>
-        
-        :return     <variant>
-        """
-        # create the new record in the database
-        if not record.isRecord():
-            return self.insert(record, lookup, options)
-        else:
-            return self.update(record, lookup, options)
-
-    def syncTable(self, schema, options):
-        """
-        Syncs the table to the current database, checking to see
-        if the table exists, and if so - updates any new columns,
-        otherwise, creates the new table.
-        
-        :param      schema     | <orb.TableSchema>
-                    options    | <orb.Context>
-        
-        :return     <bool> changed
-        """
-        if not self.tableExists(schema, options):
-            return self.createTable(schema, options)
-        else:
-            return self.updateTable(schema, options)
-
     @abstractmethod()
-    def tableExists(self, schema, options):
-        """
-        Checks to see if the inputted table class exists as a
-        database table.
-        
-        :param      schema  | <orb.TableSchema>
-                    options | <orb.Context>
-        
-        :return     <bool>
-        """
-        return False
-
-    @abstractmethod()
-    def update(self, records, lookup, options):
+    def update(self, records, context):
         """
         Updates the database record into the database with the
         given values.
@@ -440,30 +404,6 @@ class Connection(AddonManager):
                     options | <orb.Context>
         
         :return     <bool>
-        """
-        return False
-
-    @abstractmethod
-    def updateTable(self, schema, info, options):
-        """
-        Determines the difference between the inputted table
-        and the table in the database, creating new columns
-        for the columns that exist in the table and do not
-        exist in the database.
-        
-        :note       This method will NOT remove any columns, if a column
-                    is removed from the table, it will simply no longer 
-                    be considered part of the table when working with it.
-                    If the column was required by the db, then it will need 
-                    to be manually removed by a database manager.  We do not
-                    wish to allow removing of columns to be a simple API
-                    call that can accidentally be run without someone knowing
-                    what they are doing and why.
-        
-        :param      table    | <orb.TableSchema>
-                    options  | <orb.Context>
-        
-        :return     <bool> success
         """
         return False
 

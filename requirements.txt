@@ -1,4 +1,1 @@
 projex==2015.0.5
-pytest==2.6.4
-pytest-cov==2.2.0
-pytest-html==1.7
