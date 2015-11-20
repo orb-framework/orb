@@ -26,7 +26,7 @@ class Pipe(object):
         context['where'] = q & context.get('where')
 
         # generate the pipe query for this record
-        return model.select(pipe=self, **context)
+        return model.select(pipe=self, record=record, **context)
 
     def name(self):
         return self.__name

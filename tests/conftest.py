@@ -47,6 +47,7 @@ def testing_schema(orb):
         id = orb.IdColumn()
         username = orb.StringColumn(flags={'Unique'}, index=orb.Column.Index(name='byUsername'))
         password = orb.PasswordColumn()
+        type = orb.StringColumn(flags={'Polymorphic'}, default='User')
 
         groups = orb.Pipe('groups', through='GroupUser', source='user', target='group')
 
@@ -58,7 +59,19 @@ def testing_schema(orb):
         byUserAndGroup = orb.Index(('user', 'group'), unique=True)
         byUser = orb.Index(('user',))
 
-    return {'User': User, 'Group': Group, 'GroupUser': GroupUser}
+    class Document(orb.Table):
+        id = orb.IdColumn()
+        title = orb.StringColumn(flags={'Translatable'})
+        description = orb.TextColumn(flags={'Translatable'})
+
+    class Role(orb.Table):
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+
+    class Employee(User):
+        role = orb.ReferenceColumn(reference='Role')
+
+    return locals()
 
 @pytest.fixture(scope='session')
 def User(testing_schema):
@@ -71,3 +84,15 @@ def GroupUser(testing_schema):
 @pytest.fixture(scope='session')
 def Group(testing_schema):
     return testing_schema['Group']
+
+@pytest.fixture(scope='session')
+def Document(testing_schema):
+    return testing_schema['Document']
+
+@pytest.fixture(scope='session')
+def Role(testing_schema):
+    return testing_schema['Role']
+
+@pytest.fixture(scope='session')
+def Employee(testing_schema):
+    return testing_schema['Employee']

@@ -149,5 +149,91 @@ def test_pg_api_expand(orb, GroupUser):
 @requires_pg
 def test_pg_api_expand_json(orb, GroupUser):
     group_user = GroupUser.select(expand='user').first()
-    print group_user.__json__()
-    assert False
+    jdata = group_user.__json__()
+    assert jdata['user_id'] == jdata['user']['id']
+
+@requires_pg
+def test_pg_api_collection_insert(orb, Group):
+    records = orb.Collection((Group(name='Test A'), Group(name='Test B')))
+    records.save()
+
+    assert records[0].id() is not None
+    assert records[1].id() is not None
+
+    test_a = Group.byName('Test A')
+    test_b = Group.byName('Test B')
+
+    assert records[0].id() == test_a.id()
+    assert records[1].id() == test_b.id()
+
+@requires_pg
+def test_pg_api_collection_delete(orb, Group):
+    records = Group.select(where=orb.Query('name').in_(('Test A', 'Test B')))
+
+    assert len(records) == 2
+    assert records.delete() == 2
+
+@requires_pg
+def test_pg_api_collection_delete_empty(orb, User):
+    users = User.select(where=orb.Query('username') == 'missing')
+    assert users.delete() == 0
+
+@requires_pg
+def test_pg_api_collection_has_record(orb, User):
+    users = User.all()
+    assert users.hasRecord(User.byUsername('bob'))
+
+@requires_pg
+def test_pg_api_collection_iter(orb, User):
+    records = User.select()
+    for record in records:
+        assert record.isRecord()
+
+@requires_pg
+def test_pg_api_collection_invalid_index(orb, User):
+    records = User.select()
+    with pytest.raises(IndexError):
+        records[50]
+
+@requires_pg
+def test_pg_api_collection_ids(orb, User):
+    records = User.select().records(order='+id')
+    ids = User.select().ids(order='+id')
+    for i, record in enumerate(records):
+        assert record.id() == ids[i]
+
+@requires_pg
+def test_pg_api_collection_index(orb, User):
+    users = User.select()
+    urecords = users.records()
+    assert users.index(urecords[0]) == 0
+    assert users.index(None) == -1
+
+    with pytest.raises(ValueError):
+        assert users.index(User()) == -1
+
+    with pytest.raises(ValueError):
+        assert User.select().index(User())
+
+@requires_pg
+def test_pg_api_collection_loaded(orb, User):
+    users = orb.Collection(model=User)
+    assert not users.isLoaded()
+    assert not users.isNull()
+
+    null_users = orb.Collection()
+    assert null_users.isNull()
+
+@requires_pg
+def test_pg_api_collection_empty(orb, User):
+    users = orb.Collection()
+    assert users.isEmpty()
+
+    users = User.select(where=orb.Query('username') == 'billy')
+    assert users.isEmpty()
+
+@requires_pg
+def test_pg_api_collection_itertool(orb, User):
+    for section in User.select().iterate():
+        for user in section:
+            assert user.id() is not None

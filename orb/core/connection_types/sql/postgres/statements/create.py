@@ -59,9 +59,9 @@ class CREATE(PSQLStatement):
         if add_i18n:
             i18n_body = ',\n\t'.join([ADD_COLUMN(col)[0].replace('ADD COLUMN ', '') for col in add_i18n])
 
-            i18n_cmd  = 'CREATE TABLE "{table}_i81n" (\n'
+            i18n_cmd  = 'CREATE TABLE "{table}_i18n" (\n'
             i18n_cmd += '   "locale" CHARACTER VARYING(5),\n'
-            i18n_cmd += '   "{table}_id" BIGINT REFERENCES "{table}" ({pcol})\n'
+            i18n_cmd += '   "{table}_id" BIGINT REFERENCES "{table}" ({pcol}),\n'
             i18n_cmd += '   {body},\n'
             i18n_cmd += '   CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("{table}_id", "locale")\n'
             i18n_cmd += ') WITH (OIDS=FALSE);\n'

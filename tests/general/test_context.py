@@ -63,3 +63,24 @@ def test_context_merge_by_context(orb):
     assert context_a.limit == 1
     assert context_b.limit == 1
     assert context_b.locale == 'fr_FR'
+
+def test_context_hash(orb):
+    context_a = orb.Context()
+    context_b = orb.Context()
+
+    assert hash(context_a) == hash(context_b)
+
+    context_a = orb.Context(limit=10)
+    context_b = orb.Context(context=context_a)
+
+    assert hash(context_a) == hash(context_b)
+
+    assert context_a == context_b
+
+def test_context_dict_key(orb):
+    context_a = orb.Context(limit=10)
+    context_b = orb.Context(limit=10)
+
+    test = {context_a: 1}
+
+    assert test[context_b] == 1

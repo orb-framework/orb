@@ -113,7 +113,7 @@ class ReferenceColumn(Column):
             raise orb.errors.ModelNotFound(self.__reference)
         return model
 
-    def restore(self, value, context=None, inflated=True):
+    def restore(self, value, context=None):
         """
         Returns the inflated value state.  This method will match the desired inflated state.
 
@@ -122,10 +122,14 @@ class ReferenceColumn(Column):
 
         :return: <variant>
         """
-        if inflated and not isinstance(value, orb.Model):
-            return self.referenceModel().fetch(value)
-        elif isinstance(value, orb.Model):
+        context = context or orb.Context()
+
+        if not context.inflated and isinstance(value, orb.Model):
             return value.id()
+        elif context.inflated and value is not None:
+            return self.referenceModel().fetch(value)
+        else:
+            return value
 
     def reverseInfo(self):
         """

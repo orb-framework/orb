@@ -58,8 +58,10 @@ class Context(object):
         return hash(self) != hash(other)
 
     def __hash__(self):
-        return hash(((k, self.raw_values[k]) for k, v in self.Defaults.items()
-                     if self.raw_values[k] != v and k not in self.UnhashableOptions))
+        key = ['{0}:{1}'.format(*i) for i in sorted(self.Defaults.items())
+               if self.raw_values.get(i[0]) != i[1] and i[0] not in self.UnhashableOptions]
+
+        return hash(','.join(key))
 
     def __enter__(self):
         """
@@ -106,7 +108,7 @@ class Context(object):
 
     def __getattr__(self, key):
         try:
-            return self.raw_values.get(key) or self.Defaults[key]
+            return self.raw_values.get(key, self.Defaults[key])
         except KeyError:
             raise AttributeError(key)
 

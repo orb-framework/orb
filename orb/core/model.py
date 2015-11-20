@@ -54,7 +54,7 @@ class Model(object):
         columns = [x for x in columns if x and not x.testFlag(x.Flags.Private)]
 
         # simple json conversion
-        output = self.collectData(key='field', columns=columns, inflated=False)
+        output = self.collect(key='field', columns=columns, inflated=False)
 
         # expand any references we need
         expand_tree = context.expandtree()
@@ -65,14 +65,11 @@ class Model(object):
                 except AttributeError:
                     continue
                 else:
-                    value = getter(context=context)
-                    try:
-                        updater = value.updateOptions
-                    except AttributeError:
-                        pass
+                    value = getter(inflated=True, expand=subtree, returning=context.returning)
+                    if isinstance(value, orb.Model):
+                        output[key] = value.__json__()
                     else:
-                        updater(expand=subtree, returning=context.returning)
-                    output[key] = value
+                        output[key] = value
 
         # don't include the column names
         if context.returning == 'values':
@@ -116,31 +113,31 @@ class Model(object):
         else:
             return super(Model, self).__format__(spec)
 
-    def __str__(self):
-        """
-        Defines the custom string format for this table.
-        """
-        return projex.text.toAscii(unicode(self))
-
-    def __unicode__(self):
-        """
-        Defines the custom string format for this table.
-        """
-        schema = self.schema()
-        sform = schema.stringFormat()
-
-        # extract any inherited
-        while schema and not sform:
-            sform = schema.stringFormat()
-            if sform:
-                break
-            else:
-                schema = orb.system.schema(schema.inherits())
-
-        if not sform:
-            return unicode(super(Model, self).__str__())
-        else:
-            return unicode(sform).format(self, self=self)
+    # def __str__(self):
+    #     """
+    #     Defines the custom string format for this table.
+    #     """
+    #     return projex.text.toAscii(unicode(self))
+    #
+    # def __unicode__(self):
+    #     """
+    #     Defines the custom string format for this table.
+    #     """
+    #     schema = self.schema()
+    #     sform = schema.stringFormat()
+    #
+    #     # extract any inherited
+    #     while schema and not sform:
+    #         sform = schema.stringFormat()
+    #         if sform:
+    #             break
+    #         else:
+    #             schema = orb.system.schema(schema.inherits())
+    #
+    #     if not sform:
+    #         return unicode(super(Model, self).__str__())
+    #     else:
+    #         return unicode(sform).format(self, self=self)
 
     def __eq__(self, other):
         """
@@ -305,10 +302,10 @@ class Model(object):
         with WriteLocker(self.__dataLock):
             self.__loaded.clear()
 
-    def onPreCommit(self, event):
+    def onPreSave(self, event):
         pass
 
-    def onPostCommit(self, event):
+    def onPostSave(self, event):
         pass
 
     @classmethod
@@ -348,13 +345,13 @@ class Model(object):
         return {col: (col.restore(old, inflated), col.restore(curr, inflated))
                 for col, (old, curr) in pre_check.items()}
 
-    def collectData(self,
-                    columns=None,
-                    recurse=True,
-                    flags=0,
-                    mapper=None,
-                    key='name',
-                    **get_options):
+    def collect(self,
+                columns=None,
+                recurse=True,
+                flags=0,
+                mapper=None,
+                key='name',
+                **get_options):
         """
         Returns a dictionary grouping the columns and their
         current values.  If the inflated value is set to True,
@@ -499,7 +496,7 @@ class Model(object):
             _, value = self.__values[col]
 
         # return a reference when desired
-        return col.restore(value, inflated=context.inflated)
+        return col.restore(value, context)
 
     def init(self):
         """
@@ -569,7 +566,7 @@ class Model(object):
 
         # create the pre-commit event
         event = orb.events.SaveEvent(context=context)
-        self.onPreCommit(event)
+        self.onPreSave(event)
         if event.preventDefault:
             return event.result
 
@@ -591,7 +588,7 @@ class Model(object):
 
         # create post-commit event
         event = orb.events.SaveEvent(context=context)
-        self.onPostCommit(event)
+        self.onPostSave(event)
         return True
 
     def set(self, column, value, useMethod=True, **context):
@@ -676,7 +673,7 @@ class Model(object):
 
         :return     <bool>
         """
-        values = self.collectData(key='column')
+        values = self.collect(key='column')
         for col, value in values.items():
             if not col.validate(value):
                 return False
@@ -802,31 +799,15 @@ class Model(object):
 
         # attempt to expand the class to its defined polymorphic type
         if column and column.field() in values:
-            # expand based on SQL style reference inheritance
-            morph = column.referenceModel()
-            if morph:
-                morph_name = nstr(morph(values[column.field()], context=context))
-                dbname = cls.schema().name()
-                morph_cls = orb.system.model(morph_name, database=dbname)
-
-                if morph_cls and morph_cls != cls:
-                    pcols = morph_cls.schema().primaryColumns()
-                    pkeys = [values.get(pcol.name(), values.get(pcol.field())) for pcol in pcols if pcol.field() in values]
-                    record = morph_cls(*pkeys, context=context)
-                elif not morph_cls:
-                    raise orb.errors.ModelNotFound(morph_name)
-
-            # expand based on postgres-style OO inheritance
-            elif isinstance(column, orb.StringColumn):
-                table_type = column.field()
-                dbname = cls.schema().name()
-                morph_cls = orb.system.model(values[table_type], database=dbname)
-                if morph_cls and morph_cls != cls:
-                    pcols = morph_cls.schema().primaryColumns()
-                    pkeys = [values.get(pcol.name(), values.get(pcol.field())) for pcol in pcols if pcol.field() in values]
-                    record = morph_cls(*pkeys, context=context)
-                elif not morph_cls:
-                    raise orb.errors.ModelNotFound(table_type)
+            morph_cls_name = values.get(column.name(), values.get(column.field()))
+            morph_cls = orb.system.model(morph_cls_name)
+            if morph_cls and morph_cls != cls:
+                try:
+                    record = morph_cls(values['id'], context=context)
+                except KeyError:
+                    raise orb.errors.RecordNotFound(morph_cls, values.get('id'))
+            elif not morph_cls:
+                raise orb.errors.ModelNotFound(morph_cls_name)
 
         if record is None:
             event = orb.events.LoadEvent(values)
