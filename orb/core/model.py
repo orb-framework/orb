@@ -113,32 +113,6 @@ class Model(object):
         else:
             return super(Model, self).__format__(spec)
 
-    # def __str__(self):
-    #     """
-    #     Defines the custom string format for this table.
-    #     """
-    #     return projex.text.toAscii(unicode(self))
-    #
-    # def __unicode__(self):
-    #     """
-    #     Defines the custom string format for this table.
-    #     """
-    #     schema = self.schema()
-    #     sform = schema.stringFormat()
-    #
-    #     # extract any inherited
-    #     while schema and not sform:
-    #         sform = schema.stringFormat()
-    #         if sform:
-    #             break
-    #         else:
-    #             schema = orb.system.schema(schema.inherits())
-    #
-    #     if not sform:
-    #         return unicode(super(Model, self).__str__())
-    #     else:
-    #         return unicode(sform).format(self, self=self)
-
     def __eq__(self, other):
         """
         Checks to see if the two records are equal to each other

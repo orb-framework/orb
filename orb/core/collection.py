@@ -371,6 +371,17 @@ class Collection(object):
         else:
             raise NotImplementedError
 
+    def search(self, terms, **context):
+        """
+        Searches for records within this collection based on the given terms.
+
+        :param terms: <str>
+        :param context: <orb.Context>
+
+        :return: <orb.SearchResultCollection>
+        """
+        return self.model().searchEngine().search(terms, self.context(**context))
+
     def update(self, records, **context):
         if self.pipe():
             if 'ids' in records:
