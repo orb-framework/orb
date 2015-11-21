@@ -212,13 +212,13 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         WHERE = self.byName('WHERE')
 
         data = {}
-        source = pipe.sourceModel()
+        source = pipe.fromModel()
 
         source_col = pipe.sourceColumn()
         through = pipe.throughModel()
         target_col = pipe.targetColumn()
 
-        target = pipe.targetModel()
+        target = pipe.toModel()
         target_records_alias = projex.text.underscore(pipe.name()) + '_records'
 
         # include the base table's filter, if one exists

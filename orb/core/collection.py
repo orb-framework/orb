@@ -67,8 +67,8 @@ class Collection(object):
         if self.pipe():
             cls = self.pipe().throughModel()
             data = {}
-            data[self.pipe().source()] = self.__record
-            data[self.pipe().target()] = record
+            data[self.pipe().from_()] = self.__record
+            data[self.pipe().to()] = record
             new_record = cls(data)
             new_record.save()
             return new_record
@@ -350,8 +350,8 @@ class Collection(object):
         pipe = self.pipe()
         if pipe:
             through = pipe.throughModel()
-            q  = orb.Query(pipe.source()) == self.__record
-            q &= orb.Query(pipe.target()) == record
+            q  = orb.Query(pipe.from_()) == self.__record
+            q &= orb.Query(pipe.to()) == record
 
             context['where'] = q & context.get('where')
             context = self.context(**context)
@@ -399,13 +399,13 @@ class Collection(object):
 
             # remove old records
             if remove_ids:
-                q  = orb.Query(through, pipe.source()) == self.__record
-                q &= orb.Query(through, pipe.target()).in_(remove_ids)
+                q  = orb.Query(through, pipe.from_()) == self.__record
+                q &= orb.Query(through, pipe.to()).in_(remove_ids)
                 through.select(where=q).delete()
 
             # create new records
             if add_ids:
-                collection = orb.Collection([through({pipe.source(): self.__record, pipe.target(): id})
+                collection = orb.Collection([through({pipe.from_(): self.__record, pipe.to(): id})
                                              for id in add_ids])
                 collection.save()
 

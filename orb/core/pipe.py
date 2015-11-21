@@ -4,11 +4,11 @@ orb = lazy_import('orb')
 
 
 class Pipe(object):
-    def __init__(self, name='', through='', source='', target='', unique=False):
+    def __init__(self, name='', through='', from_='', to='', unique=False):
         self.__name = self.__name__ = name
         self.__through = through
-        self.__source = source
-        self.__target = target
+        self.__from = from_
+        self.__to = to
         self.__unique = unique
         self.__schema = None
 
@@ -16,12 +16,12 @@ class Pipe(object):
         if not record.isRecord():
             return orb.Collection()
 
-        model = self.targetModel()
+        model = self.toModel()
         ref = self.throughModel()
 
         # create the pipe query
-        q  = orb.Query(model) == orb.Query(ref, self.target())
-        q &= orb.Query(ref, self.source()) == record
+        q  = orb.Query(model) == orb.Query(ref, self.to())
+        q &= orb.Query(ref, self.from_()) == record
 
         context['where'] = q & context.get('where')
 
@@ -43,32 +43,32 @@ class Pipe(object):
     def setUnique(self, state):
         self.__unique = state
 
-    def source(self):
-        return self.__source
+    def from_(self):
+        return self.__from
 
-    def sourceColumn(self):
+    def fromColumn(self):
         schema = orb.system.schema(self.__through)
         if not schema:
             raise orb.errors.ModelNotFound(self.__through)
         else:
-            return schema.column(self.__source)
+            return schema.column(self.__from)
 
-    def sourceModel(self):
-        col = self.sourceColumn()
+    def fromModel(self):
+        col = self.fromColumn()
         return col.referenceModel()
 
-    def target(self):
-        return self.__target
+    def to(self):
+        return self.__to
 
-    def targetColumn(self):
+    def toColumn(self):
         schema = orb.system.schema(self.__through)
         if not schema:
             raise orb.errors.ModelNotFound(self.__through)
         else:
-            return schema.column(self.__target)
+            return schema.column(self.__to)
 
-    def targetModel(self):
-        col = self.targetColumn()
+    def toModel(self):
+        col = self.toColumn()
         if col:
             return col.referenceModel()
         else:

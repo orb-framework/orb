@@ -41,15 +41,14 @@ def testing_schema(orb):
         name = orb.StringColumn(flags={'Unique'}, index=orb.Column.Index(name='byName'))
         owner = orb.ReferenceColumn(reference='User')
 
-        users = orb.Pipe('users', through='GroupUser', source='group', target='user')
+        users = orb.Pipe('users', through='GroupUser', from_='group', to='user')
 
     class User(orb.Table):
         id = orb.IdColumn()
         username = orb.StringColumn(flags={'Unique'}, index=orb.Column.Index(name='byUsername'))
         password = orb.PasswordColumn()
-        type = orb.StringColumn(flags={'Polymorphic'}, default='User')
 
-        groups = orb.Pipe('groups', through='GroupUser', source='user', target='group')
+        groups = orb.Pipe('groups', through='GroupUser', from_='user', to='group')
 
     class GroupUser(orb.Table):
         id = orb.IdColumn()
@@ -67,9 +66,6 @@ def testing_schema(orb):
     class Role(orb.Table):
         id = orb.IdColumn()
         name = orb.StringColumn()
-
-    class Employee(User):
-        role = orb.ReferenceColumn(reference='Role')
 
     return locals()
 

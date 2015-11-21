@@ -43,6 +43,9 @@ class ReferenceColumn(Column):
                  **kwds):
         super(ReferenceColumn, self).__init__(**kwds)
 
+        if type(reverse) == dict:
+            reverse = ReferenceColumn.Reversed(**reverse)
+
         # store reference options
         self.__reference = reference
         self.__removeAction = removeAction

@@ -734,14 +734,14 @@ class Query(object):
             # pipe
             else:
                 through = lookup.throughModel()
-                targetModel = lookup.targetModel()
+                toModel = lookup.toModel()
 
                 sub_q = self.copy()
                 sub_q._Query__column = '.'.join(parts[1:])
-                sub_q._Query__model = targetModel
-                target_records = targetModel.select(columns=['id'], where=sub_q)
-                pipe_q = orb.Query(through, lookup.target()).in_(target_records)
-                records = through.select(columns=[lookup.source()], where=pipe_q)
+                sub_q._Query__model = toModel
+                to_records = toModel.select(columns=['id'], where=sub_q)
+                pipe_q = orb.Query(through, lookup.to()).in_(to_records)
+                records = through.select(columns=[lookup.from_()], where=pipe_q)
 
                 return orb.Query(model).in_(records)
 

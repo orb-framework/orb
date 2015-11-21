@@ -64,6 +64,9 @@ class Column(AddonManager):
                 flag_enum |= self.Flags(flag)
             flags = flag_enum
 
+        if type(index) == dict:
+            index = Column.Index(**index)
+
         # constructor items
         self.__name = name
         self.__field = field
@@ -141,7 +144,7 @@ class Column(AddonManager):
         """
         Returns the default value for this column to return
         when generating new instances.
-        
+
         :return     <variant>
         """
         if isinstance(self.__default, (str, unicode)):
@@ -179,7 +182,7 @@ class Column(AddonManager):
     def field(self):
         """
         Returns the field name that this column will have inside the database.
-                    
+
         :return     <str>
         """
         return self.__field or orb.system.syntax().field(self.__name, isinstance(self, orb.ReferenceColumn))
@@ -188,9 +191,9 @@ class Column(AddonManager):
         """
         Returns the first schema within the list that this column is a member
         of.
-        
+
         :param      schemas | [<orb.TableSchema>, ..]
-        
+
         :return     <orb.TableSchema> || None
         """
         for schema in schemas:
@@ -201,7 +204,7 @@ class Column(AddonManager):
     def flags(self):
         """
         Returns the flags that have been set for this column.
-        
+
         :return     <Column.Flags>
         """
         return self.__flags
@@ -221,9 +224,9 @@ class Column(AddonManager):
         """
         Returns whether or not this column is a member of any of the given
         schemas.
-        
+
         :param      schemas | [<orb.TableSchema>, ..] || <orb.TableSchema>
-        
+
         :return     <bool>
         """
         if type(schemas) not in (tuple, list, set):
@@ -268,9 +271,9 @@ class Column(AddonManager):
         """
         Returns a list of schemas this column is a member of from the inputted
         list.
-        
+
         :param      schemas | [<orb.TableSchema>, ..]
-        
+
         :return     [<orb.TableSchema>, ..]
         """
         for schema in schemas:
@@ -279,9 +282,9 @@ class Column(AddonManager):
 
     def name(self):
         """
-        Returns the accessor name that will be used when 
+        Returns the accessor name that will be used when
         referencing this column around the app.
-        
+
         :return     <str>
         """
         return self.__name
@@ -289,7 +292,7 @@ class Column(AddonManager):
     def restore(self, value, context=None, inflated=True):
         """
         Restores the value from a table cache for usage.
-        
+
         :param      value   | <variant>
                     context | <orb.Context> || None
         """
@@ -299,9 +302,9 @@ class Column(AddonManager):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
-        
+
         :param      value | <variant>
-        
+
         :return     <variant>
         """
         if isinstance(value, (str, unicode)):
@@ -311,7 +314,7 @@ class Column(AddonManager):
     def schema(self):
         """
         Returns the table that this column is linked to in the database.
-        
+
         :return     <TableSchema>
         """
         return self.__schema
@@ -322,7 +325,7 @@ class Column(AddonManager):
     def setDefault(self, default):
         """
         Sets the default value for this column to the inputted value.
-        
+
         :param      default | <str>
         """
         self.__default = default
@@ -330,7 +333,7 @@ class Column(AddonManager):
     def setDisplay(self, display):
         """
         Sets the display name for this column.
-        
+
         :param      displayName | <str>
         """
         self.__display = display
@@ -338,7 +341,7 @@ class Column(AddonManager):
     def setField(self, field):
         """
         Sets the field name for this column.
-        
+
         :param      field | <str>
         """
         self.__field = field
@@ -346,7 +349,7 @@ class Column(AddonManager):
     def setFlag(self, flag, state=True):
         """
         Sets whether or not this flag should be on.
-        
+
         :param      flag  | <Column.Flags>
                     state | <bool>
         """
@@ -358,7 +361,7 @@ class Column(AddonManager):
     def setFlags(self, flags):
         """
         Sets the global flags for this column to the inputted flags.
-        
+
         :param      flags | <Column.Flags>
         """
         self.__flags = flags
@@ -366,7 +369,7 @@ class Column(AddonManager):
     def setName(self, name):
         """
         Sets the name of this column to the inputted name.
-        
+
         :param      name    | <str>
         """
         self.__name = name
@@ -374,7 +377,7 @@ class Column(AddonManager):
     def setIndex(self, index):
         """
         Sets the index instance for this column to the inputted instance.
-        
+
         :param      index   | <orb.Column.Index> || None
         """
         self.__index = index
@@ -385,7 +388,7 @@ class Column(AddonManager):
     def testFlag(self, flag):
         """
         Tests to see if this column has the inputted flag set.
-        
+
         :param      flag | <Column.Flags>
         """
         if isinstance(flag, (str, unicode)):
@@ -398,9 +401,9 @@ class Column(AddonManager):
         Validates the inputted value against this columns rules.  If the inputted value does not pass, then
         a validation error will be raised.  Override this method in column sub-classes for more
         specialized validation.
-        
+
         :param      value | <variant>
-        
+
         :return     <bool> success
         """
         # check for the required flag
@@ -416,7 +419,7 @@ class Column(AddonManager):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
-        
+
         :param      value | <str>
         """
         return projex.text.nativestring(value)
@@ -425,9 +428,9 @@ class Column(AddonManager):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
-        
+
         :sa         engine
-        
+
         :param      value | <str>
                     extra | <variant>
         """
@@ -438,9 +441,9 @@ class Column(AddonManager):
         """
         Generates a new column from the given json data.  This should
         be already loaded into a Python dictionary, not a JSON string.
-        
+
         :param      jdata | <dict>
-        
+
         :return     <orb.Column> || None
         """
         cls_type = jdata.get('type')
