@@ -11,7 +11,7 @@ try:
         content = f.read()
         major = re.search('__major__ = (\d+)', content).group(1)
         minor = re.search('__minor__ = (\d+)', content).group(1)
-        rev = re.search('__revision__ = (\d+)', content).group(1)
+        rev = re.search('__revision__ = "([^"]+")', content).group(1)
         version = '.'.join((major, minor, rev))
 except StandardError:
      version = '0.0.0'
