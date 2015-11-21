@@ -17,6 +17,9 @@ class ChangeEvent(Event):
         self.old = old
         self.value = value
 
+class InitEvent(Event):
+    pass
+
 
 class SaveEvent(Event):
     def __init__(self, context=None, result=True):

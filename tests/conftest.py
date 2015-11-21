@@ -47,6 +47,7 @@ def testing_schema(orb):
         id = orb.IdColumn()
         username = orb.StringColumn(flags={'Unique'}, index=orb.Column.Index(name='byUsername'))
         password = orb.PasswordColumn()
+        token = orb.TokenColumn()
 
         groups = orb.Pipe('groups', through='GroupUser', from_='user', to='group')
 

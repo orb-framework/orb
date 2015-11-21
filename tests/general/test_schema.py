@@ -82,6 +82,10 @@ def test_user_empty_reverse_lookup(orb, User):
     grps = user.userGroups()
     assert len(grps) == 0
 
+def test_user_token(orb, User):
+    user = User()
+    assert user.token() is not None and user.token() != ''
+
 def test_user_empty_pipe(orb, User):
     user = User()
     grps = user.groups()

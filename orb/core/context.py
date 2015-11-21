@@ -220,7 +220,7 @@ class Context(object):
     @property
     def start(self):
         if self.raw_values.get('page') is not None:
-            return (self.raw_values.get('page') - 1) * self.limit
+            return (self.raw_values.get('page') - 1) * (self.limit or 0)
         else:
             return self.raw_values.get('start')
 

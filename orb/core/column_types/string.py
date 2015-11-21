@@ -294,7 +294,7 @@ class TokenColumn(StringColumn):
     def __init__(self, bits=32, **kwds):
         kwds['maxLength'] = bits * 2
 
-        super(StringColumn, self).__init__(**kwds)
+        super(TokenColumn, self).__init__(**kwds)
 
         # set standard properties
         self.setFlag(self.Flags.Unique)

@@ -181,6 +181,8 @@ class Model(object):
         self.__values = {}
         self.__loaded = set()
         self.__context = context or orb.Context()
+        if isinstance(self.__context, dict):
+            self.__context = orb.Context(**context)
 
         # restore the pickled state for this object
         if isinstance(record, dict):
@@ -189,7 +191,7 @@ class Model(object):
 
         # restore the database update values
         if 'loadEvent' in values:
-            self.onLoad(values.pop('loadEvent'))
+            self.__load(values.pop('loadEvent'))
 
         # initialize a new record if no record is provided
         elif not record:
@@ -214,14 +216,11 @@ class Model(object):
         # after loading everything else, update the values for this model
         self.update({k: v for k, v in values.items() if self.schema().column(k)})
 
-    # --------------------------------------------------------------------
-    #                       EVENT HANDLERS
-    # --------------------------------------------------------------------
+    def __load(self, event):
+        self.onLoad(event)
+        if event.preventDefault:
+            return
 
-    def onChange(self, event):
-        pass
-
-    def onLoad(self, event):
         context = self.context()
         schema = self.schema()
         dbname = schema.dbname()
@@ -272,9 +271,24 @@ class Model(object):
             for preload_type, preload_value in value.items():
                 loader(self, preload_value, context, type=preload_type)
 
+    # --------------------------------------------------------------------
+    #                       EVENT HANDLERS
+    # --------------------------------------------------------------------
+
+    def onChange(self, event):
+        pass
+
+    def onLoad(self, event):
+        pass
+
     def onDelete(self, event):
-        with WriteLocker(self.__dataLock):
-            self.__loaded.clear()
+        pass
+
+    def onInit(self, event):
+        """
+        Initializes the default values for this record.
+        """
+        pass
 
     def onPreSave(self, event):
         pass
@@ -364,7 +378,7 @@ class Model(object):
 
         return output
 
-    def context(self, **options):
+    def context(self, **context):
         """
         Returns the lookup options for this record.  This will track the options that were
         used when looking this record up from the database.
@@ -372,7 +386,9 @@ class Model(object):
         :return     <orb.LookupOptions>
         """
         output = self.__context or orb.Context()
-        output.update(options)
+        if type(output) == dict:
+            print output
+        output.update(context)
         return output
 
     def define(self, column, value, overwrite=False):
@@ -419,6 +435,9 @@ class Model(object):
         self.onDelete(event)
         if event.preventDefault:
             return 0
+
+        with WriteLocker(self.__dataLock):
+            self.__loaded.clear()
 
         context = self.context(**context)
         conn = context.db.connection()
@@ -472,22 +491,23 @@ class Model(object):
         # return a reference when desired
         return col.restore(value, context)
 
-    def init(self):
-        """
-        Initializes the default values for this record.
-        """
-        for column in self.schema().columns().values():
-            if not column.testFlag(column.Flags.Virtual):
-                value = column.default()
-                if column.testFlag(column.Flags.Translatable):
-                    value = {self.__context.locale: value}
-                elif column.testFlag(column.Flags.Polymorphic):
-                    value = type(self).__name__
-
-                self.define(column, value)
-
     def id(self, **context):
         return self.get(self.schema().idColumn(), useMethod=False, **context)
+
+    def init(self):
+        event = orb.events.InitEvent()
+        self.onInit(event)
+
+        if not event.preventDefault:
+            for column in self.schema().columns().values():
+                if not column.testFlag(column.Flags.Virtual):
+                    value = column.default()
+                    if column.testFlag(column.Flags.Translatable):
+                        value = {self.__context.locale: value}
+                    elif column.testFlag(column.Flags.Polymorphic):
+                        value = type(self).__name__
+
+                    self.define(column, value)
 
     def isModified(self):
         """

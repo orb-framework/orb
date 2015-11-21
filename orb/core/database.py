@@ -181,7 +181,7 @@ class Database(object):
         
         :return     <str>
         """
-        return self.__name
+        return self.__name or self.code()
 
     def password(self):
         """
@@ -297,7 +297,7 @@ class Database(object):
 
         # collect the information for this database
         conn = self.__connection
-        models = orb.system.models(orb.Model, database=self.code()).values()
+        models = orb.system.models(orb.Model).values()
         models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
 
         # initialize the database

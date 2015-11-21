@@ -1125,6 +1125,16 @@ class Query(object):
         return self.__value
 
     @staticmethod
+    def build(data):
+        if not data:
+            return None
+        else:
+            q = Query()
+            for k, v in data.items():
+                q &= Query(k) == v
+            return q
+
+    @staticmethod
     def fromJSON(jdata):
         """
         Creates a new Query object from the given JSON data.

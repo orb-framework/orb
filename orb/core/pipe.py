@@ -4,6 +4,8 @@ orb = lazy_import('orb')
 
 
 class Pipe(object):
+    __lookup__ = True
+
     def __init__(self, name='', through='', from_='', to='', unique=False):
         self.__name = self.__name__ = name
         self.__through = through

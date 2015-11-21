@@ -18,7 +18,7 @@ pytz = lazy_import('pytz')
 
 
 class AbstractDatetimeColumn(Column):
-    def dbRestore(self, typ, db_value):
+    def dbRestore(self, typ, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -27,9 +27,11 @@ class AbstractDatetimeColumn(Column):
 
         :return: <variant>
         """
+        if db_value is None:
+            return None
         return self.valueFromString(db_value, context=context)
 
-    def dbStore(self, typ, py_value):
+    def dbStore(self, typ, py_value, context=None):
         """
         Prepares to store this column for the a particular backend database.
 
@@ -39,6 +41,8 @@ class AbstractDatetimeColumn(Column):
 
         :return: <variant>
         """
+        if py_value is None:
+            return None
         return self.valueToString(py_value, context=context)
 
 

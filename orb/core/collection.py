@@ -32,6 +32,10 @@ class CollectionIterator(object):
 
 
 class Collection(object):
+    def __json__(self):
+        records = self.records()
+        return [record.__json__() for record in self.records()]
+
     def __init__(self, records=None, model=None, source='', record=None, pipe=None, **context):
         self.__cacheLock = ReadWriteLock()
         self.__cache = {
