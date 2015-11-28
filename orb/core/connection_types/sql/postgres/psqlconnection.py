@@ -85,6 +85,10 @@ class PSQLConnection(SQLConnection):
 
         start = datetime.datetime.now()
 
+        print '***********************'
+        print command % data
+        print '***********************'
+
         try:
             cursor.execute(command, data)
             rowcount = cursor.rowcount

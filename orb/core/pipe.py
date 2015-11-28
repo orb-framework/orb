@@ -1,3 +1,5 @@
+import projex.text
+
 from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
@@ -13,22 +15,26 @@ class Pipe(object):
         self.__to = to
         self.__unique = unique
         self.__schema = None
+        self.__preload = None
 
     def __call__(self, record, **context):
         if not record.isRecord():
             return orb.Collection()
 
-        model = self.toModel()
-        ref = self.throughModel()
+        target = self.toModel()
+        through = self.throughModel()
 
         # create the pipe query
-        q  = orb.Query(model) == orb.Query(ref, self.to())
-        q &= orb.Query(ref, self.from_()) == record
+        q  = orb.Query(target) == orb.Query(through, self.to())
+        q &= orb.Query(through, self.from_()) == record
 
         context['where'] = q & context.get('where')
+        cache = record.preload(projex.text.underscore(self.name()))
 
         # generate the pipe query for this record
-        return model.select(pipe=self, record=record, **context)
+        collection = target.select(pipe=self, record=record, **context)
+        collection.preload(cache, **context)
+        return collection
 
     def name(self):
         return self.__name

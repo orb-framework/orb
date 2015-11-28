@@ -149,13 +149,13 @@ class Index(object):
                                                                     self.name())
             raise errors.IndexValidationError(self, msg=msg)
 
-        # ensure a unique record is preserved
-        if self.unique():
-            lookup = getattr(record, self.name())
-            other = lookup(*column_values)
-            if other and other != record:
-                msg = 'A record already exists with the same {0} combination.'.format(', '.join(self.columnNames()))
-                raise errors.IndexValidationError(self, msg=msg)
+        # # ensure a unique record is preserved
+        # if self.unique():
+        #     lookup = getattr(record, self.name())
+        #     other = lookup(*column_values)
+        #     if other and other != record:
+        #         msg = 'A record already exists with the same {0} combination.'.format(', '.join(self.columnNames()))
+        #         raise errors.IndexValidationError(self, msg=msg)
 
         return True
 

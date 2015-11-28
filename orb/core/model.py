@@ -10,8 +10,6 @@ import projex.text
 
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import lazy_import
-from projex.text import nativestring as nstr
-from projex.addon import AddonManager
 from projex import funcutil
 
 from .metamodel import MetaModel
@@ -30,7 +28,8 @@ class Model(object):
     __orb__ = {'bypass': True}
 
     def __getitem__(self, key):
-        if self.has(key):
+        column = self.schema().column(key)
+        if column is not None:
             return self.get(key)
         else:
             raise KeyError
@@ -66,8 +65,9 @@ class Model(object):
                     continue
                 else:
                     value = getter(inflated=True, expand=subtree, returning=context.returning)
-                    if isinstance(value, orb.Model):
-                        output[key] = value.__json__()
+                    json = getattr(value, '__json__', None)
+                    if json:
+                        output[key] = json()
                     else:
                         output[key] = value
 
@@ -181,6 +181,7 @@ class Model(object):
         self.__values = {}
         self.__loaded = set()
         self.__context = context or orb.Context()
+        self.__preload = {}
         if isinstance(self.__context, dict):
             self.__context = orb.Context(**context)
 
@@ -191,7 +192,7 @@ class Model(object):
 
         # restore the database update values
         if 'loadEvent' in values:
-            self.__load(values.pop('loadEvent'))
+            self._load(values.pop('loadEvent'))
 
         # initialize a new record if no record is provided
         elif not record:
@@ -202,21 +203,21 @@ class Model(object):
             if len(record) == 1 and isinstance(record[0], Model):
                 record = record.id()
                 event = orb.events.LoadEvent(data=dict(record[0]))
-                self.onLoad(event)
+                self._load(event)
             elif len(record) == 1:
                 record = record[0]  # don't use tuples unless multiple ID columns are used
 
             data = self.fetch(record, inflated=False, context=context)
             if data:
                 event = orb.events.LoadEvent(data=data)
-                self.onLoad(event)
+                self._load(event)
             else:
                 raise errors.RecordNotFound(self, record)
 
         # after loading everything else, update the values for this model
         self.update({k: v for k, v in values.items() if self.schema().column(k)})
 
-    def __load(self, event):
+    def _load(self, event):
         self.onLoad(event)
         if event.preventDefault:
             return
@@ -224,7 +225,6 @@ class Model(object):
         context = self.context()
         schema = self.schema()
         dbname = schema.dbname()
-        loaders = []
         clean = {}
 
         for col, value in event.data.items():
@@ -236,28 +236,17 @@ class Model(object):
 
             # make sure the value we're setting is specific to this model
             column = schema.column(col_name)
-            if model_dbname != dbname:
-                continue
-
-            # prefer to use record objects
-            elif column in clean and isinstance(clean[column], Model):
+            if model_dbname != dbname or (column in clean and isinstance(clean[column], Model)):
                 continue
 
             # look for preloaded reverse lookups and pipes
             elif not column:
-                try:
-                    loader = getattr(self, col_name).preload
-                except AttributeError:
-                    continue
-                else:
-                    loaders.append((loader, value))
-                    continue
+                self.__preload[col_name] = value
 
             # extract the value from the database
             else:
                 value = column.extract(value, context=context)
-
-            clean[column] = value
+                clean[column] = value
 
         # update the local values
         with WriteLocker(self.__dataLock):
@@ -265,11 +254,6 @@ class Model(object):
                 default = val if not isinstance(val, dict) else val.copy()
                 self.__values[col] = (default, val)
                 self.__loaded.add(col)
-
-        # load pre-loaded information from database
-        for loader, value in loaders:
-            for preload_type, preload_value in value.items():
-                loader(self, preload_value, context, type=preload_type)
 
     # --------------------------------------------------------------------
     #                       EVENT HANDLERS
@@ -386,8 +370,6 @@ class Model(object):
         :return     <orb.LookupOptions>
         """
         output = self.__context or orb.Context()
-        if type(output) == dict:
-            print output
         output.update(context)
         return output
 
@@ -468,8 +450,12 @@ class Model(object):
         if not col:
             raise errors.ColumnNotFound(self.schema().name(), column)
 
+        # don't inflate if the requested value is a field
+        if column == col.field():
+            context.inflated = False
+
         # call the getter method fot this record if one exists
-        if useMethod:
+        elif useMethod:
             method = getattr(type(self), col.getter(), None)
             if method is not None and type(method.im_func).__name__ != 'orb_getter_method':
                 keywords = list(funcutil.extract_keywords(method))
@@ -534,6 +520,9 @@ class Model(object):
         else:
             return None
 
+    def preload(self, name):
+        return self.__preload.get(name) or {}
+
     def save(self, **context):
         """
         Commits the current change set information to the database,
@@ -557,9 +546,10 @@ class Model(object):
 
         # create the commit options
         context = self.context(**context)
+        new_record = not self.isRecord()
 
         # create the pre-commit event
-        event = orb.events.SaveEvent(context=context)
+        event = orb.events.SaveEvent(context=context, newRecord=new_record)
         self.onPreSave(event)
         if event.preventDefault:
             return event.result
@@ -569,7 +559,7 @@ class Model(object):
             records, _ = conn.insert([self], context)
             if records:
                 event = orb.events.LoadEvent(records[0])
-                self.onLoad(event)
+                self._load(event)
         else:
             conn.update([self], context)
 
@@ -581,7 +571,7 @@ class Model(object):
                     self.__values[col] = (value, value)
 
         # create post-commit event
-        event = orb.events.SaveEvent(context=context)
+        event = orb.events.SaveEvent(context=context, newRecord=new_record)
         self.onPostSave(event)
         return True
 
@@ -764,7 +754,6 @@ class Model(object):
     @classmethod
     def fetch(cls, key, **context):
         context.setdefault('where', orb.Query(cls) == key)
-        context['limit'] = 1
         return cls.select(**context).first()
 
     @classmethod

@@ -13,7 +13,7 @@ def test_pg_api_save_bill(orb, pg_db, User):
     user = User(username='bill', password='T3st1ng!')
     user.save()
 
-    assert user.isRecord()
+    assert user.isRecord() == True
 
 @requires_pg
 @pytest.mark.run(order=2)
@@ -25,7 +25,7 @@ def test_pg_api_delete_bill(orb, pg_db, User):
     assert not user.isRecord()
 
     user_again = User.byUsername('bill')
-    assert not user_again
+    assert user_again is None
 
 @requires_pg
 def test_pg_api_update_bob(orb, pg_sql, pg_db, User):
@@ -64,7 +64,7 @@ def test_pg_api_create_admins(orb, User, GroupUser, Group):
     assert group is not None
 
     group_user = GroupUser.ensureExists(group=group, user=user)
-    assert group_user.isRecord()
+    assert group_user.isRecord() == True
 
 @requires_pg
 def test_pg_api_get_user_groups(orb, User):
@@ -147,10 +147,38 @@ def test_pg_api_expand(orb, GroupUser):
     assert group_user is not None
 
 @requires_pg
+def test_pg_api_expand_pipe(orb, User):
+    groups = User.byUsername('bob', expand='groups').groups()
+    assert len(groups) == 1
+
+    for group in groups:
+        assert group.id() is not None
+
+@requires_pg
+def test_pg_api_expand_lookup(orb, User):
+    userGroups = User.byUsername('bob', expand='userGroups').userGroups()
+    assert len(userGroups) == 1
+
+    for userGroup in userGroups:
+        assert userGroup.get('user_id') is not None
+
+@requires_pg
 def test_pg_api_expand_json(orb, GroupUser):
     group_user = GroupUser.select(expand='user').first()
     jdata = group_user.__json__()
     assert jdata['user_id'] == jdata['user']['id']
+
+@requires_pg
+def test_pg_api_expand_complex_json(orb, User):
+    user = User.byUsername('bob', expand='groups,userGroups,userGroups.group')
+    jdata = user.__json__()
+
+    assert jdata['groups'][0]['name'] == 'admins'
+    assert jdata['userGroups'][0]['user_id'] == jdata['id']
+    assert jdata['userGroups'][0]['group']['name'] == 'admins'
+
+    assert False
+
 
 @requires_pg
 def test_pg_api_collection_insert(orb, Group):
@@ -234,6 +262,5 @@ def test_pg_api_collection_empty(orb, User):
 
 @requires_pg
 def test_pg_api_collection_itertool(orb, User):
-    for section in User.select().iterate():
-        for user in section:
-            assert user.id() is not None
+    for user in User.select(inflated=False):
+        assert user['id'] is not None

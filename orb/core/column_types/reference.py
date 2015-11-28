@@ -80,8 +80,7 @@ class ReferenceColumn(Column):
                 raise orb.errors.ModelNotFound(self.reference())
             else:
                 load_event = orb.events.LoadEvent(data=value)
-                value = cls(context=context)
-                value.onLoad(load_event)
+                value = cls(loadEvent=load_event, context=context)
             return value
         else:
             return super(ReferenceColumn, self).extract(value, context=context)
@@ -130,7 +129,11 @@ class ReferenceColumn(Column):
         if not context.inflated and isinstance(value, orb.Model):
             return value.id()
         elif context.inflated and value is not None:
-            return self.referenceModel().fetch(value)
+            model = self.referenceModel()
+            if not isinstance(value, model):
+                return model.fetch(value)
+            else:
+                return value
         else:
             return value
 

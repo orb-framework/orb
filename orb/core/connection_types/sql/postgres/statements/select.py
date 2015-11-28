@@ -62,8 +62,8 @@ class SELECT(PSQLStatement):
         # expand any pipes
         if expand:
             for pipe in schema.pipes().values():
-                sub_tree = expand.pop(schema.name(), None)
-                if sub_tree:
+                if pipe.name() in expand:
+                    sub_tree = expand.pop(pipe.name(), None)
                     sql, sub_data = EXPAND_PIPE(pipe, sub_tree)
                     if sql:
                         sql_columns['standard'].append(sql)
@@ -75,8 +75,8 @@ class SELECT(PSQLStatement):
         # expand any reverse lookups
         if expand:
             for reverse in schema.reverseLookups().values():
-                sub_tree = expand.pop(reverse.reverseInfo().name, None)
-                if sub_tree:
+                if reverse.reverseInfo().name in expand:
+                    sub_tree = expand.pop(reverse.reverseInfo().name, None)
                     sql, sub_data = EXPAND_REV(reverse, sub_tree)
                     if sql:
                         sql_columns['standard'].append(sql)

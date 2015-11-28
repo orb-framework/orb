@@ -38,7 +38,7 @@ def test_empty_user_pipes(EmptyUser):
 # ----
 
 def test_user_columns(User):
-    assert len(User.schema().columns()) == 3
+    assert len(User.schema().columns()) == 4
 
 def test_user_indexes(User):
     assert len(User.schema().indexes()) == 1

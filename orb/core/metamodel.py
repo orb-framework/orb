@@ -5,9 +5,11 @@ database classes.
 
 # ------------------------------------------------------------------------------
 
-from projex.lazymodule import lazy_import
-from new import instancemethod
+import projex.text
+
 from collections import defaultdict
+from new import instancemethod
+from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
 
@@ -89,7 +91,9 @@ class orb_lookup_method(object):
         else:
             q = orb.Query(self.column) == record
             context['where'] = q & context.get('where')
+            cache = record.preload(projex.text.underscore(self.__name__))
             records = model.select(**context)
+            records.preload(cache, **context)
             return records.first() if self.column.testFlag(self.column.Flags.Unique) else records
 
 # -----------------------------------------------------------------------------

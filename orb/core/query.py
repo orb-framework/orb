@@ -85,6 +85,11 @@ class Query(object):
         return not self.isNull()
 
     def __json__(self):
+        if hasattr(self.__value, '__json__'):
+            value = self.__value.__json__()
+        else:
+            value = self.__value
+
         jdata = {
             'model': self.__model.schema().name() if self.__model else '',
             'column': self.__column,
@@ -92,7 +97,8 @@ class Query(object):
             'caseSensitive': self.__caseSensitive,
             'functions': [self.Function(func) for func in self.__functions],
             'math': [{'op': self.Math(op), 'value': value} for (op, value) in self.__math],
-            'inverted': self.__inverted
+            'inverted': self.__inverted,
+            'value': value
         }
         return jdata
 
@@ -1182,7 +1188,7 @@ class QueryCompound(object):
 
     def __json__(self):
         data = {
-            'queries': self.__queries,
+            'queries': [q.__json__() for q in self.__queries],
             'op': self.Op(self.__op)
         }
         return data
@@ -1337,27 +1343,31 @@ class QueryCompound(object):
             sub_q = query.expand(model)
 
             # chain together joins into sub-queries
-            if isinstance(sub_q, orb.Query) and isinstance(query.value(), orb.Query):
-                q_model = query.model(model)
-                v_model = query.value().model(model)
-                if q_model != v_model:
-                    records = v_model.select(columns=[query.value().column()])
-                    query = query.copy()
-                    query.setOp(query.Op.IsIn)
-                    query.setValue(records)
+            if ((isinstance(sub_q, orb.Query) and isinstance(sub_q.value(), orb.Query)) and
+                 sub_q.value().model(model) != sub_q.model(model)):
+                sub_model = sub_q.value().model(model)
+                new_records = sub_model.select(columns=[sub_model.schema().idColumn()])
 
-                    if current_records is not None and current_records.model() == q_model:
-                        current_records.refine(where=query)
-                    else:
-                        queries.append(query)
+                sub_q = sub_q.copy()
+                sub_q.setOp(sub_q.Op.IsIn)
+                sub_q.setValue(new_records)
 
-                    current_records = records
+                if current_records is not None and current_records.model() == sub_q.model(model):
+                    new_records = new_records.refine(createNew=False, where=sub_q)
+                else:
+                    queries.append(sub_q)
 
-            elif current_records is not None and (
-                    (isinstance(query, orb.Query) and current_records.model() == query.model(model)) or
-                    (isinstance(query, orb.QueryCompound) and current_records.model() in query.models(model))):
-                current_records.refine(where=query)
+                current_records = new_records
 
+            # update the existing recordset in the chain
+            elif (current_records is not None and
+                 (
+                    (isinstance(sub_q, orb.Query) and current_records.model() == query.model(model)) or
+                    (isinstance(sub_q, orb.QueryCompound) and current_records.model() in sub_q.models(model))
+                 )):
+                current_records.refine(createNew=False, where=sub_q)
+
+            # clear out the chain and move on to the next query set
             else:
                 current_records = None
                 queries.append(query)

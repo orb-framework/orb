@@ -51,7 +51,7 @@ class SELECT_EXPAND(PSQLStatement):
                 data.update(sub_data)
 
         if sql:
-            return u',\n' + u',\n'.join(sub_sql), data
+            return u',\n' + u',\n'.join(sql), data
         else:
             return u'', data
 
@@ -88,7 +88,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
             target_data = '"{0}".*'.format(target_alias)
             target_i18n = ''
 
-        target_expand, target_expand_data = self.collectSubTree(column, tree)
+        target_expand, target_expand_data = self.collectSubTree(target, tree)
         data.update(target_expand_data)
 
         # generate the sql options
@@ -123,9 +123,8 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
 class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
     def __call__(self, column, tree, alias=''):
         data = {}
-        source = column.schema().model()
-        source_col = column
-        target = column.referenceModel()
+        target = column.schema().model()
+        source = column.referenceModel()
 
         # get the base table query
         target_q = target.baseQuery()
@@ -170,7 +169,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
 
-        target_expand, target_expand_data = self.collectSubTree(column, tree)
+        target_expand, target_expand_data = self.collectSubTree(target, tree)
         data.update(target_expand_data)
 
         # define the sql options
@@ -184,6 +183,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             'target_table': target.schema().dbname(),
             'target_expand': target_expand,
             'target_records_alias': target_records_alias,
+            'source_table': source.schema().dbname(),
             'source_field': column.field(),
             'limit_if_unique': 'LIMIT 1' if column.testFlag(column.Flags.Unique) else ''
         }
@@ -214,9 +214,9 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         data = {}
         source = pipe.fromModel()
 
-        source_col = pipe.sourceColumn()
+        source_col = pipe.fromColumn()
         through = pipe.throughModel()
-        target_col = pipe.targetColumn()
+        target_col = pipe.toColumn()
 
         target = pipe.toModel()
         target_records_alias = projex.text.underscore(pipe.name()) + '_records'
@@ -262,7 +262,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
 
-        target_expand, target_expand_data = self.collectSubTree(target_col, tree)
+        target_expand, target_expand_data = self.collectSubTree(target, tree)
         data.update(target_expand_data)
 
         # define the sql options
@@ -277,6 +277,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             'target_i18n': target_i18n,
             'through_table': through.schema().dbname(),
             'target_field': target_col.field(),
+            'target_records_alias': target_records_alias,
             'source_table': source.schema().dbname(),
             'source_field': source_col.field(),
             'limit_if_unique': 'LIMIT 1' if pipe.unique() else ''
