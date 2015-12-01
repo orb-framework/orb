@@ -6,9 +6,8 @@ import os
 class Settings(object):
     Defaults = {
         'locale': 'en_US',
-        'server_timezone': '',
+        'server_timezone': 'US/Pacific',
         'security_key': '',
-        'timezone': '',
         'raise_background_errors': 'True',
         'caching_enabled': 'False',
         'max_cache_timeout': str(1000 * 60 * 60 * 24), # 24 hours

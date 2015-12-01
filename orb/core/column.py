@@ -82,7 +82,7 @@ class Column(AddonManager):
         self.__schema = None
         self.__timezone = None
 
-    def dbRestore(self, typ, db_value):
+    def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -167,17 +167,6 @@ class Column(AddonManager):
         :return     <str>
         """
         return self.__display or orb.system.syntax().display(self.__name)
-
-    def extract(self, value, context=None):
-        """
-        Extracts the database value information during a load.
-
-        :param value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-        return value
 
     def field(self):
         """

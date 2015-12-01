@@ -1,5 +1,6 @@
 from .aggregate import *
 from .boolean import *
+from .data import *
 from .dtime import *
 from .join import *
 from .numeric import *

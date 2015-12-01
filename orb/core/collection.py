@@ -39,7 +39,7 @@ class CollectionIterator(object):
 
 class Collection(object):
     def __json__(self):
-        return [record.__json__() for record in self.records()]
+        return [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
 
     def __init__(self, records=None, model=None, source='', record=None, pipe=None, preload=None, **context):
         self.__cacheLock = ReadWriteLock()
@@ -70,19 +70,19 @@ class Collection(object):
 
     def _process(self, raw, context):
         if context.inflated and context.returning != 'values':
-            records = [self.__model.inflate(x, context=context) for x in raw]
+            records = [self.__model.inflate(x, context=context) for x in raw or []]
         elif context.columns:
             schema = self.__model.schema()
             if context.returning == 'values':
                 if len(context.columns) == 1:
                     col = schema.column(context.columns[0])
-                    records = [x[col.field()] for x in raw]
+                    records = [x[col.field()] for x in raw or []]
                 else:
                     cols = [schema.column(col) for col in context.columns]
-                    records = [[r.get(col.field()) for col in cols] for r in raw]
+                    records = [tuple(r.get(col.field()) for col in cols) for r in raw or []]
             else:
                 cols = [schema.column(col) for col in context.columns]
-                records = [{col.field(): r.get(col.field()) for col in cols} for r in raw]
+                records = [{col.field(): r.get(col.field()) for col in cols} for r in raw or []]
         else:
             records = raw
         return records
@@ -90,9 +90,10 @@ class Collection(object):
     def add(self, record):
         if self.pipe():
             cls = self.pipe().throughModel()
-            data = {}
-            data[self.pipe().from_()] = self.__record
-            data[self.pipe().to()] = record
+            data = {
+                self.pipe().from_(): self.__record,
+                self.pipe().to(): record
+            }
             new_record = cls(data)
             new_record.save()
             return new_record
@@ -320,7 +321,7 @@ class Collection(object):
                 with ReadLocker(self.__cacheLock):
                     raw = self.__preload['last'][context]
             except KeyError:
-                record = self.reversed().first(**context)
+                record = self.reversed().first(context=context)
             else:
                 record = self._process([raw], context)[0]
 
@@ -524,3 +525,33 @@ class Collection(object):
 
     def setPipe(self, pipe):
         self.__pipe = pipe
+
+    def values(self, *columns, **context):
+        context = self.context(**context)
+
+        try:
+            with ReadLocker(self.__cacheLock):
+                return self.__cache['values'][(context, columns)]
+        except KeyError:
+            try:
+                with ReadLocker(self.__cacheLock):
+                    raw = self.__preload['records'][context]
+            except KeyError:
+                context.columns = columns
+                conn = context.db.connection()
+                raw = conn.select(self.__model, context)
+
+            schema = self.__model.schema()
+            values = []
+            fields = [schema.column(col) for col in columns]
+            for record in raw:
+                record_values = [record[field] for field in record]
+                if len(fields) == 1:
+                    values.append(record_values[0])
+                else:
+                    values.append(record_values)
+
+            with WriteLocker(self.__cacheLock):
+                self.__cache['values'][(context, columns)] = values
+
+            return values

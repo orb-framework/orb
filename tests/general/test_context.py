@@ -1,3 +1,15 @@
+import pytest
+
+def test_context_null(orb):
+    context = orb.Context()
+    assert context.isNull() == True
+
+@pytest.mark.run(order=1)
+def test_context_no_database(orb):
+    context = orb.Context()
+    with pytest.raises(orb.errors.DatabaseNotFound):
+        print context.db
+
 def test_context(orb, User):
     with orb.Context(database='testing'):
         user_a = User()
@@ -8,6 +20,13 @@ def test_context(orb, User):
     assert user_a.context().database == 'testing'
     assert user_b.context().database == 'testing_2'
 
+def test_context_equality(orb):
+    context_a = orb.Context(database='testing')
+    context_b = orb.Context(database='testing2')
+    context_c = orb.Context(database='testing')
+
+    assert context_a != context_b
+    assert context_a == context_c
 
 def test_context_scope(orb, User):
     scope = {'session': 123}
@@ -15,7 +34,6 @@ def test_context_scope(orb, User):
         user_a = User()
 
     assert user_a.context().scope == scope
-
 
 def test_nested_context_scope(orb, User):
     scope_a = {'session': 123}
@@ -28,7 +46,6 @@ def test_nested_context_scope(orb, User):
 
     assert user_a.context().scope == scope_a
     assert user_b.context().scope == scope_b
-
 
 def test_locale_scope(orb, User):
     with orb.Context(locale='en_US'):
@@ -84,3 +101,59 @@ def test_context_dict_key(orb):
     test = {context_a: 1}
 
     assert test[context_b] == 1
+
+def test_invalid_context_property(orb):
+    context = orb.Context()
+    assert context.inflated == True
+    with pytest.raises(AttributeError):
+        context.bad_property
+
+    with pytest.raises(AttributeError):
+        context.bad_property = 'bad'
+
+def test_context_iterator(orb):
+    context = orb.Context()
+    for k, v in context:
+        assert v == getattr(context, k)
+
+def test_context_scope_copy(orb):
+    context = orb.Context(scope={'request': 'blah'})
+    context_b = context.copy()
+    assert context.scope == context_b.scope
+
+def test_context_expand_as_set(orb):
+    context = orb.Context(expand={'user', 'group'})
+    assert type(context.expand) == list
+    assert 'user' in context.expand
+    assert 'group' in context.expand
+
+def test_context_expand_as_string(orb):
+    context = orb.Context(expand='user,group')
+    assert type(context.expand) == list
+    assert 'user' in context.expand
+    assert 'group' in context.expand
+
+def test_context_order_as_string(orb):
+    context = orb.Context(order='+id,-username')
+    assert type(context.order) == list
+    assert ('id', 'asc') in context.order
+    assert ('username', 'desc') in context.order
+
+def test_context_order_as_set(orb):
+    context = orb.Context(order={('id', 'asc'), ('username', 'desc')})
+    assert type(context.order) == list
+    assert ('id', 'asc') in context.order
+    assert ('username', 'desc') in context.order
+
+def test_context_paging(orb):
+    context = orb.Context(page=1, pageSize=10)
+    assert context.start == 0
+    assert context.limit == 10
+
+    context = orb.Context(page=2, pageSize=10)
+    assert context.start == 10
+    assert context.limit == 10
+
+    context = orb.Context(page=3, pageSize=10)
+    assert context.start == 20
+    assert context.limit == 10

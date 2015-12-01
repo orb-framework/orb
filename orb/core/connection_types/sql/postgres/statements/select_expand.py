@@ -41,11 +41,11 @@ class SELECT_EXPAND(PSQLStatement):
                         else:
                             raise orb.errors.ColumnNotFound(schema.name(), name)
 
-    def collectSubTree(self, model, tree):
+    def collectSubTree(self, model, tree, alias=''):
         sql = []
         data = {}
         for action, obj, sub_tree in self.generateSubTree(model, tree):
-            sub_sql, sub_data = action(obj, sub_tree)
+            sub_sql, sub_data = action(obj, sub_tree, alias=alias)
             if sub_sql:
                 sql.append(sub_sql)
                 data.update(sub_data)
@@ -88,7 +88,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
             target_data = '"{0}".*'.format(target_alias)
             target_i18n = ''
 
-        target_expand, target_expand_data = self.collectSubTree(target, tree)
+        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias)
         data.update(target_expand_data)
 
         # generate the sql options
@@ -169,7 +169,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
 
-        target_expand, target_expand_data = self.collectSubTree(target, tree)
+        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias)
         data.update(target_expand_data)
 
         # define the sql options
@@ -262,7 +262,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
 
-        target_expand, target_expand_data = self.collectSubTree(target, tree)
+        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias)
         data.update(target_expand_data)
 
         # define the sql options

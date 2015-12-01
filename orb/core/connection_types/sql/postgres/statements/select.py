@@ -43,7 +43,7 @@ class SELECT(PSQLStatement):
                     sql = u'(array_agg("i18n"."{0}"))[1] AS "{0}"'
 
                 sql_columns['i18n'].append(sql.format(column.field()))
-                sql_group_by.append(u'"{0}"."id"'.format(schema.dbname()))
+                sql_group_by.add(u'"{0}"."id"'.format(schema.dbname()))
                 fields[column] = u'"i18n"."{0}"'.format(column.field())
             else:
                 # expand a reference
@@ -98,7 +98,7 @@ class SELECT(PSQLStatement):
                 sql_order_by.append(u'{0} {1}'.format(field, dir.upper()))
 
         if context.distinct is True:
-            cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(', '.join(sql_columns['standard']), schema.dbname())]
+            cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']), schema.dbname())]
         elif isinstance(context.distinct, (list, set, tuple)):
             on_ = []
             for col in context.distinct:
@@ -109,10 +109,10 @@ class SELECT(PSQLStatement):
                     on_.append(fields.get(col) or u'"{0}"."{1}"'.format(schema.dbname(), col.field()))
 
             cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM "{2}"'.format(', '.join(on_),
-                                                                    ', '.join(sql_columns['standard']),
+                                                                    ', '.join(sql_columns['standard'] + sql_columns['i18n']),
                                                                     schema.dbname())]
         else:
-            cmd = [u'SELECT {0} FROM "{1}"'.format(', '.join(sql_columns['standard']), schema.dbname())]
+            cmd = [u'SELECT {0} FROM "{1}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']), schema.dbname())]
 
         # add sql joins to the statement
         if sql_joins:
@@ -120,7 +120,7 @@ class SELECT(PSQLStatement):
 
         # join in the i18n table
         if sql_columns['i18n']:
-            if context.infalted or context.locale == 'all':
+            if context.locale == 'all':
                 cmd.append(u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
             else:
                 sql = u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'
@@ -137,6 +137,8 @@ class SELECT(PSQLStatement):
         if expanded:
             if sql_order_by:
                 distinct = u'ON ({0})'.format(', '.join((order.split(' ')[0] for order in sql_order_by)))
+            else:
+                distinct = ''
 
             cmd.append(u'WHERE "{0}"."id" IN ('.format(schema.dbname()))
             cmd.append(u'    SELECT DISTINCT {0} "{1}"."id"'.format(distinct, schema.dbname()))
@@ -165,12 +167,12 @@ class SELECT(PSQLStatement):
 
             cmd.append(u')')
             if sql_group_by:
-                cmd.append(u'GROUP BY {0}'.format(', '.join(sql_group_by)))
+                cmd.append(u'GROUP BY {0}'.format(', '.join(list(sql_group_by))))
         else:
             if sql_where:
                 cmd.append(u'WHERE {0}'.format(sql_where))
             if sql_group_by:
-                cmd.append(u'GROUP BY {0}'.format(', '.join(sql_group_by)))
+                cmd.append(u'GROUP BY {0}'.format(', '.join(list(sql_group_by))))
             if sql_order_by:
                 cmd.append(u'ORDER BY {0}'.format(', '.join(sql_order_by)))
             if context.start:

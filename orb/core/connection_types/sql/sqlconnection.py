@@ -224,7 +224,7 @@ class SQLConnection(orb.Connection):
             return self.execute(sql, data, writeAccess=True)
 
     def execute(self, command, data=None, autoCommit=True, autoClose=True, returning=True,
-                mapper=dict, writeAccess=False, retries=0, dryRun=False):
+                mapper=dict, writeAccess=False, retries=0, dryRun=False, locale=None):
         """
         Executes the inputted command into the current \
         connection cursor.
@@ -251,6 +251,7 @@ class SQLConnection(orb.Connection):
         rowcount = 0
         data = data or {}
         command = command.strip()
+        data.setdefault('locale', locale or orb.Context().locale)
         conn = self.open()
         if conn is None:
             raise orb.errors.ConnectionFailed()

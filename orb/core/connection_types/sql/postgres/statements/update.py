@@ -25,9 +25,9 @@ class UPDATE(PSQLStatement):
         data = {}
         standard_values = []
 
-        i18n_fields = defaultdict(dict)
-        i18n_values = defaultdict(dict)
-        i18n_keys = defaultdict(dict)
+        i18n_fields = defaultdict(list)
+        i18n_values = defaultdict(list)
+        i18n_keys = defaultdict(list)
 
         for column in changes:
             if column.testFlag(column.Flags.Translatable):
@@ -51,7 +51,7 @@ class UPDATE(PSQLStatement):
             standard_sql = (
                 u'UPDATE "{table}"\n'
                 u'SET {values}\n'
-                u'WHERE "{table}"."id" = %({id})s'
+                u'WHERE "{table}"."id" = %({id})s;'
             ).format(table=record.schema().dbname(), id=id_key, values=', '.join(standard_values))
             sql.append(standard_sql)
 

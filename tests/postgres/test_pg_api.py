@@ -1,4 +1,5 @@
 import pytest
+
 from test_marks import requires_pg
 
 
@@ -177,9 +178,6 @@ def test_pg_api_expand_complex_json(orb, User):
     assert jdata['userGroups'][0]['user_id'] == jdata['id']
     assert jdata['userGroups'][0]['group']['name'] == 'admins'
 
-    assert False
-
-
 @requires_pg
 def test_pg_api_collection_insert(orb, Group):
     records = orb.Collection((Group(name='Test A'), Group(name='Test B')))
@@ -264,3 +262,62 @@ def test_pg_api_collection_empty(orb, User):
 def test_pg_api_collection_itertool(orb, User):
     for user in User.select(inflated=False):
         assert user['id'] is not None
+
+@requires_pg
+def test_pg_api_select_columns(orb, User):
+    data = User.select(columns='username', returning='values').records()
+    assert type(data) == list
+    assert 'bob' in data
+    assert 'sally' in data
+
+@requires_pg
+def test_pg_api_select_colunms_json(orb, User):
+    data = User.select(columns='username', returning='values').__json__()
+    assert type(data) == list
+    assert 'bob' in data
+    assert 'sally' in data
+
+@requires_pg
+def test_pg_api_select_multiple_columns(orb, User):
+    data = list(User.select(columns=['id', 'username'], returning='values'))
+    assert type(data) == list
+    assert type(data[0]) == tuple
+    assert (1, 'bob') in data
+
+@requires_pg
+def test_pg_api_save_multi_i18n(orb, Document):
+    doc = Document()
+
+    with orb.Context(locale='en_US'):
+        print doc.context().raw_values
+        assert doc.context().locale == 'en_US'
+        doc.save({'title': 'Fast'})
+
+    with orb.Context(locale='sp_SP'):
+        assert doc.context().locale == 'sp_SP'
+        doc.save({'title': 'Rapido'})
+
+@requires_pg
+def test_pg_api_load_multi_i18n(orb, Document):
+    with orb.Context(locale='en_US'):
+        doc_en = Document.select().last()
+
+    with orb.Context(locale='sp_SP'):
+        doc_sp = Document.select().last()
+
+    assert doc_en.title() == 'Fast'
+    assert doc_sp.title() == 'Rapido'
+    assert doc_en.id() == doc_sp.id()
+
+@requires_pg
+def test_pg_api_load_multi_i18n_with_search(orb, Document):
+    with orb.Context(locale='en_US'):
+        docs_en = Document.select(where=orb.Query('title') == 'Fast')
+
+    with orb.Context(locale='sp_SP'):
+        docs_sp = Document.select(where=orb.Query('title') == 'Rapido')
+
+    assert len(docs_en) == len(docs_sp)
+    assert docs_en[0].title() == 'Fast'
+    assert docs_sp[0].title() == 'Rapido'
+    assert len(set(docs_sp.values('id')).difference(docs_en.values('id'))) == 0

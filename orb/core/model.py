@@ -73,7 +73,7 @@ class Model(object):
 
         # don't include the column names
         if context.returning == 'values':
-            output = [output[column.field()] for column in context.schemaColumns(self.schema())]
+            output = tuple(output[column.field()] for column in context.schemaColumns(self.schema()))
             if len(output) == 1:
                 output = output[0]
 
@@ -245,7 +245,7 @@ class Model(object):
 
             # extract the value from the database
             else:
-                value = column.extract(value, context=context)
+                value = column.dbRestore(value, context=context)
                 clean[column] = value
 
         # update the local values
@@ -300,6 +300,7 @@ class Model(object):
         columns = [schema.column(c) for c in columns] if columns else \
                    schema.columns(recurse=recurse, flags=flags).values()
 
+        context = self.context(inflated=False)
         with ReadLocker(self.__dataLock):
             for col in columns:
                 old, curr = self.__values.get(col, (None, None))
@@ -308,13 +309,14 @@ class Model(object):
                 elif is_record:
                     old = None
 
-                check_old = col.restore(old, False)
-                check_curr = col.restore(curr, False)
+                check_old = col.restore(old, context)
+                check_curr = col.restore(curr, context)
 
                 if check_old != check_curr:
                     pre_check[col] = (check_old, check_curr)
 
-        return {col: (col.restore(old, inflated), col.restore(curr, inflated))
+        context = self.context(inflated=inflated)
+        return {col: (col.restore(old, context), col.restore(curr, context))
                 for col, (old, curr) in pre_check.items()}
 
     def collect(self,
@@ -369,7 +371,7 @@ class Model(object):
 
         :return     <orb.LookupOptions>
         """
-        output = self.__context or orb.Context()
+        output = orb.Context(context=self.__context) if self.__context is not None else orb.Context()
         output.update(context)
         return output
 
@@ -523,7 +525,7 @@ class Model(object):
     def preload(self, name):
         return self.__preload.get(name) or {}
 
-    def save(self, **context):
+    def save(self, values=None, **context):
         """
         Commits the current change set information to the database,
         or inserts this object as a new record into the database.
@@ -544,6 +546,9 @@ class Model(object):
         if not (self.isModified() and self.validate()):
             return False
 
+        if values is not None:
+            self.update(values, **context)
+
         # create the commit options
         context = self.context(**context)
         new_record = not self.isRecord()
@@ -553,6 +558,8 @@ class Model(object):
         self.onPreSave(event)
         if event.preventDefault:
             return event.result
+
+        print 'locale:', context.locale
 
         conn = context.db.connection()
         if not self.isRecord():
@@ -643,7 +650,7 @@ class Model(object):
     def update(self, values, **context):
         # update from value dictionary
         for col, value in values.items():
-            self.set(col, value)
+            self.set(col, value, **context)
         return len(values)
 
     def validate(self):

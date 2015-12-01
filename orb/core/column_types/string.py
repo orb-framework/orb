@@ -16,19 +16,32 @@ class AbstractStringColumn(Column):
 
         super(AbstractStringColumn, self).__init__(**kwds)
 
-    def dbRestore(self, db_value):
+    def dbRestore(self, db_value, context=None):
         """
-        Converts a stored database value to Python.
+        Extracts data from the database.
 
-        :param py_value: <variant>
+        :param db_value: <variant>
         :param context: <orb.Context>
 
         :return: <variant>
         """
-        if db_value is not None:
-            return projex.text.decoded(db_value)
+
+        # restore translatable column
+        if self.testFlag(self.Flags.Translatable):
+            if isinstance(db_value, (str, unicode)):
+                if db_value.startswith('{'):
+                    try:
+                        value = projex.text.safe_eval(db_value)
+                    except StandardError:
+                        value = None
+                else:
+                    value = {context.locale: value}
+            else:
+                value = db_value
+
+            return value
         else:
-            return db_value
+            return super(AbstractStringColumn, self).dbRestore(db_value, context=context)
 
     def dbStore(self, typ, py_value):
         """
@@ -44,32 +57,7 @@ class AbstractStringColumn(Column):
         else:
             return py_value
 
-    def extract(self, value, context=None):
-        """
-        Extracts data from the database.
-
-        :param value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-
-        # restore translatable column
-        if self.testFlag(self.Flags.Translatable):
-            if isinstance(value, (str, unicode)) and value.startswith('{'):
-                try:
-                    value = projex.text.safe_eval(value)
-                except StandardError:
-                    value = None
-            elif context and context.locale != 'all':
-                value = {context.locale: value}
-            else:
-                value = {self.currentLocale(): value}
-            return value
-        else:
-            return super(AbstractStringColumn, self).extract(value, context=context)
-
-    def restore(self, value, context=None, inflated=False):
+    def restore(self, value, context=None):
         """
         Restores the value from a table cache for usage.
 
@@ -102,7 +90,7 @@ class AbstractStringColumn(Column):
         else:
             return super(AbstractStringColumn, self).restore(value, context)
 
-    def store(self, value, context):
+    def store(self, value, context=None):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
@@ -171,6 +159,7 @@ class StringColumn(AbstractStringColumn):
         """
         self.__maxLength = length
 
+
 class TextColumn(AbstractStringColumn):
     TypeMap = {
         'Default': 'TEXT'
@@ -181,11 +170,13 @@ class TextColumn(AbstractStringColumn):
 class ColorColumn(StringColumn):
     pass
 
+
 class DirectoryColumn(StringColumn):
     pass
 
+
 class EmailColumn(StringColumn):
-    def __init__(self, pattern='[\w\-\.]+\@\w+\.\w+]', **kwds):
+    def __init__(self, pattern='[\w\-\.]+\@\w+\.\w+', **kwds):
         super(EmailColumn, self).__init__(**kwds)
 
         # define custom properties
@@ -200,16 +191,19 @@ class EmailColumn(StringColumn):
 
         :return: <bool>
         """
-        if not re.match(self.__pattern, value):
+        if isinstance(value, (str, unicode)) and not re.match(self.__pattern, value):
             raise orb.errors.ColumnValidationError(self, 'The email provided is not valid.')
         else:
             return super(EmailColumn, self).validate(value)
 
+
 class FilepathColumn(StringColumn):
     pass
 
+
 class HtmlColumn(TextColumn):
     pass
+
 
 class PasswordColumn(StringColumn):
     def __init__(self,
@@ -290,6 +284,7 @@ class PasswordColumn(StringColumn):
         else:
             return super(PasswordColumn, self).validate(value)
 
+
 class TokenColumn(StringColumn):
     def __init__(self, bits=32, **kwds):
         kwds['maxLength'] = bits * 2
@@ -338,11 +333,14 @@ class TokenColumn(StringColumn):
         """
         self.__bits = bits
 
+
 class UrlColumn(StringColumn):
     pass
 
+
 class XmlColumn(TextColumn):
     pass
+
 
 # register string column types
 Column.registerAddon('String', StringColumn)

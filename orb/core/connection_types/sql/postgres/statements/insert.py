@@ -47,6 +47,8 @@ class INSERT(PSQLStatement):
                     subcmd += '\n({0}),'.format(value)
                 subcmd += '\n({0})'.format(values[-1])
                 subcmd += '\nRETURNING "id";'
+            elif columns['i18n']:
+                subcmd += '\nINSERT INTO "{0}" DEFAULT VALUES RETURNING "id";'.format(schema.dbname())
 
             if columns['i18n']:
                 cols = ', '.join(['"{0}"'.format(col.field()) for col in columns['i18n']])
@@ -54,7 +56,7 @@ class INSERT(PSQLStatement):
                 subcmd += '\nINSERT INTO "{0}_i18n" ("{0}_id", "locale", {1}) VALUES'.format(schema.dbname(), cols)
                 for i, value in enumerate(values[:-1]):
                     subcmd += '\n(LASTVAL() - {0}, %(locale)s, {1}),'.format(len(values) - (i+1), value)
-                subcmd += '\n(LASTVAL(), %(locale)s, {0})'.format(value)
+                subcmd += '\n(LASTVAL(), %(locale)s, {0})'.format(values[-1])
                 subcmd += '\nRETURNING "{0}_id" AS "id";'.format(schema.dbname())
 
             cmd.append(subcmd)

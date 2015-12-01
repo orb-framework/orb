@@ -256,6 +256,18 @@ class ValueNotFound(OrbError):
     def __init__(self, record, column):
         super(ValueNotFound, self).__init__('{0} has no value for {1}'.format(record, column))
 
+class ValueOutOfRange(ValidationError):
+    def __init__(self, column, value, minimum, maximum):
+        msg = '{0} for {1} is out of range.  Value must be '.format(value, column)
+
+        if minimum is not None and maximum is not None:
+            msg += 'between {0} and {1}'.format(minimum, maximum)
+        elif minimum is not None:
+            msg += 'greater than {0}'
+        elif maximum is not None:
+            msg += 'less than {0}'.format(maximum)
+
+        super(ValueOutOfRange, self).__init__(msg)
 
 class ViewNotFound(OrbError):
     code = 410  # HTTPGone

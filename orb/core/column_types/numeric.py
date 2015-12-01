@@ -1,8 +1,38 @@
 import projex.text
 
+from projex.lazymodule import lazy_import
 from ..column import Column
 
+orb = lazy_import('orb')
+
 class AbstractNumericColumn(Column):
+    def __init__(self, minimum=None, maximum=None, **kwds):
+        super(AbstractNumericColumn, self).__init__(**kwds)
+
+        # used to determine ranging options
+        self.__minimum = minimum
+        self.__maximum = maximum
+
+    def maximum(self):
+        return self.__maximum
+
+    def minimum(self):
+        return self.__minimum
+
+    def setMaximum(self, maximum):
+        self.__maximum = maximum
+
+    def setMinimum(self, minimum):
+        self.__minimum = minimum
+
+    def validate(self, value):
+        if (value is not None and
+            (self.__minimum is not None and value < self.__minimum or
+             self.__maximum is not None and value > self.__maximum)):
+            raise orb.errors.ValueOutOfRange(self.name(), value, self.__minimum, self.__maximum)
+        else:
+            return super(AbstractNumericColumn, self).validate(value)
+
     def valueFromString(self, value, extra=None, db=None):
         """
         Converts the inputted string text to a value that matches the type from
@@ -37,11 +67,31 @@ class IntegerColumn(AbstractNumericColumn):
         'Default': 'INT UNSIGNED'
     }
 
+    def __init__(self, minimum=None, maximum=None, **kwds):
+        if minimum is None:
+            minimum = -(2**31)
+        if maximum is None:
+            maximum = (2**31) - 1
+
+        super(IntegerColumn, self).__init__(minimum=minimum,
+                                            maximum=maximum,
+                                            **kwds)
+
 
 class LongColumn(AbstractNumericColumn):
     TypeMap = {
         'Default': 'BIGINT'
     }
+
+    def __init__(self, minimum=None, maximum=None, **kwds):
+        if minimum is None:
+            minimum = -(2**63)
+        if maximum is None:
+            maximum = (2**63) - 1
+
+        super(LongColumn, self).__init__(minimum=minimum,
+                                         maximum=maximum,
+                                         **kwds)
 
 
 class IdColumn(LongColumn):
@@ -65,6 +115,7 @@ class IdColumn(LongColumn):
                 return py_value
         else:
             return py_value
+
 
 class EnumColumn(LongColumn):
     def __init__(self, enum=None, **kwds):
@@ -91,6 +142,7 @@ class EnumColumn(LongColumn):
         :param      cls | <projex.enum.enum> || None
         """
         self.__enum = cls
+
 
 Column.registerAddon('Enum', EnumColumn)
 Column.registerAddon('Decimal', DecimalColumn)

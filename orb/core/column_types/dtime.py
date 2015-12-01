@@ -18,7 +18,7 @@ pytz = lazy_import('pytz')
 
 
 class AbstractDatetimeColumn(Column):
-    def dbRestore(self, typ, db_value, context=None):
+    def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -29,7 +29,10 @@ class AbstractDatetimeColumn(Column):
         """
         if db_value is None:
             return None
-        return self.valueFromString(db_value, context=context)
+        elif isinstance(db_value, (str, unicode)):
+            return self.valueFromString(db_value, context=context)
+        else:
+            return super(AbstractDatetimeColumn, self).dbRestore(db_value, context=context)
 
     def dbStore(self, typ, py_value, context=None):
         """
@@ -51,7 +54,7 @@ class DateColumn(AbstractDatetimeColumn):
         'Default': 'DATE'
     }
 
-    def dbRestore(self, typ, db_value):
+    def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -105,12 +108,12 @@ class DatetimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        if out in ('today', 'now'):
+        if value in ('today', 'now'):
             return datetime.date.now()
         elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            time_struct = time.strptime(value, '%Y-%m-%d %h:%m:%s')
+            time_struct = time.strptime(value, '%Y-%m-%d %H:%M:%S')
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -127,7 +130,7 @@ class DatetimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%Y-%m-%d %h:%m:%s')
+        return value.strftime('%Y-%m-%d %H:%M:%S')
 
 
 class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
@@ -135,12 +138,6 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         'Postgres': 'TIMESTAMP WITHOUT TIME ZONE',
         'Default': 'DATETIME'
     }
-
-    def __init__(self, timezone=None, **kwds):
-        super(DatetimeWithTimezoneColumn, self).__init__(**kwds)
-
-        # define custom properties
-        self.__timezone = timezone
 
     def restore(self, value, context=None):
         """
@@ -152,11 +149,11 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         if value in ('today', 'now'):
             return datetime.date.now()
         elif isinstance(value, datetime.datetime):
-            tz = self.timezone(context)
+            tz = pytz.timezone(context.timezone)
 
             if tz is not None:
                 if value.tzinfo is None:
-                    base_tz = orb.system.baseTimezone()
+                    base_tz = pytz.timezone(orb.system.settings().server_timezone)
 
                     # the machine timezone and preferred timezone match, so create off utc time
                     if base_tz == tz:
@@ -174,17 +171,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         else:
             return super(DatetimeWithTimezoneColumn, self).restore(value, context)
 
-    def setTimezone(self, timezone):
-        """
-        Sets the timezone associated directly to this column.
-
-        :sa     <orb.Manager.setTimezone>
-
-        :param     timezone | <pytz.tzfile> || None
-        """
-        self.__timezone = timezone
-
-    def store(self, value):
+    def store(self, value, context=None):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
@@ -195,33 +182,14 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         """
         if isinstance(value, datetime.datetime):
             # match the server information
-            tz = orb.system.baseTimezone() or self.timezone()
-            if tz is not None:
-                # ensure we have some timezone information before converting to UTC time
-                if value.tzinfo is None:
-                    value = tz.localize(value, is_dst=None)
+            tz = pytz.timezone(orb.system.settings().server_timezone)
+            # ensure we have some timezone information before converting to UTC time
+            if value.tzinfo is None:
+                value = tz.localize(value, is_dst=None)
 
-                value = value.astimezone(pytz.utc).replace(tzinfo=None)
-            else:
-                log.warning('No local timezone defined.')
-
-            return value
+            return value.astimezone(pytz.utc).replace(tzinfo=None)
         else:
             return super(DatetimeWithTimezoneColumn, self).store(value)
-
-    def timezone(self, context=None):
-        """
-        Returns the timezone associated specifically with this column.  If
-        no timezone is directly associated, then it will return the timezone
-        that is associated with the system in general.
-
-        :sa     <orb.Manager>
-
-        :param      context | <orb.Context> || None
-
-        :return     <pytz.tzfile> || None
-        """
-        return self.__timezone or self.schema().timezone(context)
 
     def valueFromString(self, value, context=None):
         """
@@ -250,11 +218,13 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%Y-%m-%d %h:%m:%s')
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+
 
 class IntervalColumn(Column):
     TypeMap = {
-        'Postgres': 'TIMEDELTA'
+        'Postgres': 'INTERVAL',
+        'Default': 'TIMEDELTA'
     }
 
 
@@ -275,7 +245,7 @@ class TimeColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value).time()
         else:
-            time_struct = time.strptime(value, '%h:%m:%s')
+            time_struct = time.strptime(value, '%H:%M:%S')
             return datetime.time(time_struct.tm_hour,
                                  time_struct.tm_min,
                                  time_struct.tm_sec)
@@ -289,28 +259,28 @@ class TimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%h:%m:%s')
+        return value.strftime('%H:%M:%S')
 
 
 class TimestampColumn(AbstractDatetimeColumn):
     TypeMap = {
-        'Postgres': 'TIMESTAMP WITHOUT TIMEZONE',
-        'Default': 'DATETIME'
+        'Postgres': 'BIGINT',
+        'Default': 'INTEGER'
     }
 
-    def restore(self, value, context=None):
+    def dbRestore(self, db_value, context=None):
         """
         Restores the value from a table cache for usage.
 
         :param      value   | <variant>
                     context | <orb.Context> || None
         """
-        if isinstance(value, (int, long, float)):
-            return datetime.datetime.fromtimestamp(value)
+        if isinstance(db_value, (int, long, float)):
+            return datetime.datetime.fromtimestamp(db_value)
         else:
-            return super(TimestampColumn, self).restore(value, context)
+            return super(TimestampColumn, self).dbRestore(db_value, context=context)
 
-    def store(self, value):
+    def dbStore(self, typ, py_value):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
@@ -319,10 +289,10 @@ class TimestampColumn(AbstractDatetimeColumn):
 
         :return     <variant>
         """
-        if isinstance(value, datetime.datetime):
-            return time.mktime(value.timetuple())
+        if isinstance(py_value, datetime.datetime):
+            return time.mktime(py_value.timetuple())
         else:
-            return super(TimestampColumn, self).store(value)
+            return super(TimestampColumn, self).dbStore(typ, py_value)
 
     def valueFromString(self, value, context=None):
         """
@@ -375,27 +345,28 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%Y-%m-%d %h:%m:%s')
+        return value.strftime('%Y-%m-%d %H:%M:%S')
 
 
 class UTC_TimestampColumn(AbstractDatetimeColumn):
     TypeMap = {
-        'Default': 'TIMESTAMP'
+        'Postgres': 'BIGINT',
+        'Default': 'INTEGER'
     }
 
-    def restore(self, value, context=None):
+    def dbRestore(self, db_value, context=None):
         """
         Restores the value from a table cache for usage.
 
         :param      value   | <variant>
                     context | <orb.Context> || None
         """
-        if isinstance(value, (int, long, float)):
-            return datetime.datetime.fromtimestamp(value)
+        if isinstance(db_value, (int, long, float)):
+            return datetime.datetime.fromtimestamp(db_value)
         else:
-            return super(UTC_TimestampColumn, self).restore(value, context)
+            return super(UTC_TimestampColumn, self).dbRestore(db_value, context=context)
 
-    def store(self, value):
+    def dbStore(self, typ, py_value):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
@@ -404,10 +375,10 @@ class UTC_TimestampColumn(AbstractDatetimeColumn):
 
         :return     <variant>
         """
-        if isinstance(value, datetime.datetime):
-            return time.mktime(value.timetuple())
+        if isinstance(py_value, datetime.datetime):
+            return time.mktime(py_value.timetuple())
         else:
-            return super(UTC_TimestampColumn, self).store(value)
+            return super(UTC_TimestampColumn, self).dbStore(typ, py_value)
 
     def valueFromString(self, value, context=None):
         """

@@ -91,6 +91,7 @@ class Query(object):
             value = self.__value
 
         jdata = {
+            'type': 'query',
             'model': self.__model.schema().name() if self.__model else '',
             'column': self.__column,
             'op': self.Op(self.__op),
@@ -1162,12 +1163,13 @@ class Query(object):
                 else:
                     column = (model, jdata['column'])
             else:
-                column = jdata['column']
+                column = (jdata['column'],)
 
             query = orb.Query(*column)
-            query.setOp(jdata.get('op', 'Is'))
+            query.setOp(orb.Query.Op(jdata.get('op', 'Is')))
             query.setInverted(jdata.get('inverted', False))
             query.setCaseSensitive(jdata.get('caseSensitive', False))
+            query.setValue(jdata.get('value'))
 
             # restore the function information
             for func in jdata.get('functions', []):
@@ -1188,6 +1190,7 @@ class QueryCompound(object):
 
     def __json__(self):
         data = {
+            'type': 'compound',
             'queries': [q.__json__() for q in self.__queries],
             'op': self.Op(self.__op)
         }

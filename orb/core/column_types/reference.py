@@ -58,32 +58,32 @@ class ReferenceColumn(Column):
         else:
             return ''
 
-    def extract(self, value, context=None):
+    def dbRestore(self, db_value, context=None):
         """
-        Extracts the value provided back from the database.
+        Extracts the db_value provided back from the database.
 
-        :param value: <variant>
+        :param db_value: <variant>
         :param context: <orb.Context>
 
         :return: <variant>
         """
-        if isinstance(value, (str, unicode)) and value.startswith('{'):
+        if isinstance(db_value, (str, unicode)) and db_value.startswith('{'):
             try:
-                value = projex.text.safe_eval(value)
+                db_value = projex.text.safe_eval(db_value)
             except StandardError:
                 log.exception('Invalid reference found')
                 raise orb.errors.OrbError('Invalid reference found.')
 
-        if isinstance(value, dict):
+        if isinstance(db_value, dict):
             cls = self.referenceModel()
             if not cls:
                 raise orb.errors.ModelNotFound(self.reference())
             else:
-                load_event = orb.events.LoadEvent(data=value)
-                value = cls(loadEvent=load_event, context=context)
-            return value
+                load_event = orb.events.LoadEvent(data=db_value)
+                db_value = cls(loadEvent=load_event, context=context)
+            return db_value
         else:
-            return super(ReferenceColumn, self).extract(value, context=context)
+            return super(ReferenceColumn, self).dbRestore(db_value, context=context)
 
     def loadJSON(self, jdata):
         """

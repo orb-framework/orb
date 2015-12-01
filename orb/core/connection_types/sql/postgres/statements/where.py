@@ -104,13 +104,14 @@ class WHERE(PSQLStatement):
 
                 if column.testFlag(column.Flags.Translatable) and column not in fields:
                     model_name = aliases.get(model) or model.schema().dbname()
-                    sql = u'"{name}"."id" IN (' \
+                    i18n_sql = u'"{name}"."id" IN (' \
                           u'    SELECT "{name}_id"' \
                           u'    FROM "{name}_i18n"' \
                           u'    WHERE {sub_sql}' \
                           u')'
 
-                    sql = sql.format(name=model_name, sub_sql=sql)
+                    sub_sql = sql.replace('"{0}"'.format(model_name), '"{0}_i18n"'.format(model_name))
+                    sql = i18n_sql.format(name=model_name, sub_sql=sub_sql)
 
         return sql, data
 

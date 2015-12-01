@@ -58,10 +58,15 @@ class Context(object):
         return hash(self) != hash(other)
 
     def __hash__(self):
-        key = ['{0}:{1}'.format(*i) for i in sorted(self.Defaults.items())
-               if self.raw_values.get(i[0]) != i[1] and i[0] not in self.UnhashableOptions]
-
-        return hash(','.join(key))
+        keys = sorted(self.Defaults.keys())
+        hash_values = []
+        for key in keys:
+            try:
+                value = self.raw_values[key]
+            except KeyError:
+                value = self.Defaults[key]
+            hash_values.append(unicode(value))
+        return hash(','.join(hash_values))
 
     def __enter__(self):
         """
@@ -81,6 +86,9 @@ class Context(object):
         self.popDefaultContext()
 
     def __init__(self, **kwds):
+        if 'columns' in kwds and isinstance(kwds['columns'], (str, unicode)):
+            kwds['columns'] = kwds['columns'].split(',')
+
         # utilize values from another context
         others = [kwds.pop('context', None), self.defaultContext()]
         for other in others:
@@ -119,10 +127,8 @@ class Context(object):
             self.raw_values[key] = value
 
     def __iter__(self):
-        defaults = self.Defaults.copy()
-        defaults.update(self.raw_values)
-        for k, v in defaults.items():
-            yield k, v
+        for k in self.Defaults:
+            yield k, getattr(self, k)
 
     def copy(self):
         """
@@ -189,12 +195,10 @@ class Context(object):
 
         :return     <bool>
         """
-        return len(self.raw_values) != 0
+        return len(self.raw_values) == 0
 
     def items(self):
-        defaults = self.Defaults.copy()
-        defaults.update(self.raw_values)
-        return defaults.items()
+        return [(k, getattr(self, k)) for k in self.Defaults]
 
     @property
     def locale(self):
@@ -223,6 +227,10 @@ class Context(object):
             return (self.raw_values.get('page') - 1) * (self.limit or 0)
         else:
             return self.raw_values.get('start')
+
+    @property
+    def timezone(self):
+        return self.raw_values.get('timezone') or orb.system.settings().server_timezone
 
     def update(self, other):
         """

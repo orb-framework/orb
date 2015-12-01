@@ -56,41 +56,38 @@ class Pipe(object):
 
     def fromColumn(self):
         schema = orb.system.schema(self.__through)
-        if not schema:
-            raise orb.errors.ModelNotFound(self.__through)
-        else:
+        try:
             return schema.column(self.__from)
+        except AttributeError:
+            raise orb.errors.ModelNotFound(self.__through)
 
     def fromModel(self):
         col = self.fromColumn()
-        return col.referenceModel()
+        return col.referenceModel() if col else None
 
     def to(self):
         return self.__to
 
     def toColumn(self):
         schema = orb.system.schema(self.__through)
-        if not schema:
-            raise orb.errors.ModelNotFound(self.__through)
-        else:
+        try:
             return schema.column(self.__to)
+        except AttributeError:
+            raise orb.errors.ModelNotFound(self.__through)
 
     def toModel(self):
         col = self.toColumn()
-        if col:
-            return col.referenceModel()
-        else:
-            return None
+        return col.referenceModel() if col else None
 
     def through(self):
         return self.__through
 
     def throughModel(self):
         schema = orb.system.schema(self.__through)
-        if not schema:
-            raise orb.errors.ModelNotFound(self.__through)
-        else:
+        try:
             return schema.model()
+        except AttributeError:
+            raise orb.errors.ModelNotFound(self.__through)
 
     def unique(self):
         return self.__unique

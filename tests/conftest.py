@@ -1,4 +1,6 @@
 import pytest
+from projex.enum import enum
+
 
 def pytest_runtest_makereport(item, call):
     if "incremental" in item.keywords:
@@ -26,12 +28,73 @@ def orb():
 
 @pytest.fixture(scope='session')
 def EmptyUser(orb):
-    import orb
-
     class EmptyUser(orb.Table):
         pass
 
     return EmptyUser
+
+@pytest.fixture(scope='session')
+def TestAllColumns(orb):
+    class TestReference(orb.Table):
+        id = orb.IdColumn()
+
+    class TestAllColumns(orb.Table):
+        Test = enum('Ok')
+
+        # boolean
+        bool = orb.BooleanColumn()
+
+        # data
+        binary = orb.BinaryColumn()
+        json = orb.JSONColumn()
+        query = orb.QueryColumn()
+        yaml = orb.YAMLColumn()
+
+        # datetime
+        date = orb.DateColumn()
+        datetime = orb.DatetimeColumn()
+        datetime_tz = orb.DatetimeWithTimezoneColumn()
+        interval = orb.IntervalColumn()
+        time = orb.TimeColumn()
+        timestamp = orb.TimestampColumn()
+        utc_datetime = orb.UTC_DatetimeColumn()
+        utc_timestamp = orb.UTC_TimestampColumn()
+
+        # numberic
+        id = orb.IdColumn()
+        decimal = orb.DecimalColumn()
+        float = orb.FloatColumn()
+        integer = orb.IntegerColumn()
+        long = orb.LongColumn()
+        enum = orb.EnumColumn()
+
+        # reference
+        reference = orb.ReferenceColumn(reference='TestReference')
+
+        # string
+        string = orb.StringColumn()
+        text = orb.TextColumn()
+        color = orb.ColorColumn()
+        directory = orb.DirectoryColumn()
+        email = orb.EmailColumn()
+        filepath = orb.FilepathColumn()
+        html = orb.HtmlColumn()
+        password = orb.PasswordColumn()
+        token = orb.TokenColumn()
+        url = orb.UrlColumn()
+        xml = orb.XmlColumn()
+
+    return TestAllColumns
+
+@pytest.fixture(scope='session')
+def all_column_record(orb, TestAllColumns):
+    record = TestAllColumns(password='T3st1ng!')
+    return record
+
+@pytest.fixture(scope='session')
+def last_column_record(orb, TestAllColumns):
+    record = TestAllColumns.select().last()
+    return record
 
 @pytest.fixture(scope='session')
 def testing_schema(orb):

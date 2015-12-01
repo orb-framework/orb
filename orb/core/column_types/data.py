@@ -12,11 +12,11 @@ yaml = lazy_import('yaml')
 
 class BinaryColumn(Column):
     TypeMap = {
-        'Postgres': 'BYTEA',
+        'Postgres': 'TEXT',
         'Default': 'BLOB'
     }
 
-    def dbRestore(self, typ, db_value):
+    def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -25,18 +25,24 @@ class BinaryColumn(Column):
 
         :return: <variant>
         """
-        try:
-            return pickle.loads(projex.text.nativestring(db_value))
-        except StandardError:
-            log.exception('Failed to restore pickle')
-            raise orb.errors.DataStoreError('Failed to restore pickle.')
+        if db_value is not None:
+            try:
+                return pickle.loads(db_value)
+            except StandardError:
+                log.exception('Failed to restore pickle')
+                raise orb.errors.DataStoreError('Failed to restore pickle.')
+        else:
+            return None
 
     def dbStore(self, typ, py_value):
-        try:
-            return pickle.dumps(py_value)
-        except StandardError:
-            log.exception('Failed to store pickle')
-            raise orb.errors.DataStoreError('Failed to store pickle')
+        if py_value is not None:
+            try:
+                return pickle.dumps(py_value)
+            except StandardError:
+                log.exception('Failed to store pickle')
+                raise orb.errors.DataStoreError('Failed to store pickle')
+        else:
+            return py_value
 
 
 class JSONColumn(Column):
@@ -44,7 +50,7 @@ class JSONColumn(Column):
         'Default': 'TEXT'
     }
 
-    def dbRestore(self, typ, db_value):
+    def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -53,22 +59,28 @@ class JSONColumn(Column):
 
         :return: <variant>
         """
-        try:
-            return rest.unjsonify(db_value)
-        except StandardError:
-            log.exception('Failed to restore json')
-            raise orb.errors.DataStoreError('Failed to restore json.')
+        if db_value is not None:
+            try:
+                return rest.unjsonify(db_value)
+            except StandardError:
+                log.exception('Failed to restore json')
+                raise orb.errors.DataStoreError('Failed to restore json.')
+        else:
+            return db_value
 
     def dbStore(self, typ, py_value):
-        try:
-            return rest.jsonify(py_value)
-        except StandardError:
-            log.exception('Failed to store json')
-            raise orb.errors.DataStoreError('Failed to store json')
+        if py_value is not None:
+            try:
+                return rest.jsonify(py_value)
+            except StandardError:
+                log.exception('Failed to store json')
+                raise orb.errors.DataStoreError('Failed to store json')
+        else:
+            return py_value
 
 
 class QueryColumn(JSONColumn):
-    def dbRestore(self, typ, db_value):
+    def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -77,8 +89,11 @@ class QueryColumn(JSONColumn):
 
         :return: <variant>
         """
-        jdata = super(QueryColumn, self).dbRestore(typ, db_value)
-        return orb.Query.fromJSON(jdata)
+        if db_value is not None:
+            jdata = super(QueryColumn, self).dbRestore(db_value, context=context)
+            return orb.Query.fromJSON(jdata)
+        else:
+            return db_value
 
 
 class YAMLColumn(Column):
@@ -86,7 +101,7 @@ class YAMLColumn(Column):
         'Default': 'TEXT'
     }
 
-    def dbRestore(self, typ, db_value):
+    def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -95,20 +110,26 @@ class YAMLColumn(Column):
 
         :return: <variant>
         """
-        try:
-            yaml.loads(projex.text.nativestring(db_value))
-        except StandardError:
-            log.exception('Failed to restore yaml')
-            raise orb.errors.DataStoreError('Failed to restore yaml.')
+        if db_value is not None:
+            try:
+                return yaml.load(projex.text.nativestring(db_value))
+            except StandardError:
+                log.exception('Failed to restore yaml')
+                raise orb.errors.DataStoreError('Failed to restore yaml.')
+        else:
+            return db_value
 
     def dbStore(self, typ, py_value):
-        try:
-            return yaml.dumps(py_value)
-        except ImportError:
-            raise orb.errors.DependencyNotFound('PyYaml')
-        except StandardError:
-            log.exception('Failed to store yaml')
-            raise orb.errors.DataStoreError('Failed to store json')
+        if py_value is not None:
+            try:
+                return yaml.dump(py_value)
+            except ImportError:
+                raise orb.errors.DependencyNotFound('PyYaml')
+            except StandardError:
+                log.exception('Failed to store yaml')
+                raise orb.errors.DataStoreError('Failed to store yaml')
+        else:
+            return py_value
 
 # register the column type addons
 Column.registerAddon('Binary', BinaryColumn)
