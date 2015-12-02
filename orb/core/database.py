@@ -322,12 +322,12 @@ class Database(object):
             else:
                 # collect the missing columns and indexes
                 add = defaultdict(list)
-                for col in model.schema().columns().values():
-                    if col.field() not in model_info['fields']:
+                for col in model.schema().columns(recurse=False).values():
+                    if col.field() not in (model_info['fields'] or []):
                         add['fields'].append(col)
 
-                for index in model.schema().indexes().values():
-                    if index.dbname() not in model_info['indexes']:
+                for index in model.schema().indexes(recurse=False).values():
+                    if index.dbname() not in (model_info['indexes'] or []):
                         add['indexes'].append(index)
 
                 # alter the model with the new indexes

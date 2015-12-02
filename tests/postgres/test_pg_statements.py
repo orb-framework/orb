@@ -12,6 +12,7 @@ def test_pg_statement_add_column(User, pg_sql):
 
     statement, data = st(User.schema().column('username'))
     assert statement == 'ADD COLUMN "username" CHARACTER VARYING(256) UNIQUE'
+
 @requires_pg
 def test_pg_statement_create_table(User, pg_sql):
     st = pg_sql.statement('CREATE')
@@ -37,6 +38,41 @@ def test_pg_statement_expand_column(GroupUser, pg_sql):
     assert st is not None
 
     statement, data = st(col, {})
+
+@requires_pg
+def test_pg_statement_alter(orb, GroupUser, pg_sql):
+    add = [orb.StringColumn(name='test_add')]
+    remove = [orb.StringColumn(name='test_remove')]
+    st = pg_sql.statement('ALTER')
+    assert st is not None
+
+    statement, data = st(GroupUser, add, remove)
+    assert 'ALTER' in statement
+
+    add = [orb.StringColumn(name='test_add_i18n', flags={'Translatable'})]
+    statement, data = st(GroupUser, add)
+    assert 'ALTER' in statement
+
+@requires_pg
+def test_pg_statement_alter_invalid(orb, pg_sql):
+    st = pg_sql.statement('ALTER')
+    assert st is not None
+
+    with pytest.raises(orb.errors.OrbError):
+        statement, data = st(orb.View)
+
+@requires_pg
+def test_pg_statement_create_index(orb, GroupUser, pg_sql):
+    index = orb.Index(name='byGroupAndUser', columns=[orb.ReferenceColumn(name='group'), orb.ReferenceColumn('user')])
+    index.setSchema(GroupUser.schema())
+    st = pg_sql.statement('CREATE INDEX')
+    assert st is not None
+
+    statement, data = st(index)
+    assert 'CREATE INDEX' in statement
+
+    statement, data = st(index, checkFirst=True)
+    assert 'DO $$' in statement
 
 # ----
 # test SQL statement execution

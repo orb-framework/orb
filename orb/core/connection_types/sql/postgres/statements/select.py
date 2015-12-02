@@ -94,7 +94,8 @@ class SELECT(PSQLStatement):
                     raise orb.errors.ColumnNotFound(col)
 
                 field = fields.get(column) or u'"{0}"."{1}"'.format(schema.dbname(), column.field())
-                sql_group_by.add(field)
+                if sql_group_by:
+                    sql_group_by.add(field)
                 sql_order_by.append(u'{0} {1}'.format(field, dir.upper()))
 
         if context.distinct is True:

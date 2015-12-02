@@ -63,7 +63,6 @@ class SQLConnection(orb.Connection):
 
         :return     [{<str> key: <variant>, ..}, ..], <int> rowcount
         """
-        pass
 
     @abstractmethod()
     def _open(self):
@@ -74,7 +73,6 @@ class SQLConnection(orb.Connection):
 
         :return     <variant> | backend specific database connection
         """
-        return None
 
     def _commit(self, native):
         native.commit()
@@ -91,7 +89,6 @@ class SQLConnection(orb.Connection):
         :param      threadId   | <int>
                     connection | <variant> | backend specific database.
         """
-        pass
 
     def _rollback(self, native):
         native.rollback()

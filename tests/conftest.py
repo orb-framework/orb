@@ -131,11 +131,18 @@ def testing_schema(orb):
         id = orb.IdColumn()
         name = orb.StringColumn()
 
+    class Employee(User):
+        role = orb.ReferenceColumn(reference='Role')
+
     return locals()
 
 @pytest.fixture(scope='session')
 def User(testing_schema):
     return testing_schema['User']
+
+@pytest.fixture(scope='session')
+def Employee(testing_schema):
+    return testing_schema['Employee']
 
 @pytest.fixture(scope='session')
 def GroupUser(testing_schema):

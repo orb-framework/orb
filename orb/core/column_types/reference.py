@@ -145,5 +145,11 @@ class ReferenceColumn(Column):
         """
         return self.__reverse
 
+    def validate(self, value):
+        if isinstance(value, orb.Model) and not isinstance(value, self.referenceModel()):
+            raise orb.errors.InvalidReference(self.name(), type(value).__name__, type(self.referenceModel()).__name__)
+        else:
+            return super(ReferenceColumn, self).validate(value)
+
 # register the column addon
 Column.registerAddon('Reference', ReferenceColumn)

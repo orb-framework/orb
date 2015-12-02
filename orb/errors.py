@@ -154,6 +154,10 @@ class Interruption(StandardError):
     def __init__(self):
         StandardError.__init__(self, 'Database operation was interrupted.')
 
+class InvalidReference(ValidationError):
+    def __init__(self, column, value_type, expected_type):
+        msg = '{0} expects {1} records, not {2}'.format(column, expected_type, value_type)
+        super(InvalidReference, self).__init__(msg)
 
 class InvalidColumnType(OrbError):
     def __init__(self, typ):

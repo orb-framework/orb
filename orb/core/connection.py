@@ -52,7 +52,6 @@ class Connection(AddonManager):
 
         :return     <int> | number of rows removed
         """
-        return 0
 
     @abstractmethod
     def alterModel(self, model, context, add=None, remove=None, owner=''):
@@ -76,14 +75,12 @@ class Connection(AddonManager):
 
         :return     <bool> success
         """
-        return False
 
     @abstractmethod()
     def cleanup(self):
         """
         Cleans up the database for any unused memory or information.
         """
-        pass
 
     @abstractmethod()
     def close(self):
@@ -92,82 +89,6 @@ class Connection(AddonManager):
         
         :return     <bool> closed
         """
-        return True
-
-    def collectDeleteRecords(self, table, lookup, options, collection=None):
-        """
-        Collects records for removal by looking up the schema's relations
-        in reference to the given records.  If there are records that should
-        not be removed, then the CannotRemoveError will be raised.
-        
-        :param      table      | <orb.Table>
-                    lookup     | <orb.LookupOptions>
-                    options    | <orb.Context>
-                    collection | <dictionary> | input/output variable
-        
-        :return     {<orb.Table>: [<orb.Query>, ..], ..} | cascaded
-        """
-        if collection is None:
-            collection = OrderedDict()
-
-        # define the base lookup query
-        query = lookup.where
-
-        # lookup cascading removal
-        def load_keys(t, q):
-            return t.select(where=q).primaryKeys()
-
-        root_keys = None
-
-        # lookup related records
-        flags = options.deleteFlags
-        if flags is None:
-            flags = orb.DeleteFlags.all()
-
-        relations = orb.Orb.instance().findRelations(table.schema())
-        for ref_table, columns in relations:
-            for column in columns:
-                action = column.referenceRemovedAction()
-
-                # remove based on a certain criteria
-                if query is not None:
-                    if root_keys is None:
-                        root_keys = load_keys(table, query)
-
-                    ref_query = orb.Query()
-                    for min_key, max_key in projex.iters.group(root_keys):
-                        if min_key == max_key:
-                            ref_query |= orb.Query(column.name()) == min_key
-                        else:
-                            ref_query |= orb.Query(column.name()).between(min_key,
-                                                                          max_key)
-
-                # remove if there is a valid reference
-                else:
-                    # noinspection PyComparisonWithNone,PyPep8
-                    ref_query = orb.Query(column.name()) != None
-
-                # block removal of records
-                if flags & orb.DeleteFlags.Blocked and action == orb.RemovedAction.Block:
-                    found = ref_table.select(where=ref_query)
-                    if not found.isEmpty():
-                        msg = 'Could not remove records, there are still ' \
-                              'references to the {0} model.'.format(ref_table.__name__)
-                        raise errors.CannotDelete(msg)
-
-                # cascade additional removals
-                elif flags & orb.DeleteFlags.Cascaded and action == orb.RemovedAction.Cascade:
-                    ref_lookup = orb.LookupOptions(where=ref_query)
-                    self.collectDeleteRecords(ref_table,
-                                              ref_lookup,
-                                              options,
-                                              collection)
-
-        if query is None or not query.isNull():
-            collection.setdefault(table, [])
-            collection[table].append(query)
-
-        return collection
 
     @abstractmethod()
     def commit(self):
@@ -176,7 +97,6 @@ class Connection(AddonManager):
         
         :return     <bool> success
         """
-        return False
 
     @abstractmethod()
     def count(self, table_or_join, lookup, options):
@@ -192,7 +112,6 @@ class Connection(AddonManager):
         
         :return     <int>
         """
-        return 0
 
     @abstractmethod()
     def createModel(self, model, context, owner='', includeReferences=True):
@@ -205,7 +124,6 @@ class Connection(AddonManager):
         
         :return     <bool> success
         """
-        return False
 
     def database(self):
         """
@@ -231,48 +149,6 @@ class Connection(AddonManager):
         with orb.Transaction():
             return self._delete(records, context)
 
-    def defaultPrimaryColumn(self):
-        """
-        Defines a default column to be used as the primary column for this \
-        database connection.  By default, an auto-incrementing integer field \
-        called '_id' will be defined.
-        
-        :return     <orb.Column>
-        """
-        settings = orb.system.settings()
-        return orb.Column(orb.ColumnType.Integer,
-                          settings.primaryName(),
-                          primary=True,
-                          autoIncrement=True,
-                          fieldName=settings.primaryField(),
-                          getterName=settings.primaryGetter(),
-                          setterName=settings.primarySetter(),
-                          displayName=settings.primaryDisplay(),
-                          indexName=settings.primaryIndex(),
-                          indexed=True,
-                          unique=True,
-                          searchable=True)
-
-    def defaultInheritColumn(self, schema):
-        """
-        Defines a default column to be used as the primary column for this \
-        database connection.  By default, an auto-incrementing integer field \
-        called '_id' will be defined.
-        
-        :return     <orb.Column>
-        """
-        settings = orb.system.settings()
-        col = orb.Column(orb.ColumnType.ForeignKey,
-                         settings.inheritField(),
-                         fieldName=settings.inheritField(),
-                         unique=True,
-                         private=True)
-
-        col.setReference(schema.inherits())
-        col._schema = schema
-
-        return col
-
     @abstractmethod()
     def distinct(self, table_or_join, lookup, options):
         """
@@ -287,7 +163,6 @@ class Connection(AddonManager):
         
         :return     {<str> columnName: <list> value, ..}
         """
-        return 0
 
     @abstractmethod()
     def execute(self, command, data=None, flags=0):
@@ -301,7 +176,6 @@ class Connection(AddonManager):
         
         :return     <variant> returns a native set of information
         """
-        return None
 
     @abstractmethod()
     def insert(self, records, context):
@@ -315,7 +189,6 @@ class Connection(AddonManager):
         
         :return     <bool>
         """
-        return False
 
     def interrupt(self, threadId=None):
         """
@@ -323,7 +196,6 @@ class Connection(AddonManager):
         
         :param      threadId | <int> || None
         """
-        pass
 
     @abstractmethod()
     def isConnected(self):
@@ -333,7 +205,6 @@ class Connection(AddonManager):
         
         :return     <bool> connected
         """
-        return False
 
     @abstractmethod()
     def open(self, force=False):
@@ -346,14 +217,12 @@ class Connection(AddonManager):
 
         :return     <bool> success
         """
-        return False
 
     @abstractmethod()
     def rollback(self):
         """
         Rolls back the latest code run on the database.
         """
-        return False
 
     @abstractmethod()
     def select(self, model, context):
@@ -367,13 +236,11 @@ class Connection(AddonManager):
         
         :return     [<variant> result, ..]
         """
-        return []
 
     def setup(self, context):
         """
         Initializes the database with any additional information that is required.
         """
-        pass
 
     @abstractmethod()
     def setRecords(self, schema, records):
@@ -383,7 +250,6 @@ class Connection(AddonManager):
         :param      schema  | <orb.TableSchema>
                     records | [<dict> record, ..]
         """
-        pass
 
     @abstractmethod()
     def schemaInfo(self, options):
@@ -392,7 +258,6 @@ class Connection(AddonManager):
 
         :return     <dict>
         """
-        return {}
 
     @abstractmethod()
     def update(self, records, context):
@@ -405,5 +270,4 @@ class Connection(AddonManager):
         
         :return     <bool>
         """
-        return False
 

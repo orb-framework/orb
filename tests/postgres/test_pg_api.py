@@ -321,3 +321,21 @@ def test_pg_api_load_multi_i18n_with_search(orb, Document):
     assert docs_en[0].title() == 'Fast'
     assert docs_sp[0].title() == 'Rapido'
     assert len(set(docs_sp.values('id')).difference(docs_en.values('id'))) == 0
+
+@requires_pg
+def test_pg_api_invalid_reference(orb, Employee, User):
+    user = User()
+    employee = Employee()
+    with pytest.raises(orb.errors.InvalidReference):
+        employee.setRole(user)
+
+@requires_pg
+def test_pg_api_save_employee(orb, Employee, Role):
+    role = Role.ensureExists(name='Programmer')
+    sam = Employee.byUsername('samantha')
+    if not sam:
+        sam = Employee(username='samantha', password='T3st1ng!', role=role)
+        sam.save()
+
+    assert sam.username() == 'samantha'
+    assert sam.role() == role

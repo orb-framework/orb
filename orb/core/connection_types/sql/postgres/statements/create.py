@@ -48,7 +48,7 @@ class CREATE(PSQLStatement):
             if not inherits_model:
                 raise orb.errors.ModelNotFound(inherits)
 
-            inherits = '\nINHERITS "{0}"\n'.format(inherits_model.schema().dbname())
+            inherits = '\nINHERITS ("{0}")\n'.format(inherits_model.schema().dbname())
 
         cmd  = 'CREATE TABLE IF NOT EXISTS "{table}" ({body}) {inherits}WITH (OIDS=FALSE);\n'
         if owner:
