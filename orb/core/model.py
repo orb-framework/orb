@@ -160,10 +160,7 @@ class Model(object):
         except StandardError:
             return -1
 
-    def __init__(self,
-                 context=None,
-                 *record,
-                 **values):
+    def __init__(self, *record, **values):
         """
         Initializes a database record for the table class.  A
         table model can be initialized in a few ways.  Passing
@@ -177,6 +174,8 @@ class Model(object):
         :param      *args       <tuple> primary key
         :param      **kwds      <dict>  column default values
         """
+        context = values.pop('context', None)
+        
         self.__dataLock = ReadWriteLock()
         self.__values = {}
         self.__loaded = set()
