@@ -139,7 +139,7 @@ class Database(object):
         
         :returns    <str>
         """
-        return self.__host or 'localhost'
+        return self.__host
 
     def interrupt(self, threadId=None):
         """
@@ -240,7 +240,7 @@ class Database(object):
         
         :param      name   <str>
         """
-        self.__name = nstr(name)
+        self.__name = name
 
     def setHost(self, host):
         """
@@ -249,7 +249,7 @@ class Database(object):
         
         :param      host      <str>
         """
-        self.__host = nstr(host)
+        self.__host = host
 
     def setPassword(self, password):
         """ 
@@ -257,7 +257,7 @@ class Database(object):
         
         :param      password    <str>
         """
-        self.__password = nstr(password)
+        self.__password = password
 
     def setPort(self, port):
         """
