@@ -17,7 +17,7 @@ errors = lazy_import('orb.errors')
 class Database(object):
     """ Contains all the database connectivity information. """
     def __init__(self, connectionType, code='', username='', password='',
-                 host='localhost', port=None, name=None, timeout=20000, credentials=None):
+                 host=None, port=None, name=None, timeout=20000, credentials=None):
 
         # define custom properties
         conn = orb.Connection.byName(connectionType)

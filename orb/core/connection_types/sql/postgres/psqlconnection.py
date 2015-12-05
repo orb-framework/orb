@@ -179,28 +179,18 @@ class PSQLConnection(SQLConnection):
         if not pg:
             raise orb.errors.BackendNotFound('psycopg2 is not installed.')
 
-        dbname = db.name()
-        user = db.username()
-        pword = db.password()
-        host = db.host()
-        if not host:
-            host = 'localhost'
-
-        port = db.port()
-        if not port:
-            port = 5432
-
         os.environ['PGOPTIONS'] = '-c statement_timeout={0}'.format(db.timeout())
 
         # create the python connection
         try:
-            return pg.connect(database=dbname,
-                              user=user,
-                              password=pword,
-                              host=host,
-                              port=port)
-        except pg.OperationalError, err:
-            log.error(err)
+            return pg.connect(database=db.name(),
+                              user=db.username(),
+                              password=db.password(),
+                              host=db.host(),
+                              port=db.port(),
+                              connect_timeout=3)
+        except pg.OperationalError as err:
+            log.exception('Failed to connect to postgres')
             raise orb.errors.ConnectionFailed()
 
     def _interrupt(self, threadId, connection):
