@@ -1,5 +1,8 @@
 import pytest
+import logging
 from projex.enum import enum
+
+logging.basicConfig()
 
 
 def pytest_runtest_makereport(item, call):

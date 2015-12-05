@@ -83,6 +83,10 @@ setup(
     license='LGPL',
     keywords='',
     url='https://github.com/ProjexSoftware/orb',
+    install_requires=(
+        'projex',
+        'pycrypto'
+    ),
     include_package_data=True,
     packages=find_packages(),
     cmdclass={

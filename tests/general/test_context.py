@@ -20,6 +20,46 @@ def test_context(orb, User):
     assert user_a.context().database == 'testing'
     assert user_b.context().database == 'testing_2'
 
+def test_invalid_context_properties(orb):
+    with pytest.raises(orb.errors.InvalidContextOption):
+        context = orb.Context(page=-1)
+
+    with pytest.raises(orb.errors.InvalidContextOption):
+        context = orb.Context(limit=-1)
+
+    with pytest.raises(orb.errors.InvalidContextOption):
+        context = orb.Context(pageSize=-1)
+
+    with pytest.raises(orb.errors.InvalidContextOption):
+        context = orb.Context(pageSize=0)
+
+    with pytest.raises(orb.errors.InvalidContextOption):
+        context = orb.Context(limit=0)
+
+    with pytest.raises(orb.errors.InvalidContextOption):
+        context = orb.Context(start=-1)
+
+def test_valid_context_properties(orb):
+    context = orb.Context(
+        page=1,
+        pageSize=10
+    )
+
+    assert context.page == 1
+    assert context.pageSize == 10
+    assert context.start == 0
+    assert context.limit == 10
+
+    context = orb.Context(
+        page=2,
+        pageSize=10
+    )
+
+    assert context.page == 2
+    assert context.pageSize == 10
+    assert context.start == 10
+    assert context.limit == 10
+
 def test_context_equality(orb):
     context_a = orb.Context(database='testing')
     context_b = orb.Context(database='testing2')

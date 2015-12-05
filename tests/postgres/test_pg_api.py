@@ -18,6 +18,17 @@ def test_pg_api_save_bill(orb, pg_db, User):
 
 @requires_pg
 @pytest.mark.run(order=2)
+def test_pg_api_fetch_bill(orb, pg_db, User):
+    user = User.byUsername('bill')
+    assert user is not None
+    id = user.id()
+    user = User(id)
+    assert user is not None
+    user = User.fetch(id)
+    assert user is not None
+
+@requires_pg
+@pytest.mark.run(order=3)
 def test_pg_api_delete_bill(orb, pg_db, User):
     user = User.byUsername('bill')
     assert user and user.isRecord()

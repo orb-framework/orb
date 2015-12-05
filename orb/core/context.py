@@ -112,6 +112,20 @@ class Context(object):
                 if columns is not None:
                     kwds['columns'] = columns + [col for col in kwds.get('columns', []) if not col in columns]
 
+        # validate values
+        if kwds.get('start') is not None and (type(kwds['start']) != int or kwds['start'] < 0):
+            msg = 'Start needs to be a positive number, got {0} instead'
+            raise orb.errors.InvalidContextOption(msg.format(kwds.get('start)')))
+        if kwds.get('page') is not None and (type(kwds['page']) != int or kwds['page'] < 1):
+            msg = 'Page needs to be a number equal to or greater than 1, got {0} instead'
+            raise orb.errors.InvalidContextOption(msg.format(kwds.get('page')))
+        if kwds.get('limit') is not None and (type(kwds['limit']) != int or kwds['limit'] < 1):
+            msg = 'Limit needs to be a number equal to or greater than 1, got {0} instead'
+            raise orb.errors.InvalidContextOption(msg.format(kwds.get('limit')))
+        if kwds.get('pageSize') is not None and (type(kwds['pageSize']) != int or kwds['pageSize'] < 1):
+            msg = 'Page size needs to be a number equal to or greater than 1, got {0} instead'
+            raise orb.errors.InvalidContextOption(msg.format(kwds.get('pageSize')))
+
         self.__dict__['raw_values'] = {k: v for k, v in kwds.items() if k in self.Defaults}
 
     def __getattr__(self, key):

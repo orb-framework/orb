@@ -4,8 +4,6 @@ out.
 """
 
 import logging
-import mako
-import mako.template
 
 from projex.decorators import abstractmethod
 from projex.addon import AddonManager
