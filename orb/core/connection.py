@@ -128,8 +128,9 @@ class Connection(AddonManager):
                         if min_key == max_key:
                             ref_query |= orb.Query(column.name()) == min_key
                         else:
-                            ref_query |= orb.Query(column.name()).between(min_key,
-                                                                          max_key)
+                            between_q = orb.Query(column.name()) >= min_key
+                            between_q &= orb.Query(column.name()) <= max_key
+                            ref_query |= between_q
 
                 # remove if there is a valid reference
                 else:
