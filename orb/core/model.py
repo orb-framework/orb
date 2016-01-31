@@ -558,8 +558,6 @@ class Model(object):
         if event.preventDefault:
             return event.result
 
-        print 'locale:', context.locale
-
         conn = context.db.connection()
         if not self.isRecord():
             records, _ = conn.insert([self], context)

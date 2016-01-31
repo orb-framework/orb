@@ -10,7 +10,7 @@ TEST_DATA = {'testing': 10}
 TEST_DATE = datetime.date(2015, 10, 10)
 TEST_DATETIME = datetime.datetime(2015, 10, 10, 10, 10, 10)
 TEST_TIME = datetime.time(10, 10, 10)
-TEST_DATETIME_TZ = datetime.datetime(2015, 10, 10, 10, 10, 10, 0, pytz.timezone('US/Pacific'))
+TEST_DATETIME_TZ = pytz.timezone('US/Pacific').localize(datetime.datetime(2015, 10, 10, 10, 10, 10, 0))
 TEST_INTERVAL = datetime.timedelta(days=5)
 
 TEST_DECIMAL = decimal.Decimal(10.2)

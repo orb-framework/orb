@@ -139,6 +139,26 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         'Default': 'DATETIME'
     }
 
+    def dbStore(self, typ, py_value):
+        """
+        Prepares to store this column for the a particular backend database.
+
+        :param backend: <orb.Database>
+        :param py_value: <variant>
+
+        :return: <variant>
+        """
+        if isinstance(py_value, datetime.datetime):
+            # ensure we have some timezone information before converting to UTC time
+            if py_value.tzinfo is None:
+                # match the server information
+                tz = pytz.timezone(orb.system.settings().server_timezone)
+                py_value = tz.localize(py_value)
+            return py_value.astimezone(pytz.utc).replace(tzinfo=None)
+        else:
+            return super(DatetimeWithTimezoneColumn, self).dbStore(typ, py_value)
+
+
     def restore(self, value, context=None):
         """
         Restores the value from a table cache for usage.
@@ -181,12 +201,11 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         :return     <variant>
         """
         if isinstance(value, datetime.datetime):
-            # match the server information
-            tz = pytz.timezone(orb.system.settings().server_timezone)
             # ensure we have some timezone information before converting to UTC time
             if value.tzinfo is None:
-                value = tz.localize(value, is_dst=None)
-
+                # match the server information
+                tz = pytz.timezone(orb.system.settings().server_timezone)
+                value = tz.localize(value)
             return value.astimezone(pytz.utc).replace(tzinfo=None)
         else:
             return super(DatetimeWithTimezoneColumn, self).store(value)
