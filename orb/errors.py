@@ -150,9 +150,13 @@ class EncryptionDisabled(OrbError):
 # I
 # ------------------------------------------------------------------------------
 
+class IdNotFound(OrbError):
+    def __init__(self, name):
+        super(IdNotFound, self).__init__('No id column found for {0}'.format(name))
+
 class Interruption(StandardError):
     def __init__(self):
-        StandardError.__init__(self, 'Database operation was interrupted.')
+        super(Interruption, self).__init__('Database operation was interrupted.')
 
 class InvalidContextOption(ValidationError):
     pass

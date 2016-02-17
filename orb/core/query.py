@@ -139,7 +139,7 @@ class Query(object):
             try:
                 if issubclass(column, orb.Model):
                     self.__model = column
-                    self.__column = column.schema().idColumn()
+                    self.__column = column.schema().idColumn().name()
             except StandardError:
                 if isinstance(column, orb.Column):
                     self.__model = column.schema().model()

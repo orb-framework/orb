@@ -19,7 +19,6 @@ class Schema(object):
                  dbname='',
                  display='',
                  inherits='',
-                 idColumn='id',
                  abstract=False,
                  archived=False,
                  columns=None,
@@ -34,7 +33,6 @@ class Schema(object):
         self.__inherits = inherits
         self.__display = display
         self.__archived = archived
-        self.__idColumn = idColumn
 
         self.__model = None
         self.__archiveModel = None
@@ -206,7 +204,10 @@ class Schema(object):
         return False
 
     def idColumn(self):
-        return self.__idColumn
+        for column in self.columns().values():
+            if isinstance(column, orb.IdColumn):
+                return column
+        raise orb.errors.IdNotFound(self.name())
 
     def index(self, name, recurse=True):
         return self.indexes(recurse=recurse).get(name)
@@ -353,9 +354,6 @@ class Schema(object):
         :param      name | <str>
         """
         self.__display = name
-
-    def setIdColumn(self, column):
-        self.__idColumn = column
 
     def setModel(self, model):
         """

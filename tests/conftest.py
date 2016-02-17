@@ -63,7 +63,7 @@ def TestAllColumns(orb):
         utc_datetime = orb.UTC_DatetimeColumn()
         utc_timestamp = orb.UTC_TimestampColumn()
 
-        # numberic
+        # numeric
         id = orb.IdColumn()
         decimal = orb.DecimalColumn()
         float = orb.FloatColumn()
