@@ -138,10 +138,7 @@ class MetaModel(type):
             pipes = {}
             views = {}
 
-            items = [item for mixin in mixins for item in vars(mixin).items()] + attrs.items()
-
-            # define inherited options
-            for key, value in items:
+            def store_property(key, value):
                 if isinstance(value, orb.Column):
                     col = value
                     col.setName(key)
@@ -151,29 +148,40 @@ class MetaModel(type):
                     col_index = col.index()
                     if col_index:
                         indexes[col_index.name] = orb.Index([col.name()], name=col_index.name, unique=col.testFlag(col.Flags.Unique))
+                    return True
 
                 elif isinstance(value, orb.Index):
                     index = value
                     index.setName(key)
                     indexes[key] = index
+                    return True
 
                 elif isinstance(value, orb.Pipe):
                     pipe = value
                     pipe.setName(key)
                     pipes[key] = pipe
+                    return True
 
                 else:
                     try:
                         if issubclass(value, orb.View):
                             views[key] = value
+                            return True
                     except TypeError:
                         pass
 
-            new_attrs = {k: v for k, v in attrs.items() if
-                         k not in columns and
-                         k not in indexes and
-                         k not in pipes and
-                         k not in views}
+                return False
+
+            # strip out mixin properties
+            for mixin in mixins:
+                for key, value in vars(mixin).items():
+                    if store_property(key, value):
+                        delattr(mixin, key)
+
+            # strip out attribute properties
+            for key, value in attrs.items():
+                if store_property(key, value):
+                    attrs.pop(key)
 
             # create the schema
             schema = orb.Schema(name, **schema_attrs)
@@ -187,7 +195,7 @@ class MetaModel(type):
                 if inherited_schema:
                     schema.setInherits(inherited_schema.name())
 
-            new_model = super(MetaModel, mcs).__new__(mcs, name, bases, new_attrs)
+            new_model = super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
             setattr(new_model, '_{0}__schema'.format(name), schema)
 
             # create class methods for indexes
