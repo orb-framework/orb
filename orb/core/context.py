@@ -190,17 +190,15 @@ class Context(object):
         if not expand:
             return {}
 
-        def build_tree(branch, tree):
-            parts = branch.split('.')
-            name = parts[0]
-            remain = parts[1:]
-            tree.setdefault(name, {})
-            if remain:
-                build_tree('.'.join(remain), tree[name])
+        def build_tree(parts, tree):
+            tree.setdefault(parts[0], {})
+            if len(parts) > 1:
+                build_tree(parts[1:], tree[parts[0]])
 
         tree = {}
         for branch in expand:
-            build_tree(branch, tree)
+            build_tree(branch.split('.'), tree)
+
         return tree
 
     def isNull(self):
@@ -216,7 +214,7 @@ class Context(object):
 
     @property
     def locale(self):
-        return self.raw_values.get('locale') or orb.system.settings().locale
+        return self.raw_values.get('locale') or orb.system.settings().default_locale
 
     @property
     def order(self):

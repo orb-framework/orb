@@ -59,17 +59,21 @@ class Model(object):
         expand_tree = context.expandtree()
         if expand_tree:
             for key, subtree in expand_tree.items():
-                try:
-                    getter = getattr(self, key)
-                except AttributeError:
-                    continue
+                col = schema.column(key, raise_=False)
+                if col:
+                    getter = getattr(self, col.getter())
                 else:
-                    value = getter(inflated=True, expand=subtree, returning=context.returning)
-                    json = getattr(value, '__json__', None)
-                    if json:
-                        output[key] = json()
-                    else:
-                        output[key] = value
+                    try:
+                        getter = getattr(self, key)
+                    except AttributeError:
+                        continue
+
+                value = getter(inflated=True, expand=subtree, returning=context.returning)
+                json = getattr(value, '__json__', None)
+                if json:
+                    output[key] = json()
+                else:
+                    output[key] = value
 
         # don't include the column names
         if context.returning == 'values':
@@ -234,7 +238,11 @@ class Model(object):
                 model_dbname = dbname
 
             # make sure the value we're setting is specific to this model
-            column = schema.column(col_name)
+            try:
+                column = schema.column(col_name)
+            except orb.errors.ColumnNotFound:
+                column = None
+
             if model_dbname != dbname or (column in clean and isinstance(clean[column], Model)):
                 continue
 

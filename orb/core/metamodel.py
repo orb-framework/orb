@@ -129,6 +129,7 @@ class MetaModel(type):
         else:
             mixins = [base for base in bases if issubclass(base, orb.ModelMixin)]
             inherits = [base for base in bases if issubclass(base, orb.Model)]
+
             if not inherits:
                 return super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
 
@@ -174,9 +175,18 @@ class MetaModel(type):
 
             # strip out mixin properties
             for mixin in mixins:
-                for key, value in vars(mixin).items():
-                    if store_property(key, value):
-                        delattr(mixin, key)
+                try:
+                    orb_props = mixin.__orb_properties__
+                except AttributeError:
+                    orb_props = {}
+                    for key, value in vars(mixin).items():
+                        if store_property(key, value):
+                            orb_props[key] = value.copy()
+                            delattr(mixin, key)
+                    mixin.__orb_properties__ = orb_props
+                else:
+                    for key, value in orb_props.items():
+                        store_property(key, value.copy())
 
             # strip out attribute properties
             for key, value in attrs.items():

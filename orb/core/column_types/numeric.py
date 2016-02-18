@@ -13,6 +13,12 @@ class AbstractNumericColumn(Column):
         self.__minimum = minimum
         self.__maximum = maximum
 
+    def copy(self):
+        out = super(AbstractNumericColumn, self).copy()
+        out.setMinimum(self.__minimum)
+        out.setMaximum(self.__maximum)
+        return out
+
     def maximum(self):
         return self.__maximum
 
@@ -123,6 +129,11 @@ class EnumColumn(LongColumn):
 
         # define custom properties
         self.__enum = enum
+
+    def copy(self):
+        out = super(EnumColumn, self).copy()
+        out.setEnum(self.__enum)
+        return out
 
     def enum(self):
         """

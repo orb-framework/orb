@@ -35,7 +35,7 @@ class AbstractStringColumn(Column):
                     except StandardError:
                         value = None
                 else:
-                    value = {context.locale: value}
+                    value = {context.locale: db_value}
             else:
                 value = db_value
 

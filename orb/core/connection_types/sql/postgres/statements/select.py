@@ -28,7 +28,10 @@ class SELECT(PSQLStatement):
         expanded = bool(expand)
         columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
 
-        data = {'locale': context.locale}
+        data = {
+            'locale': context.locale,
+            'default_locale': orb.system.settings().default_locale
+        }
         fields = fields or {}
         sql_group_by = set()
         sql_columns = defaultdict(list)
@@ -37,10 +40,12 @@ class SELECT(PSQLStatement):
         # process columns to select
         for column in sorted(columns, self.cmpcol):
             if column.testFlag('Translatable'):
-                if context.inflated or context.locale == 'all':
+                if context.locale == 'all':
                     sql = u'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{0}"'
-                else:
+                elif data['locale'] == data['default_locale']:
                     sql = u'(array_agg("i18n"."{0}"))[1] AS "{0}"'
+                else:
+                    sql = u'(coalesce((array_agg("i18n"."{0}"))[1], (array_agg("i18n_default"."{0}"))[1])) AS "{0}"'
 
                 sql_columns['i18n'].append(sql.format(column.field()))
                 sql_group_by.add(u'"{0}"."id"'.format(schema.dbname()))
@@ -125,6 +130,8 @@ class SELECT(PSQLStatement):
                 cmd.append(u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
             else:
                 sql = u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'
+                if data['locale'] != data['default_locale']:
+                    sql += u'\nLEFT JOIN "{0}_i18n" AS "i18n_default" ON ("i18n_default"."{0}_id" = "id" AND "i18n_default"."locale" = %(default_locale)s)'
                 cmd.append(sql.format(schema.dbname()))
 
         # generate sql statements
@@ -143,6 +150,7 @@ class SELECT(PSQLStatement):
 
             cmd.append(u'WHERE "{0}"."id" IN ('.format(schema.dbname()))
             cmd.append(u'    SELECT DISTINCT {0} "{1}"."id"'.format(distinct, schema.dbname()))
+            cmd.append(u'    FROM "{0}"\n'.format(schema.dbname()))
 
             if sql_columns['i18n']:
                 if context.inflated or context.locale == 'all':

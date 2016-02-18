@@ -115,7 +115,7 @@ class Schema(object):
     def archiveModel(self):
         return self.__archiveModel
 
-    def column(self, col, recurse=True, flags=0):
+    def column(self, col, recurse=True, flags=0, raise_=True):
         """
         Returns the column instance based on its name.  
         If error reporting is on, then the ColumnNotFound
@@ -145,6 +145,9 @@ class Schema(object):
                 found = ref.schema().column('.'.join(parts[1:]), recurse=recurse, flags=flags)
             else:
                 found = None
+
+        if not found and raise_:
+            raise orb.errors.ColumnNotFound(self.name(), col)
 
         return found
 

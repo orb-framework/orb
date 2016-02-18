@@ -11,6 +11,11 @@ class JoinColumn(VirtualColumn):
         # define custom properties
         self.__joiner = joiner
 
+    def copy(self):
+        out = super(JoinColumn, self).copy()
+        out.setJoiner(self.joiner())
+        return out
+
     def joiner(self):
         return self.__joiner
 

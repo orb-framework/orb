@@ -10,6 +10,11 @@ class ShortcutColumn(VirtualColumn):
         # define custom properties
         self.__shortcut = shortcut
 
+    def copy(self):
+        out = super(ShortcutColumn, self).copy()
+        out.setShortcut(self.__shortcut)
+        return out
+
     def shortcut(self):
         return self.__shortcut
 

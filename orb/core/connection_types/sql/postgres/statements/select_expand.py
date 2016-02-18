@@ -17,7 +17,7 @@ class SELECT_EXPAND(PSQLStatement):
 
         for name, sub_tree in tree.items():
             # cannot expand these keywords, they are reserved
-            if name in ('ids', 'count'):
+            if name in ('ids', 'count', 'records'):
                 continue
 
             # these are expanded via the sub-tree
@@ -27,7 +27,7 @@ class SELECT_EXPAND(PSQLStatement):
 
             # otherwise, lookup a column, pipe or reverse lookup
             else:
-                column = schema.column(name)
+                column = schema.column(name, raise_=False)
                 if column:
                     yield expand_col, column, sub_tree
                 else:
@@ -38,8 +38,8 @@ class SELECT_EXPAND(PSQLStatement):
                         reverse = schema.reverseLookup(name)
                         if reverse:
                             yield expand_rev, reverse, sub_tree
-                        else:
-                            raise orb.errors.ColumnNotFound(schema.name(), name)
+                        #else:
+                        #    raise orb.errors.ColumnNotFound(schema.name(), name)
 
     def collectSubTree(self, model, tree, alias=''):
         sql = []
@@ -278,7 +278,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             'through_table': through.schema().dbname(),
             'target_field': target_col.field(),
             'target_records_alias': target_records_alias,
-            'source_table': source.schema().dbname(),
+            'source_table': alias or source.schema().dbname(),
             'source_field': source_col.field(),
             'limit_if_unique': 'LIMIT 1' if pipe.unique() else ''
         }

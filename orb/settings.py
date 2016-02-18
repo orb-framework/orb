@@ -12,7 +12,7 @@ class Settings(object):
         'caching_enabled': 'False',
         'max_cache_timeout': str(1000 * 60 * 60 * 24), # 24 hours
         'default_page_size': '40',
-        'syntax': 'default'  # possible values include default, PEP8
+        'syntax': 'standard'  # possible values include standard, PEP8
     }
 
     def __init__(self):

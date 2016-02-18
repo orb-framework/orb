@@ -32,14 +32,40 @@ class CollectionIterator(object):
             raise StopIteration()
         else:
             if self.__collection.context().inflated:
-                return self.__model.inflate(self.__records[self.__index])
+                return self.__model.inflate(self.__records[self.__index], context=self.__collection.context())
             else:
                 return self.__records[self.__index]
 
 
 class Collection(object):
     def __json__(self):
-        return [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
+        context = self.context()
+        expand = context.expand
+
+        output = {}
+
+        if not expand or 'records' in expand:
+            records = [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
+            if not expand:
+                return records
+            else:
+                output['records'] = records
+
+        if 'count' in expand:
+            output['count'] = self.count()
+
+        if 'ids' in expand:
+            output['ids'] = self.ids()
+
+        if 'first' in expand:
+            record = self.first()
+            output['first'] = record.__json__() if record else None
+
+        if 'last' in expand:
+            record = self.last()
+            output['last'] = record.__json__() if record else None
+
+        return output
 
     def __init__(self, records=None, model=None, source='', record=None, pipe=None, preload=None, **context):
         self.__cacheLock = ReadWriteLock()

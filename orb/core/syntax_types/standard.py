@@ -2,7 +2,7 @@ import projex.text
 from ..syntax import Syntax
 
 
-class DefaultSyntax(Syntax):
+class StandardSyntax(Syntax):
     def display(self, name):
         return projex.text.pretty(name)
 
@@ -25,4 +25,4 @@ class DefaultSyntax(Syntax):
         setter = projex.text.camelHump(name)
         return 'set' + setter[0].upper() + setter[1:]
 
-Syntax.registerAddon('default', DefaultSyntax)
+Syntax.registerAddon('standard', StandardSyntax)

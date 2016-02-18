@@ -51,6 +51,13 @@ class ReferenceColumn(Column):
         self.__removeAction = removeAction
         self.__reverse = reverse
 
+    def copy(self):
+        out = super(ReferenceColumn, self).copy()
+        out.__reference = self.__reference
+        out.__removeAction = self.__removeAction
+        out.__reverse = self.__reverse
+        return out
+
     def dbType(self, connectionType):
         if connectionType == 'Postgres':
             model = self.referenceModel()
@@ -80,6 +87,14 @@ class ReferenceColumn(Column):
                 raise orb.errors.ModelNotFound(self.reference())
             else:
                 load_event = orb.events.LoadEvent(data=db_value)
+
+                # update the expansion information to not propagate to references
+                if context:
+                    context = context.copy()
+                    expand = context.expandtree()
+                    sub_expand = expand.pop(self.name(), {})
+                    context.expand = context.raw_values['expand'] = sub_expand
+
                 db_value = cls(loadEvent=load_event, context=context)
             return db_value
         else:

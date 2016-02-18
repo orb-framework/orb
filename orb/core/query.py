@@ -709,6 +709,8 @@ class Query(object):
         column = self.column(model)
         if isinstance(column, orb.ShortcutColumn):
             parts = column.shortcut().split('.')
+        elif not isinstance(column, (str, unicode)):
+            return self
         else:
             parts = self.__column.split('.')
 
@@ -1069,6 +1071,9 @@ class Query(object):
         """
         self.__caseSensitive = state
 
+    def setColumn(self, column):
+        self.__column = column
+
     def setInverted(self, state=True):
         """
         Sets whether or not this query is inverted.
@@ -1076,6 +1081,9 @@ class Query(object):
         :param      state | <bool>
         """
         self.__inverted = state
+
+    def setModel(self, model):
+        self.__model = model
 
     def setOp(self, op):
         """
@@ -1349,7 +1357,8 @@ class QueryCompound(object):
             if ((isinstance(sub_q, orb.Query) and isinstance(sub_q.value(), orb.Query)) and
                  sub_q.value().model(model) != sub_q.model(model)):
                 sub_model = sub_q.value().model(model)
-                new_records = sub_model.select(columns=[sub_model.schema().idColumn()])
+                sub_col = sub_q.value().column()
+                new_records = sub_model.select(columns=[sub_col])
 
                 sub_q = sub_q.copy()
                 sub_q.setOp(sub_q.Op.IsIn)

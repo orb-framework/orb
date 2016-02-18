@@ -82,6 +82,26 @@ class Column(AddonManager):
         self.__schema = None
         self.__timezone = None
 
+    def copy(self):
+        """
+        Returns a new instance copy of this column.
+
+        :return: <orb.Column>
+        """
+        out = type(self)(
+            name=self.__name,
+            field=self.__field,
+            display=self.__display,
+            index=self.__index,
+            flags=self.__flags,
+            default=self.__default,
+            defaultOrder=self.__defaultOrder,
+            getter=self.__getter,
+            setter=self.__setter
+        )
+
+        return out
+
     def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
