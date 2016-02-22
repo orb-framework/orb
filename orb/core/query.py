@@ -555,12 +555,12 @@ class Query(object):
         
         :return     <orb.Column>
         """
-        if self.__model is not None:
-            return self.__model.schema().column(self.__column)
-        elif model is not None:
-            return model.schema().column(self.__column)
-        else:
+        try:
+            schema = (self.__model or model).schema()
+        except AttributeError:
             return None
+        else:
+            return schema.column(self.__column)
 
     def columns(self, model=None):
         """
@@ -706,18 +706,19 @@ class Query(object):
             raise orb.errors.QueryInvalid('Could not traverse: {0}'.format(self.__column))
 
         schema = model.schema()
-        column = self.column(model)
-        if isinstance(column, orb.ShortcutColumn):
-            parts = column.shortcut().split('.')
-        elif not isinstance(column, (str, unicode)):
-            return self
-        else:
-            parts = self.__column.split('.')
+        parts = self.__column.split('.')
+
+        # expand the current column
+        lookup = schema.column(parts[0], raise_=False)
+        if isinstance(lookup, orb.ShortcutColumn):
+            parts = lookup.shortcut().split('.')
+            lookup = schema.column(parts[0], raise_=False)
 
         if len(parts) == 1:
             return self
         else:
-            lookup = schema.column(parts[0]) or schema.reverseLookup(parts[0]) or schema.pipe(parts[0])
+            lookup = lookup or schema.pipe(parts[0]) or schema.reverseLookup(parts[0])
+
             if not lookup:
                 raise orb.errors.QueryInvalid('Could not traverse: {0}'.format(self.__column))
 

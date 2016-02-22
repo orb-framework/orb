@@ -86,47 +86,8 @@ class Context(object):
         self.popDefaultContext()
 
     def __init__(self, **kwds):
-        if 'columns' in kwds and isinstance(kwds['columns'], (str, unicode)):
-            kwds['columns'] = kwds['columns'].split(',')
-
-        # utilize values from another context
-        others = [kwds.pop('context', None), self.defaultContext()]
-        for other in others:
-            if other:
-                ignore = ('columns', 'where')
-                # extract expandable information
-                for k, v in other.raw_values.items():
-                    if k not in ignore:
-                        kwds.setdefault(k, copy.copy(v))
-
-                # merge where queries
-                where = other.where
-                if where is not None:
-                    q = orb.Query()
-                    q &= where
-                    q &= kwds.get('where')
-                    kwds['where'] = q
-
-                # merge column queries
-                columns = other.columns
-                if columns is not None:
-                    kwds['columns'] = columns + [col for col in kwds.get('columns', []) if not col in columns]
-
-        # validate values
-        if kwds.get('start') is not None and (type(kwds['start']) != int or kwds['start'] < 0):
-            msg = 'Start needs to be a positive number, got {0} instead'
-            raise orb.errors.InvalidContextOption(msg.format(kwds.get('start)')))
-        if kwds.get('page') is not None and (type(kwds['page']) != int or kwds['page'] < 1):
-            msg = 'Page needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.InvalidContextOption(msg.format(kwds.get('page')))
-        if kwds.get('limit') is not None and (type(kwds['limit']) != int or kwds['limit'] < 1):
-            msg = 'Limit needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.InvalidContextOption(msg.format(kwds.get('limit')))
-        if kwds.get('pageSize') is not None and (type(kwds['pageSize']) != int or kwds['pageSize'] < 1):
-            msg = 'Page size needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.InvalidContextOption(msg.format(kwds.get('pageSize')))
-
-        self.__dict__['raw_values'] = {k: v for k, v in kwds.items() if k in self.Defaults}
+        self.__dict__['raw_values'] = {}
+        self.update(kwds)
 
     def __getattr__(self, key):
         try:
@@ -244,23 +205,56 @@ class Context(object):
     def timezone(self):
         return self.raw_values.get('timezone') or orb.system.settings().server_timezone
 
-    def update(self, other):
+    def update(self, other_context):
         """
         Updates this lookup set with the inputted options.
 
-        :param      other | <dict>
+        :param      other_context | <dict> || <orb.Context>
         """
-        if isinstance(other, dict):
-            other_context = other.pop('context', None)
-        elif isinstance(other, orb.Context):
-            other_context = other
-            other = {}
+        if isinstance(other_context, orb.Context):
+            other_context = other_context.raw_values
 
-        if other_context:
-            for k, v in other_context.raw_values.items():
-                other.setdefault(k, v)
+        if 'columns' in other_context and isinstance(other_context['columns'], (str, unicode)):
+            other_context['columns'] = other_context['columns'].split(',')
 
-        self.raw_values.update({k: v for k, v in other.items() if k in self.Defaults})
+        # utilize values from another context
+        others = [other_context.pop('context', None), self.defaultContext()]
+        for other in others:
+            if other:
+                ignore = ('columns', 'where')
+                # extract expandable information
+                for k, v in other.raw_values.items():
+                    if k not in ignore:
+                        other_context.setdefault(k, copy.copy(v))
+
+                # merge where queries
+                where = other.where
+                if where is not None:
+                    q = orb.Query()
+                    q &= where
+                    q &= other_context.get('where')
+                    other_context['where'] = q
+
+                # merge column queries
+                columns = other.columns
+                if columns is not None:
+                    other_context['columns'] = columns + [col for col in other_context.get('columns', []) if not col in columns]
+
+        # validate values
+        if other_context.get('start') is not None and (type(other_context['start']) != int or other_context['start'] < 0):
+            msg = 'Start needs to be a positive number, got {0} instead'
+            raise orb.errors.InvalidContextOption(msg.format(other_context.get('start)')))
+        if other_context.get('page') is not None and (type(other_context['page']) != int or other_context['page'] < 1):
+            msg = 'Page needs to be a number equal to or greater than 1, got {0} instead'
+            raise orb.errors.InvalidContextOption(msg.format(other_context.get('page')))
+        if other_context.get('limit') is not None and (type(other_context['limit']) != int or other_context['limit'] < 1):
+            msg = 'Limit needs to be a number equal to or greater than 1, got {0} instead'
+            raise orb.errors.InvalidContextOption(msg.format(other_context.get('limit')))
+        if other_context.get('pageSize') is not None and (type(other_context['pageSize']) != int or other_context['pageSize'] < 1):
+            msg = 'Page size needs to be a number equal to or greater than 1, got {0} instead'
+            raise orb.errors.InvalidContextOption(msg.format(other_context.get('pageSize')))
+
+        self.raw_values.update({k: v for k, v in other_context.items() if k in self.Defaults})
 
     @classmethod
     def defaultContext(cls):

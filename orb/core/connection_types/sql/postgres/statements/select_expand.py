@@ -38,8 +38,8 @@ class SELECT_EXPAND(PSQLStatement):
                         reverse = schema.reverseLookup(name)
                         if reverse:
                             yield expand_rev, reverse, sub_tree
-                        #else:
-                        #    raise orb.errors.ColumnNotFound(schema.name(), name)
+                        else:
+                            raise orb.errors.ColumnNotFound(schema.name(), name)
 
     def collectSubTree(self, model, tree, alias=''):
         sql = []

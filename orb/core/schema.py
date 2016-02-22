@@ -33,6 +33,7 @@ class Schema(object):
         self.__inherits = inherits
         self.__display = display
         self.__archived = archived
+        self.__cache = {}
 
         self.__model = None
         self.__archiveModel = None
@@ -115,41 +116,33 @@ class Schema(object):
     def archiveModel(self):
         return self.__archiveModel
 
-    def column(self, col, recurse=True, flags=0, raise_=True):
+    def column(self, key, recurse=True, flags=0, raise_=True):
         """
         Returns the column instance based on its name.  
         If error reporting is on, then the ColumnNotFound
         error will be thrown the key inputted is not a valid
         column name.
         
-        :param      name | <str>
+        :param      key     | <str> || <orb.Column> || <list>
                     recurse | <bool>
-                    flags | <int>
+                    flags   | <int>
 
         :return     <orb.Column> || None
         """
-        if isinstance(col, orb.Column):
-            return col
+        if isinstance(key, orb.Column):
+            return key
+        else:
+            cols = self.columns(recurse=recurse, flags=flags)
+            for column in cols.values():
+                if key not in (column.name(), column.field()):
+                    continue
+                else:
+                    return column
 
-        parts = col.split('.')
-        key = parts[0]
-        found = None
-        for column in self.columns(recurse=recurse, flags=flags).values():
-            if key in (column.name(), column.field()):
-                found = column
-                break
-
-        if found and len(parts) > 1:
-            ref = found.referenceModel()
-            if ref:
-                found = ref.schema().column('.'.join(parts[1:]), recurse=recurse, flags=flags)
-            else:
-                found = None
-
-        if not found and raise_:
-            raise orb.errors.ColumnNotFound(self.name(), col)
-
-        return found
+        if raise_:
+            raise orb.errors.ColumnNotFound(self.name(), key)
+        else:
+            return None
 
     def columns(self, recurse=True, flags=0):
         """
@@ -162,23 +155,29 @@ class Schema(object):
         
         :return     {<str> column name: <orb.Column>, ..}
         """
-        output = {col.name(): col for col in self.__columns.values() if (not flags or col.testFlag(flags))}
+        key = (recurse, flags)
+        try:
+            return self.__cache[key]
+        except KeyError:
 
-        if recurse:
-            inherits = self.inherits()
-            if inherits:
-                schema = orb.system.schema(inherits)
-                if not schema:
-                    raise orb.errors.ModelNotFound(inherits)
-                else:
-                    ancest_columns = schema.columns(recurse=recurse, flags=flags)
-                    dups = set(ancest_columns.keys()).intersection(output.keys())
-                    if dups:
-                        raise orb.error.DuplicateColumnFound(self.name(), ','.join(dups))
+            output = {col.name(): col for col in self.__columns.values() if (not flags or col.testFlag(flags))}
+
+            if recurse:
+                inherits = self.inherits()
+                if inherits:
+                    schema = orb.system.schema(inherits)
+                    if not schema:
+                        raise orb.errors.ModelNotFound(inherits)
                     else:
-                        output.update(ancest_columns)
+                        ancest_columns = schema.columns(recurse=recurse, flags=flags)
+                        dups = set(ancest_columns.keys()).intersection(output.keys())
+                        if dups:
+                            raise orb.error.DuplicateColumnFound(self.name(), ','.join(dups))
+                        else:
+                            output.update(ancest_columns)
 
-        return output
+            self.__cache[key] = output
+            return output
 
     def database(self):
         return self.__database

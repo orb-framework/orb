@@ -5,7 +5,7 @@ import os
 
 class Settings(object):
     Defaults = {
-        'locale': 'en_US',
+        'default_locale': 'en_US',
         'server_timezone': 'US/Pacific',
         'security_key': '',
         'raise_background_errors': 'True',

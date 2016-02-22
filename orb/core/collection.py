@@ -40,30 +40,35 @@ class CollectionIterator(object):
 class Collection(object):
     def __json__(self):
         context = self.context()
-        expand = context.expand
+        expand = context.expandtree()
 
         output = {}
+        use_records = False
 
-        if not expand or 'records' in expand:
-            records = [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
-            if not expand:
-                return records
-            else:
-                output['records'] = records
-
-        if 'count' in expand:
+        if expand.pop('count', None) is not None:
+            use_records = True
             output['count'] = self.count()
 
-        if 'ids' in expand:
+        if expand.pop('ids', None) is not None:
+            use_records = True
             output['ids'] = self.ids()
 
-        if 'first' in expand:
+        if expand.pop('first', None) is not None:
+            use_records = True
             record = self.first()
             output['first'] = record.__json__() if record else None
 
-        if 'last' in expand:
+        if expand.pop('last', None) is not None:
+            use_records = True
             record = self.last()
             output['last'] = record.__json__() if record else None
+
+        if not output or expand:
+            records = [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
+            if not use_records:
+                return records
+            else:
+                output['records'] = records
 
         return output
 

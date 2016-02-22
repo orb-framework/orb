@@ -122,7 +122,7 @@ def testing_schema(orb):
         user = orb.ReferenceColumn(reference='User', reverse=orb.ReferenceColumn.Reversed(name='userGroups'))
         group = orb.ReferenceColumn(reference='Group', reverse=orb.ReferenceColumn.Reversed(name='groupUsers'))
 
-        byUserAndGroup = orb.Index(('user', 'group'), unique=True)
+        byUserAndGroup = orb.Index(('user', 'group'), flags={'Unique'})
         byUser = orb.Index(('user',))
 
     class Document(orb.Table):

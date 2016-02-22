@@ -57,7 +57,7 @@ class Index(object):
         context['where'] = query & context.get('where')
 
         records = model.select(**context)
-        return records.first() if self.testFlags(self.Flags.Unique) else records
+        return records.first() if self.testFlag(self.Flags.Unique) else records
 
     def columns(self):
         """
@@ -150,5 +150,5 @@ class Index(object):
 
         return True
 
-    def testFlags(self, flags):
+    def testFlag(self, flags):
         return (self.__flags & flags) > 0
