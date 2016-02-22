@@ -57,13 +57,6 @@ class Column(AddonManager):
                  flags=0,
                  default=None,
                  defaultOrder='asc'):
-        # support string based flag definition
-        if isinstance(flags, set):
-            flag_enum = 0
-            for flag in flags:
-                flag_enum |= self.Flags(flag)
-            flags = flag_enum
-
         if type(index) == dict:
             index = Column.Index(**index)
 
@@ -72,7 +65,7 @@ class Column(AddonManager):
         self.__field = field
         self.__display = display
         self.__index = index
-        self.__flags = flags
+        self.__flags = self.Flags(flags) if flags else 0
         self.__default = default
         self.__defaultOrder = defaultOrder
         self.__getter = getter

@@ -1,11 +1,9 @@
 """ Defines an indexing system to use when looking up records. """
 
 import logging
-import projex.text
 
-from xml.etree import ElementTree
+from projex.enum import enum
 from projex.lazymodule import lazy_import
-from projex.text import nativestring as nstr
 
 
 log = logging.getLogger(__name__)
@@ -20,11 +18,15 @@ class Index(object):
     has a preset query built into it, along with caching options.
     """
 
-    def __init__(self, columns=None, name='', dbname='', unique=False, order=None):
+    Flags = enum(
+        'Unique'
+    )
+
+    def __init__(self, columns=None, name='', dbname='', flags=0, order=None):
         self.__name = self.__name__ = name
         self.__dbname = dbname
         self.__columns = columns or []
-        self.__unique = unique
+        self.__flags = self.Flags(flags) if flags else 0
         self.__order = order
         self.__schema = None
 
@@ -46,7 +48,7 @@ class Index(object):
             column = schema.column(col)
 
             if isinstance(value, orb.Model) and not value.isRecord():
-                return None if self.__unique else orb.Collection()
+                return None if self.testFlag(self.Flags.Unique) else orb.Collection()
             elif not column:
                 raise errors.ColumnNotFound(schema.name(), col)
 
@@ -55,7 +57,7 @@ class Index(object):
         context['where'] = query & context.get('where')
 
         records = model.select(**context)
-        return records.first() if self.__unique else records
+        return records.first() if self.testFlags(self.Flags.Unique) else records
 
     def columns(self):
         """
@@ -69,6 +71,9 @@ class Index(object):
 
     def dbname(self):
         return self.__dbname or orb.system.syntax().indexdb(self.__schema, self.__name)
+
+    def flags(self):
+        return self.__flags
 
     def name(self):
         """
@@ -102,6 +107,9 @@ class Index(object):
     def setDbName(self, dbname):
         self.__dbname = dbname
 
+    def setFlags(self, flags):
+        self.__flags = flags
+
     def setName(self, name):
         """
         Sets the name for this index to this index.
@@ -112,23 +120,6 @@ class Index(object):
 
     def setSchema(self, schema):
         self.__schema = schema
-
-    def setUnique(self, state):
-        """
-        Sets whether or not this index should find only a unique record.
-        
-        :param      state | <bool>
-        """
-        self.__unique = state
-
-    def unique(self):
-        """
-        Returns whether or not the results that this index expects should be \
-        a unique record, or multiple records.
-        
-        :return     <bool>
-        """
-        return self.__unique
 
     def validate(self, record, values):
         """
@@ -159,3 +150,5 @@ class Index(object):
 
         return True
 
+    def testFlags(self, flags):
+        return (self.__flags & flags) > 0

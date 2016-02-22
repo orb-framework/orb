@@ -280,7 +280,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             'target_records_alias': target_records_alias,
             'source_table': alias or source.schema().dbname(),
             'source_field': source_col.field(),
-            'limit_if_unique': 'LIMIT 1' if pipe.unique() else ''
+            'limit_if_unique': 'LIMIT 1' if pipe.testFlag(pipe.Flags.Unique) else ''
         }
 
         # define the sql

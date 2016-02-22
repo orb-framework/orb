@@ -148,7 +148,11 @@ class MetaModel(type):
                     # create a column index
                     col_index = col.index()
                     if col_index:
-                        indexes[col_index.name] = orb.Index([col.name()], name=col_index.name, unique=col.testFlag(col.Flags.Unique))
+                        flags = set()
+                        if col.testFlag(col.Flags.Unique):
+                            flags.add('Unique')
+
+                        indexes[col_index.name] = orb.Index([col.name()], name=col_index.name, flags=flags)
                     return True
 
                 elif isinstance(value, orb.Index):

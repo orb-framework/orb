@@ -1,5 +1,6 @@
 import projex.text
 
+from projex.enum import enum
 from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
@@ -8,14 +9,16 @@ orb = lazy_import('orb')
 class Pipe(object):
     __lookup__ = True
 
-    def __init__(self, name='', through='', from_='', to='', unique=False):
+    Flags = enum('Unique')
+
+    def __init__(self, name='', through='', from_='', to='', flags=0):
         self.__name = self.__name__ = name
         self.__through = through
         self.__from = from_
         self.__to = to
-        self.__unique = unique
         self.__schema = None
         self.__preload = None
+        self.__flags = self.Flags(flags) if flags else 0
 
     def __call__(self, record, **context):
         if not record.isRecord():
@@ -36,6 +39,9 @@ class Pipe(object):
         collection.preload(cache, **context)
         return collection
 
+    def flags(self):
+        return self.__flags
+
     def name(self):
         return self.__name
 
@@ -47,9 +53,6 @@ class Pipe(object):
 
     def setSchema(self, schema):
         self.__schema = schema
-
-    def setUnique(self, state):
-        self.__unique = state
 
     def from_(self):
         return self.__from
@@ -64,6 +67,12 @@ class Pipe(object):
     def fromModel(self):
         col = self.fromColumn()
         return col.referenceModel() if col else None
+
+    def setFlags(self, flags):
+        self.__flags = flags
+
+    def testFlag(self, flag):
+        return (self.__flags & flag) > 0
 
     def to(self):
         return self.__to
@@ -89,5 +98,3 @@ class Pipe(object):
         except AttributeError:
             raise orb.errors.ModelNotFound(self.__through)
 
-    def unique(self):
-        return self.__unique
