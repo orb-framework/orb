@@ -30,32 +30,33 @@ class ReferenceColumn(Column):
         'Block'         # 4
     )
 
-    class Reversed(object):
-        def __init__(self, name='', cached=False, timeout=None):
-            self.name = name
-            self.cached = cached
-            self.timeout = timeout
-
     def __init__(self,
                  reference='',
                  removeAction=RemoveAction.Block,
-                 reverse=None,
                  **kwds):
         super(ReferenceColumn, self).__init__(**kwds)
-
-        if type(reverse) == dict:
-            reverse = ReferenceColumn.Reversed(**reverse)
 
         # store reference options
         self.__reference = reference
         self.__removeAction = removeAction
-        self.__reverse = reverse
+
+    def _restore(self, value, context=None):
+        if not context.inflated and isinstance(value, orb.Model):
+            return value.id()
+        elif context.inflated and value is not None:
+            model = self.referenceModel()
+
+            if not isinstance(value, model):
+                return model.fetch(value)
+            else:
+                return value
+        else:
+            return value
 
     def copy(self):
         out = super(ReferenceColumn, self).copy()
         out.__reference = self.__reference
         out.__removeAction = self.__removeAction
-        out.__reverse = self.__reverse
         return out
 
     def dbType(self, connectionType):
@@ -96,9 +97,8 @@ class ReferenceColumn(Column):
                     context.expand = context.raw_values['expand'] = sub_expand
 
                 db_value = cls(loadEvent=load_event, context=context)
-            return db_value
-        else:
-            return super(ReferenceColumn, self).dbRestore(db_value, context=context)
+
+        return super(ReferenceColumn, self).dbRestore(db_value, context=context)
 
     def loadJSON(self, jdata):
         """
@@ -111,10 +111,6 @@ class ReferenceColumn(Column):
         # load additional information
         self.__reference = jdata.get('reference') or self.__reference
         self.__removeAction = jdata.get('removeAction') or self.__removeAction
-
-        reverse = jdata.get('reverse')
-        if reverse:
-            self.__reverse = ReferenceColumn.Reversed(**reverse)
 
     def reference(self):
         return self.__reference
@@ -140,25 +136,13 @@ class ReferenceColumn(Column):
         :return: <variant>
         """
         context = context or orb.Context()
+        value = super(ReferenceColumn, self).restore(value, context=context)
 
-        if not context.inflated and isinstance(value, orb.Model):
-            return value.id()
-        elif context.inflated and value is not None:
-            model = self.referenceModel()
-            if not isinstance(value, model):
-                return model.fetch(value)
-            else:
-                return value
+        # check to make sure that we're processing the right values
+        if self.testFlag(self.Flags.I18n) and context.locale == 'all':
+            return {locale: self._restore(val, context) for locale, val in value.items()}
         else:
-            return value
-
-    def reverseInfo(self):
-        """
-        Returns the reversal information for this column type, if any.
-
-        :return     <orb.ReferenceColumn.Reversed> || None
-        """
-        return self.__reverse
+            return self._restore(value, context)
 
     def validate(self, value):
         if isinstance(value, orb.Model) and not isinstance(value, self.referenceModel()):

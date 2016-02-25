@@ -13,12 +13,6 @@ orb = lazy_import('orb')
 
 class Column(AddonManager):
     """ Used to define database schema columns when defining Table classes. """
-    class Index(object):
-        def __init__(self, name='', cached=False, timeout=None):
-            self.name = name
-            self.cached = cached
-            self.timeout = timeout
-
     TypeMap = {}
     MathMap = {
         'Default': {
@@ -41,7 +35,8 @@ class Column(AddonManager):
         'Unique',
         'Encrypted',
         'Searchable',
-        'Translatable',
+        'I18n',
+        'I18nNoMerge',
         'CaseSensitive',
         'Virtual',
         'Queryable'
@@ -53,19 +48,14 @@ class Column(AddonManager):
                  display=None,
                  getter=None,
                  setter=None,
-                 index=None,
                  flags=0,
                  default=None,
                  defaultOrder='asc'):
-        if type(index) == dict:
-            index = Column.Index(**index)
-
         # constructor items
         self.__name = name
         self.__field = field
         self.__display = display
-        self.__index = index
-        self.__flags = self.Flags(flags) if flags else 0
+        self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
         self.__default = default
         self.__defaultOrder = defaultOrder
         self.__getter = getter
@@ -85,7 +75,6 @@ class Column(AddonManager):
             name=self.__name,
             field=self.__field,
             display=self.__display,
-            index=self.__index,
             flags=self.__flags,
             default=self.__default,
             defaultOrder=self.__defaultOrder,
@@ -105,7 +94,22 @@ class Column(AddonManager):
 
         :return: <variant>
         """
-        return db_value
+        # restore translatable column
+        if self.testFlag(self.Flags.I18n):
+            if isinstance(db_value, (str, unicode)):
+                if db_value.startswith('{'):
+                    try:
+                        value = projex.text.safe_eval(db_value)
+                    except StandardError:
+                        value = None
+                else:
+                    value = {context.locale: db_value}
+            else:
+                value = db_value
+
+            return value
+        else:
+            return db_value
 
     def dbMath(self, typ, field, op, value):
         """
@@ -214,14 +218,6 @@ class Column(AddonManager):
     def getter(self):
         return self.__getter or orb.system.syntax().getter(self.__name)
 
-    def index(self):
-        """
-        Returns the index information for this column, if any.
-
-        :return:    <orb.Column.Index> || None
-        """
-        return self.__index
-
     def isMemberOf(self, schemas):
         """
         Returns whether or not this column is a member of any of the given
@@ -265,10 +261,6 @@ class Column(AddonManager):
         self.__defaultOrder = jdata.get('defaultOrder') or self.__defaultOrder
         self.__default = jdata.get('default') or self.__default
 
-        index = jdata.get('index')
-        if index:
-            self.__index = Column.Index(**index)
-
     def memberOf(self, schemas):
         """
         Returns a list of schemas this column is a member of from the inputted
@@ -298,7 +290,27 @@ class Column(AddonManager):
         :param      value   | <variant>
                     context | <orb.Context> || None
         """
-        return value
+        context = context or orb.Context()
+
+        # check to see if this column is translatable before restoring
+        if self.testFlag(self.Flags.I18n):
+            locales = context.locale.split(',')
+
+            if not isinstance(value, dict):
+                default_locale = locales[0]
+                if default_locale == 'all':
+                    default_locale = orb.system.settings().default_locale
+                value = {default_locale: value}
+
+            if 'all' in locales:
+                return value
+
+            if len(locales) == 1:
+                return value.get(locales[0])
+            else:
+                return {locale: value.get(locale) for locale in locales}
+        else:
+            return value
 
     def store(self, value, context=None):
         """
@@ -311,7 +323,13 @@ class Column(AddonManager):
         """
         if isinstance(value, (str, unicode)):
             value = self.valueFromString(value)
-        return value
+
+        # store the internationalized property
+        if self.testFlag(self.Flags.I18n):
+            context = context or orb.Context()
+            return {context.locale: value}
+        else:
+            return value
 
     def schema(self):
         """
@@ -375,14 +393,6 @@ class Column(AddonManager):
         :param      name    | <str>
         """
         self.__name = name
-
-    def setIndex(self, index):
-        """
-        Sets the index instance for this column to the inputted instance.
-
-        :param      index   | <orb.Column.Index> || None
-        """
-        self.__index = index
 
     def setSchema(self, schema):
         self.__schema = schema

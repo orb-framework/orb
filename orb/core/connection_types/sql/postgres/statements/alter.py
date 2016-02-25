@@ -27,7 +27,7 @@ class ALTER(PSQLStatement):
         add_i18n = []
         add_standard = []
         for col in add or []:
-            if col.testFlag(col.Flags.Translatable):
+            if col.testFlag(col.Flags.I18n):
                 add_i18n.append(col)
             else:
                 add_standard.append(col)
@@ -56,7 +56,7 @@ class ALTER(PSQLStatement):
 
             i18n_sql = (
                 u'CREATE TABLE IF NOT EXISTS "{table}_i18n" (\n'
-                u'  "locale" CHARACTER VARYING(5)\n'
+                u'  "locale" CHARACTER VARYING(5),\n'
                 u'  "{table}_id" BIGINT REFERENCES "{table}" ("id") ON DELETE CASCADE,\n'
                 u'  CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("locale", "{table}_id")\n'
                 u') WITH (OIDS=FALSE);'

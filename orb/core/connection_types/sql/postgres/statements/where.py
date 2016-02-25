@@ -102,7 +102,7 @@ class WHERE(PSQLStatement):
                 sql = u' '.join(opts)
                 data[value_key] = value
 
-                if column.testFlag(column.Flags.Translatable) and column not in fields:
+                if column.testFlag(column.Flags.I18n) and column not in fields:
                     model_name = aliases.get(model) or model.schema().dbname()
                     i18n_sql = u'"{name}"."id" IN (' \
                           u'    SELECT "{name}_id"' \

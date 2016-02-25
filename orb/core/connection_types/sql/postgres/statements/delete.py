@@ -11,9 +11,10 @@ class DELETE(PSQLStatement):
         if isinstance(records, orb.Collection) and not records.isLoaded():
             model = records.model()
             context = records.context()
-            if context.where:
+
+            if context.where is not None:
                 WHERE = self.byName('WHERE')
-                where, data = WHERE(context.where)
+                where, data = WHERE(model, context.where)
             else:
                 where, data = '', {}
 
@@ -26,6 +27,11 @@ class DELETE(PSQLStatement):
                 u'{where}'
                 u'RETURNING *;'
             ).format(**sql_options)
+
+            records.clear()
+
+            print sql, data
+
             return sql, data
 
         # otherwise, delete based on the record's ids

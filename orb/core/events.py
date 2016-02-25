@@ -22,12 +22,13 @@ class InitEvent(Event):
 
 
 class SaveEvent(Event):
-    def __init__(self, context=None, newRecord=False, result=True):
+    def __init__(self, context=None, newRecord=False, changes=None, result=True):
         super(SaveEvent, self).__init__()
 
         self.context = context
         self.newRecord = newRecord
         self.result = result
+        self.changes = changes
 
 class DeleteEvent(Event):
     def __init__(self, context=None):

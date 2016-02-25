@@ -21,9 +21,12 @@ class CREATE(PSQLStatement):
 
         # divide columns between standard and translatable
         for col in model.schema().columns(recurse=False).values():
-            if col.testFlag(col.Flags.Translatable):
+            if not includeReferences and isinstance(col, orb.ReferenceColumn):
+                continue
+
+            if col.testFlag(col.Flags.I18n):
                 add_i18n.append(col)
-            elif includeReferences or not isinstance(col, orb.ReferenceColumn):
+            else:
                 add_standard.append(col)
 
         # create the standard model

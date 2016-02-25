@@ -168,7 +168,9 @@ class Context(object):
 
         :return     <bool>
         """
-        return len(self.raw_values) == 0
+        check = self.raw_values.copy()
+        scope = check.pop('scope', {})
+        return len(check) == 0 and len(scope) == 0
 
     def items(self):
         return [(k, getattr(self, k)) for k in self.Defaults]
@@ -193,6 +195,11 @@ class Context(object):
     @property
     def limit(self):
         return self.raw_values.get('pageSize') or self.raw_values.get('limit')
+
+    @property
+    def scope(self):
+        out = self.raw_values.get('scope')
+        return out if out is not None else {}
 
     @property
     def start(self):

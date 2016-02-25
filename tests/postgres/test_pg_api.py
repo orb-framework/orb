@@ -72,10 +72,10 @@ def test_pg_api_create_admins(orb, User, GroupUser, Group):
     user = User.byUsername('bob')
     assert user is not None and user.username() == 'bob'
 
-    group = Group.ensureExists(name='admins')
+    group = Group.ensureExists({'name': 'admin'})
     assert group is not None
 
-    group_user = GroupUser.ensureExists(group=group, user=user)
+    group_user = GroupUser.ensureExists({'group': group, 'user': user})
     assert group_user.isRecord() == True
 
 @requires_pg
@@ -342,7 +342,7 @@ def test_pg_api_invalid_reference(orb, Employee, User):
 
 @requires_pg
 def test_pg_api_save_employee(orb, Employee, Role):
-    role = Role.ensureExists(name='Programmer')
+    role = Role.ensureExists({'name': 'Programmer'})
     sam = Employee.byUsername('samantha')
     if not sam:
         sam = Employee(username='samantha', password='T3st1ng!', role=role)

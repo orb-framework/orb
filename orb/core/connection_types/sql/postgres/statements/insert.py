@@ -22,7 +22,7 @@ class INSERT(PSQLStatement):
                 i18n = []
                 standard = []
                 for col in schema.columns().values():
-                    if col.testFlag(col.Flags.Translatable):
+                    if col.testFlag(col.Flags.I18n):
                         i18n.append(col)
                     elif not isinstance(col, orb.IdColumn):
                         standard.append(col)

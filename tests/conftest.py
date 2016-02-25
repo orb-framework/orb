@@ -104,31 +104,37 @@ def testing_schema(orb):
 
     class Group(orb.Table):
         id = orb.IdColumn()
-        name = orb.StringColumn(flags={'Unique'}, index=orb.Column.Index(name='byName'))
+        name = orb.StringColumn(flags={'Unique'})
         owner = orb.ReferenceColumn(reference='User')
 
-        users = orb.Pipe('users', through='GroupUser', from_='group', to='user')
+        users = orb.Pipe(through_path='GroupUser.group.user')
+        groupUsers = orb.ReverseLookup(from_column='GroupUser.group')
+
+        byName = orb.Index(columns=['name'], flags={'Unique'})
 
     class User(orb.Table):
         id = orb.IdColumn()
-        username = orb.StringColumn(flags={'Unique'}, index=orb.Column.Index(name='byUsername'))
+        username = orb.StringColumn(flags={'Unique'})
         password = orb.PasswordColumn()
         token = orb.TokenColumn()
 
-        groups = orb.Pipe('groups', through='GroupUser', from_='user', to='group')
+        groups = orb.Pipe(through='GroupUser', from_='user', to='group')
+        userGroups = orb.ReverseLookup(from_column='GroupUser.user')
+
+        byUsername = orb.Index(columns=['username'], flags={'Unique'})
 
     class GroupUser(orb.Table):
         id = orb.IdColumn()
-        user = orb.ReferenceColumn(reference='User', reverse=orb.ReferenceColumn.Reversed(name='userGroups'))
-        group = orb.ReferenceColumn(reference='Group', reverse=orb.ReferenceColumn.Reversed(name='groupUsers'))
+        user = orb.ReferenceColumn(reference='User')
+        group = orb.ReferenceColumn(reference='Group')
 
         byUserAndGroup = orb.Index(('user', 'group'), flags={'Unique'})
         byUser = orb.Index(('user',))
 
     class Document(orb.Table):
         id = orb.IdColumn()
-        title = orb.StringColumn(flags={'Translatable'})
-        description = orb.TextColumn(flags={'Translatable'})
+        title = orb.StringColumn(flags={'I18n'})
+        description = orb.TextColumn(flags={'I18n'})
 
     class Role(orb.Table):
         id = orb.IdColumn()

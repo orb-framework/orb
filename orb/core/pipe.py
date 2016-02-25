@@ -1,58 +1,55 @@
 import projex.text
 
-from projex.enum import enum
 from projex.lazymodule import lazy_import
+from .collector import Collector
 
 orb = lazy_import('orb')
 
 
-class Pipe(object):
-    __lookup__ = True
+class Pipe(Collector):
+    def __init__(self, through_path='', through='', from_='', to='', **options):
+        super(Pipe, self).__init__(**options)
 
-    Flags = enum('Unique')
+        if through_path:
+            through, from_, to = through_path.split('.')
 
-    def __init__(self, name='', through='', from_='', to='', flags=0):
-        self.__name = self.__name__ = name
         self.__through = through
         self.__from = from_
         self.__to = to
-        self.__schema = None
-        self.__preload = None
-        self.__flags = self.Flags(flags) if flags else 0
 
-    def __call__(self, record, **context):
+    def collect(self, record, **context):
         if not record.isRecord():
             return orb.Collection()
+        else:
+            target = self.toModel()
+            through = self.throughModel()
 
-        target = self.toModel()
+            # create the pipe query
+            q  = orb.Query(target) == orb.Query(through, self.to())
+            q &= orb.Query(through, self.from_()) == record
+
+            context['where'] = q & context.get('where')
+
+            # generate the pipe query for this record
+            return target.select(pipe=self, record=record, **context)
+
+    def collectExpand(self, query, parts, **context):
         through = self.throughModel()
+        toModel = self.toModel()
 
-        # create the pipe query
-        q  = orb.Query(target) == orb.Query(through, self.to())
-        q &= orb.Query(through, self.from_()) == record
+        sub_q = query.copy()
+        sub_q._Query__column = '.'.join(parts[1:])
+        sub_q._Query__model = toModel
+        to_records = toModel.select(columns=[toModel.schema().idColumn()], where=sub_q)
+        pipe_q = orb.Query(through, self.to()).in_(to_records)
+        return through.select(columns=[self.from_()], where=pipe_q)
 
-        context['where'] = q & context.get('where')
-        cache = record.preload(projex.text.underscore(self.name()))
-
-        # generate the pipe query for this record
-        collection = target.select(pipe=self, record=record, **context)
-        collection.preload(cache, **context)
-        return collection
-
-    def flags(self):
-        return self.__flags
-
-    def name(self):
-        return self.__name
-
-    def schema(self):
-        return self.__schema
-
-    def setName(self, name):
-        self.__name = self.__name__ = name
-
-    def setSchema(self, schema):
-        self.__schema = schema
+    def copy(self):
+        out = super(Pipe, self).copy()
+        out._Pipe__through = self.__through
+        out._Pipe__from = self.__from
+        out._Pipe__to = self.__to
+        return out
 
     def from_(self):
         return self.__from
@@ -67,12 +64,6 @@ class Pipe(object):
     def fromModel(self):
         col = self.fromColumn()
         return col.referenceModel() if col else None
-
-    def setFlags(self, flags):
-        self.__flags = flags
-
-    def testFlag(self, flag):
-        return (self.__flags & flag) > 0
 
     def to(self):
         return self.__to

@@ -31,7 +31,7 @@ def test_empty_user_indexes(EmptyUser):
     assert len(EmptyUser.schema().indexes()) == 0
 
 def test_empty_user_pipes(EmptyUser):
-    assert len(EmptyUser.schema().pipes()) == 0
+    assert len(EmptyUser.schema().collectors()) == 0
 
 # ----
 # Basic Model Definition

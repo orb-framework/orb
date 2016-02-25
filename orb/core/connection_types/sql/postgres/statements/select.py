@@ -39,10 +39,10 @@ class SELECT(PSQLStatement):
 
         # process columns to select
         for column in sorted(columns, self.cmpcol):
-            if column.testFlag('Translatable'):
+            if column.testFlag(column.Flags.I18n):
                 if context.locale == 'all':
                     sql = u'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{0}"'
-                elif data['locale'] == data['default_locale']:
+                elif data['locale'] == data['default_locale'] or column.testFlag(column.Flags.I18nNoMerge):
                     sql = u'(array_agg("i18n"."{0}"))[1] AS "{0}"'
                 else:
                     sql = u'(coalesce((array_agg("i18n"."{0}"))[1], (array_agg("i18n_default"."{0}"))[1])) AS "{0}"'
@@ -66,23 +66,14 @@ class SELECT(PSQLStatement):
 
         # expand any pipes
         if expand:
-            for pipe in schema.pipes().values():
-                if pipe.name() in expand:
-                    sub_tree = expand.pop(pipe.name(), None)
-                    sql, sub_data = EXPAND_PIPE(pipe, sub_tree)
-                    if sql:
-                        sql_columns['standard'].append(sql)
-                        data.update(sub_data)
+            for collector in schema.collectors().values():
+                if collector.name() in expand:
+                    sub_tree = expand.pop(collector.name(), None)
+                    if isinstance(collector, orb.Pipe):
+                        sql, sub_data = EXPAND_PIPE(collector, sub_tree)
+                    elif isinstance(collector, orb.ReverseLookup):
+                        sql, sub_data = EXPAND_REV(collector, sub_tree)
 
-                if not expand:
-                    break
-
-        # expand any reverse lookups
-        if expand:
-            for reverse in schema.reverseLookups().values():
-                if reverse.reverseInfo().name in expand:
-                    sub_tree = expand.pop(reverse.reverseInfo().name, None)
-                    sql, sub_data = EXPAND_REV(reverse, sub_tree)
                     if sql:
                         sql_columns['standard'].append(sql)
                         data.update(sub_data)
@@ -153,7 +144,7 @@ class SELECT(PSQLStatement):
             cmd.append(u'    FROM "{0}"\n'.format(schema.dbname()))
 
             if sql_columns['i18n']:
-                if context.inflated or context.locale == 'all':
+                if context.locale == 'all':
                     cmd.append(u'    LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
                 else:
                     sql = u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'

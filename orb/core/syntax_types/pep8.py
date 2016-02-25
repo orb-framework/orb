@@ -15,6 +15,9 @@ class PEP8Syntax(Syntax):
     def getter(self, name):
         return 'get_' + projex.text.underscore(name)
 
+    def indexdb(self, schema, name):
+        return '{0}_{1}_idx'.format(schema.dbname(), projex.text.underscore(name))
+
     def schemadb(self, name):
         return projex.text.pluralize(projex.text.underscore(name))
 

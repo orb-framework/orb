@@ -65,47 +65,12 @@ class orb_setter_method(object):
 
 #----------------------------------------------------------------------
 
-class orb_lookup_method(object):
-    """ Defines a reverse lookup method for lookup up relations. """
-
-    def __init__(self, column):
-        """
-        Defines the getter method that will be used when accessing
-        information about a column on a database record.  This
-        class should only be used by the ModelType class when
-        generating column methods on a model.
-        """
-        self.column = column
-        self.__name__ = column.reverseInfo().name
-        self.__lookup__ = True
-
-    def __call__(self, record, **context):
-        """
-        Calls the getter lookup method for the database record.
-
-        :param      record      <Table>
-        """
-        model = self.column.schema().model()
-        if not record.isRecord():
-            return None if self.column.testFlag(self.column.Flags.Unique) else orb.Collection()
-        else:
-            q = orb.Query(self.column) == record
-            context['where'] = q & context.get('where')
-            cache = record.preload(projex.text.underscore(self.__name__))
-            records = model.select(**context)
-            records.preload(cache, **context)
-            return records.first() if self.column.testFlag(self.column.Flags.Unique) else records
-
-# -----------------------------------------------------------------------------
-
 
 class MetaModel(type):
     """
     Defines the table Meta class that will be used to dynamically generate
     Table class types.
     """
-    ReverseCache = defaultdict(list)
-
     def __new__(mcs, name, bases, attrs):
         """
         Manages the creation of database model classes, reading
@@ -136,7 +101,7 @@ class MetaModel(type):
             # define mixin options
             columns = {}
             indexes = {}
-            pipes = {}
+            collectors = {}
             views = {}
 
             def store_property(key, value):
@@ -144,15 +109,6 @@ class MetaModel(type):
                     col = value
                     col.setName(key)
                     columns[key] = col
-
-                    # create a column index
-                    col_index = col.index()
-                    if col_index:
-                        flags = set()
-                        if col.testFlag(col.Flags.Unique):
-                            flags.add('Unique')
-
-                        indexes[col_index.name] = orb.Index([col.name()], name=col_index.name, flags=flags)
                     return True
 
                 elif isinstance(value, orb.Index):
@@ -161,10 +117,10 @@ class MetaModel(type):
                     indexes[key] = index
                     return True
 
-                elif isinstance(value, orb.Pipe):
-                    pipe = value
-                    pipe.setName(key)
-                    pipes[key] = pipe
+                elif isinstance(value, orb.Collector):
+                    collector = value
+                    collector.setName(key)
+                    collectors[key] = collector
                     return True
 
                 else:
@@ -201,7 +157,7 @@ class MetaModel(type):
             schema = orb.Schema(name, **schema_attrs)
             schema.setColumns(columns)
             schema.setIndexes(indexes)
-            schema.setPipes(pipes)
+            schema.setCollectors(collectors)
             schema.setViews(views)
 
             if inherits:
@@ -219,13 +175,13 @@ class MetaModel(type):
                 if not hasattr(new_model, key):
                     setattr(new_model, key, classmethod(index))
 
-            # create instance methods for pipes
-            for key, pipe in pipes.items():
-                pipe.setSchema(schema)
+            # create instance methods for collectors
+            for key, collector in collectors.items():
+                collector.setSchema(schema)
 
                 if not hasattr(new_model, key):
-                    pipemethod = instancemethod(pipe, None, new_model)
-                    setattr(new_model, key, pipemethod)
+                    collectormethod = instancemethod(collector, None, new_model)
+                    setattr(new_model, key, collectormethod)
 
             # create instance methods for columns
             for key, column in columns.items():
@@ -244,37 +200,6 @@ class MetaModel(type):
                     smethod = orb_setter_method(column=column)
                     setter = instancemethod(smethod, None, new_model)
                     setattr(new_model, setter_name, setter)
-
-                # create reverse lookups
-                if isinstance(column, orb.ReferenceColumn):
-                    rev = column.reverseInfo()
-                    if rev:
-                        lookup = orb_lookup_method(column=column)
-
-                        def get_ref(model):
-                            if model is None:
-                                return None
-                            elif getattr(model, '_{0}__schema'.format(model.schema().name()), None):
-                                return model
-                            else:
-                                for base in model.__bases__:
-                                    ref = get_ref(base)
-                                    if ref:
-                                        return base
-                                return None
-
-                        ref_model = get_ref(column.referenceModel())
-                        if ref_model:
-                            ilookup = instancemethod(lookup, None, ref_model)
-                            setattr(ref_model, rev.name, ilookup)
-                        else:
-                            MetaModel.ReverseCache[column.reference()].append((rev.name, lookup))
-
-            # load reversed methods
-            lookups = MetaModel.ReverseCache.pop(name, [])
-            for rev_name, lookup in lookups:
-                ilookup = instancemethod(lookup, None, new_model)
-                setattr(new_model, rev_name, ilookup)
 
             # register the class to the system
             setattr(new_model, '_{0}__schema'.format(schema.name()), schema)

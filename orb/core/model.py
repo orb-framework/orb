@@ -53,7 +53,7 @@ class Model(object):
         columns = [x for x in columns if x and not x.testFlag(x.Flags.Private)]
 
         # simple json conversion
-        output = self.collect(key='field', columns=columns, inflated=False)
+        output = self.values(key='field', columns=columns, inflated=False)
 
         # expand any references we need
         expand_tree = context.expandtree()
@@ -221,10 +221,6 @@ class Model(object):
         self.update({k: v for k, v in values.items() if self.schema().column(k)})
 
     def _load(self, event):
-        self.onLoad(event)
-        if event.preventDefault:
-            return
-
         context = self.context()
         schema = self.schema()
         dbname = schema.dbname()
@@ -259,8 +255,10 @@ class Model(object):
         with WriteLocker(self.__dataLock):
             for col, val in clean.items():
                 default = val if not isinstance(val, dict) else val.copy()
-                self.__values[col] = (default, val)
+                self.__values[col.name()] = (default, val)
                 self.__loaded.add(col)
+
+        self.onLoad(event)
 
     # --------------------------------------------------------------------
     #                       EVENT HANDLERS
@@ -301,75 +299,35 @@ class Model(object):
 
         :return     { <orb.Column>: ( <variant> old, <variant> new), .. }
         """
-        pre_check = {}
+        output = {}
         is_record = self.isRecord()
         schema = self.schema()
         columns = [schema.column(c) for c in columns] if columns else \
                    schema.columns(recurse=recurse, flags=flags).values()
 
-        context = self.context(inflated=False)
+        context = self.context(inflated=inflated)
         with ReadLocker(self.__dataLock):
             for col in columns:
-                old, curr = self.__values.get(col, (None, None))
+                old, curr = self.__values.get(col.name(), (None, None))
                 if col.testFlag(col.Flags.ReadOnly):
                     continue
-                elif is_record:
+                elif not is_record:
                     old = None
 
                 check_old = col.restore(old, context)
                 check_curr = col.restore(curr, context)
 
                 if check_old != check_curr:
-                    pre_check[col] = (check_old, check_curr)
-
-        context = self.context(inflated=inflated)
-        return {col: (col.restore(old, context), col.restore(curr, context))
-                for col, (old, curr) in pre_check.items()}
-
-    def collect(self,
-                columns=None,
-                recurse=True,
-                flags=0,
-                mapper=None,
-                key='name',
-                **get_options):
-        """
-        Returns a dictionary grouping the columns and their
-        current values.  If the inflated value is set to True,
-        then you will receive any foreign keys as inflated classes (if you
-        have any values that are already inflated in your class, then you
-        will still get back the class and not the primary key value).  Setting
-        the mapper option will map the value by calling the mapper method.
-
-        :param      useFieldNames | <bool>
-                    inflated | <bool>
-                    mapper | <callable> || None
-
-        :return     { <str> key: <variant>, .. }
-        """
-        output = {}
-        schema = self.schema()
-        all_columns = schema.columns(recurse=recurse, flags=flags).values()
-        req_columns = [schema.column(col) for col in columns] if columns else None
-
-        for column in all_columns:
-            if req_columns is not None and column not in req_columns:
-                continue
-
-            if key == 'column':
-                val_key = column
-            else:
-                try:
-                    val_key = getattr(column, key)()
-                except AttributeError:
-                    raise errors.OrbError('Invalid key used in data collection.  Must be name, field, or column.')
-
-            value = self.get(column, **get_options)
-            if mapper:
-                value = mapper(value)
-            output[val_key] = value
+                    output[col] = (check_old, check_curr)
 
         return output
+
+    def collect(self, name, useGetter=False, **context):
+        collector = self.schema().collector(name)
+        if not collector:
+            raise orb.errors.ColumnNotFound(self.schema().name(), name)
+        else:
+            return collector(self, useGetter=useGetter, **context)
 
     def context(self, **context):
         """
@@ -398,8 +356,8 @@ class Model(object):
             raise orb.errors.ColumnNotFound(column)
 
         with WriteLocker(self.__dataLock):
-            if overwrite or not col in self.__values:
-                self.__values[col] = (value, value)
+            if overwrite or not col.name() in self.__values:
+                self.__values[col.name()] = (value, value)
                 return True
             else:
                 return False
@@ -438,7 +396,7 @@ class Model(object):
         if count == 1:
             col = self.schema().column(self.schema().idColumn())
             with WriteLocker(self.__dataLock):
-                self.__values[col] = (None, None)
+                self.__values[col.name()] = (None, None)
 
         return count
 
@@ -481,7 +439,7 @@ class Model(object):
 
         # grab the current value
         with ReadLocker(self.__dataLock):
-            _, value = self.__values[col]
+            _, value = self.__values.get(col.name(), (None, None))
 
         # return a reference when desired
         return col.restore(value, context)
@@ -490,19 +448,18 @@ class Model(object):
         return self.get(self.schema().idColumn(), useMethod=False, **context)
 
     def init(self):
+        for column in self.schema().columns().values():
+            if not column.testFlag(column.Flags.Virtual):
+                value = column.default()
+                if column.testFlag(column.Flags.I18n):
+                    value = {self.__context.locale: value}
+                elif column.testFlag(column.Flags.Polymorphic):
+                    value = type(self).__name__
+
+                self.define(column, value)
+
         event = orb.events.InitEvent()
         self.onInit(event)
-
-        if not event.preventDefault:
-            for column in self.schema().columns().values():
-                if not column.testFlag(column.Flags.Virtual):
-                    value = column.default()
-                    if column.testFlag(column.Flags.Translatable):
-                        value = {self.__context.locale: value}
-                    elif column.testFlag(column.Flags.Polymorphic):
-                        value = type(self).__name__
-
-                    self.define(column, value)
 
     def isModified(self):
         """
@@ -523,7 +480,7 @@ class Model(object):
         if db in (None, self.context().db):
             col = self.schema().column(self.schema().idColumn())
             with ReadLocker(self.__dataLock):
-                if self.__values[col][1] is None:
+                if self.__values[col.name()][1] is None:
                     return False
                 return True
         else:
@@ -561,7 +518,8 @@ class Model(object):
         new_record = not self.isRecord()
 
         # create the pre-commit event
-        event = orb.events.SaveEvent(context=context, newRecord=new_record)
+        changes = self.changes(columns=context.columns)
+        event = orb.events.SaveEvent(context=context, newRecord=new_record, changes=changes)
         self.onPreSave(event)
         if event.preventDefault:
             return event.result
@@ -576,14 +534,14 @@ class Model(object):
             conn.update([self], context)
 
         # mark all the data as committed
-        cols = [self.schema().column(c) for c in context.columns or []]
+        cols = [self.schema().column(c).name() for c in context.columns or []]
         with WriteLocker(self.__dataLock):
-            for col, (_, value) in self.__values.items():
-                if not cols or col in cols:
-                    self.__values[col] = (value, value)
+            for col_name, (_, value) in self.__values.items():
+                if not cols or col_name in cols:
+                    self.__values[col_name] = (value, value)
 
         # create post-commit event
-        event = orb.events.SaveEvent(context=context, newRecord=new_record)
+        event = orb.events.SaveEvent(context=context, newRecord=new_record, changes=changes)
         self.onPostSave(event)
         return True
 
@@ -623,26 +581,34 @@ class Model(object):
                         return method(self, value)
 
         with WriteLocker(self.__dataLock):
-            orig, curr = self.__values[col]
+            orig, curr = self.__values.get(col.name(), (None, None))
             value = col.store(value, context)
 
             # update the context based on the locale value
-            if col.testFlag(col.Flags.Translatable):
+            if col.testFlag(col.Flags.I18n) and isinstance(curr, dict) and isinstance(value, dict):
                 new_value = curr.copy()
                 new_value.update(value)
+                value = new_value
 
             change = curr != value
             if change:
-                self.__values[col] = (orig, value)
+                self.__values[col.name()] = (orig, value)
 
         # broadcast the change event
         if change:
-            event = orb.events.ChangeEvent(column=col, old=curr, value=value)
+            if col.testFlag(col.Flags.I18n) and context.locale != 'all':
+                old_value = curr[context.locale] if isinstance(curr, dict) else curr
+                new_value = value[context.locale] if isinstance(value, dict) else value
+            else:
+                old_value = curr
+                new_value = value
+
+            event = orb.events.ChangeEvent(column=col, old=old_value, value=new_value)
             self.onChange(event)
             if event.preventDefault:
                 with WriteLocker(self.__dataLock):
-                    orig, _ = self.__values[col]
-                    self.__values[col] = (orig, curr)
+                    orig, _ = self.__values.get(col.name(), (None, None))
+                    self.__values[col.name()] = (orig, curr)
                 return False
             else:
                 return change
@@ -669,7 +635,7 @@ class Model(object):
 
         :return     <bool>
         """
-        values = self.collect(key='column')
+        values = self.values(key='column')
         for col, value in values.items():
             if not col.validate(value):
                 return False
@@ -679,6 +645,51 @@ class Model(object):
                 return False
 
         return True
+
+    def values(self,
+               columns=None,
+               recurse=True,
+               flags=0,
+               mapper=None,
+               key='name',
+               **get_options):
+        """
+        Returns a dictionary grouping the columns and their
+        current values.  If the inflated value is set to True,
+        then you will receive any foreign keys as inflated classes (if you
+        have any values that are already inflated in your class, then you
+        will still get back the class and not the primary key value).  Setting
+        the mapper option will map the value by calling the mapper method.
+
+        :param      useFieldNames | <bool>
+                    inflated | <bool>
+                    mapper | <callable> || None
+
+        :return     { <str> key: <variant>, .. }
+        """
+        output = {}
+        schema = self.schema()
+        all_columns = schema.columns(recurse=recurse, flags=flags).values()
+        req_columns = [schema.column(col) for col in columns] if columns else None
+
+        for column in all_columns:
+            if req_columns is not None and column not in req_columns:
+                continue
+
+            if key == 'column':
+                val_key = column
+            else:
+                try:
+                    val_key = getattr(column, key)()
+                except AttributeError:
+                    raise errors.OrbError('Invalid key used in data collection.  Must be name, field, or column.')
+
+            value = self.get(column, **get_options)
+            if mapper:
+                value = mapper(value)
+            output[val_key] = value
+
+        return output
 
     #----------------------------------------------------------------------
     #                           CLASS METHODS
@@ -723,42 +734,44 @@ class Model(object):
 
         # create the new record
         record = cls(context=orb.Context(**context))
-        record.update(**values)
+        record.update(values)
         record.save()
         return record
 
     @classmethod
-    def ensureExists(cls, **kwds):
+    def ensureExists(cls, values, **context):
         """
         Defines a new record for the given class based on the
         inputted set of keywords.  If a record already exists for
         the query, the first found record is returned, otherwise
         a new record is created and returned.
 
-        :param      **kwds | columns & values
+        :param      values | <dict>
         """
         # require at least some arguments to be set
-        if not kwds:
+        if not values:
             return cls()
 
         # lookup the record from the database
         q = orb.Query()
 
-        for key, value in kwds.items():
+        for key, value in values.items():
             column = cls.schema().column(key)
             if not column:
                 raise orb.errors.ColumnNotFound(cls.schema().name(), key)
 
             if (isinstance(column, orb.AbstractStringColumn) and
                 not column.testFlag(column.Flags.CaseSensitive) and
+                not column.testFlag(column.Flags.I18n) and
                 isinstance(value, (str, unicode))):
                 q &= orb.Query(key).lower() == value.lower()
             else:
                 q &= orb.Query(key) == value
 
         record = cls.select(where=q).first()
-        if not record:
-            record = cls(**kwds)
+        if record is None:
+            record = cls()
+            record.update(values)
             record.save()
 
         return record

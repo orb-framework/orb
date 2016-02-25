@@ -39,7 +39,9 @@ from .core.database import Database
 from .core.index import Index
 from .core.model import Model
 from .core.query import (Query, QueryCompound)
+from .core.collector import Collector
 from .core.pipe import Pipe
+from .core.reverselookup import ReverseLookup
 from .core.schema import Schema
 from .core.syntax import Syntax
 from .core.security import Security

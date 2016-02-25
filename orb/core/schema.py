@@ -23,7 +23,7 @@ class Schema(object):
                  archived=False,
                  columns=None,
                  indexes=None,
-                 pipes=None,
+                 collectors=None,
                  views=None,
                  database=''):
         self.__name = name
@@ -40,7 +40,7 @@ class Schema(object):
 
         self.__columns = columns or {}
         self.__indexes = indexes or {}
-        self.__pipes = pipes or {}
+        self.__collectors = collectors or {}
         self.__views = views or {}
 
     def __cmp__(self, other):
@@ -104,14 +104,14 @@ class Schema(object):
         index.setSchema(self)
         self.__indexes[index.name()] = index
 
-    def addPipe(self, pipe):
+    def addCollector(self, collector):
         """
-        Adds the inputted pipe reference to this table schema.
+        Adds the inputted collector reference to this table schema.
 
-        :param      pipe | <orb.Pipe>
+        :param      collector | <orb.Collector>
         """
-        pipe.setSchema(self)
-        self.__pipes[pipe.name()] = pipe
+        collector.setSchema(self)
+        self.__collectors[collector.name()] = collector
 
     def archiveModel(self):
         return self.__archiveModel
@@ -172,7 +172,7 @@ class Schema(object):
                         ancest_columns = schema.columns(recurse=recurse, flags=flags)
                         dups = set(ancest_columns.keys()).intersection(output.keys())
                         if dups:
-                            raise orb.error.DuplicateColumnFound(self.name(), ','.join(dups))
+                            raise orb.errors.DuplicateColumnFound(self.name(), ','.join(dups))
                         else:
                             output.update(ancest_columns)
 
@@ -201,7 +201,7 @@ class Schema(object):
 
     def hasTranslations(self):
         for col in self.columns().values():
-            if col.testFlag(col.Flags.Translatable):
+            if col.testFlag(col.Flags.I18n):
                 return True
         return False
 
@@ -278,46 +278,28 @@ class Schema(object):
         """
         return self.__name
 
-    def pipe(self, name, recurse=True):
+    def collector(self, name, recurse=True):
         """
-        Returns the pipe that matches the inputted name.
+        Returns the collector that matches the inputted name.
 
-        :return     <orb.Pipe> || None
+        :return     <orb.Collector> || None
         """
-        return self.pipes(recurse=recurse).get(name)
+        return self.collectors(recurse=recurse).get(name)
 
-    def pipes(self, recurse=True):
+    def collectors(self, recurse=True):
         """
-        Returns a list of the pipes for this instance.
+        Returns a list of the collectors for this instance.
         
-        :return     [<orb.Pipe>, ..]
+        :return     [<orb.Collector>, ..]
         """
-        output = self.__pipes.copy()
+        output = self.__collectors.copy()
         if recurse and self.inherits():
             schema = orb.system.schema(self.inherits())
             if not schema:
                 raise orb.errors.ModelNotFound(self.inherits())
             else:
-                output.update(schema.pipes(recurse=recurse))
+                output.update(schema.collectors(recurse=recurse))
         return output
-
-    def reverseLookup(self, name):
-        """
-        Returns the reverse lookup that matches the inputted name.
-
-        :return     <orb.Column> || None
-        """
-        return self.reverseLookups().get(name)
-
-    def reverseLookups(self):
-        """
-        Returns a list of all the reverse-lookup columns that reference this schema.
-
-        :return     [<orb.Column>, ..]
-        """
-        return {col.reverseInfo().name: col for schema in orb.system.schemas().values()
-                for col in schema.columns().values()
-                if isinstance(col, orb.ReferenceColumn) and col.reference() == self.name() and col.reverseInfo()}
 
     def setAbstract(self, state):
         """
@@ -393,16 +375,16 @@ class Schema(object):
         """
         self.__name = name
 
-    def setPipes(self, pipes):
+    def setCollectors(self, collectors):
         """
-        Sets the pipe methods that will be used for this schema.
+        Sets the collector methods that will be used for this schema.
         
-        :param      pipes | [<orb.Pipes>, ..]
+        :param      collectors | [<orb.Collectors>, ..]
         """
-        self.__pipes = {}
-        for name, pipe in pipes.items():
-            self.__pipes[name] = pipe
-            pipe.setSchema(self)
+        self.__collectors = {}
+        for name, collector in collectors.items():
+            self.__collectors[name] = collector
+            collector.setSchema(self)
 
     def setDbName(self, dbname):
         """

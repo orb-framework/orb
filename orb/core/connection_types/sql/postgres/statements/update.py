@@ -30,13 +30,13 @@ class UPDATE(PSQLStatement):
         i18n_keys = defaultdict(list)
 
         for column in changes:
-            if column.testFlag(column.Flags.Translatable):
-                for locale, value in record.get(column, locale='all').items():
+            if column.testFlag(column.Flags.I18n):
+                for record_locale, value in record.get(column, locale='all').items():
                     value_key = '{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
                     data[value_key] = column.dbStore('Postgres', value)
-                    i18n_values[locale].append(u'"{0}" = %({1})s'.format(column.field(), value_key))
-                    i18n_fields[locale].append(u'"{0}"'.format(column.field()))
-                    i18n_keys[locale].append(u'%({0})s'.format(value_key))
+                    i18n_values[record_locale].append(u'"{0}" = %({1})s'.format(column.field(), value_key))
+                    i18n_fields[record_locale].append(u'"{0}"'.format(column.field()))
+                    i18n_keys[record_locale].append(u'%({0})s'.format(value_key))
             else:
                 value_key = '{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
                 data[value_key] = column.dbStore('Postgres', record.get(column))

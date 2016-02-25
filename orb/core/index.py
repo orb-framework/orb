@@ -26,7 +26,7 @@ class Index(object):
         self.__name = self.__name__ = name
         self.__dbname = dbname
         self.__columns = columns or []
-        self.__flags = self.Flags(flags) if flags else 0
+        self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
         self.__order = order
         self.__schema = None
 
@@ -58,6 +58,16 @@ class Index(object):
 
         records = model.select(**context)
         return records.first() if self.testFlag(self.Flags.Unique) else records
+
+    def copy(self):
+        other = type(self)(
+            columns=self.__columns[:],
+            name=self.__name,
+            dbname=self.__dbname,
+            flags=self.__flags,
+            order=self.__order
+        )
+        return other
 
     def columns(self):
         """

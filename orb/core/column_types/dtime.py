@@ -158,7 +158,6 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         else:
             return super(DatetimeWithTimezoneColumn, self).dbStore(typ, py_value)
 
-
     def restore(self, value, context=None):
         """
         Restores the value from a table cache for usage.
@@ -166,9 +165,12 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         :param      value   | <variant>
                     context | <orb.Context> || None
         """
+        value = super(DatetimeWithTimezoneColumn, self).restore(value, context)
+
         if value in ('today', 'now'):
-            return datetime.date.now()
-        elif isinstance(value, datetime.datetime):
+            value = datetime.date.now()
+
+        if isinstance(value, datetime.datetime):
             tz = pytz.timezone(context.timezone)
 
             if tz is not None:
@@ -187,9 +189,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
             else:
                 log.warning('No local timezone defined')
 
-            return value
-        else:
-            return super(DatetimeWithTimezoneColumn, self).restore(value, context)
+        return value
 
     def store(self, value, context=None):
         """
@@ -206,9 +206,8 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
                 # match the server information
                 tz = pytz.timezone(orb.system.settings().server_timezone)
                 value = tz.localize(value)
-            return value.astimezone(pytz.utc).replace(tzinfo=None)
-        else:
-            return super(DatetimeWithTimezoneColumn, self).store(value)
+            value = value.astimezone(pytz.utc).replace(tzinfo=None)
+        return super(DatetimeWithTimezoneColumn, self).store(value, context=context)
 
     def valueFromString(self, value, context=None):
         """
@@ -220,7 +219,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         if dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            time_struct = time.strptime(value, '%Y-%m-%d %h:%m:s')
+            time_struct = time.strptime(value, '%Y-%m-%d %H:%M:S')
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,

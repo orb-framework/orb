@@ -31,15 +31,14 @@ class SELECT_EXPAND(PSQLStatement):
                 if column:
                     yield expand_col, column, sub_tree
                 else:
-                    pipe = schema.pipe(name)
-                    if pipe:
-                        yield expand_pipe, pipe, sub_tree
+                    collector = schema.collector(name)
+                    if collector:
+                        if isinstance(collector, orb.Pipe):
+                            yield expand_pipe, collector, sub_tree
+                        elif isinstance(collector, orb.ReverseLookup):
+                            yield expand_rev, collector, sub_tree
                     else:
-                        reverse = schema.reverseLookup(name)
-                        if reverse:
-                            yield expand_rev, reverse, sub_tree
-                        else:
-                            raise orb.errors.ColumnNotFound(schema.name(), name)
+                        raise orb.errors.ColumnNotFound(schema.name(), name)
 
     def collectSubTree(self, model, tree, alias=''):
         sql = []
@@ -121,10 +120,10 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
 
 
 class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
-    def __call__(self, column, tree, alias=''):
+    def __call__(self, reversed, tree, alias=''):
         data = {}
-        target = column.schema().model()
-        source = column.referenceModel()
+        target = reversed.referenceModel()
+        source = reversed.schema().model()
 
         # get the base table query
         target_q = target.baseQuery()
@@ -140,7 +139,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             target_base_where = ''
 
 
-        target_name = projex.text.underscore(column.reverseInfo().name)
+        target_name = projex.text.underscore(reversed.name())
         target_records_alias = '{0}_records'.format(target_name)
         target_alias = '{0}_table'.format(target_name)
         has_translations = target.schema().hasTranslations()
@@ -184,8 +183,8 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             'target_expand': target_expand,
             'target_records_alias': target_records_alias,
             'source_table': source.schema().dbname(),
-            'source_field': column.field(),
-            'limit_if_unique': 'LIMIT 1' if column.testFlag(column.Flags.Unique) else ''
+            'source_field': reversed.targetColumn().field(),
+            'limit_if_unique': 'LIMIT 1' if reversed.testFlag(reversed.Flags.Unique) else ''
         }
 
         # define the sql

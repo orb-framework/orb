@@ -49,7 +49,7 @@ def test_pg_statement_alter(orb, GroupUser, pg_sql):
     statement, data = st(GroupUser, add, remove)
     assert 'ALTER' in statement
 
-    add = [orb.StringColumn(name='test_add_i18n', flags={'Translatable'})]
+    add = [orb.StringColumn(name='test_add_i18n', flags={'I18n'})]
     statement, data = st(GroupUser, add)
     assert 'ALTER' in statement
 

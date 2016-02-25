@@ -42,12 +42,9 @@
 
         # join in a lookup or pipe
         else:
-
-            pipe = schema.pipe(next_part)
-            if not pipe:
-                rev_lookup = schema.reverseLookup(next_part)
-                if not rev_lookup:
-                    raise errors.ColumnNotFound(schema.name(), next_part)
+            collector = schema.collector(next_part)
+            if not collector:
+                raise errors.ColumnNotFound(schema.name(), next_part)
 
             try:
                 record_part = parts.pop(0)

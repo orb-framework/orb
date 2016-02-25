@@ -125,9 +125,7 @@ class Collection(object):
                 self.pipe().from_(): self.__record,
                 self.pipe().to(): record
             }
-            new_record = cls(data)
-            new_record.save()
-            return new_record
+            return cls.ensureExists(data)
         else:
             raise NotImplementedError
 

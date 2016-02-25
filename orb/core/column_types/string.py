@@ -16,33 +16,6 @@ class AbstractStringColumn(Column):
 
         super(AbstractStringColumn, self).__init__(**kwds)
 
-    def dbRestore(self, db_value, context=None):
-        """
-        Extracts data from the database.
-
-        :param db_value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-
-        # restore translatable column
-        if self.testFlag(self.Flags.Translatable):
-            if isinstance(db_value, (str, unicode)):
-                if db_value.startswith('{'):
-                    try:
-                        value = projex.text.safe_eval(db_value)
-                    except StandardError:
-                        value = None
-                else:
-                    value = {context.locale: db_value}
-            else:
-                value = db_value
-
-            return value
-        else:
-            return super(AbstractStringColumn, self).dbRestore(db_value, context=context)
-
     def dbStore(self, typ, py_value):
         """
         Prepares to store this column for the a particular backend database.
@@ -64,31 +37,11 @@ class AbstractStringColumn(Column):
         :param      value   | <variant>
                     context | <orb.Context> || None
         """
-        context = context or orb.Context()
-
-        # check to see if this column is translatable before restoring
-        if self.testFlag(self.Flags.Translatable):
-            locales = context.locale.split(',')
-            if isinstance(value, (str, unicode)):
-                value = {locales[0]: value}
-
-            if value is None:
-                return ''
-
-            # return all the locales
-            elif 'all' in locales:
-                return value
-
-            if len(locales) == 1:
-                return value.get(locales[0])
-            else:
-                return {locale: value.get(locale) or '' for locale in locales}
-
         # ensure this value is a string type
-        elif isinstance(value, (str, unicode)):
-            return projex.text.decoded(value)
-        else:
-            return super(AbstractStringColumn, self).restore(value, context)
+        if isinstance(value, (str, unicode)):
+            value = projex.text.decoded(value)
+
+        return super(AbstractStringColumn, self).restore(value, context)
 
     def store(self, value, context=None):
         """
@@ -99,13 +52,10 @@ class AbstractStringColumn(Column):
 
         :return     <variant>
         """
-        if self.testFlag(self.Flags.Translatable):
-            if isinstance(value, (str, unicode)):
-                return {context.locale: value}
-        elif isinstance(value, (str, unicode)) and self.testFlag(self.Flags.Encrypted):
-            return orb.system.security().encrypt(value)
-        else:
-            return super(AbstractStringColumn, self).store(value)
+        if isinstance(value, (str, unicode)) and self.testFlag(self.Flags.Encrypted):
+            value = orb.system.security().encrypt(value)
+
+        return super(AbstractStringColumn, self).store(value)
 
 
 # define base string based class types
