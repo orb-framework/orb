@@ -608,8 +608,8 @@ class Model(object):
         # broadcast the change event
         if change:
             if col.testFlag(col.Flags.I18n) and context.locale != 'all':
-                old_value = curr[context.locale] if isinstance(curr, dict) else curr
-                new_value = value[context.locale] if isinstance(value, dict) else value
+                old_value = curr.get(context.locale) if isinstance(curr, dict) else curr
+                new_value = value.get(context.locale) if isinstance(value, dict) else value
             else:
                 old_value = curr
                 new_value = value
@@ -743,10 +743,26 @@ class Model(object):
         expand = [item for item in values.pop('expand', '').split(',') if item]
         context.setdefault('expand', expand)
 
-        # create the new record
+        schema = cls.schema()
+
+        column_values = {}
+        collector_values = {}
+
+        for key, value in values.items():
+            obj = schema.collector(key) or key
+            if isinstance(obj, orb.Collector):
+                collector_values[key] = value
+            else:
+                column_values[key] = value
+
+        # create the new record with column values (values stored on this record)
         record = cls(context=orb.Context(**context))
-        record.update(values)
+        record.update(column_values)
         record.save()
+
+        # save any collector values after the model is generated (values stored on other records)
+        record.update(collector_values)
+
         return record
 
     @classmethod

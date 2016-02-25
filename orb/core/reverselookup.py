@@ -8,7 +8,7 @@ class ReverseLookup(Collector):
         super(ReverseLookup, self).__init__(**options)
 
         if from_column:
-            reference, target = from_column.split('.')
+            reference, _, target = from_column.partition('.')
 
         # custom options
         self.__reference = reference

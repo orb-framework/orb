@@ -132,17 +132,33 @@ class Schema(object):
         if isinstance(key, orb.Column):
             return key
         else:
-            cols = self.columns(recurse=recurse, flags=flags)
-            for column in cols.values():
-                if key not in (column.name(), column.field()):
-                    continue
-                else:
-                    return column
+            parts = key.split('.')
+            schema = self
+            last_column = None
 
-        if raise_:
-            raise orb.errors.ColumnNotFound(self.name(), key)
-        else:
-            return None
+            for part in parts:
+                cols = schema.columns(recurse=recurse, flags=flags)
+                found = None
+
+                for column in cols.values():
+                    if part in (column.name(), column.field()):
+                        found = column
+                        break
+
+                if found is None:
+                    break
+
+                elif isinstance(found, orb.ReferenceColumn):
+                    schema = column.referenceModel().schema()
+
+                last_column = found
+
+            if last_column is not None:
+                return last_column
+            elif raise_:
+                raise orb.errors.ColumnNotFound(self.name(), key)
+            else:
+                return None
 
     def columns(self, recurse=True, flags=0):
         """

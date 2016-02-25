@@ -9,7 +9,6 @@ def test_pg_api_select_bob(orb, pg_sql, pg_db, User):
     assert record is not None and record.get('username') == 'bob'
 
 @requires_pg
-@pytest.mark.run(order=1)
 def test_pg_api_save_bill(orb, pg_db, User):
     user = User(username='bill', password='T3st1ng!')
     user.save()
@@ -17,7 +16,6 @@ def test_pg_api_save_bill(orb, pg_db, User):
     assert user.isRecord() == True
 
 @requires_pg
-@pytest.mark.run(order=2)
 def test_pg_api_fetch_bill(orb, pg_db, User):
     user = User.byUsername('bill')
     assert user is not None
@@ -28,7 +26,6 @@ def test_pg_api_fetch_bill(orb, pg_db, User):
     assert user is not None
 
 @requires_pg
-@pytest.mark.run(order=3)
 def test_pg_api_delete_bill(orb, pg_db, User):
     user = User.byUsername('bill')
     assert user and user.isRecord()
@@ -72,7 +69,7 @@ def test_pg_api_create_admins(orb, User, GroupUser, Group):
     user = User.byUsername('bob')
     assert user is not None and user.username() == 'bob'
 
-    group = Group.ensureExists({'name': 'admin'})
+    group = Group.ensureExists({'name': 'admins'})
     assert group is not None
 
     group_user = GroupUser.ensureExists({'group': group, 'user': user})
@@ -300,21 +297,21 @@ def test_pg_api_save_multi_i18n(orb, Document):
     doc = Document()
 
     with orb.Context(locale='en_US'):
-        print doc.context().raw_values
         assert doc.context().locale == 'en_US'
         doc.save({'title': 'Fast'})
 
-    with orb.Context(locale='sp_SP'):
-        assert doc.context().locale == 'sp_SP'
-        doc.save({'title': 'Rapido'})
+    with orb.Context(locale='es_ES'):
+        assert doc.context().locale == 'es_ES'
+        doc.set('title', 'Rapido')
+        doc.save()
 
 @requires_pg
 def test_pg_api_load_multi_i18n(orb, Document):
     with orb.Context(locale='en_US'):
         doc_en = Document.select().last()
 
-    with orb.Context(locale='sp_SP'):
-        doc_sp = Document.select().last()
+    with orb.Context(locale='es_ES'):
+        doc_sp = Document.select(locale='es_ES').last()
 
     assert doc_en.title() == 'Fast'
     assert doc_sp.title() == 'Rapido'
@@ -325,7 +322,7 @@ def test_pg_api_load_multi_i18n_with_search(orb, Document):
     with orb.Context(locale='en_US'):
         docs_en = Document.select(where=orb.Query('title') == 'Fast')
 
-    with orb.Context(locale='sp_SP'):
+    with orb.Context(locale='es_ES'):
         docs_sp = Document.select(where=orb.Query('title') == 'Rapido')
 
     assert len(docs_en) == len(docs_sp)
