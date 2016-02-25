@@ -119,13 +119,17 @@ class Collection(object):
         return records
 
     def add(self, record):
-        if self.pipe():
-            cls = self.pipe().throughModel()
+        if self.__pipe:
+            cls = self.__pipe.throughModel()
             data = {
-                self.pipe().from_(): self.__record,
-                self.pipe().to(): record
+                self.__pipe.from_(): self.__record,
+                self.__pipe.to(): record
             }
             return cls.ensureExists(data)
+        elif self.__source:
+            record.set(self.__source, self.__record)
+            record.save()
+            return True
         else:
             raise NotImplementedError
 
@@ -142,9 +146,9 @@ class Collection(object):
 
     def create(self, values, **context):
         # create a new pipe object
-        if self.pipe():
-            target_model = self.pipe().targetModel()
-            target_col = self.pipe().targetColumn()
+        if self.__pipe:
+            target_model = self.__pipe.targetModel()
+            target_col = self.__pipe.targetColumn()
 
             # add the target based on the name or field
             if target_col.name() in values or target_col.field() in values:
@@ -220,7 +224,7 @@ class Collection(object):
 
     def delete(self, **context):
         context = orb.Context(**context)
-        pipe = self.pipe()
+        pipe = self.__pipe
 
         # delete piped records
         if pipe:
@@ -262,6 +266,9 @@ class Collection(object):
             # remove the records
             conn = context.db.connection()
             return conn.delete(remove, context)[1]
+
+    def empty(self):
+        return self.update([])
 
     def first(self, **context):
         context = self.context(**context)
@@ -439,7 +446,7 @@ class Collection(object):
             return other
 
     def remove(self, record, **context):
-        pipe = self.pipe()
+        pipe = self.__pipe
         if pipe:
             through = pipe.throughModel()
             q  = orb.Query(pipe.from_()) == self.__record
@@ -460,6 +467,10 @@ class Collection(object):
             conn.delete(records, context)
 
             return len(delete)
+        elif self.__source:
+            record.set(self.__source, None)
+            record.save()
+            return 1
         else:
             raise NotImplementedError
 
@@ -482,17 +493,35 @@ class Collection(object):
         return self.model().searchEngine().search(terms, self.context(**context))
 
     def update(self, records, **context):
-        if self.pipe():
+        # clean up the records for removal
+        if isinstance(records, dict):
             if 'ids' in records:
                 ids = records.get('ids')
             elif 'records' in records:
-                ids = [r.get('id') for r in records['records'] if x.get('id')]
+                ids = [r.get('id') for r in records['records'] if r.get('id')]
             else:
-                ids = records
+                raise orb.errors.OrbError('Invalid input for collection update: {0}'.format(records))
 
-            through = self.pipe().throughModel()
-            pipe = self.pipe()
+        elif isinstance(records, (list, set, tuple)):
+            ids = []
+            for record in records:
+                if isinstance(record, orb.Model):
+                    ids.append(record.id())
+                else:
+                    ids.append(record)
+
+        elif isinstance(records, orb.Collection):
+            ids = records.ids()
+
+        else:
+            raise orb.errors.OrbError('Invalid input for collection update: {0}'.format(records))
+
+        # update a pipe
+        if self.__pipe:
+            through = self.__pipe.throughModel()
+            pipe = self.__pipe
             curr_ids = self.ids()
+
             remove_ids = set(curr_ids) - set(ids)
             add_ids = set(ids) - set(curr_ids)
 
@@ -504,11 +533,35 @@ class Collection(object):
 
             # create new records
             if add_ids:
-                collection = orb.Collection([through({pipe.from_(): self.__record, pipe.to(): id})
+                collection = orb.Collection([through(**{pipe.from_(): self.__record, pipe.to(): id})
                                              for id in add_ids])
                 collection.save()
 
             return len(add_ids), len(remove_ids)
+
+        # udpate a reverse lookup
+        elif self.__source:
+            model = self.__source.schema().model()
+
+            q = orb.Query(self.__source) == self.__record
+            if ids:
+                q &= orb.Query(model).notIn(ids)
+
+            # determine the reverse lookups to remove from this collection
+            remove = model.select(where=q, **context)
+            for record in remove:
+                record.set(self.__source, None)
+                record.save()
+
+            # determine the new records to add to this collection
+            if ids:
+                q  = orb.Query(model).in_(ids)
+                q &= (orb.Query(self.__source) != self.__record) | (orb.Query(self.__source) == None)
+
+                add = model.select(where=q)
+                for record in add:
+                    record.set(self.__source, self.__record)
+                    record.save()
 
         else:
             raise NotImplementedError

@@ -415,7 +415,11 @@ class Model(object):
         # normalize the given column
         col = self.schema().column(column)
         if not col:
-            raise errors.ColumnNotFound(self.schema().name(), column)
+            collector = self.schema().collector(column)
+            if collector:
+                return collector.get(self, **context)
+            else:
+                raise errors.ColumnNotFound(self.schema().name(), column)
 
         # don't inflate if the requested value is a field
         if column == col.field():
@@ -557,9 +561,16 @@ class Model(object):
 
         :return     <bool> changed
         """
-        col = self.schema().column(column)
+        col = self.schema().column(column, raise_=False)
+
         if col is None:
-            raise errors.ColumnNotFound(self.schema().name(), column)
+            # allow setting of pipes as well
+            collector = self.schema().collector(column)
+            if collector:
+                return collector.collect(self, **context).update(value, **context)
+            else:
+                raise errors.ColumnNotFound(self.schema().name(), column)
+
         elif col.testFlag(col.Flags.ReadOnly):
             raise errors.ColumnReadOnly(column)
 
