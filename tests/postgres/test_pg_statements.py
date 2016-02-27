@@ -97,7 +97,10 @@ def test_pg_create_table(User, pg_sql, pg_db):
 @requires_pg
 def test_pg_insert_bob(orb, User, pg_sql, pg_db):
     st = pg_sql.statement('INSERT')
-    user_a = User(username='bob', password='T3st1ng!')
+    user_a = User({
+        'username': 'bob',
+        'password': 'T3st1ng!'
+    })
     sql, data = st([user_a])
     conn = pg_db.connection()
 
@@ -112,7 +115,10 @@ def test_pg_insert_bob(orb, User, pg_sql, pg_db):
 @requires_pg
 def test_pg_insert_sally(orb, User, pg_sql, pg_db):
     st = pg_sql.statement('INSERT')
-    user_a = User(username='sally', password='T3st1ng!')
+    user_a = User({
+        'username':'sally',
+        'password': 'T3st1ng!'
+    })
 
     sql, data = st([user_a])
     conn = pg_db.connection()

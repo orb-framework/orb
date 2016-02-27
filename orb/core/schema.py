@@ -25,11 +25,13 @@ class Schema(object):
                  indexes=None,
                  collectors=None,
                  views=None,
-                 database=''):
+                 database='',
+                 namespace=''):
         self.__name = name
         self.__abstract = abstract
         self.__dbname = dbname or orb.system.syntax().schemadb(name)
         self.__database = database
+        self.__namespace = namespace
         self.__inherits = inherits
         self.__display = display
         self.__archived = archived
@@ -294,6 +296,14 @@ class Schema(object):
         """
         return self.__name
 
+    def namespace(self):
+        """
+        Returns the namespace that should be used for this schema, when specified.
+
+        :return: <str>
+        """
+        return self.__namespace
+
     def collector(self, name, recurse=True):
         """
         Returns the collector that matches the inputted name.
@@ -390,6 +400,15 @@ class Schema(object):
         :param      name    | <str>
         """
         self.__name = name
+
+    def setNamespace(self, namespace):
+        """
+        Sets the namespace for this schema object to the given value.  This is a way to differentiate the same
+        model from different locations within the backend.
+
+        :param namespace: <str>
+        """
+        self.__namespace = namespace
 
     def setCollectors(self, collectors):
         """

@@ -273,7 +273,15 @@ class TokenColumn(StringColumn):
 
         :return:    <str>
         """
-        return os.urandom(self.__bits).encode('hex')
+        try:
+            model = self.schema().model()
+        except AttributeError:
+            return os.urandom(self.__bits).encode('hex')
+        else:
+            while True:
+                token = os.urandom(self.__bits).encode('hex')
+                if model.select(where=orb.Query(self) == token).count() == 0:
+                    return token
 
     def setBits(self, bits):
         """

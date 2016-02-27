@@ -10,7 +10,10 @@ def test_pg_api_select_bob(orb, pg_sql, pg_db, User):
 
 @requires_pg
 def test_pg_api_save_bill(orb, pg_db, User):
-    user = User(username='bill', password='T3st1ng!')
+    user = User({
+        'username': 'bill',
+        'password': 'T3st1ng!'
+    })
     user.save()
 
     assert user.isRecord() == True
@@ -188,7 +191,7 @@ def test_pg_api_expand_complex_json(orb, User):
 
 @requires_pg
 def test_pg_api_collection_insert(orb, Group):
-    records = orb.Collection((Group(name='Test A'), Group(name='Test B')))
+    records = orb.Collection((Group({'name': 'Test A'}), Group({'name': 'Test B'})))
     records.save()
 
     assert records[0].id() is not None
@@ -342,7 +345,11 @@ def test_pg_api_save_employee(orb, Employee, Role):
     role = Role.ensureExists({'name': 'Programmer'})
     sam = Employee.byUsername('samantha')
     if not sam:
-        sam = Employee(username='samantha', password='T3st1ng!', role=role)
+        sam = Employee({
+            'username': 'samantha',
+            'password': 'T3st1ng!',
+            'role': role
+        })
         sam.save()
 
     assert sam.username() == 'samantha'

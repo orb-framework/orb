@@ -55,7 +55,7 @@ def test_user_make_record(User):
     assert User() is not None
 
 def test_user_create_with_properties(User):
-    record = User(username='bob')
+    record = User({'username': 'bob'})
     assert record.username() == 'bob'
     assert record.get('username') == 'bob'
 
@@ -64,11 +64,11 @@ def test_user_collection(orb, User):
     assert isinstance(records, orb.Collection)
 
 def test_user_good_password(User):
-    record = User(username='bob')
+    record = User({'username': 'bob'})
     assert record.setPassword('T3st1ng!')
 
 def test_user_bad_password(orb, User):
-    record = User(username='bob')
+    record = User({'username': 'bob'})
     with pytest.raises(orb.errors.ColumnValidationError):
         record.setPassword('bad')
 

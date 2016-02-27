@@ -58,12 +58,12 @@ class tag(Command):
         with open('./orb/_version.py', 'w') as f:
             f.write('__major__ = {0}\n'.format(result.group(1)))
             f.write('__minor__ = {0}\n'.format(result.group(2)))
-            f.write('__revision__ = "dev{0}"\n'.format(result.group(3)))
+            f.write('__revision__ = "{0}"\n'.format(result.group(3)))
             f.write('__hash__ = "{0}"'.format(result.group(4)))
 
         # tag this new release version
         if not self.no_tag:
-            version = '.'.join([result.group(1), result.group(2), 'dev' + result.group(3)])
+            version = '.'.join([result.group(1), result.group(2), result.group(3)])
 
             print 'creating git tag:', 'v' + version
 
@@ -80,7 +80,7 @@ setup(
     maintainer='Eric Hulser',
     maintainer_email='eric.hulser@gmail.com',
     description='Database ORM and API builder.',
-    license='LGPL',
+    license='MIT',
     keywords='',
     url='https://github.com/ProjexSoftware/orb',
     install_requires=(

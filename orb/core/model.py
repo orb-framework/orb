@@ -164,7 +164,7 @@ class Model(object):
         except StandardError:
             return -1
 
-    def __init__(self, *record, **values):
+    def __init__(self, *info, **context):
         """
         Initializes a database record for the table class.  A
         table model can be initialized in a few ways.  Passing
@@ -178,24 +178,30 @@ class Model(object):
         :param      *args       <tuple> primary key
         :param      **kwds      <dict>  column default values
         """
-        context = values.pop('context', None)
+
+        # pop off additional keywords
+        loader = context.pop('loadEvent', None)
+
+        context.setdefault('namespace', self.schema().namespace())
 
         self.__dataLock = ReadWriteLock()
         self.__values = {}
         self.__loaded = set()
-        self.__context = context or orb.Context()
+        self.__context = orb.Context(**context)
         self.__preload = {}
-        if isinstance(self.__context, dict):
-            self.__context = orb.Context(**context)
 
-        # restore the pickled state for this object
-        if isinstance(record, dict):
-            values = record
-            record = []
+        # extract values to use from the record
+        record = []
+        values = {}
+        for value in info:
+            if isinstance(value, dict):
+                values.update(value)
+            else:
+                record.append(value)
 
         # restore the database update values
-        if 'loadEvent' in values:
-            self._load(values.pop('loadEvent'))
+        if loader is not None:
+            self._load(loader)
 
         # initialize a new record if no record is provided
         elif not record:
@@ -204,18 +210,20 @@ class Model(object):
         # otherwise, fetch the record from the database
         else:
             if len(record) == 1 and isinstance(record[0], Model):
-                record = record.id()
+                record_id = record[0].id()
                 event = orb.events.LoadEvent(data=dict(record[0]))
                 self._load(event)
             elif len(record) == 1:
-                record = record[0]  # don't use tuples unless multiple ID columns are used
+                record_id = record[0]  # don't use tuples unless multiple ID columns are used
+            else:
+                record_id = tuple(record)
 
-            data = self.fetch(record, inflated=False, context=context)
+            data = self.fetch(record_id, inflated=False, context=self.__context)
             if data:
                 event = orb.events.LoadEvent(data=data)
                 self._load(event)
             else:
-                raise errors.RecordNotFound(self, record)
+                raise errors.RecordNotFound(self, record_id)
 
         # after loading everything else, update the values for this model
         self.update({k: v for k, v in values.items() if self.schema().column(k)})
@@ -623,6 +631,16 @@ class Model(object):
                 return False
             else:
                 return change
+        else:
+            return False
+
+    def setContext(self, context):
+        if isinstance(context, dict):
+            self.__context = orb.Context(**context)
+            return True
+        elif isinstance(context, orb.Context):
+            self.__context = context
+            return True
         else:
             return False
 

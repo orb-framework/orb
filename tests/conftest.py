@@ -82,7 +82,7 @@ def TestAllColumns(orb):
         email = orb.EmailColumn()
         filepath = orb.FilepathColumn()
         html = orb.HtmlColumn()
-        password = orb.PasswordColumn()
+        password = orb.PasswordColumn(default='T3st1ng!')
         token = orb.TokenColumn()
         url = orb.UrlColumn()
         xml = orb.XmlColumn()

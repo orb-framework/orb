@@ -533,7 +533,7 @@ class Collection(object):
 
             # create new records
             if add_ids:
-                collection = orb.Collection([through(**{pipe.from_(): self.__record, pipe.to(): id})
+                collection = orb.Collection([through({pipe.from_(): self.__record, pipe.to(): id})
                                              for id in add_ids])
                 collection.save()
 
