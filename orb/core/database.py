@@ -3,14 +3,11 @@
 # ------------------------------------------------------------------------------
 
 import logging
-import tempfile
 
+from collections import defaultdict
 from multiprocessing.util import register_after_fork
-from projex.enum import enum
 from projex.lazymodule import lazy_import
 from projex.text import nativestring as nstr
-from xml.etree import ElementTree
-from projex.callbacks import CallbackSet
 
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
@@ -19,49 +16,44 @@ errors = lazy_import('orb.errors')
 
 class Database(object):
     """ Contains all the database connectivity information. """
-
-    Signals = enum(
-        Connected='connected(Connection)',
-        Disconnected='disconnected(Connection)'
-    )
-
-    def __init__(self,
-                 typ='SQLite',
-                 name='',
-                 user='',
-                 password='',
-                 host='',
-                 port=None,
-                 databaseName=None,
-                 applicationToken='',
-                 referenced=False,
-                 manager=None,
-                 maximumTimeout=20000):
+    def __init__(self, connectionType, code='', username='', password='',
+                 host=None, port=None, name=None, timeout=20000, credentials=None):
 
         # define custom properties
-        self._callbacks = CallbackSet()
-        self._databaseType = typ
-        self._cache = None
-        self._name = name
-        self._databaseName = databaseName
-        self._host = host
-        self._port = port
-        self._username = user
-        self._password = password
-        self._applicationToken = applicationToken
-        self._manager = manager
-        self._credentials = None
-        self._referenced = referenced
-        self._default = False
-        self._backend = None
-        self._commandsBlocked = False
-        self._namespace = None
-        self._timezone = None
-        self._columnEngines = {}
-        self._maximumTimeout = maximumTimeout  # ms
+        conn = orb.Connection.byName(connectionType)
+        if not conn:
+            raise orb.errors.BackendNotFound(connectionType)
+
+        # define custom properties
+        self.__connection = conn(self)
+        self.__code = code
+        self.__name = name
+        self.__host = host
+        self.__port = port
+        self.__username = username
+        self.__password = password
+        self.__credentials = credentials
+        self.__timeout = timeout  # ms
 
     def __del__(self):
         self.disconnect()
+
+    # ---------------------------------------------------------------
+    #                           EVENT METHODS
+    # ---------------------------------------------------------------
+
+    def onPreConnect(self, event):
+        pass
+
+    def onPostConnect(self, event):
+        pass
+
+    def onDisconnect(self, event):
+        pass
+
+    # ---------------------------------------------------------------
+    #                           PUBLIC METHODS
+    # ---------------------------------------------------------------
 
     def activate(self, manager=None):
         """
@@ -70,91 +62,26 @@ class Database(object):
         
         :param      manager | <orb.Manager>
         """
-        if manager is None:
-            manager = orb.system
-
-        if not manager:
-            return False
-
-        manager.registerDatabase(self)
-        manager.setDatabase(self)
+        manager = manager or orb.system
+        manager.activate(self)
         return True
 
-    def applicationToken(self):
+    def code(self):
         """
-        Returns the application token that is linked to the current API.  This
-        value is used for backends that require communication with a remote
-        server.
-        
-        :return     <str>
-        """
-        return self._applicationToken
+        Returns the ID code for this database.  Using codes for different database instances will allow
+        you to define multiple schema types for more complex systems.
 
-    def backend(self, autoConnect=False):
+        :return:    <str>
+        """
+        return self.__code
+
+    def connection(self):
         """
         Returns the backend Connection plugin instance for this database.
-        
-        :param      autoConnect     <bool>
-        
+
         :return     <orb.Connection> || None
         """
-        if not self._backend:
-            # create a new backend connection instance based on this database
-            # type
-            backend = orb.Connection.create(self)
-            if not backend:
-                raise errors.BackendNotFound(self._databaseType)
-
-            self._backend = backend
-
-        if self._backend and autoConnect:
-            self._backend.open()
-
-        return self._backend
-
-    def backup(self, filename, **options):
-        """
-        Exports this database to the given filename.  The file will be a 
-        zip file containing pickled data from a database that can be 
-        then translated to another database format.
-        
-        :param      filename | <str>
-        
-        :return     <bool> | success
-        """
-        backend = self.backend()
-        if backend:
-            return backend.backup(filename, **options)
-        return False
-
-    def blockCommands(self, state):
-        """
-        Sets whether or not the database should be blocking
-        the calls from hitting the database.  When this is
-        on, the backends will simply log the command that is 
-        created to the current logger vs. actually executing it.
-        
-        :sa         commandsBlocked
-        
-        :param      state   <bool>
-        """
-        self._commandsBlocked = state
-
-    def cache(self):
-        """
-        Returns the data cache for this database.
-
-        :return     <orb.caching.DataCache> || None
-        """
-        return self._cache or orb.system.cache()
-
-    def callbacks(self):
-        """
-        Returns the callback set for this database instance.
-
-        :return     <projex.callbacks.CallbackSet>
-        """
-        return self._callbacks
+        return self.__connection
 
     def cleanup(self):
         """
@@ -162,10 +89,7 @@ class Database(object):
         of modifications, and is specific to the backend as to how necessary
         it is.
         """
-        try:
-            self.backend().cleanup()
-        except AttributeError:
-            pass
+        self.__connection.cleanup()
 
     def credentials(self):
         """
@@ -175,42 +99,7 @@ class Database(object):
         
         :return     <tuple>
         """
-        if self._credentials is not None:
-            return self._credentials
-        elif self._applicationToken:
-            return self._applicationToken, ''
-        else:
-            return self._username, self._password
-
-    def copyTo(self, other, **options):
-        """
-        Copies the contents of this database to the inputted other database.
-        This method provides a way to map data from one database type to
-        another seamlessly.  It will create a backup of the current
-        database to a temp file location, and then perform a restore
-        operation on the inputted database.
-        
-        :warning    This will wipe the contents of the inputted database
-                    entirely!
-        
-        :param      other | <orb.Database>
-        """
-        temp = tempfile.mktemp()
-        self.backup(temp, **options)
-        other.restore(temp, **options)
-
-    def commandsBlocked(self):
-        """
-        Returns whether or not the commands are being blocked
-        from hitting the database.  When this is on, the backends
-        will simply log the command that is created to the
-        current logger vs. actually executing it.
-        
-        :sa         commandsBlocked
-        
-        :return     <bool> success
-        """
-        return self._commandsBlocked
+        return self.__credentials or (self.username(), self.password())
 
     def connect(self):
         """
@@ -221,67 +110,18 @@ class Database(object):
         
         :return     <bool> | success
         """
-        backend = self.backend()
-        if backend:
-            # disconnect after a multiprocess fork or this will error out
-            register_after_fork(self, self.disconnect)
+        event = orb.events.ConnectionEvent()
+        self.onPreConnect(event)
+        if event.preventDefault:
+            return False
 
-            return backend.open()
-        return False
+        # disconnect after a multiprocess fork or this will error out
+        register_after_fork(self, self.disconnect)
+        success = self.__connection.open()
 
-    def databaseName(self):
-        """
-        Returns the database name that will be used at the lower level for \
-        this database.  If not explicitly set, then the name will be used.
-        
-        :return     <str>
-        """
-        if not self._databaseName:
-            return self.name()
-
-        return self._databaseName
-
-    def databaseType(self):
-        """
-        Returns the database type for this instance.
-        
-        :return     <str>
-        """
-        return self._databaseType
-
-    def columnEngine(self, column_or_type):
-        """
-        Returns the column engine associated with this database for the given
-        column or column type.  Engines can be linked to individual columns
-        or to a column type overall.  If no data engine is linked directly
-        to this database, then it will lookup the generic engine for the
-        column type from the backend plugin associated with this database.
-        
-        :param      column_or_type | <orb.Column> || <orb.ColumnType>
-        
-        :return     <orb.ColumnEngine> || None
-        """
-        # lookup by the direct column/type
-        try:
-            return self._columnEngines[column_or_type]
-        except KeyError:
-            pass
-
-        # lookup by the column type linked for this database
-        if type(column_or_type) == orb.Column:
-            column_or_type = column_or_type.columnType()
-            try:
-                return self._columnEngines[column_or_type]
-            except KeyError:
-                pass
-
-        # lookup the column type from the backend
-        # (at this point it will be just a ColumnType as desired
-        backend = self.backend()
-        if backend:
-            return backend.columnEngine(column_or_type)
-
-        return None
+        event = orb.events.ConnectionEvent(success=success)
+        self.onPostConnect(event)
+        return success
 
     def disconnect(self):
         """
@@ -290,33 +130,7 @@ class Database(object):
                     
         :return     <bool>
         """
-        if not self._backend:
-            return False
-
-        self._backend.close()
-        return True
-
-    def duplicate(self):
-        """
-        Creates a new database instance based on this instance.
-        
-        :return     <orb.Database>
-        """
-        inst = self.__class__()
-        inst._databaseType = self._databaseType
-        inst._name = self._name
-        inst._databaseName = self._databaseName
-        inst._host = self._host
-        inst._port = self._port
-        inst._username = self._username
-        inst._password = self._password
-        inst._applicationToken = self._applicationToken
-        inst._commandsBlocked = self._commandsBlocked
-        inst._namespace = self._namespace
-        inst._timezone = self._timezone
-        inst._columnEngines = self._columnEngines.copy()
-        inst._maximumTimeout = self._maximumTimeout
-        return inst
+        return self.__connection.close()
 
     def host(self):
         """
@@ -325,9 +139,7 @@ class Database(object):
         
         :returns    <str>
         """
-        if not self._host:
-            return 'localhost'
-        return self._host
+        return self.__host
 
     def interrupt(self, threadId=None):
         """
@@ -339,31 +151,13 @@ class Database(object):
         if back:
             back.interrupt(threadId)
 
-    def isDefault(self):
-        """
-        Returns if this is the default database when loading the system.
-        
-        :return     <bool>
-        """
-        return self._default
-
     def isConnected(self):
         """
         Returns whether or not the database is connected to its server.
         
         :return     <bool>
         """
-        if self._backend:
-            return self._backend.isConnected()
-        return False
-
-    def isReferenced(self):
-        """
-        Returns whether or not this database was loaded from a referenced file.
-        
-        :return     <bool>
-        """
-        return self._referenced
+        return self.__connection.isConnected()
 
     def isThreadEnabled(self):
         """
@@ -371,18 +165,15 @@ class Database(object):
         
         :return     <bool>
         """
-        con = self.backend()
-        if con:
-            return con.isThreadEnabled()
-        return False
+        return self.__connection.isThreadEnabled()
 
-    def maximumTimeout(self):
+    def timeout(self):
         """
         Returns the maximum number of milliseconds to allow a query to occur before timing it out.
 
         :return     <int>
         """
-        return self._maximumTimeout
+        return self.__timeout
 
     def name(self):
         """
@@ -390,19 +181,7 @@ class Database(object):
         
         :return     <str>
         """
-        return self._name
-
-    def namespace(self):
-        """
-        Returns the default namespace for this database.  If no namespace
-        is defined, then the global default namespace is returned.
-        
-        :return     <str>
-        """
-        if self._namespace is not None:
-            return self._namespace
-
-        return orb.system.namespace()
+        return self.__name or self.code()
 
     def password(self):
         """
@@ -410,7 +189,7 @@ class Database(object):
         
         :return     <str>
         """
-        return self._password
+        return self.__password
 
     def port(self):
         """
@@ -418,87 +197,16 @@ class Database(object):
         
         :return     <int>
         """
-        return self._port
+        return self.__port
 
-    def restore(self, filename, **options):
-        """
-        Imports the data from the given filename.  The file will be a 
-        zip file containing pickled data from a database that can be 
-        then translated to another database format.
-        
-        :param      filename | <str>
-        
-        :return     <bool> | success
-        """
-        backend = self.backend()
-        if backend:
-            self.sync()
-            return backend.restore(filename, **options)
-        return False
-
-    def schemas(self, base=None):
-        """
-        Looks up all the table schemas in the manager that are mapped to \
-        this database.
-        
-        :return     [<TableSchema>, ..]
-        """
-        return orb.system.databaseSchemas(self, base)
-
-    def setApplicationToken(self, token):
-        """
-        Sets the application token for this database to the inputted token.
-        
-        :param      token | <str>
-        """
-        self._applicationToken = token
-
-    def setCache(self, cache):
-        """
-        Sets the data cache for this database.
-
-        :param      cache | <orb.caching.DataCache> || None
-        """
-        self._cache = cache
-
-    def setCurrent(self):
-        """
-        Makes this database the current default database
-        connection for working with models.
-        
-        :param      database        <Database>
-        """
-        orb.system.setDatabase(self)
-
-    def setDatabaseName(self, databaseName):
+    def setName(self, name):
         """
         Sets the database name that will be used at the lower level to manage \
         connections to various backends.
         
-        :param      databaseName | <str>
+        :param      name | <str>
         """
-        self._databaseName = databaseName
-
-    def setDatabaseType(self, databaseType):
-        """
-        Sets the database type that will be used for this instance.
-        
-        :param      databaseType | <str>
-        """
-        self._databaseType = nstr(databaseType)
-
-    def setColumnEngine(self, column_or_type, engine):
-        """
-        Sets the column engine associated with this database for the given
-        column or column type.  Engines can be linked to individual columns
-        or to a column type overall.  If no data engine is linked directly
-        to this database, then it will lookup the generic engine for the
-        column type from the backend plugin associated with this database.
-        
-        :param      column_or_type | <orb.Column> || <orb.ColumnType>
-                    engine         | <orb.ColumnEngine> || None
-        """
-        self._columnEngines[column_or_type] = engine
+        self.__name = name
 
     def setCredentials(self, credentials):
         """
@@ -507,7 +215,7 @@ class Database(object):
         
         :param      credentials | <tuple> || None
         """
-        self._credentials = credentials
+        self.__credentials = credentials
 
     def setDefault(self, state):
         """
@@ -517,30 +225,22 @@ class Database(object):
         """
         self._default = state
 
-    def setMaximumTimeout(self, msecs):
+    def setTimeout(self, msecs):
         """
         Sets the maximum number of milliseconds to allow a query to run on
         the server before canceling it.
 
         :param      msecs | <int>
         """
-        self._maximumTimeout = msecs
+        self.__timeout = msecs
 
     def setName(self, name):
         """
         Sets the database name for this instance to the given name.
         
-        :param      databaseName   <str>
+        :param      name   <str>
         """
-        self._name = nstr(name)
-
-    def setNamespace(self, namespace):
-        """
-        Sets the default namespace for this database to the inputted name.
-        
-        :param      namespace | <str> || None
-        """
-        self._namespace = namespace
+        self.__name = name
 
     def setHost(self, host):
         """
@@ -549,7 +249,7 @@ class Database(object):
         
         :param      host      <str>
         """
-        self._host = nstr(host)
+        self.__host = host
 
     def setPassword(self, password):
         """ 
@@ -557,7 +257,7 @@ class Database(object):
         
         :param      password    <str>
         """
-        self._password = nstr(password)
+        self.__password = password
 
     def setPort(self, port):
         """
@@ -566,17 +266,7 @@ class Database(object):
         
         :param      port    <int>
         """
-        self._port = port
-
-    def setTimezone(self, timezone):
-        """
-        Sets the timezone associated directly to this database.
-        
-        :sa     <orb.Manager.setTimezone>
-        
-        :param     timezone | <pytz.tzfile> || None
-        """
-        self._timezone = timezone
+        self.__port = port
 
     def setUsername(self, username):
         """
@@ -584,25 +274,9 @@ class Database(object):
         
         :param      username        <str>
         """
-        self._username = nstr(username)
+        self.__username = nstr(username)
 
-    def timezone(self, options=None):
-        """
-        Returns the timezone associated specifically with this database.  If
-        no timezone is directly associated, then it will return the timezone
-        that is associated with the system in general.
-        
-        :sa     <orb.Manager>
-
-        :param      options | <orb.ContextOptions>
-
-        :return     <pytz.tzfile> || None
-        """
-        if self._timezone is None:
-            return orb.system.timezone(options)
-        return self._timezone
-
-    def sync(self, **kwds):
+    def sync(self, **context):
         """
         Syncs the database by calling its schema sync method.  If
         no specific schema has been set for this database, then
@@ -614,79 +288,55 @@ class Database(object):
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member 
                     value for either the <orb.LookupOptions> or
-                    <orb.ContextOptions>, 'options' for
-                    an instance of the <orb.ContextOptions>
+                    <orb.Context>, 'options' for
+                    an instance of the <orb.Context>
         
         :return     <bool> success
         """
-        # collect the information for this database
-        con = self.backend()
-        schemas = self.schemas(orb.TableSchema)
-        schemas.sort()
+        context = orb.Context(**context)
 
-        options = kwds.get('options', orb.ContextOptions(**kwds))
+        # collect the information for this database
+        conn = self.__connection
+        models = orb.system.models(orb.Model).values()
+        models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
 
         # initialize the database
-        con.setupDatabase(options)
-        info = con.schemaInfo(options)
+        conn.setup(context)
+        info = conn.schemaInfo(context)
 
-        # first pass will add columns and default columns, but may miss
-        # certain foreign key references since one table may not exist before
-        # another yet
-        with orb.Transaction():
-            for schema in schemas:
-                if not schema.dbname() in info:
-                    con.createTable(schema, options)
+        # create new models
+        for model in models:
+            if not model.schema().dbname() in info:
+                conn.createModel(model, context, includeReferences=False, owner=self.username())
 
-            # update after any newly created tables get generated
-            info = con.schemaInfo(options)
+        # update after any newly created tables get generated
+        info = conn.schemaInfo(context)
 
-            # second pass will ensure that all columns, including foreign keys
-            # will be generated
-            for schema in schemas:
-                if schema.dbname() in info:
-                    con.updateTable(schema, info[schema.dbname()], options)
+        # second pass will ensure that ll columns, including references
+        # will be generated
+        for model in models:
+            try:
+                model_info = info[model.schema().dbname()]
+            except KeyError:
+                continue
+            else:
+                # collect the missing columns and indexes
+                add = defaultdict(list)
+                for col in model.schema().columns(recurse=False).values():
+                    if col.field() not in (model_info['fields'] or []):
+                        add['fields'].append(col)
 
-            # third pass will generate all the proper value information
-            for schema in schemas:
-                model = schema.model()
-                model.__syncdatabase__()
+                for index in model.schema().indexes(recurse=False).values():
+                    if index.dbname() not in (model_info['indexes'] or []):
+                        add['indexes'].append(index)
 
-            # create the views
-            for schema in self.schemas(orb.ViewSchema):
-                con.createView(schema, options)
+                # alter the model with the new indexes
+                if add['fields'] or add['indexes']:
+                    conn.alterModel(model, context, add=add, owner=self.username())
 
-    def toXml(self, xparent):
-        """
-        Saves this database instance to xml under the inputted parent.
-        
-        :param      xparent | <xml.etree.ElementTree.Element>
-        
-        :return     <xml.etree.ElementTree.Element>
-        """
-        xdatabase = ElementTree.SubElement(xparent, 'database')
-        xdatabase.set('name', self._name)
-        xdatabase.set('default', nstr(self._default))
-        xdatabase.set('timeout', str(self._maximumTimeout))
-
-        if self.databaseType():
-            xdatabase.set('type', self.databaseType())
-
-        if self._host:
-            ElementTree.SubElement(xdatabase, 'host').text = nstr(self._host)
-        if self._port:
-            ElementTree.SubElement(xdatabase, 'port').text = nstr(self._port)
-        if self._username:
-            ElementTree.SubElement(xdatabase, 'username').text = self._username
-        if self._password:
-            ElementTree.SubElement(xdatabase, 'password').text = self._password
-        if self._databaseName:
-            ElementTree.SubElement(xdatabase,
-                                   'dbname').text = self._databaseName
-        if self._applicationToken:
-            ElementTree.SubElement(xdatabase,
-                                   'token').text = self._applicationToken
-        return xdatabase
+            # call the sync event
+            event = orb.events.SyncEvent()
+            model.onSync(event)
 
     def username(self):
         """
@@ -695,57 +345,4 @@ class Database(object):
         
         :return     <str>
         """
-        return self._username
-
-    @staticmethod
-    def current(manager=None):
-        """
-        Returns the current database instance for the given manager.  If
-        no manager is provided, then the global system manager will be used.
-        
-        :param      manager | <orb.Manager> || None
-        
-        :return     <orb.Database> || None
-        """
-        if manager is None:
-            manager = orb.system
-        return manager.database()
-
-    @staticmethod
-    def fromXml(xdatabase, referenced=False):
-        """
-        Returns a new database instance from the inputted xml data.
-        
-        :param      xdatabase | <xml.etree.Element>
-        
-        :return     <Database>
-        """
-        db = Database(referenced=referenced)
-
-        db.setDatabaseType(xdatabase.get('type', 'SQLite'))
-        db.setName(xdatabase.get('name', ''))
-        db.setDefault(xdatabase.get('default') == 'True')
-        db.setMaximumTimeout(int(xdatabase.get('maximumTimeout', 5000)))
-
-        xhost = xdatabase.find('host')
-        xport = xdatabase.find('port')
-        xuser = xdatabase.find('username')
-        xpword = xdatabase.find('password')
-        xdbname = xdatabase.find('dbname')
-        xtoken = xdatabase.find('token')
-
-        if xhost is not None:
-            db.setHost(xhost.text)
-        if xport is not None:
-            db.setPort(xport.text)
-        if xuser is not None:
-            db.setUsername(xuser.text)
-        if xpword is not None:
-            db.setPassword(xpword.text)
-        if xdbname is not None:
-            db.setDatabaseName(xdbname.text)
-        if xtoken is not None:
-            db.setApplicationToken(xtoken.text)
-
-        return db
-
+        return self.__username

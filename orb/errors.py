@@ -98,25 +98,8 @@ class ColumnRequired(OrbError):
 
 
 class ConnectionFailed(OrbError):
-    def __init__(self, msg, db):
-        msgs = [msg, '']
-
-        pwd = '*' * (len(db.password()) - 4) + db.password()[-4:]
-
-        msgs.append('type: %s' % db.databaseType())
-        msgs.append('database: %s' % db.databaseName())
-        msgs.append('username: %s' % db.username())
-        msgs.append('password: %s' % pwd)
-        msgs.append('host: %s' % db.host())
-        msgs.append('port: %s' % db.port())
-
-        msgs.append('')
-
-        connection_types = ','.join(orb.Connection.addons().keys())
-
-        msgs.append('valid types: %s' % connection_types)
-
-        super(ConnectionFailed, self).__init__('\n'.join(msgs))
+    def __init__(self):
+        super(ConnectionFailed, self).__init__('Failed to connect to database')
 
 
 class ConnectionLost(OrbError):
@@ -155,20 +138,41 @@ class DuplicateColumnFound(OrbError):
 class DuplicateEntryFound(OrbError):
     code = 409  # conflict
 
+class DryRun(OrbError):
+    pass
+
+# E
+# ------------------------------------------------------------------------------
+
+class EncryptionDisabled(OrbError):
+    pass
 
 # I
 # ------------------------------------------------------------------------------
 
+class IdNotFound(OrbError):
+    def __init__(self, name):
+        super(IdNotFound, self).__init__('No id column found for {0}'.format(name))
+
 class Interruption(StandardError):
     def __init__(self):
-        StandardError.__init__(self, 'Database operation was interrupted.')
+        super(Interruption, self).__init__('Database operation was interrupted.')
 
+class InvalidContextOption(ValidationError):
+    pass
+
+class InvalidReference(ValidationError):
+    def __init__(self, column, value_type, expected_type):
+        msg = '{0} expects {1} records, not {2}'.format(column, expected_type, value_type)
+        super(InvalidReference, self).__init__(msg)
 
 class InvalidColumnType(OrbError):
     def __init__(self, typ):
         msg = '{0} is not a valid column type.'
         super(InvalidColumnType, self).__init__(msg.format(typ))
 
+class EmptyCommand(OrbError):
+    pass
 
 class InvalidResponse(OrbError):
     def __init__(self, method, err):
@@ -247,11 +251,11 @@ class ReferenceNotFound(OrbError):
 # T
 #------------------------------------------------------------------------------
 
-class TableNotFound(OrbError):
+class ModelNotFound(OrbError):
     code = 410  # HTTPGone
 
     def __init__(self, table):
-        super(TableNotFound, self).__init__('Could not find `{0}` table.'.format(table))
+        super(ModelNotFound, self).__init__('Could not find `{0}` table.'.format(table))
 
 
 # V
@@ -263,6 +267,18 @@ class ValueNotFound(OrbError):
     def __init__(self, record, column):
         super(ValueNotFound, self).__init__('{0} has no value for {1}'.format(record, column))
 
+class ValueOutOfRange(ValidationError):
+    def __init__(self, column, value, minimum, maximum):
+        msg = '{0} for {1} is out of range.  Value must be '.format(value, column)
+
+        if minimum is not None and maximum is not None:
+            msg += 'between {0} and {1}'.format(minimum, maximum)
+        elif minimum is not None:
+            msg += 'greater than {0}'
+        elif maximum is not None:
+            msg += 'less than {0}'.format(maximum)
+
+        super(ValueOutOfRange, self).__init__(msg)
 
 class ViewNotFound(OrbError):
     code = 410  # HTTPGone

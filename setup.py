@@ -1,18 +1,40 @@
 import os
 import re
 import subprocess
+import sys
 
 from setuptools import setup, find_packages, Command
+from setuptools.command.test import test as TestCommand
 
 try:
     with open('orb/_version.py', 'r') as f:
         content = f.read()
         major = re.search('__major__ = (\d+)', content).group(1)
         minor = re.search('__minor__ = (\d+)', content).group(1)
-        rev = re.search('__revision__ = (\d+)', content).group(1)
+        rev = re.search('__revision__ = "([^"]+)"', content).group(1)
         version = '.'.join((major, minor, rev))
 except StandardError:
      version = '0.0.0'
+
+
+class PyTest(TestCommand):
+    user_options = [('pytest-args=', 'a', 'Arguments to pass to py.test')]
+
+    def initialize_options(self):
+        TestCommand.initialize_options(self)
+        self.default_options = ['tests/']
+        self.pytest_args = []
+
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = []
+        self.test_suite = True
+
+    def run_tests(self):
+        import pytest
+        errno = pytest.main(self.default_options)
+        sys.exit(errno)
+
 
 class tag(Command):
     description = 'Command used to release new versions of the website to the internal pypi server.'
@@ -36,7 +58,7 @@ class tag(Command):
         with open('./orb/_version.py', 'w') as f:
             f.write('__major__ = {0}\n'.format(result.group(1)))
             f.write('__minor__ = {0}\n'.format(result.group(2)))
-            f.write('__revision__ = {0}\n'.format(result.group(3)))
+            f.write('__revision__ = "{0}"\n'.format(result.group(3)))
             f.write('__hash__ = "{0}"'.format(result.group(4)))
 
         # tag this new release version
@@ -58,17 +80,18 @@ setup(
     maintainer='Eric Hulser',
     maintainer_email='eric.hulser@gmail.com',
     description='Database ORM and API builder.',
-    license='LGPL',
+    license='MIT',
     keywords='',
     url='https://github.com/ProjexSoftware/orb',
+    install_requires=(
+        'projex',
+        'pycrypto'
+    ),
     include_package_data=True,
     packages=find_packages(),
-    install_requires=[
-        'projex',
-        'mako'
-    ],
     cmdclass={
-        'tag': tag
+        'tag': tag,
+        'test': PyTest
     },
     tests_require=[],
     long_description='Database ORM and API builder.',
