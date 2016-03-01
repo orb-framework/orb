@@ -1,5 +1,6 @@
 import os
 import projex.text
+import random
 import re
 
 from projex.lazymodule import lazy_import
@@ -29,6 +30,14 @@ class AbstractStringColumn(Column):
             return projex.text.decoded(py_value)
         else:
             return py_value
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return ''
 
     def restore(self, value, context=None):
         """
@@ -118,11 +127,25 @@ class TextColumn(AbstractStringColumn):
 
 # define custom string class types
 class ColorColumn(StringColumn):
-    pass
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return '#' + random.randrange(256).encode('hex') + \
+               random.randrange(256).encode('hex') + random.randrange(256).encode('hex')
+
 
 
 class DirectoryColumn(StringColumn):
-    pass
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return '/usr/tmp/'
 
 
 class EmailColumn(StringColumn):
@@ -131,6 +154,14 @@ class EmailColumn(StringColumn):
 
         # define custom properties
         self.__pattern = pattern
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return '/usr/tmp/'
 
     def validate(self, value):
         """
@@ -182,6 +213,14 @@ class PasswordColumn(StringColumn):
         self.__invalidCharacters = invalidCharacters
         self.__invalidCharacterRule = invalidCharacterRule
 
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return '******'
+
     def rules(self):
         """
         Returns the rules for this password based on the configured
@@ -204,7 +243,6 @@ class PasswordColumn(StringColumn):
             return rules[0]
         else:
             return ', '.join(rules[:-1]) + ' and ' + rules[-1]
-
 
     def validate(self, value):
         """
@@ -282,6 +320,14 @@ class TokenColumn(StringColumn):
                 token = os.urandom(self.__bits).encode('hex')
                 if model.select(where=orb.Query(self) == token).count() == 0:
                     return token
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return os.urandom(self.__bits).encode('hex')
 
     def setBits(self, bits):
         """

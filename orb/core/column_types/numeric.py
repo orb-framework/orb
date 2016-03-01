@@ -1,4 +1,5 @@
 import projex.text
+import random
 
 from projex.lazymodule import lazy_import
 from ..column import Column
@@ -24,6 +25,16 @@ class AbstractNumericColumn(Column):
 
     def minimum(self):
         return self.__minimum
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        minimum = self.minimum() or 0
+        maximum = self.maximum() or 100
+        return random.randint(minimum, maximum)
 
     def setMaximum(self, maximum):
         self.__maximum = maximum
@@ -106,6 +117,7 @@ class IdColumn(LongColumn):
         'Default': 'BIGINT'
     }
     def __init__(self, **kwds):
+        kwds.setdefault('minimum', 0)
         super(IdColumn, self).__init__(**kwds)
 
         # set default properties
@@ -121,6 +133,14 @@ class IdColumn(LongColumn):
                 return py_value
         else:
             return py_value
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return random.randint(0, 100)
 
 
 class EnumColumn(LongColumn):

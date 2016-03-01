@@ -18,6 +18,16 @@ pytz = lazy_import('pytz')
 
 
 class AbstractDatetimeColumn(Column):
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        utc_now = datetime.datetime.utcnow()
+        return self.valueFromString(utc_now.strftime('%Y-%m-%d %H:%M:%S'))
+
     def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.

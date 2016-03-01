@@ -283,6 +283,14 @@ class Column(AddonManager):
         """
         return self.__name
 
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return self.default()
+
     def restore(self, value, context=None, inflated=True):
         """
         Restores the value from a table cache for usage.

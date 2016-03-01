@@ -1,4 +1,5 @@
 import projex.text
+import random
 
 from ..column import Column
 
@@ -8,6 +9,14 @@ class BooleanColumn(Column):
         'Postgres': 'BOOLEAN',
         'Default': 'BOOL'
     }
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return bool(random.randint(0, 1))
 
     def valueFromString(self, value, extra=None, db=None):
         """

@@ -1,5 +1,7 @@
 import logging
+import os
 import projex.text
+import random
 
 from ..column import Column
 from projex.lazymodule import lazy_import
@@ -15,6 +17,14 @@ class BinaryColumn(Column):
         'Postgres': 'TEXT',
         'Default': 'BLOB'
     }
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return os.urandom(16).encode('hex')
 
     def dbRestore(self, db_value, context=None):
         """
@@ -50,6 +60,18 @@ class JSONColumn(Column):
         'Default': 'TEXT'
     }
 
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        blob = {
+            'property': 'random_value',
+            'value': random.randrange(100)
+        }
+        return blob
+
     def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
@@ -80,6 +102,15 @@ class JSONColumn(Column):
 
 
 class QueryColumn(JSONColumn):
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        q = (orb.Query('column') == 'value')
+        return q.__json__()
+
     def dbRestore(self, db_value, context=None):
         """
         Converts a stored database value to Python.
@@ -100,6 +131,18 @@ class YAMLColumn(Column):
     TypeMap = {
         'Default': 'TEXT'
     }
+
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        blob = {
+            'property': 'random_value',
+            'value': random.randrange(100)
+        }
+        return blob
 
     def dbRestore(self, db_value, context=None):
         """

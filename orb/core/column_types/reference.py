@@ -112,6 +112,14 @@ class ReferenceColumn(Column):
         self.__reference = jdata.get('reference') or self.__reference
         self.__removeAction = jdata.get('removeAction') or self.__removeAction
 
+    def random(self):
+        """
+        Returns a random value that fits this column's parameters.
+
+        :return: <variant>
+        """
+        return self.referenceModel().schema().idColumn().random()
+
     def reference(self):
         return self.__reference
 
