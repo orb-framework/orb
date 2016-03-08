@@ -7,6 +7,14 @@ orb = lazy_import('orb')
 
 
 class Pipe(Collector):
+    def __json__(self):
+        output = super(Pipe, self).__json__()
+        output['through'] = self.through()
+        output['from'] = self.fromColumn().field()
+        output['to'] = self.toColumn().field()
+        output['model'] = self.toColumn().referenceModel().schema().name()
+        return output
+
     def __init__(self, through_path='', through='', from_='', to='', **options):
         super(Pipe, self).__init__(**options)
 

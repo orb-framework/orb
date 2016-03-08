@@ -2,6 +2,7 @@
 
 import logging
 
+from projex.enum import enum
 from projex.lazymodule import lazy_import
 
 log = logging.getLogger(__name__)
@@ -13,14 +14,30 @@ class Schema(object):
     """ 
     Contains meta data information about a table as it maps to a database.
     """
+    Flags = enum('Abstract', 'Archived')
+
+    def __json__(self):
+        columns = [col.__json__() for col in self.columns().values() if not col.testFlag(col.Flags.Private)]
+        indexes = [index.__json__() for index in self.indexes().values() if not index.testFlag(index.Flags.Private)]
+        collectors = [coll.__json__() for coll in self.collectors().values() if not coll.testFlag(coll.Flags.Private)]
+        output = {
+            'model': self.name(),
+            'dbname': self.dbname(),
+            'display': self.display(),
+            'inherits': self.inherits(),
+            'flags': self.Flags.toSet(self.__flags),
+            'columns': {col['field']: col for col in columns},
+            'indexes': {index['name']: index for index in indexes},
+            'collectors': {coll['name']: coll for coll in collectors}
+        }
+        return output
 
     def __init__(self,
                  name,
                  dbname='',
                  display='',
                  inherits='',
-                 abstract=False,
-                 archived=False,
+                 flags=0,
                  columns=None,
                  indexes=None,
                  collectors=None,
@@ -28,13 +45,12 @@ class Schema(object):
                  database='',
                  namespace=''):
         self.__name = name
-        self.__abstract = abstract
         self.__dbname = dbname or orb.system.syntax().schemadb(name)
         self.__database = database
         self.__namespace = namespace
+        self.__flags = flags
         self.__inherits = inherits
         self.__display = display
-        self.__archived = archived
         self.__cache = {}
 
         self.__model = None
@@ -255,25 +271,6 @@ class Schema(object):
         """
         return self.__inherits
 
-    def isAbstract(self):
-        """
-        Returns whether or not this schema is an abstract table.  Abstract \
-        tables will not register to the database, but will serve as base \
-        classes for inherited tables.
-        
-        :return     <bool>
-        """
-        return self.__abstract
-
-    def isArchived(self):
-        """
-        Returns whether or not this schema is archived.  Archived schema's will store additional records
-        each time a record is created or updated for historical reference.
-
-        :return     <bool>
-        """
-        return self.__archived
-
     def model(self, autoGenerate=False):
         """
         Returns the default Table class that is associated with this \
@@ -326,25 +323,6 @@ class Schema(object):
             else:
                 output.update(schema.collectors(recurse=recurse))
         return output
-
-    def setAbstract(self, state):
-        """
-        Sets whether or not this table is abstract.
-        
-        :param      state | <bool>
-        """
-        self.__abstract = state
-
-    def setArchived(self, state=True):
-        """
-        Sets the archive state for this schema.
-
-        :param      state | <bool>
-        """
-        self.__archived = state
-
-    def setArchiveModel(self, model):
-        self.__archiveModel = model
 
     def setColumns(self, columns):
         """

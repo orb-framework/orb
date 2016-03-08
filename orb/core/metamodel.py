@@ -88,8 +88,8 @@ class MetaModel(type):
         :return     <type>
         """
         # define orb attributes
-        schema_attrs = attrs.pop('__orb__', {})
-        if schema_attrs.get('bypass'):
+        is_model = attrs.pop('__model__', True)
+        if not is_model:
             return super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
         else:
             mixins = [base for base in bases if issubclass(base, orb.ModelMixin)]
@@ -153,17 +153,28 @@ class MetaModel(type):
                 if store_property(key, value):
                     attrs.pop(key)
 
-            # create the schema
-            schema = orb.Schema(name, **schema_attrs)
-            schema.setColumns(columns)
-            schema.setIndexes(indexes)
-            schema.setCollectors(collectors)
-            schema.setViews(views)
+            # check to see if a schema is already defined
+            schema = attrs.pop('__schema__', None)
 
-            if inherits:
-                inherited_schema = inherits[0].schema()
-                if inherited_schema:
-                    schema.setInherits(inherited_schema.name())
+            # otherwise, create a new schema
+            if schema is None:
+                schema = orb.Schema(
+                    name,
+                    dbname=attrs.pop('__dbname__', ''),
+                    display=attrs.pop('__display__', ''),
+                    flags=attrs.pop('__flags__', 0),
+                    database=attrs.pop('__database__', ''),
+                    namespace=attrs.pop('__namespace__', '')
+                )
+                schema.setColumns(columns)
+                schema.setIndexes(indexes)
+                schema.setCollectors(collectors)
+                schema.setViews(views)
+
+                if inherits:
+                    inherited_schema = inherits[0].schema()
+                    if inherited_schema:
+                        schema.setInherits(inherited_schema.name())
 
             new_model = super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
             setattr(new_model, '_{0}__schema'.format(name), schema)

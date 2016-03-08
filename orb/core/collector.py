@@ -7,7 +7,14 @@ orb = lazy_import('orb')
 
 
 class Collector(object):
-    Flags = enum('Unique')
+    Flags = enum('Unique', 'Private')
+
+    def __json__(self):
+        output = {
+            'name': self.__name,
+            'flags': self.Flags.toSet(self.__flags)
+        }
+        return output
 
     def __init__(self, name='', flags=0):
         self.__name = self.__name__ = name

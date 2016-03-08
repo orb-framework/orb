@@ -225,10 +225,17 @@ class Context(object):
             other_context['columns'] = other_context['columns'].split(',')
 
         # utilize values from another context
-        others = [other_context.pop('context', None), self.defaultContext()]
+        others = []
+        base = other_context.pop('context', None)
+        if base is not None:
+            others.append(base)
+        if self.defaultContext() is not None:
+            others.append(self.defaultContext())
+
         for other in others:
             if other:
                 ignore = ('columns', 'where')
+
                 # extract expandable information
                 for k, v in other.raw_values.items():
                     if k not in ignore:
@@ -260,6 +267,10 @@ class Context(object):
         if other_context.get('pageSize') is not None and (type(other_context['pageSize']) != int or other_context['pageSize'] < 1):
             msg = 'Page size needs to be a number equal to or greater than 1, got {0} instead'
             raise orb.errors.InvalidContextOption(msg.format(other_context.get('pageSize')))
+
+        where = other_context.get('where')
+        if isinstance(where, dict):
+            other_context['where'] = orb.Query.fromJSON(where)
 
         self.raw_values.update({k: v for k, v in other_context.items() if k in self.Defaults})
 

@@ -42,6 +42,17 @@ class Column(AddonManager):
         'Queryable'
     )
 
+    def __json__(self):
+        output = {
+            'type': self.addonName(),
+            'name': self.name(),
+            'field': self.field(),
+            'display': self.display(),
+            'flags': self.Flags.toSet(self.__flags),
+            'default': self.default()
+        }
+        return output
+
     def __init__(self,
                  name=None,
                  field=None,

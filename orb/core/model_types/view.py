@@ -5,7 +5,7 @@ orb = lazy_import('orb')
 
 
 class View(Model):
-    __orb__ = {'bypass': True}
+    __model__ = False
 
     def delete(self, **context):
         raise orb.errors.OrbError('View models are read-only.')

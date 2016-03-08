@@ -147,8 +147,8 @@ class Collection(object):
     def create(self, values, **context):
         # create a new pipe object
         if self.__pipe:
-            target_model = self.__pipe.targetModel()
-            target_col = self.__pipe.targetColumn()
+            target_model = self.__pipe.toModel()
+            target_col = self.__pipe.toColumn()
 
             # add the target based on the name or field
             if target_col.name() in values or target_col.field() in values:

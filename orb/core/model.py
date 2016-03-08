@@ -25,7 +25,7 @@ class Model(object):
     """
     # define the table meta class
     __metaclass__ = MetaModel
-    __orb__ = {'bypass': True}
+    __model__ = False
 
     def __getitem__(self, key):
         column = self.schema().column(key)

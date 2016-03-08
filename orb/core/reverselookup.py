@@ -4,6 +4,12 @@ from .collector import Collector
 orb = lazy_import('orb')
 
 class ReverseLookup(Collector):
+    def __json__(self):
+        output = super(ReverseLookup, self).__json__()
+        output['model'] = self.__reference
+        output['target'] = self.targetColumn().field()
+        return output
+
     def __init__(self, reference='', target='', from_column='', **options):
         super(ReverseLookup, self).__init__(**options)
 

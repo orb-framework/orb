@@ -19,8 +19,19 @@ class Index(object):
     """
 
     Flags = enum(
-        'Unique'
+        'Unique',
+        'Private'
     )
+
+    def __json__(self):
+        output = {
+            'name': self.__name,
+            'dbname': self.__dbname,
+            'columns': self.__columns,
+            'flags': self.Flags.toSet(self.__flags),
+            'order': self.__order
+        }
+        return output
 
     def __init__(self, columns=None, name='', dbname='', flags=0, order=None):
         self.__name = self.__name__ = name
