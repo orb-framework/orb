@@ -19,6 +19,16 @@ try:
 except ImportError:
     dateutil_parser = None
 
+try:
+    from webhelpers.html import tools as html_tools
+except ImportError:
+    html_tools = None
+
+try:
+    import bleach
+except ImportError:
+    bleach = None
+
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
 pytz = lazy_import('pytz')
@@ -965,6 +975,14 @@ class Column(object):
         # encrypt the value if necessary
         elif self.isEncrypted():
             return orb.system.encrypt(value)
+
+        # store non-html content
+        elif self.isString():
+            if bleach:
+                value = bleach.clean(value)
+
+            if coltype != ColumnType.Html and html_tools:
+                value = html_tools.strip_tags(value)
 
         return value
 
