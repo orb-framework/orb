@@ -117,7 +117,7 @@
         source_primary = source_schema.primaryColumn().fieldName()
 
         # include the base table's filter, if one exists
-        target_filter = ref_schema.model().baseQuery(lookup=lookup, options=options)
+        target_filter = source_schema.model().baseQuery(lookup=lookup, options=options)
         if target_filter is not None:
             base_where = '(' + WHERE(ref_schema, target_filter, schema_alias=alias, GLOBALS=GLOBALS, IO=IO) + ') AND '
         else:
