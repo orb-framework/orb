@@ -48,16 +48,23 @@ class ALTER(PSQLStatement):
 
         # add i18n columns
         if add_i18n:
+            id_column = model.schema().idColumn()
+            if id_column.type() == 'hash':
+                id_type = 'character varying({0})'.format(id_column.bits() * 2)
+            else:
+                id_type = 'BIGINT'
+
             i18n_options = {
                 'table': model.schema().dbname(),
                 'fields': u'\t' + ',\n\t'.join([ADD_COLUMN(col)[0] for col in add_i18n]),
-                'owner': owner
+                'owner': owner,
+                'id_type': id_type
             }
 
             i18n_sql = (
                 u'CREATE TABLE IF NOT EXISTS "{table}_i18n" (\n'
                 u'  "locale" CHARACTER VARYING(5),\n'
-                u'  "{table}_id" BIGINT REFERENCES "{table}" ("id") ON DELETE CASCADE,\n'
+                u'  "{table}_id" {id_type} REFERENCES "{table}" ("id") ON DELETE CASCADE,\n'
                 u'  CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("locale", "{table}_id")\n'
                 u') WITH (OIDS=FALSE);'
                 u'ALTER TABLE "{table}_i18n" OWNER TO "{owner}";'

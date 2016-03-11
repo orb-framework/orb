@@ -24,8 +24,9 @@ class INSERT(PSQLStatement):
                 for col in schema.columns().values():
                     if col.testFlag(col.Flags.I18n):
                         i18n.append(col)
-                    elif not isinstance(col, orb.IdColumn):
+                    elif not col.testFlag(col.Flags.AutoIncrement):
                         standard.append(col)
+
                 schema_meta[schema] = {'i18n': i18n, 'standard': standard}
 
             if not schema in schema_meta:
@@ -38,6 +39,7 @@ class INSERT(PSQLStatement):
 
         cmd = []
         for schema, columns in schema_meta.items():
+            id_column = schema.idColumn()
             subcmd = ''
             if columns['standard']:
                 cols = ', '.join(['"{0}"'.format(col.field()) for col in columns['standard']])
@@ -46,9 +48,9 @@ class INSERT(PSQLStatement):
                 for value in values[:-1]:
                     subcmd += '\n({0}),'.format(value)
                 subcmd += '\n({0})'.format(values[-1])
-                subcmd += '\nRETURNING "id";'
+                subcmd += '\nRETURNING "{0}";'.format(id_column.field())
             elif columns['i18n']:
-                subcmd += '\nINSERT INTO "{0}" DEFAULT VALUES RETURNING "id";'.format(schema.dbname())
+                subcmd += '\nINSERT INTO "{0}" DEFAULT VALUES RETURNING "{1}";'.format(schema.dbname(), id_column.field())
 
             if columns['i18n']:
                 cols = ', '.join(['"{0}"'.format(col.field()) for col in columns['i18n']])
@@ -57,7 +59,7 @@ class INSERT(PSQLStatement):
                 for i, value in enumerate(values[:-1]):
                     subcmd += '\n(LASTVAL() - {0}, %(locale)s, {1}),'.format(len(values) - (i+1), value)
                 subcmd += '\n(LASTVAL(), %(locale)s, {0})'.format(values[-1])
-                subcmd += '\nRETURNING "{0}_id" AS "id";'.format(schema.dbname())
+                subcmd += '\nRETURNING "{0}_id" AS "{1}";'.format(schema.dbname(), id_column.field())
 
             cmd.append(subcmd)
 

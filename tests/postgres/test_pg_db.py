@@ -15,5 +15,5 @@ def test_pg_db_connection(pg_db):
 
 @pytest.mark.run(order=1)
 @requires_pg
-def test_pg_db_sync(orb, pg_db, testing_schema, TestAllColumns):
+def test_pg_db_sync(orb, pg_db, testing_schema, Comment, TestAllColumns):
     pg_db.sync()

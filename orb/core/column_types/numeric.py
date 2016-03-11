@@ -111,38 +111,6 @@ class LongColumn(AbstractNumericColumn):
                                          **kwds)
 
 
-class IdColumn(LongColumn):
-    TypeMap = {
-        'Postgres': 'SERIAL',
-        'Default': 'BIGINT'
-    }
-    def __init__(self, **kwds):
-        kwds.setdefault('minimum', 0)
-        super(IdColumn, self).__init__(**kwds)
-
-        # set default properties
-        self.setFlag(self.Flags.Required)
-        self.setFlag(self.Flags.Primary)
-        self.setFlag(self.Flags.AutoIncrement)
-
-    def dbStore(self, typ, py_value, context=None):
-        if py_value is None:
-            if typ == 'Postgres':
-                return 'DEFAULT'
-            else:
-                return py_value
-        else:
-            return py_value
-
-    def random(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return random.randint(0, 100)
-
-
 class EnumColumn(LongColumn):
     def __init__(self, enum=None, **kwds):
         super(EnumColumn, self).__init__(**kwds)
@@ -180,4 +148,3 @@ Column.registerAddon('Decimal', DecimalColumn)
 Column.registerAddon('Float', FloatColumn)
 Column.registerAddon('Integer', IntegerColumn)
 Column.registerAddon('Long', LongColumn)
-Column.registerAddon('Id', IdColumn)

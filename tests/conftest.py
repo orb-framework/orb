@@ -143,7 +143,25 @@ def testing_schema(orb):
     class Employee(User):
         role = orb.ReferenceColumn(reference='Role')
 
+    class Comment(orb.Table):
+        id = orb.IdColumn(type='hash')
+        text = orb.TextColumn()
+        attachments = orb.ReverseLookup(from_column='Attachment.comment')
+
+    class Attachment(orb.Table):
+        id = orb.IdColumn(type='hash')
+        filename = orb.StringColumn()
+        comment = orb.ReferenceColumn(reference='Comment')
+
     return locals()
+
+@pytest.fixture(scope='session')
+def Comment(testing_schema):
+    return testing_schema['Comment']
+
+@pytest.fixture(scope='session')
+def Attachment(testing_schema):
+    return testing_schema['Attachment']
 
 @pytest.fixture(scope='session')
 def User(testing_schema):

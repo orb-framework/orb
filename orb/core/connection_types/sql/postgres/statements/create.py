@@ -36,9 +36,9 @@ class CREATE(PSQLStatement):
 
         # get the primary column
         pcol = ''
-        pcols = model.schema().columns(recurse=False, flags=orb.Column.Flags.Primary).values()
-        if pcols:
-            pcol = ', '.join(['"{0}"'.format(col.field()) for col in pcols])
+        id_column = model.schema().idColumn()
+        if id_column:
+            pcol = '"{0}"'.format(id_column.field())
             cmd_body.append('CONSTRAINT "{0}_pkey" PRIMARY KEY ({1})'.format(model.schema().dbname(), pcol))
 
         body = ',\n\t'.join(cmd_body)
@@ -60,18 +60,25 @@ class CREATE(PSQLStatement):
 
         # create the i18n model
         if add_i18n:
+            id_column = model.schema().idColumn()
+            if id_column.type() == 'hash':
+                id_type = 'character varying({0})'.format(id_column.bits() * 2)
+            else:
+                id_type = 'BIGINT'
+
             i18n_body = ',\n\t'.join([ADD_COLUMN(col)[0].replace('ADD COLUMN ', '') for col in add_i18n])
 
             i18n_cmd  = 'CREATE TABLE "{table}_i18n" (\n'
             i18n_cmd += '   "locale" CHARACTER VARYING(5),\n'
-            i18n_cmd += '   "{table}_id" BIGINT REFERENCES "{table}" ({pcol}),\n'
+            i18n_cmd += '   "{table}_id" {id_type} REFERENCES "{table}" ({pcol}),\n'
             i18n_cmd += '   {body},\n'
             i18n_cmd += '   CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("{table}_id", "locale")\n'
             i18n_cmd += ') WITH (OIDS=FALSE);\n'
             if owner:
                 i18n_cmd += 'ALTER TABLE "{table}_i18n" OWNER TO "{owner}";'
 
-            i18n_cmd = i18n_cmd.format(table=model.schema().dbname(), pcol=pcol, body=i18n_body, owner=owner)
+            i18n_cmd = i18n_cmd.format(table=model.schema().dbname(),
+                                       id_type=id_type, pcol=pcol, body=i18n_body, owner=owner)
 
             cmd += '\n' + i18n_cmd
 

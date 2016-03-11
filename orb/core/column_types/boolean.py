@@ -5,6 +5,10 @@ from ..column import Column
 
 
 class BooleanColumn(Column):
+    """
+    Defines a boolean field.  This column will return True or False, or None if no value
+    has been set.  The default value for this column is None.
+    """
     TypeMap = {
         'Postgres': 'BOOLEAN',
         'Default': 'BOOL'

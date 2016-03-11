@@ -37,13 +37,13 @@ class Schema(object):
                  dbname='',
                  display='',
                  inherits='',
+                 database='',
+                 namespace='',
                  flags=0,
                  columns=None,
                  indexes=None,
                  collectors=None,
-                 views=None,
-                 database='',
-                 namespace=''):
+                 views=None):
         self.__name = name
         self.__dbname = dbname or orb.system.syntax().schemadb(name)
         self.__database = database

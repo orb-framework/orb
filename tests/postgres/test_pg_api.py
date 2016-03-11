@@ -354,3 +354,22 @@ def test_pg_api_save_employee(orb, Employee, Role):
 
     assert sam.username() == 'samantha'
     assert sam.role() == role
+
+@requires_pg
+def test_pg_api_save_hash_id(orb, Comment):
+    comment = Comment({'text': 'Testing'})
+    comment.save()
+    assert isinstance(comment.id(), str)
+
+@requires_pg
+def test_pg_api_restore_hash_id(orb, Comment):
+    comment = Comment.select().last()
+    assert isinstance(comment.id(), str)
+
+@requires_pg
+def test_pg_api_reference_hash_id(orb, Comment, Attachment):
+    comment = Comment.select().last()
+    attachment = Attachment({'filename': '/path/to/somewhere', 'comment': comment})
+    attachment.save()
+
+    assert isinstance(attachment.get('comment_id'), str)

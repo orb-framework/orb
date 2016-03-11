@@ -8,7 +8,6 @@ from ..settings import Settings
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
 pytz = lazy_import('pytz')
-tzlocal = lazy_import('tzlocal')
 
 from .security import Security
 

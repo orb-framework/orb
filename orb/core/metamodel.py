@@ -162,9 +162,9 @@ class MetaModel(type):
                     name,
                     dbname=attrs.pop('__dbname__', ''),
                     display=attrs.pop('__display__', ''),
-                    flags=attrs.pop('__flags__', 0),
                     database=attrs.pop('__database__', ''),
-                    namespace=attrs.pop('__namespace__', '')
+                    namespace=attrs.pop('__namespace__', ''),
+                    flags=attrs.pop('__flags__', 0)
                 )
                 schema.setColumns(columns)
                 schema.setIndexes(indexes)

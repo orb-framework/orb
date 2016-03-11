@@ -68,7 +68,13 @@ class ReferenceColumn(Column):
     def dbType(self, connectionType):
         if connectionType == 'Postgres':
             model = self.referenceModel()
-            return 'BIGINT REFERENCES "{0}"'.format(model.schema().dbname())
+            dbname = model.schema().dbname()
+            id_column = model.schema().idColumn()
+
+            if id_column.type() == 'hash':
+                return 'character varying({0}) REFERENCES "{1}"'.format(id_column.bits() * 2, dbname)
+            else:
+                return 'bigint REFERENCES "{0}"'.format(dbname)
         else:
             return ''
 
