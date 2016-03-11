@@ -13,6 +13,7 @@ class IdColumn(Column):
         # common to all ID columns
         self.setFlag(self.Flags.Required)
         self.setFlag(self.Flags.Unique)
+        self.setFlag(self.Flags.AutoAssign)
 
         # common to all default IDs
         if type == 'default':

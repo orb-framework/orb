@@ -24,7 +24,7 @@ class INSERT(PSQLStatement):
                 for col in schema.columns().values():
                     if col.testFlag(col.Flags.I18n):
                         i18n.append(col)
-                    elif not col.testFlag(col.Flags.AutoIncrement):
+                    elif not col.testFlag(col.Flags.AutoAssign):
                         standard.append(col)
 
                 schema_meta[schema] = {'i18n': i18n, 'standard': standard}

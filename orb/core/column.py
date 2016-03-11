@@ -29,16 +29,15 @@ class Column(AddonManager):
         'ReadOnly',
         'Private',
         'Polymorphic',
-        'AutoIncrement',
+        'AutoAssign',
         'Required',
         'Unique',
         'Encrypted',
         'Searchable',
         'I18n',
-        'I18n_Unmerged',
+        'I18n_NoDefault',
         'CaseSensitive',
-        'Virtual',
-        'Queryable'
+        'Virtual'
     )
 
     def __json__(self):
@@ -437,7 +436,7 @@ class Column(AddonManager):
         :return     <bool> success
         """
         # check for the required flag
-        if self.testFlag(self.Flags.Required) and not self.testFlag(self.Flags.AutoIncrement):
+        if self.testFlag(self.Flags.Required) and not self.testFlag(self.Flags.AutoAssign):
             if self.isNull(value):
                 msg = '{0} is a required column.'.format(self.name())
                 raise orb.errors.ColumnValidationError(self, msg)
