@@ -17,7 +17,7 @@ class IdColumn(Column):
 
         # common to all default IDs
         if type == 'default':
-            self.setFlag(self.Flags.AutoIncrement)
+            self.setFlag(self.Flags.AutoAssign)
 
         # set default properties
         self.__type = type
