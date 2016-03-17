@@ -39,6 +39,9 @@ class Connection(AddonManager):
         """
         self.close()
 
+    def onSync(self, event):
+        pass
+
     @abstractmethod
     def _delete(self, records, context):
         """

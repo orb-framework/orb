@@ -37,9 +37,25 @@ class SQLConnection(orb.Connection):
         self.__connectionLock = ReadWriteLock()
         self.__concurrencyLocks = defaultdict(ReadWriteLock)
 
+
+    # ----------------------------------------------------------------------
+    #                       EVENTS
+    # ----------------------------------------------------------------------
+    def onSync(self, event):
+        """
+        Initializes the database by defining any additional structures that are required during selection.
+        """
+        SETUP = self.statement('SETUP')
+        if SETUP:
+            sql, data = SETUP(self.database())
+            if event.context.dryRun:
+                print sql % data
+            else:
+                self.execute(sql, data, writeAccess=True)
+
     # ----------------------------------------------------------------------
     #                       PROTECTED METHODS
-    #----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     @abstractmethod()
     def _execute(self,
                  native,
@@ -473,17 +489,6 @@ class SQLConnection(orb.Connection):
             with ReadLocker(self.__concurrencyLocks[model.schema().name()]):
                 return self.execute(sql, data)[0]
 
-    def setup(self, context):
-        """
-        Initializes the database by defining any additional structures that are required during selection.
-        """
-        SETUP = self.statement('SETUP')
-        sql, data = SETUP(self.database())
-        if context.dryRun:
-            print sql % data
-        else:
-            self.execute(sql, data, writeAccess=True)
-
     def setBatchSize(self, size):
         """
         Sets the maximum number of records that can be inserted for a single
@@ -492,51 +497,6 @@ class SQLConnection(orb.Connection):
         :param      size | <int>
         """
         self.__batchSize = size
-
-    def setRecords(self, model, records, context):
-        """
-        Restores the data for the inputted schema.
-
-        :param      schema  | <orb.TableSchema>
-                    records | [<dict> record, ..]
-        """
-        if not records:
-            return
-
-        engine = self.engine()
-
-        # truncate the table
-        cmd, dat = engine.truncateCommand(schema)
-        self.execute(cmd, dat, autoCommit=False)
-
-        # disable the tables keys
-        cmd, dat = engine.disableInternalsCommand(schema)
-        self.execute(cmd, dat, autoCommit=False)
-
-        colcount = len(schema.columns())
-        batchsize = self.batchSize()
-        size = batchsize / max(int(round(colcount / 10.0)), 1)
-
-        # insert the records
-        cmds = []
-        dat = {}
-        setup = {}
-        for batch in projex.iters.batch(records, size):
-            batch = list(batch)
-            icmd, idata = engine.insertCommand(schema,
-                                               batch,
-                                               columns=options.get('columns'),
-                                               autoincrement=False,
-                                               setup=setup)
-            cmds.append(icmd)
-            dat.update(idata)
-
-        self.execute(u'\n'.join(cmds), dat, autoCommit=False)
-
-        # enable the table keys
-        cmd, dat = engine.enableInternalsCommand(schema)
-        self.execute(cmd, dat)
-        self.commit()
 
     def update(self, records, context):
         """

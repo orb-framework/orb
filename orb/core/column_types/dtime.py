@@ -61,7 +61,8 @@ class AbstractDatetimeColumn(Column):
 
 class DateColumn(AbstractDatetimeColumn):
     TypeMap = {
-        'Default': 'DATE'
+        'Postgres': 'DATE',
+        'SQLite': 'TEXT'
     }
 
     def dbRestore(self, db_value, context=None):
@@ -108,7 +109,7 @@ class DateColumn(AbstractDatetimeColumn):
 class DatetimeColumn(AbstractDatetimeColumn):
     TypeMap = {
         'Postgres': 'TIMESTAMP WITHOUT TIME ZONE',
-        'Default': 'DATETIME'
+        'SQLite': 'TEXT'
     }
 
     def valueFromString(self, value, context=None):
@@ -146,7 +147,7 @@ class DatetimeColumn(AbstractDatetimeColumn):
 class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
     TypeMap = {
         'Postgres': 'TIMESTAMP WITHOUT TIME ZONE',
-        'Default': 'DATETIME'
+        'SQLite': 'TEXT'
     }
 
     def dbStore(self, typ, py_value):
@@ -252,13 +253,14 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 class IntervalColumn(Column):
     TypeMap = {
         'Postgres': 'INTERVAL',
-        'Default': 'TIMEDELTA'
+        'SQLite': 'TEXT'
     }
 
 
 class TimeColumn(AbstractDatetimeColumn):
     TypeMap = {
-        'Default': 'TIME'
+        'Postgres': 'TIME',
+        'SQLite': 'TEXT'
     }
 
     def valueFromString(self, value, context=None):
@@ -293,7 +295,7 @@ class TimeColumn(AbstractDatetimeColumn):
 class TimestampColumn(AbstractDatetimeColumn):
     TypeMap = {
         'Postgres': 'BIGINT',
-        'Default': 'INTEGER'
+        'SQLite': 'INTEGER'
     }
 
     def dbRestore(self, db_value, context=None):
@@ -340,7 +342,8 @@ class TimestampColumn(AbstractDatetimeColumn):
 
 class UTC_DatetimeColumn(AbstractDatetimeColumn):
     TypeMap = {
-        'Default': 'TIMESTAMP'
+        'Postgres': 'TIMESTAMP',
+        'SQLite': 'TEXT'
     }
 
     def valueFromString(self, value, context=None):
@@ -379,7 +382,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
 class UTC_TimestampColumn(AbstractDatetimeColumn):
     TypeMap = {
         'Postgres': 'BIGINT',
-        'Default': 'INTEGER'
+        'SQLite': 'TEXT'
     }
 
     def dbRestore(self, db_value, context=None):

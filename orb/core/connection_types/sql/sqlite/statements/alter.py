@@ -1,11 +1,11 @@
 from projex.lazymodule import lazy_import
-from ..psqlconnection import PSQLStatement
+from ..sqliteconnection import SQLiteStatement
 
 orb = lazy_import('orb')
 
 
-class ALTER(PSQLStatement):
-    def __call__(self, model, add=None, remove=None, owner='postgres'):
+class ALTER(SQLiteStatement):
+    def __call__(self, model, add=None, remove=None, owner=''):
         """
         Modifies the table to add and remove the given columns.
 
@@ -34,22 +34,21 @@ class ALTER(PSQLStatement):
 
         # add standard columns
         if add_standard:
-            sql_options = {
-                'type': typ,
-                'name': model.schema().dbname(),
-                'fields': u'\t' + ',\n\t'.join([ADD_COLUMN(col)[0] for col in add_standard])
-            }
-            sql = (
-                u'ALTER {type} "{name}"\n'
-                u'{fields};'
-            ).format(**sql_options)
+            sql_raw = []
+            for col in add_standard:
+                sql_raw.append(
+                    u'ALTER {type} `{name}`\n'
+                    u'{column};'.format(type=typ, name=model.schema().dbname(), column=ADD_COLUMN(col)[0])
+                )
+
+            sql = '\n'.join(sql_raw)
         else:
             sql = ''
 
         # add i18n columns
         if add_i18n:
             id_column = model.schema().idColumn()
-            id_type = id_column.dbType('Postgres')
+            id_type = id_column.dbType('SQLite')
 
             i18n_options = {
                 'table': model.schema().dbname(),
@@ -59,13 +58,12 @@ class ALTER(PSQLStatement):
             }
 
             i18n_sql = (
-                u'CREATE TABLE IF NOT EXISTS "{table}_i18n" (\n'
-                u'  "locale" CHARACTER VARYING(5),\n'
-                u'  "{table}_id" {id_type} REFERENCES "{table}" ("id") ON DELETE CASCADE,\n'
-                u'  CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("locale", "{table}_id")\n'
-                u') WITH (OIDS=FALSE);'
-                u'ALTER TABLE "{table}_i18n" OWNER TO "{owner}";'
-                u'ALTER TABLE "{table}_i18n"'
+                u'CREATE TABLE IF NOT EXISTS `{table}_i18n` (\n'
+                u'  `locale` CHARACTER VARYING(5),\n'
+                u'  `{table}_id` {id_type} REFERENCES `{table}` (`id`) ON DELETE CASCADE,\n'
+                u'  CONSTRAINT `{table}_i18n_pkey` PRIMARY KEY (`locale`, `{table}_id`)\n'
+                u');'
+                u'ALTER TABLE `{table}_i18n`'
                 u'{fields};'
             ).format(**i18n_options)
 
@@ -74,4 +72,4 @@ class ALTER(PSQLStatement):
         return sql, {}
 
 
-PSQLStatement.registerAddon('ALTER', ALTER())
+SQLiteStatement.registerAddon('ALTER', ALTER())

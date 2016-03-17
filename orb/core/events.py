@@ -44,4 +44,7 @@ class LoadEvent(Event):
 
 
 class SyncEvent(Event):
-    pass
+    def __init__(self, context=None):
+        super(SyncEvent, self).__init__()
+
+        self.context = context

@@ -301,7 +301,9 @@ class Database(object):
         models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
 
         # initialize the database
-        conn.setup(context)
+        event = orb.events.SyncEvent(context=context)
+        self.__connection.onSync(event)
+
         info = conn.schemaInfo(context)
 
         # create new models

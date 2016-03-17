@@ -67,21 +67,21 @@ class AbstractNumericColumn(Column):
 class DecimalColumn(AbstractNumericColumn):
     TypeMap = {
         'Postgres': 'DECIMAL',
-        'Default': 'DECIMAL UNSIGNED'
+        'SQLite': 'REAL'
     }
 
 
 class FloatColumn(AbstractNumericColumn):
     TypeMap = {
         'Postgres': 'DOUBLE PRECISION',
-        'Default': 'DOUBLE UNSIGNED'
+        'SQLite': 'REAL'
     }
 
 
 class IntegerColumn(AbstractNumericColumn):
     TypeMap = {
         'Postgres': 'INTEGER',
-        'Default': 'INT UNSIGNED'
+        'SQLite': 'INTEGER'
     }
 
     def __init__(self, minimum=None, maximum=None, **kwds):
@@ -97,7 +97,8 @@ class IntegerColumn(AbstractNumericColumn):
 
 class LongColumn(AbstractNumericColumn):
     TypeMap = {
-        'Default': 'BIGINT'
+        'Postgres': 'BIGINT',
+        'SQLite': 'INTEGER'
     }
 
     def __init__(self, minimum=None, maximum=None, **kwds):
