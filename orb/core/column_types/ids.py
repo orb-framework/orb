@@ -1,5 +1,4 @@
 import os
-import random
 
 from projex.lazymodule import lazy_import
 from ..column import Column
@@ -13,10 +12,9 @@ class IdColumn(Column):
         # common to all ID columns
         self.setFlag(self.Flags.Required)
         self.setFlag(self.Flags.Unique)
-        self.setFlag(self.Flags.AutoAssign)
 
         # common to all default IDs
-        if type == 'default':
+        if type != 'hash':
             self.setFlag(self.Flags.AutoAssign)
 
         # set default properties
@@ -50,12 +48,16 @@ class IdColumn(Column):
         if self.type() in {'default', 'numeric'}:
             if typ == 'Postgres':
                 return 'SERIAL'
+            elif typ == 'SQLite':
+                return 'INTEGER'
             else:
                 return 'BIGINT'
 
         elif self.type() == 'hash':
             if typ == 'Postgres':
                 return 'character varying({0})'.format(self.__bits * 2)
+            elif typ == 'SQLite':
+                return 'TEXT'
             else:
                 return 'varchar'
 

@@ -2,3 +2,4 @@
 
 # import the backend SQL implementations
 from .postgres import *
+from .sqlite import *
