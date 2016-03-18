@@ -11,14 +11,15 @@ If you would like to use the latest build that has been tested and published,
 you can use the Python `setuptools` to install it to your computer or virtual
 environment:
 
-    $ pip install orb-api
+    pip install orb-api
 
 If you would like to use the latest code base, you can clone the repository
 and reference and run `setup.py` for your virtual environment
 
-    $ git clone https://github.com/ProjexSoftware/orb.git
-    $ cd orb
-    $ python setup.py develop
+    git clone https://github.com/orb-framework/orb.git
+    cd orb
+    python setup.py develop
 
-Read the [Getting Started](http://projexsoftware.github.io/orb/getting_started.html) page for more information on
-how to use the framework.
+Documentation
+---------
+Documentation for orb is written and hosted in [GitBook](https://www.gitbook.com/book/orb-framework/orb)
