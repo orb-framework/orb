@@ -91,6 +91,15 @@ def test_user_empty_pipe(orb, User):
     grps = user.groups()
     assert len(grps) == 0
 
+def test_empty_collection(orb):
+    coll = orb.Collection()
+
+    assert coll.count() == 0
+    assert coll.records() == []
+    assert coll.first() is None
+    assert coll.last() is None
+    assert coll.ids() == []
+
 # ----
 # Schema Definition
 # ----

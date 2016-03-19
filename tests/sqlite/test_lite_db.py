@@ -1,6 +1,12 @@
 import pytest
 from test_marks import requires_lite
 
+@pytest.mark.run(order=1)
+@requires_lite
+def test_clear_lite_db(lite_db):
+    import os
+    if os.path.exists('orb_testing'):
+        os.remove('orb_testing')
 
 @pytest.mark.run(order=1)
 @requires_lite
