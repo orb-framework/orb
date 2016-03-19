@@ -43,6 +43,7 @@ class Collection(object):
         expand = context.expandtree()
 
         output = {}
+
         use_records = False
 
         if expand.pop('count', None) is not None:
@@ -271,6 +272,9 @@ class Collection(object):
         return self.update([])
 
     def first(self, **context):
+        if self.isNull():
+            return None
+
         context = self.context(**context)
 
         try:
@@ -305,6 +309,9 @@ class Collection(object):
         return self.first(context=context) is not None
 
     def ids(self, **context):
+        if self.isNull():
+            return []
+
         context = self.context(**context)
         try:
             with ReadLocker(self.__cacheLock):
@@ -348,6 +355,9 @@ class Collection(object):
         return CollectionIterator(self, batch)
 
     def last(self, **context):
+        if self.isNull():
+            return None
+
         context = self.context(**context)
         try:
             with ReadLocker(self.__cacheLock):
@@ -391,7 +401,10 @@ class Collection(object):
         if not size:
             return 1
         else:
-            fraction = self.totalCount(**context) / float(size)
+            context['page'] = None
+            context['limit'] = None
+            
+            fraction = self.count(**context) / float(size)
             count = int(fraction)
             if count % 1:
                 count += 1
@@ -408,6 +421,9 @@ class Collection(object):
                 self.__preload[key][context] = value
 
     def records(self, **context):
+        if self.isNull():
+            return []
+
         context = self.context(**context)
 
         try:
@@ -609,6 +625,9 @@ class Collection(object):
         self.__pipe = pipe
 
     def values(self, *columns, **context):
+        if self.isNull():
+            return None
+
         context = self.context(**context)
 
         try:
