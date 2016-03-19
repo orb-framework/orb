@@ -43,6 +43,10 @@ class Collection(object):
         expand = context.expandtree()
 
         output = {}
+
+        if self.isNull():
+            return []
+
         use_records = False
 
         if expand.pop('count', None) is not None:
