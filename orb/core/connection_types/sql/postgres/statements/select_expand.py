@@ -29,14 +29,16 @@ class SELECT_EXPAND(PSQLStatement):
             else:
                 column = schema.column(name, raise_=False)
                 if column:
-                    yield expand_col, column, sub_tree
+                    if not column.testFlag(column.Flags.Virtual):
+                        yield expand_col, column, sub_tree
                 else:
                     collector = schema.collector(name)
                     if collector:
-                        if isinstance(collector, orb.Pipe):
-                            yield expand_pipe, collector, sub_tree
-                        elif isinstance(collector, orb.ReverseLookup):
-                            yield expand_rev, collector, sub_tree
+                        if not collector.testFlag(collector.Flags.Virtual):
+                            if isinstance(collector, orb.Pipe):
+                                yield expand_pipe, collector, sub_tree
+                            elif isinstance(collector, orb.ReverseLookup):
+                                yield expand_rev, collector, sub_tree
                     else:
                         raise orb.errors.ColumnNotFound(schema.name(), name)
 

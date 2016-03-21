@@ -39,6 +39,9 @@ class SELECT(SQLiteStatement):
 
         # process columns to select
         for column in sorted(columns, self.cmpcol):
+            if column.testFlag(column.Flags.Virtual):
+                continue
+
             if column.testFlag(column.Flags.I18n):
                 if context.locale == 'all':
                     sql = u'hstore_agg(hstore(`i18n`.`locale`, `i18n`.`{0}`)) AS `{0}`'
@@ -67,7 +70,7 @@ class SELECT(SQLiteStatement):
         # expand any pipes
         if expand:
             for collector in schema.collectors().values():
-                if collector.name() in expand:
+                if collector.name() in expand and not collector.testFlag(collector.Flags.Virtual):
                     sub_tree = expand.pop(collector.name(), None)
                     if isinstance(collector, orb.Pipe):
                         sql, sub_data = EXPAND_PIPE(collector, sub_tree)

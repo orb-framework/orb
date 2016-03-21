@@ -7,7 +7,7 @@ orb = lazy_import('orb')
 
 
 class Collector(object):
-    Flags = enum('Unique', 'Private')
+    Flags = enum('Unique', 'Private', 'ReadOnly', 'Virtual')
 
     def __json__(self):
         output = {
@@ -16,11 +16,11 @@ class Collector(object):
         }
         return output
 
-    def __init__(self, name='', flags=0):
+    def __init__(self, name='', flags=0, getter=None):
         self.__name = self.__name__ = name
         self.__schema = None
         self.__preload = None
-        self.__getter = None
+        self.__getter = getter
         self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
 
     def __call__(self, record, useGetter=True, **context):
@@ -31,11 +31,14 @@ class Collector(object):
                 return orb.Collection()
             else:
                 collection = self.collect(record, **context)
-                cache = record.preload(projex.text.underscore(self.name()))
-                collection.preload(cache, **context)
+                if isinstance(collection, orb.Collection):
+                    cache = record.preload(projex.text.underscore(self.name()))
+                    collection.preload(cache, **context)
 
-                if self.testFlag(self.Flags.Unique):
-                    return collection.first()
+                    if self.testFlag(self.Flags.Unique):
+                        return collection.first()
+                    else:
+                        return collection
                 else:
                     return collection
 

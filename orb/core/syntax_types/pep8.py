@@ -12,7 +12,7 @@ class PEP8Syntax(Syntax):
             base += '_id'
         return base
 
-    def getter(self, name):
+    def getterName(self, name):
         return 'get_' + projex.text.underscore(name)
 
     def indexdb(self, schema, name):
@@ -21,7 +21,7 @@ class PEP8Syntax(Syntax):
     def schemadb(self, name):
         return projex.text.pluralize(projex.text.underscore(name))
 
-    def setter(self, name):
+    def setterName(self, name):
         return 'set_' + projex.text.underscore(name)
 
 

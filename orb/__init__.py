@@ -28,6 +28,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # import global symbols
+from .decorators import *
 from . import errors
 
 from .core import events

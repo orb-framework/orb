@@ -62,6 +62,9 @@ class BackendNotFound(OrbError):
 class CannotDelete(OrbError):
     pass
 
+class ColumnIsVirtual(OrbError):
+    def __init__(self, column):
+        super(ColumnIsVirtual, self).__init__('Cannot access {0} directly, it is virtual'.format(column))
 
 class ColumnNotFound(OrbError):
     code = 410  # HTTPGone

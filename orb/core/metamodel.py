@@ -27,7 +27,7 @@ class orb_getter_method(object):
         generating column methods on a model.
         """
         self.column = column
-        self.__name__ = column.getter()
+        self.__name__ = column.getterName()
 
     def __call__(self, record, default=None, **context):
         """
@@ -51,7 +51,7 @@ class orb_setter_method(object):
         generating column methods on a model
         """
         self.column = column
-        self.__name__ = column.setter()
+        self.__name__ = column.setterName()
 
     def __call__(self, record, value, **context):
         """
@@ -152,6 +152,11 @@ class MetaModel(type):
             for key, value in attrs.items():
                 if store_property(key, value):
                     attrs.pop(key)
+                elif hasattr(value, '__orb__'):
+                    if isinstance(value.__orb__, orb.Column):
+                        columns[value.__orb__.name()] = value.__orb__
+                    elif isinstance(value.__orb__, orb.Collector):
+                        collectors[value.__orb__.name()] = value.__orb__
 
             # check to see if a schema is already defined
             schema = attrs.pop('__schema__', None)
@@ -199,14 +204,14 @@ class MetaModel(type):
                 column.setSchema(schema)
 
                 # create the getter method
-                getter_name = column.getter()
+                getter_name = column.getterName()
                 if getter_name and not hasattr(new_model, getter_name):
                     gmethod = orb_getter_method(column=column)
                     getter = instancemethod(gmethod, None, new_model)
                     setattr(new_model, getter_name, getter)
 
                 # create the setter method
-                setter_name = column.setter()
+                setter_name = column.setterName()
                 if setter_name and not (column.testFlag(column.Flags.ReadOnly) or hasattr(new_model, setter_name)):
                     smethod = orb_setter_method(column=column)
                     setter = instancemethod(smethod, None, new_model)

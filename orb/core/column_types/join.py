@@ -1,12 +1,13 @@
-from ..column import Column, VirtualColumn
+from ..column import Column
 
 
-class JoinColumn(VirtualColumn):
+class JoinColumn(Column):
     def __init__(self, joiner=None, **kwds):
         super(JoinColumn, self).__init__(**kwds)
 
         # set standard properties
         self.setFlag(Column.Flags.ReadOnly)
+        self.setFlag(Column.Flags.Virtual)
 
         # define custom properties
         self.__joiner = joiner

@@ -22,6 +22,9 @@ class INSERT(SQLiteStatement):
                 i18n = []
                 standard = []
                 for col in schema.columns().values():
+                    if col.testFlag(col.Flags.Virtual):
+                        continue
+
                     if col.testFlag(col.Flags.I18n):
                         i18n.append(col)
                     elif not col.testFlag(col.Flags.AutoAssign):

@@ -21,6 +21,9 @@ class CREATE(SQLiteStatement):
 
         # divide columns between standard and translatable
         for col in model.schema().columns(recurse=False).values():
+            if col.testFlag(col.Flags.Virtual):
+                continue
+
             if not includeReferences and isinstance(col, orb.ReferenceColumn):
                 continue
 
