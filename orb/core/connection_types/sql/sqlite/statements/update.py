@@ -30,6 +30,9 @@ class UPDATE(SQLiteStatement):
         i18n_keys = defaultdict(list)
 
         for column in changes:
+            if column.testFlag(column.Flags.Virtual):
+                continue
+
             if column.testFlag(column.Flags.I18n):
                 for record_locale, value in record.get(column, locale='all').items():
                     value_key = '{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))

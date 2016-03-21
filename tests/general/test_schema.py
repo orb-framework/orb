@@ -37,8 +37,10 @@ def test_empty_user_pipes(EmptyUser):
 # Basic Model Definition
 # ----
 
-def test_user_columns(User):
-    assert len(User.schema().columns()) == 4
+def test_user_columns(orb, User):
+    assert len(User.schema().columns()) == 5
+    assert len(User.schema().columns(flags=orb.Column.Flags.Virtual)) == 1
+    assert len(User.schema().columns(flags=~orb.Column.Flags.Virtual)) == 4
 
 def test_user_indexes(User):
     assert len(User.schema().indexes()) == 1
@@ -100,6 +102,26 @@ def test_empty_collection(orb):
     assert coll.last() is None
     assert coll.ids() == []
 
+def test_virtual_column(orb, User):
+    u = User()
+
+    assert not u.hasGroups()
+
+    has_groups = u.schema().column('has_groups')
+    assert isinstance(has_groups, orb.BooleanColumn)
+    assert has_groups.testFlag(has_groups.Flags.Virtual)
+    assert has_groups.testFlag(has_groups.Flags.ReadOnly)
+
+def test_virtual_collector(orb, User):
+    u = User()
+
+    assert len(u.myGroups()) == 0
+
+    my_groups = u.schema().collector('my_groups')
+    assert my_groups is not None
+    assert my_groups.testFlag(my_groups.Flags.Virtual)
+    assert my_groups.testFlag(my_groups.Flags.ReadOnly)
+
 # ----
 # Schema Definition
 # ----
@@ -110,3 +132,14 @@ def test_schema_name(GroupUser):
     assert schema.display() == 'Group User'
     assert schema.name() == 'GroupUser'
     assert schema.dbname() == 'group_users'
+
+def test_schema_json_export(User):
+    json = User.schema().__json__()
+
+    assert 'columns' in json
+    assert 'collectors' in json
+    assert json['model'] == 'User'
+    assert json['dbname'] == 'users'
+
+    # ensure virtual objects exist
+    assert 'my_groups' in json['collectors']

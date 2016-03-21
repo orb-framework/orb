@@ -27,6 +27,9 @@ class ALTER(SQLiteStatement):
         add_i18n = []
         add_standard = []
         for col in add or []:
+            if col.testFlag(col.Flags.Virtual):
+                continue
+
             if col.testFlag(col.Flags.I18n):
                 add_i18n.append(col)
             else:

@@ -101,7 +101,6 @@ def last_column_record(orb, TestAllColumns):
 
 @pytest.fixture(scope='session')
 def testing_schema(orb):
-
     class Group(orb.Table):
         id = orb.IdColumn()
         name = orb.StringColumn(flags={'Unique'})
@@ -120,6 +119,16 @@ def testing_schema(orb):
 
         groups = orb.Pipe(through='GroupUser', from_='user', to='group')
         userGroups = orb.ReverseLookup(from_column='GroupUser.user')
+
+        @orb.virtual(orb.BooleanColumn)
+        def hasGroups(self):
+            return len(self.groups()) != 0
+
+        @orb.virtual(orb.Collector)
+        def myGroups(self, **context):
+            group_ids = GroupUser.select(where=orb.Query('user') == self).values('group')
+            context['where'] = orb.Query('id').in_(group_ids) & context.get('where')
+            return Group.select(**context)
 
         byUsername = orb.Index(columns=['username'], flags={'Unique'})
 

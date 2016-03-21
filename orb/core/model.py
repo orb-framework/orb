@@ -61,7 +61,7 @@ class Model(object):
             for key, subtree in expand_tree.items():
                 col = schema.column(key, raise_=False)
                 if col:
-                    getter = getattr(self, col.getter())
+                    getter = getattr(self, col.getterName())
                 else:
                     try:
                         getter = getattr(self, key)
@@ -434,8 +434,8 @@ class Model(object):
             context.inflated = False
 
         # call the getter method fot this record if one exists
-        elif useMethod:
-            method = getattr(type(self), col.getter(), None)
+        if useMethod:
+            method = getattr(type(self), col.getterName(), None)
             if method is not None and type(method.im_func).__name__ != 'orb_getter_method':
                 keywords = list(funcutil.extract_keywords(method))
                 kwds = {}
@@ -448,6 +448,10 @@ class Model(object):
                     kwds['inflated'] = context.inflated
 
                 return method(self, **kwds)
+
+        # virtual columns can only be looked up using their method
+        elif col.testFlag(col.Flags.Virtual):
+            raise orb.errors.ColumnIsVirtual(col.name())
 
         # grab the current value
         with ReadLocker(self.__dataLock):
@@ -588,7 +592,7 @@ class Model(object):
         context = self.context(**context)
         if useMethod:
             try:
-                method = getattr(self.__class__, column.setter())
+                method = getattr(self.__class__, column.setterName())
             except AttributeError:
                 pass
             else:

@@ -373,3 +373,11 @@ def test_pg_api_reference_hash_id(orb, Comment, Attachment):
     attachment.save()
 
     assert isinstance(attachment.get('comment_id'), str)
+
+@requires_pg
+def test_pg_expand_virtual(orb, GroupUser, User):
+    gu = GroupUser.select().first().user()
+    u = User.select(where=orb.Query('id') == gu, expand='my_groups.users,groups.users').first()
+    json = u.__json__()
+    assert len(json['groups']) == len(json['my_groups'])
+    assert len(json['groups'][0]['users']) == len(json['my_groups'][0]['users'])

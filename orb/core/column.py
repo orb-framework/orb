@@ -55,8 +55,8 @@ class Column(AddonManager):
                  name=None,
                  field=None,
                  display=None,
-                 getter=None,
-                 setter=None,
+                 getterName=None,
+                 setterName=None,
                  flags=0,
                  default=None,
                  defaultOrder='asc'):
@@ -67,8 +67,8 @@ class Column(AddonManager):
         self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
         self.__default = default
         self.__defaultOrder = defaultOrder
-        self.__getter = getter
-        self.__setter = setter
+        self.__getterName = getterName
+        self.__setterName = setterName
 
         # custom options
         self.__schema = None
@@ -87,8 +87,8 @@ class Column(AddonManager):
             flags=self.__flags,
             default=self.__default,
             defaultOrder=self.__defaultOrder,
-            getter=self.__getter,
-            setter=self.__setter
+            getterName=self.__getterName,
+            setterName=self.__setterName
         )
 
         return out
@@ -224,8 +224,8 @@ class Column(AddonManager):
         """
         return self.__flags
 
-    def getter(self):
-        return self.__getter or orb.system.syntax().getter(self.__name)
+    def getterName(self):
+        return self.__getterName or orb.system.syntax().getterName(self.__name)
 
     def isMemberOf(self, schemas):
         """
@@ -356,8 +356,8 @@ class Column(AddonManager):
         """
         return self.__schema
 
-    def setter(self):
-        return self.__setter or orb.system.syntax().setter(self.__name)
+    def setterName(self):
+        return self.__setterName or orb.system.syntax().setterName(self.__name)
 
     def setDefault(self, default):
         """
@@ -413,6 +413,12 @@ class Column(AddonManager):
 
     def setSchema(self, schema):
         self.__schema = schema
+
+    def setGetterName(self, getterName):
+        self.__getterName = getterName
+
+    def setSetterName(self, setterName):
+        self.__setterName = setterName
 
     def testFlag(self, flag):
         """
@@ -484,12 +490,3 @@ class Column(AddonManager):
             col = col_cls()
             col.loadJSON(jdata)
             return col
-
-
-class VirtualColumn(Column):
-    def __init__(self, **kwds):
-        super(VirtualColumn, self).__init__(**kwds)
-
-        # set default properties
-        self.setFlag(Column.Flags.Virtual, True)
-

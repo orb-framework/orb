@@ -325,7 +325,7 @@ class Database(object):
                 # collect the missing columns and indexes
                 add = defaultdict(list)
                 for col in model.schema().columns(recurse=False).values():
-                    if col.field() not in (model_info['fields'] or []):
+                    if col.field() not in (model_info['fields'] or []) and not col.testFlag(col.Flags.Virtual):
                         add['fields'].append(col)
 
                 for index in model.schema().indexes(recurse=False).values():
