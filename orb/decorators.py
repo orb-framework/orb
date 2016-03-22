@@ -18,10 +18,13 @@ def virtual(cls, **options):
         else:
             options['flags'] = {'Virtual', 'ReadOnly'}
 
-        def define_setter(func):
-            func.__orb__.setFlags(func.__orb__.flags() & ~cls.Flags.ReadOnly)
-            if is_column:
-                func.__orb__.setSetter(func.__name__)
+        def define_setter():
+            def setter_wrapped(setter_func):
+                func.__orb__.setFlags(func.__orb__.flags() & ~cls.Flags.ReadOnly)
+                if is_column:
+                    func.__orb__.setSetterName(setter_func.__name__)
+                return setter_func
+            return setter_wrapped
 
         if is_column:
             options['getterName'] = func.__name__

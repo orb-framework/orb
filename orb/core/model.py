@@ -34,6 +34,13 @@ class Model(object):
         else:
             raise KeyError
 
+    def __setitem__(self, key, value):
+        column = self.schema().column(key)
+        if column is not None:
+            return self.set(key, value)
+        else:
+            raise KeyError
+
     def __json__(self, *args):
         """
         Iterates this object for its values.  This will return the field names from the

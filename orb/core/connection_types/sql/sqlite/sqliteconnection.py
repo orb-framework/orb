@@ -262,7 +262,6 @@ class SQLiteConnection(SQLConnection):
                 'indexes': indexes
             }
 
-        print output
         return output
 
     # ----------------------------------------------------------------------

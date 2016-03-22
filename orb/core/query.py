@@ -813,6 +813,15 @@ class Query(object):
         newq.setValue(value)
         return newq
 
+    def has(self, column):
+        if isinstance(column, orb.Column):
+            if self.__column in (column.field(), column.name()):
+                return True
+            else:
+                return False
+        else:
+            return self.__column == column
+
     def hasShortcuts(self):
         """
         Returns whether or not this widget has shortcuts.
@@ -1364,6 +1373,13 @@ class QueryCompound(object):
                 queries.append(query)
 
         return QueryCompound(*queries, op=self.op())
+
+    def has(self, column):
+        for query in self.__queries:
+            if query.has(column):
+                return True
+        else:
+            return False
 
     def isNull(self):
         """

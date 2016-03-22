@@ -252,7 +252,7 @@ class Context(object):
                 # merge column queries
                 columns = other.columns
                 if columns is not None:
-                    other_context['columns'] = columns + [col for col in other_context.get('columns', []) if not col in columns]
+                    other_context['columns'] = list(columns) + [col for col in other_context.get('columns', []) if not col in columns]
 
         # validate values
         if other_context.get('start') is not None and (type(other_context['start']) != int or other_context['start'] < 0):
