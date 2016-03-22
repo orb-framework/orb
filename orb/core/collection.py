@@ -83,7 +83,10 @@ class Collection(object):
         self.__record = record
         self.__pipe = pipe
 
-        if records is not None:
+        if records is not None and len(records) > 0:
+            if self.__model is None:
+                self.__model = type(records[0])
+
             self.__cache['records'][self.__context] = records
 
     def __len__(self):

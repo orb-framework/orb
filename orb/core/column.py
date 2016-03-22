@@ -69,6 +69,8 @@ class Column(AddonManager):
         self.__defaultOrder = defaultOrder
         self.__getterName = getterName
         self.__setterName = setterName
+        self.__settermethod = None
+        self.__gettermethod = None
 
         # custom options
         self.__schema = None
@@ -224,8 +226,17 @@ class Column(AddonManager):
         """
         return self.__flags
 
+    def getter(self):
+        def wrapped(func):
+            self.__gettermethod = func
+            return func
+        return wrapped
+
     def getterName(self):
         return self.__getterName or orb.system.syntax().getterName(self.__name)
+
+    def gettermethod(self):
+        return self.__gettermethod
 
     def isMemberOf(self, schemas):
         """
@@ -358,6 +369,15 @@ class Column(AddonManager):
 
     def setterName(self):
         return self.__setterName or orb.system.syntax().setterName(self.__name)
+
+    def settermethod(self):
+        return self.__settermethod
+
+    def setter(self):
+        def wrapped(func):
+            self.__settermethod = func
+            return func
+        return wrapped
 
     def setDefault(self, default):
         """
