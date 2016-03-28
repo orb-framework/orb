@@ -775,7 +775,7 @@ class Model(object):
         return record
 
     @classmethod
-    def ensureExists(cls, values, **context):
+    def ensureExists(cls, values, defaults=None, **context):
         """
         Defines a new record for the given class based on the
         inputted set of keywords.  If a record already exists for
@@ -808,6 +808,7 @@ class Model(object):
         if record is None:
             record = cls()
             record.update(values)
+            record.update(defaults or {})
             record.save()
 
         return record

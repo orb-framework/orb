@@ -218,7 +218,7 @@ def test_pg_api_collection_delete_empty(orb, User):
 @requires_pg
 def test_pg_api_collection_has_record(orb, User):
     users = User.all()
-    assert users.hasRecord(User.byUsername('bob'))
+    assert users.has(User.byUsername('bob'))
 
 @requires_pg
 def test_pg_api_collection_iter(orb, User):

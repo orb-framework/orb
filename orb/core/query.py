@@ -54,6 +54,27 @@ class Query(object):
         'DoesNotEndwith'
     )
 
+    NegatedOp = {
+        Op.Is: Op.IsNot,
+        Op.IsNot: Op.Is,
+        Op.LessThan: Op.GreaterThanOrEqual,
+        Op.LessThanOrEqual: Op.GreaterThan,
+        Op.Before: Op.After,
+        Op.GreaterThan: Op.LessThanOrEqual,
+        Op.GreaterThanOrEqual: Op.LessThan,
+        Op.After: Op.Before,
+        Op.Contains: Op.DoesNotContain,
+        Op.DoesNotContain: Op.Contains,
+        Op.Startswith: Op.DoesNotStartwith,
+        Op.Endswith: Op.DoesNotEndwith,
+        Op.Matches: Op.DoesNotMatch,
+        Op.DoesNotMatch: Op.Matches,
+        Op.IsIn: Op.IsNotIn,
+        Op.IsNotIn: Op.IsIn,
+        Op.DoesNotStartwith: Op.Startswith,
+        Op.DoesNotEndwith: Op.Endswith
+    }
+
     Math = enum(
         'Add',
         'Subtract',
@@ -381,7 +402,7 @@ class Query(object):
         """
         return self.isNot(other)
 
-    def __neg__(self):
+    def __invert__(self):
         """
         Negates the values within this query by using the - operator.
         
@@ -1015,7 +1036,7 @@ class Query(object):
         """
         query = self.copy()
         op = self.op()
-        query.setOp(self.NegativeOps.get(op, op))
+        query.setOp(self.NegatedOp.get(op, op))
         query.setValue(self.value())
         return query
 
@@ -1128,7 +1149,10 @@ class Query(object):
         return self.__value
 
     @staticmethod
-    def build(data):
+    def build(data=None, **kwds):
+        data = data or {}
+        data.update(kwds)
+
         if not data:
             return None
         else:
