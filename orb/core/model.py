@@ -34,6 +34,13 @@ class Model(object):
         else:
             raise KeyError
 
+    def __setitem__(self, key, value):
+        column = self.schema().column(key)
+        if column is not None:
+            return self.set(key, value)
+        else:
+            raise KeyError
+
     def __json__(self, *args):
         """
         Iterates this object for its values.  This will return the field names from the
@@ -348,28 +355,6 @@ class Model(object):
         output.update(context)
         return output
 
-    def define(self, column, value, overwrite=False):
-        """
-        Defines the value for this column.  This will set both the current and
-        default value for the column, vs. set which only updates the current value.
-
-        :param column: <orb.Column> || <str>
-        :param value: <variant>
-        :param overwrite: <bool>
-
-        :return: <bool> changed
-        """
-        col = self.schema().column(column)
-        if not col:
-            raise orb.errors.ColumnNotFound(column)
-
-        with WriteLocker(self.__dataLock):
-            if overwrite or not col.name() in self.__values:
-                self.__values[col.name()] = (value, value)
-                return True
-            else:
-                return False
-
     def delete(self, **context):
         """
         Removes this record from the database.  If the dryRun \
@@ -464,15 +449,17 @@ class Model(object):
         return self.get(self.schema().idColumn(), useMethod=False, **context)
 
     def init(self):
-        for column in self.schema().columns().values():
-            if not column.testFlag(column.Flags.Virtual):
-                value = column.default()
-                if column.testFlag(column.Flags.I18n):
-                    value = {self.__context.locale: value}
-                elif column.testFlag(column.Flags.Polymorphic):
-                    value = type(self).__name__
+        columns = self.schema().columns().values()
+        with WriteLocker(self.__dataLock):
+            for column in columns:
+                if column.name() not in self.__values and not column.testFlag(column.Flags.Virtual):
+                    value = column.default()
+                    if column.testFlag(column.Flags.I18n):
+                        value = {self.__context.locale: value}
+                    elif column.testFlag(column.Flags.Polymorphic):
+                        value = type(self).__name__
 
-                self.define(column, value)
+                    self.__values[column.name()] = (value, value)
 
         event = orb.events.InitEvent()
         self.onInit(event)
@@ -592,7 +579,7 @@ class Model(object):
         context = self.context(**context)
         if useMethod:
             try:
-                method = getattr(self.__class__, column.setterName())
+                method = getattr(type(self), col.setterName())
             except AttributeError:
                 pass
             else:
@@ -649,7 +636,7 @@ class Model(object):
             return False
 
     def setId(self, value, **context):
-        return self.get(self.schema().idColumn(), value, useMethod=False, **context)
+        return self.set(self.schema().idColumn(), value, useMethod=False, **context)
 
     def update(self, values, **context):
         # update from value dictionary
@@ -788,7 +775,7 @@ class Model(object):
         return record
 
     @classmethod
-    def ensureExists(cls, values, **context):
+    def ensureExists(cls, values, defaults=None, **context):
         """
         Defines a new record for the given class based on the
         inputted set of keywords.  If a record already exists for
@@ -821,6 +808,7 @@ class Model(object):
         if record is None:
             record = cls()
             record.update(values)
+            record.update(defaults or {})
             record.save()
 
         return record

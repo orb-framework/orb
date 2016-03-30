@@ -54,6 +54,27 @@ class Query(object):
         'DoesNotEndwith'
     )
 
+    NegatedOp = {
+        Op.Is: Op.IsNot,
+        Op.IsNot: Op.Is,
+        Op.LessThan: Op.GreaterThanOrEqual,
+        Op.LessThanOrEqual: Op.GreaterThan,
+        Op.Before: Op.After,
+        Op.GreaterThan: Op.LessThanOrEqual,
+        Op.GreaterThanOrEqual: Op.LessThan,
+        Op.After: Op.Before,
+        Op.Contains: Op.DoesNotContain,
+        Op.DoesNotContain: Op.Contains,
+        Op.Startswith: Op.DoesNotStartwith,
+        Op.Endswith: Op.DoesNotEndwith,
+        Op.Matches: Op.DoesNotMatch,
+        Op.DoesNotMatch: Op.Matches,
+        Op.IsIn: Op.IsNotIn,
+        Op.IsNotIn: Op.IsIn,
+        Op.DoesNotStartwith: Op.Startswith,
+        Op.DoesNotEndwith: Op.Endswith
+    }
+
     Math = enum(
         'Add',
         'Subtract',
@@ -381,7 +402,7 @@ class Query(object):
         """
         return self.isNot(other)
 
-    def __neg__(self):
+    def __invert__(self):
         """
         Negates the values within this query by using the - operator.
         
@@ -813,6 +834,15 @@ class Query(object):
         newq.setValue(value)
         return newq
 
+    def has(self, column):
+        if isinstance(column, orb.Column):
+            if self.__column in (column.field(), column.name()):
+                return True
+            else:
+                return False
+        else:
+            return self.__column == column
+
     def hasShortcuts(self):
         """
         Returns whether or not this widget has shortcuts.
@@ -1006,7 +1036,7 @@ class Query(object):
         """
         query = self.copy()
         op = self.op()
-        query.setOp(self.NegativeOps.get(op, op))
+        query.setOp(self.NegatedOp.get(op, op))
         query.setValue(self.value())
         return query
 
@@ -1119,7 +1149,10 @@ class Query(object):
         return self.__value
 
     @staticmethod
-    def build(data):
+    def build(data=None, **kwds):
+        data = data or {}
+        data.update(kwds)
+
         if not data:
             return None
         else:
@@ -1364,6 +1397,13 @@ class QueryCompound(object):
                 queries.append(query)
 
         return QueryCompound(*queries, op=self.op())
+
+    def has(self, column):
+        for query in self.__queries:
+            if query.has(column):
+                return True
+        else:
+            return False
 
     def isNull(self):
         """

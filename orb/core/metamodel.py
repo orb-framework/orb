@@ -206,14 +206,20 @@ class MetaModel(type):
                 # create the getter method
                 getter_name = column.getterName()
                 if getter_name and not hasattr(new_model, getter_name):
-                    gmethod = orb_getter_method(column=column)
+                    gmethod = column.gettermethod()
+                    if gmethod is None:
+                        gmethod = orb_getter_method(column=column)
+
                     getter = instancemethod(gmethod, None, new_model)
                     setattr(new_model, getter_name, getter)
 
                 # create the setter method
                 setter_name = column.setterName()
                 if setter_name and not (column.testFlag(column.Flags.ReadOnly) or hasattr(new_model, setter_name)):
-                    smethod = orb_setter_method(column=column)
+                    smethod = column.settermethod()
+                    if smethod is None:
+                        smethod = orb_setter_method(column=column)
+
                     setter = instancemethod(smethod, None, new_model)
                     setattr(new_model, setter_name, setter)
 

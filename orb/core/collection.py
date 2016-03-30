@@ -83,7 +83,10 @@ class Collection(object):
         self.__record = record
         self.__pipe = pipe
 
-        if records is not None:
+        if records is not None and len(records) > 0:
+            if self.__model is None:
+                self.__model = type(records[0])
+
             self.__cache['records'][self.__context] = records
 
     def __len__(self):
@@ -94,11 +97,14 @@ class Collection(object):
             yield record
 
     def __getitem__(self, index):
-        record = self.at(index)
-        if not record:
-            raise IndexError(index)
+        if isinstance(index, slice):
+            return self.copy(start=index.start, limit=(index.stop - index.start))
         else:
-            return record
+            record = self.at(index)
+            if not record:
+                raise IndexError(index)
+            else:
+                return record
 
     def _process(self, raw, context):
         if context.inflated and context.returning != 'values':
@@ -132,7 +138,17 @@ class Collection(object):
             record.save()
             return True
         else:
-            raise NotImplementedError
+            try:
+                records = self.__cache['records'][self.__context]
+            except KeyError:
+                if self.__model is None or type(record) == self.__model:
+                    self.__model = type(record)
+                    self.__cache['records'][self.__context] = []
+                else:
+                    raise NotImplementedError
+
+            records.append(record)
+            return True
 
     def at(self, index, **context):
         records = self.records(**context)
@@ -166,7 +182,10 @@ class Collection(object):
         else:
             if self.__source:
                 values.setdefault(self.__source, self.__record)
-            return self.__model.create(values, **context)
+            record = self.__model.create(values, **context)
+            self.add(record)
+
+        return record
 
     def context(self, **context):
         new_context = self.__context.copy()
@@ -302,7 +321,46 @@ class Collection(object):
                     self.__cache['first'][context] = record
                 return record
 
-    def hasRecord(self, record, **context):
+    def grouped(self, *columns, **context):
+        preload = context.pop('preload', False)
+
+        output = {}
+
+        if preload:
+            records = self.records(**context)
+            for record in records:
+                data = output
+                for column in columns[:-1]:
+                    key = record[column]
+                    data.setdefault(key, {})
+                    data = data[key]
+
+                key = record[columns[-1]]
+                data.setdefault(key, orb.Collection())
+                data[key].add(record)
+        else:
+            values = self.values(*columns, **context)
+
+            for value in values:
+                data = output
+                q = orb.Query()
+                for i, column in enumerate(columns[:-1]):
+                    key = value[i]
+                    data.setdefault(key, {})
+                    data = data[key]
+
+                    q &= orb.Query(column) == key
+
+                key = value[-1]
+                q &= orb.Query(columns[-1]) == key
+
+                group_context = context.copy()
+                group_context['where'] = q & group_context.get('where')
+                data.setdefault(key, self.refine(**group_context))
+
+            return output
+
+    def has(self, record, **context):
         context = self.context(**context)
         context.returning = 'values'
         context.columns = ['id']
@@ -377,6 +435,16 @@ class Collection(object):
 
     def model(self):
         return self.__model
+
+    def ordered(self, order):
+        """
+        Return a copy of this collection with the new order sequence.
+
+        :param order:  <str> || (<str>, <str> 'ASC' || 'DESC')
+
+        :return: <orb.Collection>
+        """
+        return self.copy(order=order)
 
     def page(self, number, **context):
         """

@@ -197,3 +197,15 @@ def test_context_paging(orb):
     context = orb.Context(page=3, pageSize=10)
     assert context.start == 20
     assert context.limit == 10
+
+def test_context_scope_merging(orb):
+    with orb.Context(scope={'a': 10}) as a:
+        with orb.Context(scope={'b': 20}) as b:
+            assert a.get('a') == 10
+            assert a.get('b') is None
+            assert b.get('a') == 10
+            assert b.get('b') == 20
+
+        with orb.Context(scope={'a': 20}) as c:
+            assert a.get('a') == 10
+            assert c.get('a') == 20

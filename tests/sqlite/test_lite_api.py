@@ -218,7 +218,7 @@ def test_lite_api_collection_delete_empty(orb, User):
 @requires_lite
 def test_lite_api_collection_has_record(orb, User):
     users = User.all()
-    assert users.hasRecord(User.byUsername('bob'))
+    assert users.has(User.byUsername('bob'))
 
 @requires_lite
 def test_lite_api_collection_iter(orb, User):

@@ -81,9 +81,11 @@ class Context(object):
         :return:  <orb.Context>
         """
         self.pushDefaultContext(self)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.popDefaultContext()
+        return self
 
     def __init__(self, **kwds):
         self.__dict__['raw_values'] = {}
@@ -252,7 +254,7 @@ class Context(object):
                 # merge column queries
                 columns = other.columns
                 if columns is not None:
-                    other_context['columns'] = columns + [col for col in other_context.get('columns', []) if not col in columns]
+                    other_context['columns'] = list(columns) + [col for col in other_context.get('columns', []) if not col in columns]
 
         # validate values
         if other_context.get('start') is not None and (type(other_context['start']) != int or other_context['start'] < 0):
@@ -271,6 +273,13 @@ class Context(object):
         where = other_context.get('where')
         if isinstance(where, dict):
             other_context['where'] = orb.Query.fromJSON(where)
+
+        my_scope = self.raw_values.get('scope')
+        other_scope = other_context.get('scope')
+
+        # merge the two scopes together
+        if my_scope and other_scope:
+            my_scope.update(other_scope)
 
         self.raw_values.update({k: v for k, v in other_context.items() if k in self.Defaults})
 
