@@ -27,6 +27,9 @@ class Model(object):
     __metaclass__ = MetaModel
     __model__ = False
 
+    def __len__(self):
+        return len(self.schema().columns())
+
     def __getitem__(self, key):
         column = self.schema().column(key)
         if column is not None:
