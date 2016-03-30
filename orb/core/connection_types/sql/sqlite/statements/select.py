@@ -10,9 +10,6 @@ class SELECT(SQLiteStatement):
         return cmp(col_a.field(), col_b.field())
 
     def __call__(self, model, context, fields=None):
-        EXPAND_COL = self.byName('SELECT EXPAND COLUMN')
-        EXPAND_PIPE = self.byName('SELECT EXPAND PIPE')
-        EXPAND_REV = self.byName('SELECT EXPAND REVERSE')
         WHERE = self.byName('WHERE')
 
         # generate the where query
@@ -24,8 +21,6 @@ class SELECT(SQLiteStatement):
 
         # determine what to expand
         schema = model.schema()
-        expand = context.expandtree()
-        expanded = bool(expand)
         columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
 
         data = {
@@ -54,35 +49,10 @@ class SELECT(SQLiteStatement):
                 sql_group_by.append(u'`{0}`.`id`'.format(schema.dbname()))
                 fields[column] = u'`i18n`.`{0}`'.format(column.field())
             else:
-                # expand a reference
-                if isinstance(column, orb.ReferenceColumn) and column.name() in expand:
-                    sub_tree = expand.pop(column.name())
-                    sql, sub_data = EXPAND_COL(column, sub_tree)
-                    if sql:
-                        sql_columns['standard'].append(sql)
-                        data.update(sub_data)
-
                 # select the base record
                 sql_columns['standard'].append(u'`{0}`.`{1}` AS `{1}`'.format(schema.dbname(),
                                                                              column.field(),
                                                                              column.field()))
-
-        # expand any pipes
-        if expand:
-            for collector in schema.collectors().values():
-                if collector.name() in expand and not collector.testFlag(collector.Flags.Virtual):
-                    sub_tree = expand.pop(collector.name(), None)
-                    if isinstance(collector, orb.Pipe):
-                        sql, sub_data = EXPAND_PIPE(collector, sub_tree)
-                    elif isinstance(collector, orb.ReverseLookup):
-                        sql, sub_data = EXPAND_REV(collector, sub_tree)
-
-                    if sql:
-                        sql_columns['standard'].append(sql)
-                        data.update(sub_data)
-
-                if not expand:
-                    break
 
         # generate sql ordering
         sql_order_by = []
@@ -137,56 +107,20 @@ class SELECT(SQLiteStatement):
         else:
             data.update(sql_where_data)
 
-        if expanded:
-            if sql_order_by:
-                distinct = u'ON ({0})'.format(', '.join((order.split(' ')[0] for order in sql_order_by)))
-            else:
-                distinct = ''
-
-            cmd.append(u'WHERE `{0}`.`id` IN ('.format(schema.dbname()))
-            cmd.append(u'    SELECT DISTINCT {0} `{1}`.`id`'.format(distinct, schema.dbname()))
-            cmd.append(u'    FROM `{0}`\n'.format(schema.dbname()))
-
-            if sql_columns['i18n']:
-                if context.locale == 'all':
-                    cmd.append(u'    LEFT JOIN `{0}_i18n` AS `i18n` ON (`i18n`.`{0}_id` = `id`)'.format(schema.dbname()))
-                else:
-                    sql = u'LEFT JOIN `{0}_i18n` AS `i18n` ON (`i18n`.`{0}_id` = `id` AND `i18n`.`locale` = %(locale)s)'
-                    cmd.append('    ' + sql.format(schema.dbname()))
-
-            if sql_where:
-                cmd.append(u'    WHERE {0}'.format(sql_where))
-            if sql_group_by:
-                cmd.append(u'    GROUP BY {0}'.format(', '.join(sql_group_by + [order.split(' ')[0] for order in sql_order_by])))
-            if sql_order_by:
-                cmd.append(u'    ORDER BY {0}'.format(', '.join(sql_order_by)))
-            if context.start:
-                if not isinstance(context.limit, (int, long)):
-                    raise orb.errors.DatabaseError('Invalid value provided for start')
-                cmd.append(u'    OFFSET {0}'.format(context.start))
-            if context.limit > 0:
-                if not isinstance(context.limit, (int, long)):
-                    raise orb.errors.DatabaseError('Invalid value provided for limit')
-                cmd.append(u'    LIMIT {0}'.format(context.limit))
-
-            cmd.append(u')')
-            if sql_group_by:
-                cmd.append(u'GROUP BY {0}'.format(', '.join(sql_group_by)))
-        else:
-            if sql_where:
-                cmd.append(u'WHERE {0}'.format(sql_where))
-            if sql_group_by:
-                cmd.append(u'GROUP BY {0}'.format(', '.join(sql_group_by)))
-            if sql_order_by:
-                cmd.append(u'ORDER BY {0}'.format(', '.join(sql_order_by)))
-            if context.start:
-                if not isinstance(context.start, (int, long)):
-                    raise orb.errors.DatabaseError('Invalid value provided for start')
-                cmd.append(u'OFFSET {0}'.format(context.start))
-            if context.limit > 0:
-                if not isinstance(context.limit, (int, long)):
-                    raise orb.errors.DatabaseError('Invalid value provided for limit')
-                cmd.append(u'LIMIT {0}'.format(context.limit))
+        if sql_where:
+            cmd.append(u'WHERE {0}'.format(sql_where))
+        if sql_group_by:
+            cmd.append(u'GROUP BY {0}'.format(', '.join(sql_group_by)))
+        if sql_order_by:
+            cmd.append(u'ORDER BY {0}'.format(', '.join(sql_order_by)))
+        if context.start:
+            if not isinstance(context.start, (int, long)):
+                raise orb.errors.DatabaseError('Invalid value provided for start')
+            cmd.append(u'OFFSET {0}'.format(context.start))
+        if context.limit > 0:
+            if not isinstance(context.limit, (int, long)):
+                raise orb.errors.DatabaseError('Invalid value provided for limit')
+            cmd.append(u'LIMIT {0}'.format(context.limit))
 
         return u'\n'.join(cmd), data
 

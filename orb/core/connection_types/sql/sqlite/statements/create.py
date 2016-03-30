@@ -56,8 +56,6 @@ class CREATE(SQLiteStatement):
             body = '\n\t' + body + '\n'
 
         cmd  = 'CREATE TABLE IF NOT EXISTS `{table}` ({body});\n'
-        if owner:
-            cmd += 'ALTER TABLE `{table}` OWNER TO `{owner}`;'
         cmd = cmd.format(table=model.schema().dbname(), body=body, owner=owner)
 
         # create the i18n model

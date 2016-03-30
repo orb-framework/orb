@@ -7,6 +7,5 @@ from . import enable_internals
 from . import insert
 from . import select
 from . import select_count
-from . import select_expand
 from . import update
 from . import where
