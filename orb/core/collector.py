@@ -10,9 +10,16 @@ class Collector(object):
     Flags = enum('Unique', 'Private', 'ReadOnly', 'Virtual')
 
     def __json__(self):
+        try:
+            model = self.model()
+        except orb.errors.ModelNotFound:
+            model_name = None
+        else:
+            model_name = model.schema().name() if model else None
+
         output = {
             'name': self.__name,
-            'model': self.model().schema().name(),
+            'model': model_name,
             'flags': self.Flags.toSet(self.__flags)
         }
         return output

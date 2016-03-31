@@ -36,15 +36,6 @@ def test_lite_statement_insert_records(orb, User, lite_sql):
 
 @pytest.mark.run(order=2)
 @requires_lite
-def test_lite_statement_expand_column(GroupUser, lite_sql):
-    col = GroupUser.schema().column('user')
-    st = lite_sql.statement('SELECT EXPAND COLUMN')
-    assert st is not None
-
-    statement, data = st(col, {})
-
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_statement_alter(orb, GroupUser, lite_sql):
     add = [orb.StringColumn(name='test_add')]
     remove = [orb.StringColumn(name='test_remove')]

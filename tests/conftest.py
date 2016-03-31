@@ -124,7 +124,7 @@ def testing_schema(orb):
         def hasGroups(self):
             return len(self.groups()) != 0
 
-        @orb.virtual(orb.Collector)
+        @orb.virtual(orb.Collector, model='Group')
         def myGroups(self, **context):
             group_ids = GroupUser.select(where=orb.Query('user') == self).values('group')
             context['where'] = orb.Query('id').in_(group_ids) & context.get('where')
