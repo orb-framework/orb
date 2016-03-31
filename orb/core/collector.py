@@ -12,12 +12,14 @@ class Collector(object):
     def __json__(self):
         output = {
             'name': self.__name,
+            'model': self.model().schema().name(),
             'flags': self.Flags.toSet(self.__flags)
         }
         return output
 
-    def __init__(self, name='', flags=0, getter=None):
+    def __init__(self, name='', flags=0, getter=None, model=None):
         self.__name = self.__name__ = name
+        self.__model = model
         self.__schema = None
         self.__preload = None
         self.__getter = getter
@@ -59,6 +61,16 @@ class Collector(object):
 
     def flags(self):
         return self.__flags
+
+    def model(self):
+        if isinstance(self.__model, (str, unicode)):
+            schema = orb.system.schema(self.__model)
+            if schema is not None:
+                return schema.model()
+            else:
+                raise orb.errors.ModelNotFound(self.__model)
+        else:
+            return self.__model
 
     def name(self):
         return self.__name

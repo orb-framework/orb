@@ -476,7 +476,7 @@ class Collection(object):
             count = int(fraction)
             if count % 1:
                 count += 1
-            return count
+            return max(1, count)
 
     def pipe(self):
         return self.__pipe

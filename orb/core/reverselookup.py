@@ -11,10 +11,11 @@ class ReverseLookup(Collector):
         return output
 
     def __init__(self, reference='', target='', from_column='', **options):
-        super(ReverseLookup, self).__init__(**options)
-
         if from_column:
             reference, _, target = from_column.partition('.')
+
+        options['model'] = reference
+        super(ReverseLookup, self).__init__(**options)
 
         # custom options
         self.__reference = reference

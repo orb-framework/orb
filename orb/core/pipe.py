@@ -73,6 +73,9 @@ class Pipe(Collector):
         col = self.fromColumn()
         return col.referenceModel() if col else None
 
+    def model(self):
+        return self.toModel()
+
     def to(self):
         return self.__to
 
