@@ -159,14 +159,6 @@ class Database(object):
         """
         return self.__connection.isConnected()
 
-    def isThreadEnabled(self):
-        """
-        Returns whether or not threading is enabled for this database.
-        
-        :return     <bool>
-        """
-        return self.__connection.isThreadEnabled()
-
     def timeout(self):
         """
         Returns the maximum number of milliseconds to allow a query to occur before timing it out.

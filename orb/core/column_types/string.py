@@ -2,9 +2,21 @@ import os
 import projex.text
 import random
 import re
+import warnings
 
 from projex.lazymodule import lazy_import
 from ..column import Column
+
+try:
+    from webhelpers.text import strip_tags
+except ImportError:
+    strip_tags = None
+
+try:
+    import bleach
+except ImportError:
+    bleach = None
+
 
 orb = lazy_import('orb')
 
@@ -12,10 +24,35 @@ class AbstractStringColumn(Column):
     MathMap = Column.MathMap.copy()
     MathMap['Default']['Add'] = '||'
 
-    def __init__(self, **kwds):
+    def __init__(self, cleaned=False, **kwds):
         kwds.setdefault('defaultOrder', 'desc')
 
         super(AbstractStringColumn, self).__init__(**kwds)
+
+        self.__cleaned = False
+
+    def clean(self, py_value):
+        """
+        Cleans the value before storing it.
+
+        :param:     py_value : <str>
+
+        :return:    <str>
+        """
+        if strip_tags:
+            py_value = strip_tags(py_value)
+        else:
+            warnings.warn('Unable to clean string column without webhelpers installed.')
+
+        return py_value
+
+    def cleaned(self):
+        """
+        Returns whether or not the column should be cleaned before storing to the database.
+
+        :return:    <bool>
+        """
+        return self.__cleaned
 
     def dbStore(self, typ, py_value):
         """
@@ -27,7 +64,12 @@ class AbstractStringColumn(Column):
         :return: <variant>
         """
         if py_value is not None:
-            return projex.text.decoded(py_value)
+            py_value = projex.text.decoded(py_value)
+
+            if self.cleaned():
+                py_value = self.clean(py_value)
+
+            return py_value
         else:
             return py_value
 
@@ -184,7 +226,20 @@ class FilepathColumn(StringColumn):
 
 
 class HtmlColumn(TextColumn):
-    pass
+    def clean(self, py_value):
+        """
+        Cleans the value before storing it.
+
+        :param:     py_value : <str>
+
+        :return:    <str>
+        """
+        if bleach:
+            py_value = bleach.clean(py_value)
+        else:
+            warnings.warn('Unable to clean string column without webhelpers installed.')
+
+        return py_value
 
 
 class PasswordColumn(StringColumn):
