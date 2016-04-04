@@ -24,12 +24,12 @@ class AbstractStringColumn(Column):
     MathMap = Column.MathMap.copy()
     MathMap['Default']['Add'] = '||'
 
-    def __init__(self, cleaned=False, **kwds):
+    def __init__(self, cleaned=True, **kwds):
         kwds.setdefault('defaultOrder', 'desc')
 
         super(AbstractStringColumn, self).__init__(**kwds)
 
-        self.__cleaned = False
+        self.__cleaned = cleaned
 
     def clean(self, py_value):
         """
@@ -119,7 +119,7 @@ class StringColumn(AbstractStringColumn):
     def __init__(self,
                  maxLength=256,
                  **kwds):
-        super(AbstractStringColumn, self).__init__(**kwds)
+        super(StringColumn, self).__init__(**kwds)
 
         # define custom properties
         self.__maxLength = maxLength
@@ -258,6 +258,7 @@ class PasswordColumn(StringColumn):
         # setup default options
         self.setFlag(self.Flags.Required)
         self.setFlag(self.Flags.Encrypted)
+        self.setFlag(self.Flags.Private)
 
         # define custom properties
         self.__minlength = minlength
@@ -399,7 +400,12 @@ class UrlColumn(StringColumn):
 
 
 class XmlColumn(TextColumn):
-    pass
+    def clean(self, py_value):
+        """
+        No cleaning right now for XML columns.  The strip tags and HTML cleaners will erase
+        options from the text.
+        """
+        return py_value
 
 
 # register string column types
