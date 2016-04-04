@@ -70,7 +70,9 @@ class Model(object):
         if expand_tree:
             for key, subtree in expand_tree.items():
                 col = schema.column(key, raise_=False)
-                if col:
+                if col and col.testFlag(col.Flags.Private):
+                    continue
+                elif col:
                     getter = getattr(self, col.getterName())
                 else:
                     try:

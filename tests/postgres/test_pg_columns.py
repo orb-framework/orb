@@ -23,7 +23,7 @@ TEST_COLOR = '#ffffff'
 TEST_DIRECTORY = '/var/tmp'
 TEST_FILEPATH = '/var/tmp/test.txt'
 TEST_EMAIL = 'bob@test.com'
-TEST_HTML = '<p>something</p>'
+TEST_HTML = '<b>something</b>'
 TEST_URL = 'https://google.com'
 TEST_XML = '<orb version="2016.0.0"></orb>'
 

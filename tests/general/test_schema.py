@@ -53,6 +53,11 @@ def test_user_properties(User):
                         getattr(User, 'setPassword', None) != None,
                         getattr(User, 'byUsername', None) != None)
 
+def test_private_properties(User):
+    u = User()
+    data = u.__json__()
+    assert 'password' not in data
+
 def test_user_make_record(User):
     assert User() is not None
 
