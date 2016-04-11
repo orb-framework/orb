@@ -1,9 +1,6 @@
 import pytest
 
 
-def test_version(orb):
-    assert orb.__version__ != '0.0.0'
-
 # ----
 # Empty Table
 # ----
