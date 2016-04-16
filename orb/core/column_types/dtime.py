@@ -355,7 +355,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
                     extra | <variant>
         """
         if value in ('today', 'now'):
-            return datetime.date.utcnow()
+            return datetime.datetime.utcnow()
         elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:

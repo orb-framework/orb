@@ -354,8 +354,11 @@ class Column(AddonManager):
 
         # store the internationalized property
         if self.testFlag(self.Flags.I18n):
-            context = context or orb.Context()
-            return {context.locale: value}
+            if not isinstance(value, dict):
+                context = context or orb.Context()
+                return {context.locale: value}
+            else:
+                return value
         else:
             return value
 

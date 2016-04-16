@@ -8,62 +8,10 @@ database classes.
 import projex.text
 
 from collections import defaultdict
-from new import instancemethod
+
 from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
-
-
-# ------------------------------------------------------------------------------
-
-class orb_getter_method(object):
-    """ Creates a method for tables to use as a field accessor. """
-
-    def __init__(self, column):
-        """
-        Defines the getter method that will be used when accessing
-        information about a column on a database record.  This
-        class should only be used by the ModelType class when
-        generating column methods on a model.
-        """
-        self.column = column
-        self.__name__ = column.getterName()
-
-    def __call__(self, record, default=None, **context):
-        """
-        Calls the getter lookup method for the database record.
-
-        :param      record      <Table>
-        """
-        return record.get(self.column, default=default, useMethod=False, **context)
-
-
-#------------------------------------------------------------------------------
-
-class orb_setter_method(object):
-    """ Defines a method for setting database fields on a Table instance. """
-
-    def __init__(self, column):
-        """
-        Defines the setter method that will be used when accessing
-        information about a column on a database record.  This
-        class should only be used by the ModelType class when
-        generating column methods on a model
-        """
-        self.column = column
-        self.__name__ = column.setterName()
-
-    def __call__(self, record, value, **context):
-        """
-        Calls the setter method for the inputted database record.
-
-        :param      record      <Table>
-                    value       <variant>
-        """
-        return record.set(self.column, value, useMethod=False, **context)
-
-
-#----------------------------------------------------------------------
 
 
 class MetaModel(type):
@@ -171,10 +119,6 @@ class MetaModel(type):
                     namespace=attrs.pop('__namespace__', ''),
                     flags=attrs.pop('__flags__', 0)
                 )
-                schema.setColumns(columns)
-                schema.setIndexes(indexes)
-                schema.setCollectors(collectors)
-                schema.setViews(views)
 
                 if inherits:
                     inherited_schema = inherits[0].schema()
@@ -182,50 +126,25 @@ class MetaModel(type):
                         schema.setInherits(inherited_schema.name())
 
             new_model = super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
-            setattr(new_model, '_{0}__schema'.format(name), schema)
-
-            # create class methods for indexes
-            for key, index in indexes.items():
-                index.setSchema(schema)
-
-                if not hasattr(new_model, key):
-                    setattr(new_model, key, classmethod(index))
-
-            # create instance methods for collectors
-            for key, collector in collectors.items():
-                collector.setSchema(schema)
-
-                if not hasattr(new_model, key):
-                    collectormethod = instancemethod(collector, None, new_model)
-                    setattr(new_model, key, collectormethod)
-
-            # create instance methods for columns
-            for key, column in columns.items():
-                column.setSchema(schema)
-
-                # create the getter method
-                getter_name = column.getterName()
-                if getter_name and not hasattr(new_model, getter_name):
-                    gmethod = column.gettermethod()
-                    if gmethod is None:
-                        gmethod = orb_getter_method(column=column)
-
-                    getter = instancemethod(gmethod, None, new_model)
-                    setattr(new_model, getter_name, getter)
-
-                # create the setter method
-                setter_name = column.setterName()
-                if setter_name and not (column.testFlag(column.Flags.ReadOnly) or hasattr(new_model, setter_name)):
-                    smethod = column.settermethod()
-                    if smethod is None:
-                        smethod = orb_setter_method(column=column)
-
-                    setter = instancemethod(smethod, None, new_model)
-                    setattr(new_model, setter_name, setter)
 
             # register the class to the system
             setattr(new_model, '_{0}__schema'.format(schema.name()), schema)
             schema.setModel(new_model)
             orb.system.register(schema)
+
+            # create class methods for indexes
+            for index in indexes.values():
+                schema.register(index)
+
+            # create instance methods for collectors
+            for collector in collectors.values():
+                schema.register(collector)
+
+            # create instance methods for columns
+            for column in columns.values():
+                schema.register(column)
+
+            for view in schema.views():
+                schema.register(view)
 
             return new_model

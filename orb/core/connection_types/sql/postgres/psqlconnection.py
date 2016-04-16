@@ -114,7 +114,7 @@ class PSQLConnection(SQLConnection):
             raise orb.errors.ConnectionLost()
 
         # look for integrity errors
-        except (pg.IntegrityError, pg.OperationalError), err:
+        except (pg.IntegrityError, pg.OperationalError) as err:
             try:
                 native.rollback()
             except StandardError:
@@ -145,7 +145,7 @@ class PSQLConnection(SQLConnection):
             raise orb.errors.QueryFailed(command, data, nstr(err))
 
         # connection has closed underneath the hood
-        except pg.Error, err:
+        except (pg.Error, pg.ProgrammingError) as err:
             try:
                 native.rollback()
             except StandardError:

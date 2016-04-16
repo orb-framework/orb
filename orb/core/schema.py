@@ -2,12 +2,64 @@
 
 import logging
 
+from new import instancemethod
 from projex.enum import enum
 from projex.lazymodule import lazy_import
 
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
 errors = lazy_import('orb.errors')
+
+# ------------------------------------------------------------------------------
+
+class orb_getter_method(object):
+    """ Creates a method for tables to use as a field accessor. """
+
+    def __init__(self, column):
+        """
+        Defines the getter method that will be used when accessing
+        information about a column on a database record.  This
+        class should only be used by the ModelType class when
+        generating column methods on a model.
+        """
+        self.column = column
+        self.__name__ = column.getterName()
+
+    def __call__(self, record, default=None, **context):
+        """
+        Calls the getter lookup method for the database record.
+
+        :param      record      <Table>
+        """
+        return record.get(self.column, default=default, useMethod=False, **context)
+
+
+#------------------------------------------------------------------------------
+
+class orb_setter_method(object):
+    """ Defines a method for setting database fields on a Table instance. """
+
+    def __init__(self, column):
+        """
+        Defines the setter method that will be used when accessing
+        information about a column on a database record.  This
+        class should only be used by the ModelType class when
+        generating column methods on a model
+        """
+        self.column = column
+        self.__name__ = column.setterName()
+
+    def __call__(self, record, value, **context):
+        """
+        Calls the setter method for the inputted database record.
+
+        :param      record      <Table>
+                    value       <variant>
+        """
+        return record.set(self.column, value, useMethod=False, **context)
+
+
+#----------------------------------------------------------------------
 
 
 class Schema(object):
@@ -133,6 +185,29 @@ class Schema(object):
 
     def archiveModel(self):
         return self.__archiveModel
+
+    def collector(self, name, recurse=True):
+        """
+        Returns the collector that matches the inputted name.
+
+        :return     <orb.Collector> || None
+        """
+        return self.collectors(recurse=recurse).get(name)
+
+    def collectors(self, recurse=True):
+        """
+        Returns a list of the collectors for this instance.
+
+        :return     [<orb.Collector>, ..]
+        """
+        output = self.__collectors.copy()
+        if recurse and self.inherits():
+            schema = orb.system.schema(self.inherits())
+            if not schema:
+                raise orb.errors.ModelNotFound(self.inherits())
+            else:
+                output.update(schema.collectors(recurse=recurse))
+        return output
 
     def column(self, key, recurse=True, flags=0, raise_=True):
         """
@@ -301,28 +376,52 @@ class Schema(object):
         """
         return self.__namespace
 
-    def collector(self, name, recurse=True):
-        """
-        Returns the collector that matches the inputted name.
+    def register(self, item):
+        key = item.name()
+        model = self.__model
 
-        :return     <orb.Collector> || None
-        """
-        return self.collectors(recurse=recurse).get(name)
+        # create class methods for indexes
+        if isinstance(item, orb.Index):
+            self.__indexes[key] = item
+            item.setSchema(self)
 
-    def collectors(self, recurse=True):
-        """
-        Returns a list of the collectors for this instance.
-        
-        :return     [<orb.Collector>, ..]
-        """
-        output = self.__collectors.copy()
-        if recurse and self.inherits():
-            schema = orb.system.schema(self.inherits())
-            if not schema:
-                raise orb.errors.ModelNotFound(self.inherits())
-            else:
-                output.update(schema.collectors(recurse=recurse))
-        return output
+            if model and not hasattr(model, key):
+                setattr(model, key, classmethod(item))
+
+        # create instance methods for collectors
+        elif isinstance(item, orb.Collector):
+            self.__collectors[key] = item
+            item.setSchema(self)
+
+            if model and not hasattr(model, key):
+                collectormethod = instancemethod(item, None, model)
+                setattr(model, key, collectormethod)
+
+        # create instance methods for columns
+        elif isinstance(item, orb.Column):
+            self.__columns[key] = item
+            item.setSchema(self)
+
+            if model:
+                # create the getter method
+                getter_name = item.getterName()
+                if getter_name and not hasattr(model, getter_name):
+                    gmethod = item.gettermethod()
+                    if gmethod is None:
+                        gmethod = orb_getter_method(column=item)
+
+                    getter = instancemethod(gmethod, None, model)
+                    setattr(model, getter_name, getter)
+
+                # create the setter method
+                setter_name = item.setterName()
+                if setter_name and not (item.testFlag(item.Flags.ReadOnly) or hasattr(model, setter_name)):
+                    smethod = item.settermethod()
+                    if smethod is None:
+                        smethod = orb_setter_method(column=item)
+
+                    setter = instancemethod(smethod, None, model)
+                    setattr(model, setter_name, setter)
 
     def setColumns(self, columns):
         """
