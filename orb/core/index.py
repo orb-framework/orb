@@ -20,7 +20,8 @@ class Index(object):
 
     Flags = enum(
         'Unique',
-        'Private'
+        'Private',
+        'Static'
     )
 
     def __json__(self):
@@ -28,7 +29,7 @@ class Index(object):
             'name': self.__name,
             'dbname': self.__dbname,
             'columns': self.__columns,
-            'flags': self.Flags.toSet(self.__flags),
+            'flags': {k: True for k in self.Flags.toSet(self.__flags)},
             'order': self.__order
         }
         return output

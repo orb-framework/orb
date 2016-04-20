@@ -37,7 +37,8 @@ class Column(AddonManager):
         'I18n',
         'I18n_NoDefault',
         'CaseSensitive',
-        'Virtual'
+        'Virtual',
+        'Static'
     )
 
     def __json__(self):
@@ -46,7 +47,7 @@ class Column(AddonManager):
             'name': self.name(),
             'field': self.field(),
             'display': self.display(),
-            'flags': self.Flags.toSet(self.__flags),
+            'flags': {k: True for k in self.Flags.toSet(self.__flags)},
             'default': self.default()
         }
         return output

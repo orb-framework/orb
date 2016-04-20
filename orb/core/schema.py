@@ -77,7 +77,7 @@ class Schema(object):
             'dbname': self.dbname(),
             'display': self.display(),
             'inherits': self.inherits(),
-            'flags': self.Flags.toSet(self.__flags),
+            'flags': {k: True for k in self.Flags.toSet(self.__flags)},
             'columns': {col['field']: col for col in columns},
             'indexes': {index['name']: index for index in indexes},
             'collectors': {coll['name']: coll for coll in collectors}

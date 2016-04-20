@@ -287,6 +287,10 @@ class Collection(object):
             conn = context.db.connection()
             return conn.delete(remove, context)[1]
 
+    def distinct(self, *columns, **context):
+        context['distinct'] = True
+        return self.values(*columns, **context)
+
     def empty(self):
         return self.update([])
 
@@ -696,7 +700,8 @@ class Collection(object):
         if self.isNull():
             return None
 
-        context = self.context(**context)
+        orig_context = context
+        context = self.context(**orig_context)
 
         try:
             with ReadLocker(self.__cacheLock):
@@ -714,7 +719,18 @@ class Collection(object):
             values = []
             fields = [schema.column(col) for col in columns]
             for record in raw:
-                record_values = [record[field] for field in record]
+                if not context.inflated:
+                    record_values = [record[field.field()] for field in fields]
+                else:
+                    record_values = []
+                    for field in fields:
+                        if isinstance(field, orb.ReferenceColumn):
+                            ref_model = field.referenceModel()
+                            ref_id = record[field.field()]
+                            record_values.append(ref_model(ref_id, **orig_context))
+                        else:
+                            record_values.append(record[field.field()])
+
                 if len(fields) == 1:
                     values.append(record_values[0])
                 else:
@@ -722,5 +738,4 @@ class Collection(object):
 
             with WriteLocker(self.__cacheLock):
                 self.__cache['values'][(context, columns)] = values
-
             return values

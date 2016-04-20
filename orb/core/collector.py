@@ -7,7 +7,7 @@ orb = lazy_import('orb')
 
 
 class Collector(object):
-    Flags = enum('Unique', 'Private', 'ReadOnly', 'Virtual')
+    Flags = enum('Unique', 'Private', 'ReadOnly', 'Virtual', 'Static')
 
     def __json__(self):
         try:
@@ -20,7 +20,7 @@ class Collector(object):
         output = {
             'name': self.__name,
             'model': model_name,
-            'flags': self.Flags.toSet(self.__flags)
+            'flags': {k: True for k in self.Flags.toSet(self.__flags)}
         }
         return output
 

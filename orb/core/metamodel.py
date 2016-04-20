@@ -100,11 +100,23 @@ class MetaModel(type):
             for key, value in attrs.items():
                 if store_property(key, value):
                     attrs.pop(key)
-                elif hasattr(value, '__orb__'):
-                    if isinstance(value.__orb__, orb.Column):
-                        columns[value.__orb__.name()] = value.__orb__
-                    elif isinstance(value.__orb__, orb.Collector):
-                        collectors[value.__orb__.name()] = value.__orb__
+                else:
+                    if isinstance(value, classmethod):
+                        value = value.__func__
+                        is_static = True
+                    else:
+                        is_static = False
+
+                    if hasattr(value, '__orb__'):
+                        # update the static flag when needed
+                        if is_static:
+                            value.__orb__.setFlags(value.__orb__.flags() | value.__orb__.Flags.Static)
+
+                        # store the virtual object
+                        if isinstance(value.__orb__, orb.Column):
+                            columns[value.__orb__.name()] = value.__orb__
+                        elif isinstance(value.__orb__, orb.Collector):
+                            collectors[value.__orb__.name()] = value.__orb__
 
             # check to see if a schema is already defined
             schema = attrs.pop('__schema__', None)
