@@ -69,9 +69,21 @@ class Schema(object):
     Flags = enum('Abstract', 'Archived')
 
     def __json__(self):
-        columns = [col.__json__() for col in self.columns().values() if not col.testFlag(col.Flags.Private)]
+        # make sure we're only exposing desired public data
+        columns = []
+        collectors = []
+        for col in self.columns().values():
+            if not col.testFlag(col.Flags.Private):
+                if not isinstance(col, orb.ReferenceColumn) or getattr(col.referenceModel(), '__resource__', False):
+                    columns.append(col.__json__())
+
+        for coll in self.collectors().values():
+            if not coll.testFlag(coll.Flags.Private):
+                if not coll.model() or getattr(coll.model(), '__resource__', False):
+                    collectors.append(coll.__json__())
+
         indexes = [index.__json__() for index in self.indexes().values() if not index.testFlag(index.Flags.Private)]
-        collectors = [coll.__json__() for coll in self.collectors().values() if not coll.testFlag(coll.Flags.Private)]
+
         output = {
             'model': self.name(),
             'dbname': self.dbname(),

@@ -13,6 +13,7 @@ from projex.lazymodule import lazy_import
 from projex import funcutil
 
 from .metamodel import MetaModel
+from .search import SearchEngine
 
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
@@ -26,6 +27,7 @@ class Model(object):
     # define the table meta class
     __metaclass__ = MetaModel
     __model__ = False
+    __search_engine__ = 'basic'
 
     def __len__(self):
         return len(self.schema().columns())
@@ -844,7 +846,7 @@ class Model(object):
             record = None
 
         schema = cls.schema()
-        polymorphs = schema.columns(flags=orb.Column.Flags.Polymorphic)
+        polymorphs = schema.columns(flags=orb.Column.Flags.Polymorphic).values()
         column = polymorphs[0] if polymorphs else None
 
         # attempt to expand the class to its defined polymorphic type
@@ -869,6 +871,16 @@ class Model(object):
     def schema(cls):
         """  Returns the class object's schema information. """
         return getattr(cls, '_{0}__schema'.format(cls.__name__), None)
+
+    @classmethod
+    def search(cls, terms, **context):
+        if isinstance(cls.__search_engine__, (str, unicode)):
+            engine = SearchEngine.byName(cls.__search_engine__)
+            if not engine:
+                raise orb.errors.InvalidSearch('Could not find {0} search engine'.format(cls.__search_engine__))
+        else:
+            engine = cls.__search_engine__
+        return engine.search(cls, terms, **context)
 
     @classmethod
     def select(cls, **context):

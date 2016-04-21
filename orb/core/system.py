@@ -67,16 +67,31 @@ class System(object):
         for schema in schemas:
             scope[schema.name()] = schema.model()
 
-    def register(self, obj):
+    def register(self, obj, force=False):
         """
         Registers a particular database.
         
         :param      obj     | <orb.Database> || <orb.Schema>
         """
         if isinstance(obj, orb.Database):
-            self.__databases[obj.code()] = obj
+            scope = self.__databases
+            key = obj.code()
         elif isinstance(obj, orb.Schema):
-            self.__schemas[obj.name()] = obj
+            scope = self.__schemas
+            key = obj.name()
+        else:
+            raise orb.errors.OrbError('Unknown object to register: {0}'.format(obj))
+
+        try:
+            existing = self.__schemas[obj.name()]
+        except KeyError:
+            pass
+        else:
+            if existing != obj and not force:
+                raise orb.errors.DuplicateEntryFound('{0} is already a registered {1}.'.format(key, typ))
+
+        scope[key] = obj
+        return True
 
     def model(self, code, autoGenerate=True):
         return self.models(autoGenerate=autoGenerate).get(code)

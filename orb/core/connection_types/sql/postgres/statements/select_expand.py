@@ -184,7 +184,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             'target_table': target.schema().dbname(),
             'target_expand': target_expand,
             'target_records_alias': target_records_alias,
-            'source_table': source.schema().dbname(),
+            'source_table': alias or source.schema().dbname(),
             'source_field': reversed.targetColumn().field(),
             'limit_if_unique': 'LIMIT 1' if reversed.testFlag(reversed.Flags.Unique) else ''
         }
