@@ -51,7 +51,7 @@ class SELECT(PSQLStatement):
                     sql = u'(coalesce((array_agg("i18n"."{0}"))[1], (array_agg("i18n_default"."{0}"))[1])) AS "{0}"'
 
                 sql_columns['i18n'].append(sql.format(column.field()))
-                sql_group_by.add(u'"{0}"."id"'.format(schema.dbname()))
+                sql_group_by.add(u'"{0}"."{1}"'.format(schema.dbname(), schema.idColumn().field()))
                 fields[column] = u'"i18n"."{0}"'.format(column.field())
             else:
                 # expand a reference
@@ -145,8 +145,8 @@ class SELECT(PSQLStatement):
             else:
                 distinct = ''
 
-            cmd.append(u'WHERE "{0}"."id" IN ('.format(schema.dbname()))
-            cmd.append(u'    SELECT DISTINCT {0} "{1}"."id"'.format(distinct, schema.dbname()))
+            cmd.append(u'WHERE "{0}"."{1}" IN ('.format(schema.dbname(), schema.idColumn().field()))
+            cmd.append(u'    SELECT DISTINCT {0} "{1}"."{2}"'.format(distinct, schema.dbname(), schema.idColumn().field()))
             cmd.append(u'    FROM "{0}"\n'.format(schema.dbname()))
 
             if sql_columns['i18n']:

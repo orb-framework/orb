@@ -103,6 +103,7 @@ class Schema(object):
                  inherits='',
                  database='',
                  namespace='',
+                 idColumn='id',
                  flags=0,
                  columns=None,
                  indexes=None,
@@ -116,6 +117,7 @@ class Schema(object):
         self.__inherits = inherits
         self.__display = display
         self.__cache = {}
+        self.__idColumn = idColumn
 
         self.__model = None
         self.__archiveModel = None
@@ -327,10 +329,7 @@ class Schema(object):
         return False
 
     def idColumn(self):
-        for column in self.columns().values():
-            if isinstance(column, orb.IdColumn):
-                return column
-        raise orb.errors.IdNotFound(self.name())
+        return self.column(self.__idColumn)
 
     def index(self, name, recurse=True):
         return self.indexes(recurse=recurse).get(name)

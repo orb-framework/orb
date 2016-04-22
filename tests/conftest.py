@@ -102,6 +102,8 @@ def last_column_record(orb, TestAllColumns):
 @pytest.fixture(scope='session')
 def testing_schema(orb):
     class Group(orb.Table):
+        __resource__ = True
+
         id = orb.IdColumn()
         name = orb.StringColumn(flags={'Unique'})
         owner = orb.ReferenceColumn(reference='User')
@@ -112,6 +114,8 @@ def testing_schema(orb):
         byName = orb.Index(columns=['name'], flags={'Unique'})
 
     class User(orb.Table):
+        __resouce__ = True
+
         id = orb.IdColumn()
         username = orb.StringColumn(flags={'Unique'})
         password = orb.PasswordColumn()

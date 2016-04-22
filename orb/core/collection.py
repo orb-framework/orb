@@ -46,20 +46,20 @@ class Collection(object):
 
         use_records = False
 
-        if expand.pop('count', None) is not None:
+        if expand.pop('count', None) is not None or context.returning == 'count':
             use_records = True
             output['count'] = self.count()
 
-        if expand.pop('ids', None) is not None:
+        if expand.pop('ids', None) is not None or context.returning == 'ids':
             use_records = True
             output['ids'] = self.ids()
 
-        if expand.pop('first', None) is not None:
+        if expand.pop('first', None) is not None or context.returning == 'first':
             use_records = True
             record = self.first()
             output['first'] = record.__json__() if record else None
 
-        if expand.pop('last', None) is not None:
+        if expand.pop('last', None) is not None or context.returning == 'last':
             use_records = True
             record = self.last()
             output['last'] = record.__json__() if record else None

@@ -51,8 +51,15 @@ class WHERE(SQLiteStatement):
             except KeyError:
                 raise orb.errors.QueryInvalid('{0} is an unknown operator'.format(orb.Query.Op(op)))
 
-            if isinstance(value, orb.Model):
-                value = value.id()
+            def convert_value(val):
+                if isinstance(val, orb.Model):
+                    return val.get(val.schema().idColumn(), inflated=False)
+                elif isinstance(val, (tuple, list, set)):
+                    return tuple(convert_value(v) for v in val)
+                else:
+                    return val
+
+            value = convert_value(value)
 
             # convert data from a query
             if isinstance(value, (orb.Query, orb.QueryCompound)):
@@ -104,14 +111,14 @@ class WHERE(SQLiteStatement):
 
                 if column.testFlag(column.Flags.I18n) and column not in fields:
                     model_name = aliases.get(model) or model.schema().dbname()
-                    i18n_sql = u'`{name}`.`id` IN (' \
+                    i18n_sql = u'`{name}`.`{field}` IN (' \
                           u'    SELECT `{name}_id`' \
                           u'    FROM `{name}_i18n`' \
                           u'    WHERE {sub_sql}' \
                           u')'
 
                     sub_sql = sql.replace('`{0}`'.format(model_name), '`{0}_i18n`'.format(model_name))
-                    sql = i18n_sql.format(name=model_name, sub_sql=sub_sql)
+                    sql = i18n_sql.format(name=model_name, sub_sql=sub_sql, field=model.schema().idColumn().field())
 
         return sql, data
 

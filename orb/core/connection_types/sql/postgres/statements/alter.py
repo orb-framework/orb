@@ -59,13 +59,14 @@ class ALTER(PSQLStatement):
                 'table': model.schema().dbname(),
                 'fields': u'\t' + ',\n\t'.join([ADD_COLUMN(col)[0] for col in add_i18n]),
                 'owner': owner,
-                'id_type': id_type
+                'id_type': id_type,
+                'id_field': id_column.field()
             }
 
             i18n_sql = (
                 u'CREATE TABLE IF NOT EXISTS "{table}_i18n" (\n'
                 u'  "locale" CHARACTER VARYING(5),\n'
-                u'  "{table}_id" {id_type} REFERENCES "{table}" ("id") ON DELETE CASCADE,\n'
+                u'  "{table}_id" {id_type} REFERENCES "{table}" ("{id_field}") ON DELETE CASCADE,\n'
                 u'  CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("locale", "{table}_id")\n'
                 u') WITH (OIDS=FALSE);'
                 u'ALTER TABLE "{table}_i18n" OWNER TO "{owner}";'

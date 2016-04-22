@@ -64,6 +64,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
         has_translations = target.schema().hasTranslations()
         target_name = projex.text.underscore(column.name())
         target_alias = '{0}_table'.format(target_name)
+        target_id_field = target.schema().idColumn().field()
 
         # get the base table query
         target_q = target.baseQuery()
@@ -81,10 +82,11 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
         if has_translations:
             target_data = '"{0}".*, "{0}_i18n".*'.format(target_alias)
             target_i18n = u'LEFT JOIN "{target}_i18n" AS "{target_alias}_i18n" ON ' \
-                          u'"{target_alias}"."id" = "{target_alias}_i18n"."{target}_id" AND ' \
+                          u'"{target_alias}"."{target_id_field}" = "{target_alias}_i18n"."{target}_id" AND ' \
                           u'"{target_alias}_i18n"."locale" = %(locale)s'
             target_i18n = target_i18n.format(target=target.schema().dbname(),
-                                           target_alias=target_alias)
+                                             target_alias=target_alias,
+                                             target_id_field=target.schema().idColumn().field())
         else:
             target_data = '"{0}".*'.format(target_alias)
             target_i18n = ''
@@ -98,6 +100,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
             'target_data': target_data,
             'target_expand': target_expand,
             'target_alias': target_alias,
+            'target_id_field': target_id_field,
             'target_base_where': target_base_where,
             'target_target_i18n': target_i18n,
             'target_table': target.schema().dbname(),
@@ -113,7 +116,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
             u'      SELECT {target_data} {target_expand}\n'
             u'      FROM "{target_table}" AS "{target_alias}"\n'
             u'      {target_target_i18n}\n'
-            u'      WHERE {target_base_where} "{target_alias}"."id" = "{source_table}"."{source_field}"\n'
+            u'      WHERE {target_base_where} "{target_alias}"."{target_id_field}" = "{source_table}"."{source_field}"\n'
             u'  ) AS {target_name}_row\n'
             u') AS "{target_name}"'
         ).format(**sql_options)
@@ -149,7 +152,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
 
         # collect keywords
         if 'ids' in tree:
-            target_fields.append(u'array_agg({0}.id) AS ids'.format(target_records_alias))
+            target_fields.append(u'array_agg({0}.{1}) AS ids'.format(target_records_alias, target.schema().idColumn().field()))
         if 'count' in tree:
             target_fields.append(u'count({0}.*) AS count'.format(target_records_alias))
         if 'first' in tree:
@@ -162,7 +165,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
         if has_translations:
             target_data = u'"{target_alias}".*, "{target_alias}_i18n".*'.format(target_alias=target_alias)
             target_i18n = u'LEFT JOIN "{table}_i18n" AS "{target_alias}_i18n" ON ' \
-                          u'"{target_alias}"."id" = "{target_alias}_i18n"."{table}_id" AND ' \
+                          u'"{target_alias}"."{target_id_field}" = "{target_alias}_i18n"."{table}_id" AND ' \
                           u'"{target_alias}_i18n"."locale" = %(locale)s'
             target_i18n = target_i18n.format(target_alias=target_alias,
                                                          table=target.schema().dbname())
@@ -182,10 +185,12 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             'target_base_where': target_base_where,
             'target_fields': u', '.join(target_fields),
             'target_table': target.schema().dbname(),
+            'target_id_field': target.schema().idColumn().field(),
             'target_expand': target_expand,
             'target_records_alias': target_records_alias,
             'source_table': alias or source.schema().dbname(),
             'source_field': reversed.targetColumn().field(),
+            'source_id_field': source.schema().idColumn().field(),
             'limit_if_unique': 'LIMIT 1' if reversed.testFlag(reversed.Flags.Unique) else ''
         }
 
@@ -198,7 +203,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             u'          SELECT {target_data} {target_expand}\n'
             u'          FROM "{target_table}" AS "{target_alias}"\n'
             u'          {target_i18n}\n'
-            u'          WHERE {target_base_where} "{target_alias}"."{source_field}" = "{source_table}"."id"\n'
+            u'          WHERE {target_base_where} "{target_alias}"."{source_field}" = "{source_table}"."{source_id_field}"\n'
             u'          {limit_if_unique}'
             u'      ) AS {target_records_alias}\n'
             u'  ) AS {target_name}_row\n'
@@ -238,7 +243,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
 
         # collect keywords
         if 'ids' in tree:
-            target_fields.append(u'array_agg({0}.id) AS ids'.format(target_records_alias))
+            target_fields.append(u'array_agg({0}.{1}) AS ids'.format(target_records_alias, target.schema().idColumn().field()))
         if 'count' in tree:
             target_fields.append(u'count({0}.*) AS count'.format(target_records_alias))
         if 'first' in tree:
@@ -256,9 +261,10 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         if has_translations:
             target_data = u'"{target_alias}".*, "{target_alias}_i18n".*'.format(target_alias=target_alias)
             target_i18n = u'LEFT JOIN "{table}_i18n" AS "{target_alias}_i18n" ON ' \
-                          u'"{target_alias}"."id" = "{target_alias}_i18n"."{table}_id" AND ' \
+                          u'"{target_alias}"."{target_id_field}" = "{target_alias}_i18n"."{table}_id" AND ' \
                           u'"{target_alias}_i18n"."locale" = %(locale)s'
-            target_i18n = target_i18n.format(target_alias=target_alias, table=target.schema().dbname())
+            target_i18n = target_i18n.format(target_alias=target_alias, table=target.schema().dbname(),
+                                             target_id_field=target.schema().idColumn().field())
         else:
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
@@ -277,9 +283,11 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             'target_table': target.schema().dbname(),
             'target_i18n': target_i18n,
             'through_table': through.schema().dbname(),
+            'target_id_field': target.schema().idColumn().field(),
             'target_field': target_col.field(),
             'target_records_alias': target_records_alias,
             'source_table': alias or source.schema().dbname(),
+            'source_id_field': source.schema().idColumn().field(),
             'source_field': source_col.field(),
             'limit_if_unique': 'LIMIT 1' if pipe.testFlag(pipe.Flags.Unique) else ''
         }
@@ -293,10 +301,10 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             u'          SELECT {target_data} {target_expand}\n'
             u'          FROM "{target_table}" AS "{target_alias}"\n'
             u'          {target_i18n}\n'
-            u'          WHERE {target_base_where} "{target_alias}"."id" IN (\n'
-            u'              SELECT DISTINCT ON (t."id") t."{target_field}"\n'
+            u'          WHERE {target_base_where} "{target_alias}"."{target_id_field}" IN (\n'
+            u'              SELECT DISTINCT ON (t."{target_id_field}") t."{target_field}"\n'
             u'              FROM "{through_table}" AS t\n'
-            u'              WHERE t."{source_field}" = "{source_table}"."id"\n'
+            u'              WHERE t."{source_field}" = "{source_table}"."{source_id_field}"\n'
             u'              {limit_if_unique}\n'
             u'          )\n'
             u'      ) {target_records_alias}\n'

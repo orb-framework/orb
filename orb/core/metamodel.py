@@ -129,7 +129,8 @@ class MetaModel(type):
                     display=attrs.pop('__display__', ''),
                     database=attrs.pop('__database__', ''),
                     namespace=attrs.pop('__namespace__', ''),
-                    flags=attrs.pop('__flags__', 0)
+                    flags=attrs.pop('__flags__', 0),
+                    idColumn = attrs.pop('__id__', 'id')
                 )
 
                 if inherits:

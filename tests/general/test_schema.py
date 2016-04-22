@@ -118,7 +118,7 @@ def test_virtual_collector(orb, User):
     u = User()
 
     assert len(u.myGroups()) == 0
-
+    print u.schema().collectors().keys()
     my_groups = u.schema().collector('my_groups')
     assert my_groups is not None
     assert my_groups.testFlag(my_groups.Flags.Virtual)

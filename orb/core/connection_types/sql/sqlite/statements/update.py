@@ -47,15 +47,16 @@ class UPDATE(SQLiteStatement):
 
 
         id_key = 'id_' + os.urandom(4).encode('hex')
-        data[id_key] = record.id()
+        data[id_key] = record.get(record.schema().idColumn())
 
         sql = []
         if standard_values:
             standard_sql = (
                 u'UPDATE `{table}`\n'
                 u'SET {values}\n'
-                u'WHERE `{table}`.`id` = %({id})s;'
-            ).format(table=record.schema().dbname(), id=id_key, values=', '.join(standard_values))
+                u'WHERE `{table}`.`{field}` = %({id})s;'
+            ).format(table=record.schema().dbname(), id=id_key,
+                     values=', '.join(standard_values), field=record.schema().idColumn().field())
             sql.append(standard_sql)
 
         if i18n_fields:

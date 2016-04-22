@@ -6,7 +6,6 @@ class ShortcutColumn(Column):
 
         # set standard properties
         self.setFlag(Column.Flags.ReadOnly)
-        self.setFlag(Column.Flags.Virtual)
 
         # define custom properties
         self.__shortcut = shortcut
