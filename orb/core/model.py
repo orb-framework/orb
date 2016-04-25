@@ -410,47 +410,56 @@ class Model(object):
 
         :return     <variant>
         """
-        context = self.context(**context)
+        if isinstance(column, (str, unicode)) and '.' in column:
+            parts = column.split('.')
+            sub_context = context.copy()
+            sub_context['inflated'] = True
+            value = self
+            for part in parts[:-1]:
+                value = value.get(part, default=default, useMethod=useMethod, **sub_context)
+            return value.get(parts[-1], default=default, useMethod=useMethod, **context)
+        else:
+            context = self.context(**context)
 
-        # normalize the given column
-        col = self.schema().column(column)
-        if not col:
-            collector = self.schema().collector(column)
-            if collector:
-                return collector.get(self, **context)
-            else:
-                raise errors.ColumnNotFound(self.schema().name(), column)
+            # normalize the given column
+            col = self.schema().column(column, raise_=False)
+            if not col:
+                collector = self.schema().collector(column)
+                if collector:
+                    return collector.collect(self, context=context)
+                else:
+                    raise errors.ColumnNotFound(self.schema().name(), column)
 
-        # don't inflate if the requested value is a field
-        if column == col.field():
-            context.inflated = False
+            # don't inflate if the requested value is a field
+            if column == col.field():
+                context.inflated = False
 
-        # call the getter method fot this record if one exists
-        if useMethod:
-            method = getattr(type(self), col.getterName(), None)
-            if method is not None and type(method.im_func).__name__ != 'orb_getter_method':
-                keywords = list(funcutil.extract_keywords(method))
-                kwds = {}
+            # call the getter method fot this record if one exists
+            if useMethod:
+                method = getattr(type(self), col.getterName(), None)
+                if method is not None and type(method.im_func).__name__ != 'orb_getter_method':
+                    keywords = list(funcutil.extract_keywords(method))
+                    kwds = {}
 
-                if 'locale' in keywords:
-                    kwds['locale'] = context.locale
-                if 'default' in keywords:
-                    kwds['default'] = default
-                if 'inflated' in keywords:
-                    kwds['inflated'] = context.inflated
+                    if 'locale' in keywords:
+                        kwds['locale'] = context.locale
+                    if 'default' in keywords:
+                        kwds['default'] = default
+                    if 'inflated' in keywords:
+                        kwds['inflated'] = context.inflated
 
-                return method(self, **kwds)
+                    return method(self, **kwds)
 
-        # virtual columns can only be looked up using their method
-        elif col.testFlag(col.Flags.Virtual):
-            raise orb.errors.ColumnIsVirtual(col.name())
+            # virtual columns can only be looked up using their method
+            elif col.testFlag(col.Flags.Virtual):
+                raise orb.errors.ColumnIsVirtual(col.name())
 
-        # grab the current value
-        with ReadLocker(self.__dataLock):
-            _, value = self.__values.get(col.name(), (None, None))
+            # grab the current value
+            with ReadLocker(self.__dataLock):
+                _, value = self.__values.get(col.name(), (None, None))
 
-        # return a reference when desired
-        return col.restore(value, context)
+            # return a reference when desired
+            return col.restore(value, context)
 
     def id(self, **context):
         return self.get(self.schema().idColumn(), useMethod=False, **context)
