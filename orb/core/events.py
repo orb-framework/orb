@@ -1,3 +1,6 @@
+import orb
+
+
 class Event(object):
     def __init__(self):
         self.preventDefault = False
@@ -16,6 +19,20 @@ class ChangeEvent(Event):
         self.column = column
         self.old = old
         self.value = value
+
+    @property
+    def inflated_value(self):
+        if isinstance(self.column, orb.ReferenceColumn):
+            model = self.column.referenceModel()
+            if not isinstance(self.value, model):
+                return model(self.value)
+
+    @property
+    def inflated_old_value(self):
+        if isinstance(self.column, orb.ReferenceColumn):
+            model = self.column.referenceModel()
+            if not isinstance(self.old, model):
+                return model(self.old)
 
 class InitEvent(Event):
     pass

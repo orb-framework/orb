@@ -66,7 +66,7 @@ class Schema(object):
     """ 
     Contains meta data information about a table as it maps to a database.
     """
-    Flags = enum('Abstract', 'Archived')
+    Flags = enum('Abstract')
 
     def __json__(self):
         # make sure we're only exposing desired public data
@@ -107,8 +107,7 @@ class Schema(object):
                  flags=0,
                  columns=None,
                  indexes=None,
-                 collectors=None,
-                 views=None):
+                 collectors=None):
         self.__name = name
         self.__dbname = dbname or orb.system.syntax().schemadb(name)
         self.__database = database
@@ -120,12 +119,9 @@ class Schema(object):
         self.__idColumn = idColumn
 
         self.__model = None
-        self.__archiveModel = None
-
         self.__columns = columns or {}
         self.__indexes = indexes or {}
         self.__collectors = collectors or {}
-        self.__views = views or {}
 
     def __cmp__(self, other):
         # check to see if this is the same instance
@@ -196,9 +192,6 @@ class Schema(object):
         """
         collector.setSchema(self)
         self.__collectors[collector.name()] = collector
-
-    def archiveModel(self):
-        return self.__archiveModel
 
     def collector(self, name, recurse=True):
         """
@@ -519,18 +512,6 @@ class Schema(object):
         """
         self.__dbname = dbname
 
-    def setViews(self, views):
-        """
-        Adds a new view to this schema.  Views provide pre-built dynamically joined tables that can
-        give additional information to a table.
-
-        :param      name | <str>
-                    view | <orb.View>
-        """
-        self.__views = {}
-        for view in views:
-            self.__views[view.name()] = view
-
     def dbname(self):
         """
         Returns the name that will be used for the table in the database.
@@ -538,19 +519,3 @@ class Schema(object):
         :return     <str>
         """
         return self.__dbname
-
-    def views(self, recurse=True):
-        """
-        Returns the view for this schema that matches the given name.
-
-        :return     <orb.View> || None
-        """
-        output = self.__views.copy()
-        if recurse and self.inherits():
-            schema = orb.system.schema(self.inherits())
-            if not schema:
-                raise orb.errors.ModelNotFound(self.inherits())
-            else:
-                output.update(schema.views(recurse=recurse))
-        return output
-

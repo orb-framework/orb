@@ -226,6 +226,11 @@ class FilepathColumn(StringColumn):
 
 
 class HtmlColumn(TextColumn):
+    def __init__(self, bleachOptions=None, **kwds):
+        super(HtmlColumn, self).__init__(**kwds)
+
+        self.__bleachOptions = bleachOptions or {}
+
     def clean(self, py_value):
         """
         Cleans the value before storing it.
@@ -235,7 +240,7 @@ class HtmlColumn(TextColumn):
         :return:    <str>
         """
         if bleach:
-            py_value = bleach.clean(py_value)
+            py_value = bleach.clean(py_value, **self.__bleachOptions)
         else:
             warnings.warn('Unable to clean string column without webhelpers installed.')
 

@@ -209,13 +209,17 @@ class SQLConnection(orb.Connection):
         """
         CREATE = self.statement('CREATE')
         sql, data = CREATE(model, includeReferences=includeReferences, owner=owner)
-        if context.dryRun:
-            print sql % data
+        if not sql:
+            log.error('Failed to create {0}'.format(model.schema().dbname()))
+            return False
         else:
-            self.execute(sql, data, writeAccess=True)
+            if context.dryRun:
+                print sql % data
+            else:
+                self.execute(sql, data, writeAccess=True)
 
-        log.info('Created {0}'.format(model.schema().dbname()))
-        return True
+            log.info('Created {0}'.format(model.schema().dbname()))
+            return True
 
     def delete(self, records, context):
         """

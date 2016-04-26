@@ -13,6 +13,9 @@ class CREATE(PSQLStatement):
         else:
             raise orb.errors.OrbError('Cannot create model for type: '.format(type(model)))
 
+    def _createView(self, model, owner, includeReferences):
+        return '', {}
+
     def _createTable(self, model, owner, includeReferences):
         ADD_COLUMN = self.byName('ADD COLUMN')
 
