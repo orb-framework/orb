@@ -573,75 +573,82 @@ class Collection(object):
         # clean up the records for removal
         if isinstance(records, dict):
             if 'ids' in records:
-                ids = records.get('ids')
+                return self.update(records['ids'])
             elif 'records' in records:
-                ids = [r.get('id') for r in records['records'] if r.get('id')]
+                return self.update(records['records'])
+            else:
+                raise orb.errors.OrbError('Invalid input for collection update: {0}'.format(records))
+        else:
+            if isinstance(records, (list, set, tuple)):
+                ids = []
+                for record in records:
+                    if isinstance(record, dict):
+                        record_id = record.pop(self.__model.schema().idColumn().name(), None)
+                        if not record_id:
+                            record = self.__model.create(record, **context)
+
+                    if isinstance(record, orb.Model):
+                        ids.append(record.id())
+                    else:
+                        ids.append(record)
+
+            elif isinstance(records, orb.Collection):
+                ids = records.ids()
+
             else:
                 raise orb.errors.OrbError('Invalid input for collection update: {0}'.format(records))
 
-        elif isinstance(records, (list, set, tuple)):
-            ids = []
-            for record in records:
-                if isinstance(record, orb.Model):
-                    ids.append(record.id())
-                else:
-                    ids.append(record)
+            # update a pipe
+            if self.__pipe:
+                through = self.__pipe.throughModel()
+                pipe = self.__pipe
+                curr_ids = self.ids()
 
-        elif isinstance(records, orb.Collection):
-            ids = records.ids()
+                remove_ids = set(curr_ids) - set(ids)
+                add_ids = set(ids) - set(curr_ids)
 
-        else:
-            raise orb.errors.OrbError('Invalid input for collection update: {0}'.format(records))
+                # remove old records
+                if remove_ids:
+                    q  = orb.Query(through, pipe.from_()) == self.__record
+                    q &= orb.Query(through, pipe.to()).in_(remove_ids)
+                    through.select(where=q).delete()
 
-        # update a pipe
-        if self.__pipe:
-            through = self.__pipe.throughModel()
-            pipe = self.__pipe
-            curr_ids = self.ids()
+                # create new records
+                if add_ids:
+                    collection = orb.Collection([through({pipe.from_(): self.__record, pipe.to(): id})
+                                                 for id in add_ids])
+                    collection.save()
 
-            remove_ids = set(curr_ids) - set(ids)
-            add_ids = set(ids) - set(curr_ids)
+                return self.records()
 
-            # remove old records
-            if remove_ids:
-                q  = orb.Query(through, pipe.from_()) == self.__record
-                q &= orb.Query(through, pipe.to()).in_(remove_ids)
-                through.select(where=q).delete()
+            # udpate a reverse lookup
+            elif self.__source:
+                model = self.__source.schema().model()
 
-            # create new records
-            if add_ids:
-                collection = orb.Collection([through({pipe.from_(): self.__record, pipe.to(): id})
-                                             for id in add_ids])
-                collection.save()
+                q = orb.Query(self.__source) == self.__record
+                if ids:
+                    q &= orb.Query(model).notIn(ids)
 
-            return len(add_ids), len(remove_ids)
-
-        # udpate a reverse lookup
-        elif self.__source:
-            model = self.__source.schema().model()
-
-            q = orb.Query(self.__source) == self.__record
-            if ids:
-                q &= orb.Query(model).notIn(ids)
-
-            # determine the reverse lookups to remove from this collection
-            remove = model.select(where=q, **context)
-            for record in remove:
-                record.set(self.__source, None)
-                record.save()
-
-            # determine the new records to add to this collection
-            if ids:
-                q  = orb.Query(model).in_(ids)
-                q &= (orb.Query(self.__source) != self.__record) | (orb.Query(self.__source) == None)
-
-                add = model.select(where=q)
-                for record in add:
-                    record.set(self.__source, self.__record)
+                # determine the reverse lookups to remove from this collection
+                remove = model.select(where=q, **context)
+                for record in remove:
+                    record.set(self.__source, None)
                     record.save()
 
-        else:
-            raise NotImplementedError
+                # determine the new records to add to this collection
+                if ids:
+                    q  = orb.Query(model).in_(ids)
+                    q &= (orb.Query(self.__source) != self.__record) | (orb.Query(self.__source) == None)
+
+                    add = model.select(where=q)
+                    for record in add:
+                        record.set(self.__source, self.__record)
+                        record.save()
+
+                return self.records()
+
+            else:
+                raise NotImplementedError
 
     def save(self, **context):
         records = self.records(**context)

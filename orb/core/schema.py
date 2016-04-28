@@ -25,13 +25,13 @@ class orb_getter_method(object):
         self.column = column
         self.__name__ = column.getterName()
 
-    def __call__(self, record, default=None, **context):
+    def __call__(self, record, **context):
         """
         Calls the getter lookup method for the database record.
 
         :param      record      <Table>
         """
-        return record.get(self.column, default=default, useMethod=False, **context)
+        return record.get(self.column, useMethod=False, **context)
 
 
 #------------------------------------------------------------------------------
@@ -285,6 +285,8 @@ class Schema(object):
                     if not schema:
                         raise orb.errors.ModelNotFound(inherits)
                     else:
+                        # lookup ancestor columns (don't care about virtual columns)
+                        flags = (flags & ~orb.Column.Flags.Virtual) if flags else ~orb.Column.Flags.Virtual
                         ancest_columns = schema.columns(recurse=recurse, flags=flags)
                         dups = set(ancest_columns.keys()).intersection(output.keys())
                         if dups:

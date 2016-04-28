@@ -50,7 +50,6 @@ class MetaModel(type):
             columns = {}
             indexes = {}
             collectors = {}
-            views = {}
 
             def store_property(key, value):
                 if isinstance(value, orb.Column):
@@ -70,14 +69,6 @@ class MetaModel(type):
                     collector.setName(key)
                     collectors[key] = collector
                     return True
-
-                else:
-                    try:
-                        if issubclass(value, orb.View):
-                            views[key] = value
-                            return True
-                    except TypeError:
-                        pass
 
                 return False
 
@@ -156,8 +147,5 @@ class MetaModel(type):
             # create instance methods for columns
             for column in columns.values():
                 schema.register(column)
-
-            for view in schema.views():
-                schema.register(view)
 
             return new_model

@@ -27,7 +27,6 @@ class Column(AddonManager):
 
     Flags = enum(
         'ReadOnly',
-        'Private',
         'Polymorphic',
         'AutoAssign',
         'Required',
@@ -38,7 +37,10 @@ class Column(AddonManager):
         'I18n_NoDefault',
         'CaseSensitive',
         'Virtual',
-        'Static'
+        'Static',
+        'Protected',
+        'Private',
+        'RequiresExpand'
     )
 
     def __json__(self):

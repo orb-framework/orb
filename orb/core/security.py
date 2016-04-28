@@ -1,4 +1,6 @@
 import projex.security
+
+from projex.enum import enum
 from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
@@ -23,3 +25,4 @@ class Security(object):
 
     def setKey(self, key):
         self.__key = key
+

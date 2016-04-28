@@ -125,7 +125,7 @@ def testing_schema(orb):
         userGroups = orb.ReverseLookup(from_column='GroupUser.user')
 
         @orb.virtual(orb.BooleanColumn)
-        def hasGroups(self):
+        def hasGroups(self, **context):
             return len(self.groups()) != 0
 
         @orb.virtual(orb.Collector, model='Group')

@@ -28,6 +28,7 @@ class Model(object):
     __metaclass__ = MetaModel
     __model__ = False
     __search_engine__ = 'basic'
+    __auth__ = None
 
     def __len__(self):
         return len(self.schema().columns())
@@ -60,9 +61,19 @@ class Model(object):
         context = self.context()
 
         # hide private columns
+        def _allowed(columns=None, context=None):
+            return not columns[0].testFlag(columns[0].Flags.Private)
+
+        auth = self.__auth__ if callable(self.__auth__) else _allowed
+
         schema = self.schema()
-        columns = [schema.column(x) for x in context.columns] if context.columns else schema.columns().values()
-        columns = [x for x in columns if x and not x.testFlag(x.Flags.Private)]
+
+        if context.columns:
+            columns = [schema.column(x) for x in context.columns]
+        else:
+            columns = schema.columns(flags=~orb.Column.Flags.RequiresExpand).values()
+
+        columns = [x for x in columns if x and auth(columns=(x,), context=context)]
 
         # simple json conversion
         output = self.values(key='field', columns=columns, inflated=False)
@@ -400,7 +411,7 @@ class Model(object):
 
         return count
 
-    def get(self, column, default=None, useMethod=True, **context):
+    def get(self, column, useMethod=True, **context):
         """
         Returns the value for the column for this record.
 
@@ -416,10 +427,17 @@ class Model(object):
             sub_context['inflated'] = True
             value = self
             for part in parts[:-1]:
-                value = value.get(part, default=default, useMethod=useMethod, **sub_context)
-            return value.get(parts[-1], default=default, useMethod=useMethod, **context)
+                if not value:
+                    return None
+                value = value.get(part, useMethod=useMethod, **sub_context)
+            if value:
+                return value.get(parts[-1], useMethod=useMethod, **context)
+            else:
+                return None
         else:
-            context = self.context(**context)
+            my_context = self.context()
+            context.setdefault('scope', my_context.scope)
+            sub_context = orb.Context(**context)
 
             # normalize the given column
             col = self.schema().column(column, raise_=False)
@@ -432,23 +450,13 @@ class Model(object):
 
             # don't inflate if the requested value is a field
             if column == col.field():
-                context.inflated = False
+                sub_context.inflated = False
 
             # call the getter method fot this record if one exists
             if useMethod:
                 method = getattr(type(self), col.getterName(), None)
                 if method is not None and type(method.im_func).__name__ != 'orb_getter_method':
-                    keywords = list(funcutil.extract_keywords(method))
-                    kwds = {}
-
-                    if 'locale' in keywords:
-                        kwds['locale'] = context.locale
-                    if 'default' in keywords:
-                        kwds['default'] = default
-                    if 'inflated' in keywords:
-                        kwds['inflated'] = context.inflated
-
-                    return method(self, **kwds)
+                    return method(self, context=sub_context)
 
             # virtual columns can only be looked up using their method
             elif col.testFlag(col.Flags.Virtual):
@@ -459,7 +467,7 @@ class Model(object):
                 _, value = self.__values.get(col.name(), (None, None))
 
             # return a reference when desired
-            return col.restore(value, context)
+            return col.restore(value, sub_context)
 
     def id(self, **context):
         return self.get(self.schema().idColumn(), useMethod=False, **context)
@@ -525,10 +533,6 @@ class Model(object):
 
         :return     <bool> success
         """
-        # check to see if we have any modifications to store
-        if not (self.isModified() and self.validate()):
-            return False
-
         if values is not None:
             self.update(values, **context)
 
@@ -542,6 +546,10 @@ class Model(object):
         self.onPreSave(event)
         if event.preventDefault:
             return event.result
+
+        # check to see if we have any modifications to store
+        if not (self.isModified() and self.validate()):
+            return False
 
         conn = context.db.connection()
         if not self.isRecord():
@@ -582,7 +590,8 @@ class Model(object):
             # allow setting of pipes as well
             collector = self.schema().collector(column)
             if collector:
-                return collector.collect(self, **context).update(value, **context)
+                records = collector.collect(self, **context)
+                return records.update(value, **context)
             else:
                 raise errors.ColumnNotFound(self.schema().name(), column)
 
@@ -616,7 +625,11 @@ class Model(object):
                 new_value.update(value)
                 value = new_value
 
-            change = curr != value
+            try:
+                change = curr != value
+            except TypeError:
+                change = True
+
             if change:
                 self.__values[col.name()] = (orig, value)
 
@@ -671,7 +684,8 @@ class Model(object):
 
         :return     <bool>
         """
-        values = self.values(key='column')
+        columns = self.schema().columns(flags=~(orb.Column.Flags.Virtual | orb.Column.Flags.ReadOnly)).values()
+        values = self.values(key='column', columns=columns)
         for col, value in values.items():
             if not col.validate(value):
                 return False
@@ -764,24 +778,33 @@ class Model(object):
 
         :return    <orb.Table>
         """
-        # extract additional options for return
-        expand = [item for item in values.pop('expand', '').split(',') if item]
-        context.setdefault('expand', expand)
-
         schema = cls.schema()
+        model = cls
+
+        # check for creating inherited classes from a sub class
+        polymorphic_columns = schema.columns(flags=orb.Column.Flags.Polymorphic)
+        if polymorphic_columns:
+            polymorphic_column = polymorphic_columns.values()[0]
+            schema_name = values.get(polymorphic_column.name(), polymorphic_column)
+            if schema_name and schema_name != schema.name():
+                schema = orb.system.schema(schema_name)
+                if not schema:
+                    raise orb.errors.ModelNotFound(schema_name)
+                else:
+                    model = schema.model()
 
         column_values = {}
         collector_values = {}
 
         for key, value in values.items():
-            obj = schema.collector(key) or key
+            obj = schema.collector(key) or schema.column(key)
             if isinstance(obj, orb.Collector):
                 collector_values[key] = value
             else:
                 column_values[key] = value
 
         # create the new record with column values (values stored on this record)
-        record = cls(context=orb.Context(**context))
+        record = model(context=orb.Context(**context))
         record.update(column_values)
         record.save()
 
@@ -867,8 +890,6 @@ class Model(object):
                     record = morph_cls(values['id'], context=context)
                 except KeyError:
                     raise orb.errors.RecordNotFound(morph_cls, values.get('id'))
-            elif not morph_cls:
-                raise orb.errors.ModelNotFound(morph_cls_name)
 
         if record is None:
             event = orb.events.LoadEvent(values)

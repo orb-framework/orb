@@ -110,7 +110,7 @@ class SearchEngine(AddonManager):
         if general_nodes:
             expr = u'.*\s{0}'
             pattern = u'(^|.*\s){0}'.format(general_nodes[0].pattern(self.__thesaurus, locale))
-            pattern += ''.join(expr.format(node.pattern(self.__thewaurus, locale)) for node in general_nodes[1:])
+            pattern += ''.join(expr.format(node.pattern(self.__thesaurus, locale)) for node in general_nodes[1:])
 
             general_q = orb.Query()
             searchable_columns = model.schema().columns(flags=orb.Column.Flags.Searchable).values()

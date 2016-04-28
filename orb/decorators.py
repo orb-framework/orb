@@ -14,7 +14,7 @@ def virtual(cls, **options):
                 options['flags'].add('Virtual')
                 options['flags'].add('ReadOnly')
             else:
-                options['flags'] &= (cls.Flags.Virtual & cls.Flags.ReadOnly)
+                options['flags'] |= (cls.Flags.Virtual | cls.Flags.ReadOnly)
         else:
             options['flags'] = {'Virtual', 'ReadOnly'}
 

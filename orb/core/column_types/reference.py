@@ -53,7 +53,7 @@ class ReferenceColumn(Column):
             model = self.referenceModel()
 
             if not isinstance(value, model):
-                return model.fetch(value)
+                return model.fetch(value, context=context)
             else:
                 return value
         else:
