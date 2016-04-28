@@ -5,5 +5,4 @@ from .ids import *
 from .join import *
 from .numeric import *
 from .reference import *
-from .shortcut import *
 from .string import *

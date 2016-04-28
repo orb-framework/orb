@@ -308,7 +308,13 @@ class Database(object):
 
         # second pass will ensure that ll columns, including references
         # will be generated
+        views = []
+
         for model in models:
+            if issubclass(model, orb.View):
+                views.append(model)
+                continue
+
             try:
                 model_info = info[model.schema().dbname()]
             except KeyError:
@@ -331,6 +337,12 @@ class Database(object):
             # call the sync event
             event = orb.events.SyncEvent()
             model.onSync(event)
+
+        # sync views last
+        for view in views:
+            conn.createModel(view, context)
+            event = orb.events.SyncEvent()
+            view.onSync(event)
 
     def username(self):
         """

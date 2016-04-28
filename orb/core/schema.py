@@ -66,7 +66,7 @@ class Schema(object):
     """ 
     Contains meta data information about a table as it maps to a database.
     """
-    Flags = enum('Abstract')
+    Flags = enum('Abstract', 'Static')
 
     def __json__(self):
         # make sure we're only exposing desired public data
@@ -300,6 +300,14 @@ class Schema(object):
     def database(self):
         return self.__database
 
+    def dbname(self):
+        """
+        Returns the name that will be used for the table in the database.
+
+        :return     <str>
+        """
+        return self.__dbname
+
     def display(self):
         """
         Returns the display name for this table.
@@ -514,10 +522,5 @@ class Schema(object):
         """
         self.__dbname = dbname
 
-    def dbname(self):
-        """
-        Returns the name that will be used for the table in the database.
-        
-        :return     <str>
-        """
-        return self.__dbname
+    def testFlags(self, flags):
+        return (self.__flags & flags) != 0

@@ -29,9 +29,6 @@ class DELETE(PSQLStatement):
             ).format(**sql_options)
 
             records.clear()
-
-            print sql, data
-
             return sql, data
 
         # otherwise, delete based on the record's ids

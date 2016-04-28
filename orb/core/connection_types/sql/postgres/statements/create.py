@@ -1,3 +1,6 @@
+import projex.text
+
+from collections import OrderedDict
 from projex.lazymodule import lazy_import
 from ..psqlconnection import PSQLStatement
 
@@ -14,7 +17,193 @@ class CREATE(PSQLStatement):
             raise orb.errors.OrbError('Cannot create model for type: '.format(type(model)))
 
     def _createView(self, model, owner, includeReferences):
-        return '', {}
+        schema = model.schema()
+        data = {}
+
+        id_column = schema.idColumn()
+        base_model = id_column.referenceModel()
+        base_schema = base_model.schema()
+        base_id = base_schema.idColumn()
+
+        preload = {}
+        columns = []
+        group_by = []
+        joins = OrderedDict()
+
+        def populate(schema, source, parts, alias):
+            next_part = parts.pop(0)
+
+            # look for an aggregate
+            column = schema.column(next_part, raise_=False)
+
+            # join in a column
+            if column:
+                if not isinstance(column, orb.ReferenceColumn):
+                    return '"{0}"."{1}"'.format(alias, column.field())
+                else:
+                    ref_model = column.referenceModel()
+                    alias = alias or ref_model.schema().dbname()
+                    join_alias = alias + '_' + projex.text.underscore(column.name())
+                    target = '"{0}"."{1}"'.format(join_alias, ref_model.schema().idColumn().field())
+                    source = '"{0}"."{1}"'.format(alias, column.field())
+                    join = {
+                        'table': ref_model.schema().dbname(),
+                        'alias': join_alias,
+                        'on': '{0} = {1}'.format(target, source)
+                    }
+
+                    joins.setdefault(join_alias, join)
+                    group_by.append(target)
+
+                    if not parts:
+                        return target
+                    else:
+                        return populate(ref_model.schema(), target, parts, join_alias)
+
+            # join a collector
+            else:
+                collector = schema.collector(next_part)
+                if not collector:
+                    raise orb.errors.ColumnNotFound(schema.name(), next_part)
+
+                try:
+                    record_part = parts.pop(0)
+                    invert_dir = record_part == 'last'
+                except IndexError:
+                    raise orb.errors.QueryInvalid('Cannot join in a collection for a view')
+
+                if isinstance(collector, orb.Pipe):
+                    join_schema = collector.toModel().schema()
+                    join_id = join_schema.idColumn()
+
+                    pipe_schema = collector.throughModel().schema()
+                    source_col = collector.fromColumn()
+                    target_col = collector.toColumn()
+                    join_field = '"{0}"'.format(source_col.field())
+
+                    column_name = projex.text.underscore(pipe.name())
+                    order = join_schema.defaultOrder() or [(join_id.field(), 'asc')]
+                    if invert_dir:
+                        order = [(x[0], 'asc' if x[1] == 'desc' else 'desc') for x in order]
+
+                    order = [
+                        '"{0}"."{1}" {2}'.format(join_schema.dbname(),
+                                                 join_schema.column(x[0]).field(), x[1].upper())
+                        for x in order
+                    ]
+
+                    opts = {
+                        'source': '"{0}"'.format(source_col.field()),
+                        'model': '"{0}"'.format(join_schema.dbname()),
+                        'through': '"{0}"'.format(pipe_schema.dbname()),
+                        'target': '"{0}"'.format(target_col.field()),
+                        'column': '"{0}"'.format(join_schema.dbname(), join_id.field()),
+                        'order': ', '.join(order)
+                    }
+
+                    if record_part in ('first', 'last'):
+                        join_table = '"{0}_{1}_{2}"'.format(join_schema.dbname(), column_name, record_part)
+                        preload_as = '(' \
+                                     '    SELECT DISTINCT ON (j.{source}) {model}.*, j.{source}' \
+                                     '    FROM {model}' \
+                                     '    LEFT JOIN {through} ON j.{target} = {column}' \
+                                     '    ORDER BY j.{source}, {order}' \
+                                     ')'
+                        preload.setdefault(join_table, preload_as.format(**opts))
+                    else:
+                        join_table = '"{0}"'.format(join_schema.dbname())
+                else:
+                    join_schema = collector.targetModel()
+                    join_id = join_schema.idColumn()
+                    join_field = '"{0}"'.format(join_id.field())
+                    column_name = projex.text.underscore(collector.name())
+                    order = join_schema.defaultOrder() or [(join_id.field(), 'asc')]
+                    if invert_dir:
+                        order = [(x[0], 'asc' if x[1] == 'desc' else 'desc') for x in order]
+
+                    order = [
+                        '"{0}"."{1}" {2}'.format(join_schema.dbname(),
+                                                 join_schema.column(x[0]).field(), x[1].upper())
+                        for x in order
+                    ]
+
+                    opts = {
+                        'source': collector.field(),
+                        'target': join_schema.dbname(),
+                        'column': join_id.field(),
+                        'order': ', '.join(order)
+                    }
+
+                    if record_part in ('first', 'last'):
+                        join_table = '"{0}"."{1}"."{2}"'.format(join_schema.dbname(), column_name, record_part)
+                        preload_as = '(' \
+                                     '    SELECT DISTINCT ON ({source}) {target}.*' \
+                                     '    FROM {target}' \
+                                     '    ORDER BY {source}, {column}' \
+                                     ')'
+                        preload.setdefault(join_table, preload_as.format(**opts))
+                    else:
+                        join_table = '"{0}"'.format(join_schema.dbname())
+
+                join_alias = '"{0}_{1}_{2}"'.format(join_schema.dbname(), column_name, record_part)
+                target = '{0}."{1}"'.format(join_alias, join_id.field())
+
+                opts = {
+                    'table': join_table,
+                    'alias': join_alias,
+                    'on': '{0}.{1} = {2}'.format(join_alias, join_field, source)
+                }
+                joins.setdefault(join_alias, opts)
+
+                if record_part == 'count':
+                    return 'count({0}.*)'.format(join_alias)
+                elif record_part == 'ids':
+                    return 'array_agg({0})'.format(target)
+                elif not parts:
+                    group_by.append(target)
+                    return target
+                else:
+                    return populate(join_schema, target, parts, join_alias)
+
+        curr_schema = base_model.schema()
+        curr_field = '"{0}"."{1}"'.format(base_model.schema().dbname(), base_id.field())
+
+        columns.append('{0} AS "{1}"'.format(curr_field, schema.idColumn().field()))
+        group_by.append(curr_field)
+
+        for column in schema.columns().values():
+            if column == schema.idColumn():
+                continue
+            else:
+                parts = column.shortcut().split('.')
+                if not (len(parts) > 1 and parts[0] == schema.idColumn().name()):
+                    raise orb.errors.QueryInvalid('All view columns must originate from the id')
+
+                field_name = populate(curr_schema, curr_field, parts[1:], curr_schema.dbname())
+                columns.append('{0} AS "{1}"'.format(field_name, column.field()))
+
+        kwds = {
+            'materialized': 'MATERIALIZED' if schema.testFlags(schema.Flags.Static) else '',
+            'view': schema.dbname(),
+            'base_table': base_schema.dbname(),
+            'preload': ','.join(['{0} AS {1}'.format(k, v) for k, v in preload.items()]),
+            'columns': ','.join(columns),
+            'joins': '\n'.join(['LEFT JOIN {table} AS {alias} ON {on}'.format(**join) for join in joins.values()]),
+            'group_by': ','.join(group_by)
+        }
+
+        statements = (
+            'DROP {materialized} VIEW IF EXISTS "{view}";',
+            'CREATE {materialized} VIEW "{view}" AS (',
+            '   {preload}',
+            '   SELECT {columns}',
+            '   FROM {base_table}',
+            '   {joins}',
+            '   GROUP BY {group_by}'
+            ');'
+        )
+        sql = '\n'.join(statements).format(**kwds)
+        return sql, data
 
     def _createTable(self, model, owner, includeReferences):
         ADD_COLUMN = self.byName('ADD COLUMN')

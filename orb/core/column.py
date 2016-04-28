@@ -62,7 +62,8 @@ class Column(AddonManager):
                  setterName=None,
                  flags=0,
                  default=None,
-                 defaultOrder='asc'):
+                 defaultOrder='asc',
+                 shortcut=''):
         # constructor items
         self.__name = name
         self.__field = field
@@ -72,6 +73,7 @@ class Column(AddonManager):
         self.__defaultOrder = defaultOrder
         self.__getterName = getterName
         self.__setterName = setterName
+        self.__shortcut = shortcut
         self.__settermethod = None
         self.__gettermethod = None
 
@@ -93,7 +95,8 @@ class Column(AddonManager):
             default=self.__default,
             defaultOrder=self.__defaultOrder,
             getterName=self.__getterName,
-            setterName=self.__setterName
+            setterName=self.__setterName,
+            shortcut=self.__shortcut
         )
 
         return out
@@ -342,6 +345,9 @@ class Column(AddonManager):
                 return {locale: value.get(locale) for locale in locales}
         else:
             return value
+
+    def shortcut(self):
+        return self.__shortcut
 
     def store(self, value, context=None):
         """

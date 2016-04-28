@@ -731,7 +731,7 @@ class Query(object):
 
         # expand the current column
         lookup = schema.column(parts[0], raise_=False)
-        if isinstance(lookup, orb.ShortcutColumn):
+        if lookup and lookup.shortcut():
             parts = lookup.shortcut().split('.')
             lookup = schema.column(parts[0], raise_=False)
 
