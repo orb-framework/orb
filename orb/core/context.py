@@ -46,6 +46,17 @@ class Context(object):
         'where': None
     }
 
+    QueryFields = {
+        'columns',
+        'expand',
+        'limit',
+        'order',
+        'page',
+        'pageSize',
+        'start',
+        'where'
+    }
+
     UnhashableOptions = {
         'db',
         'scope'

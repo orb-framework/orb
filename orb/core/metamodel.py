@@ -72,6 +72,24 @@ class MetaModel(type):
 
                 return False
 
+            def store_virtual_property(key, value):
+                if isinstance(value, classmethod):
+                    value = value.__func__
+                    is_static = True
+                else:
+                    is_static = False
+
+                if hasattr(value, '__orb__'):
+                    # update the static flag when needed
+                    if is_static:
+                        value.__orb__.setFlags(value.__orb__.flags() | value.__orb__.Flags.Static)
+
+                    # store the virtual object
+                    if isinstance(value.__orb__, orb.Column):
+                        columns[value.__orb__.name()] = value.__orb__
+                    elif isinstance(value.__orb__, orb.Collector):
+                        collectors[value.__orb__.name()] = value.__orb__
+
             # strip out mixin properties
             for mixin in mixins:
                 try:
@@ -82,6 +100,8 @@ class MetaModel(type):
                         if store_property(key, value):
                             orb_props[key] = value.copy()
                             delattr(mixin, key)
+                        else:
+                            store_virtual_property(key, value)
                     mixin.__orb_properties__ = orb_props
                 else:
                     for key, value in orb_props.items():
@@ -92,22 +112,7 @@ class MetaModel(type):
                 if store_property(key, value):
                     attrs.pop(key)
                 else:
-                    if isinstance(value, classmethod):
-                        value = value.__func__
-                        is_static = True
-                    else:
-                        is_static = False
-
-                    if hasattr(value, '__orb__'):
-                        # update the static flag when needed
-                        if is_static:
-                            value.__orb__.setFlags(value.__orb__.flags() | value.__orb__.Flags.Static)
-
-                        # store the virtual object
-                        if isinstance(value.__orb__, orb.Column):
-                            columns[value.__orb__.name()] = value.__orb__
-                        elif isinstance(value.__orb__, orb.Collector):
-                            collectors[value.__orb__.name()] = value.__orb__
+                    store_virtual_property(key, value)
 
             # check to see if a schema is already defined
             schema = attrs.pop('__schema__', None)

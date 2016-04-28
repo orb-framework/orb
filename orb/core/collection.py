@@ -600,6 +600,7 @@ class Collection(object):
 
             # update a pipe
             if self.__pipe:
+                context = self.context(**context)
                 through = self.__pipe.throughModel()
                 pipe = self.__pipe
                 curr_ids = self.ids()
@@ -611,11 +612,12 @@ class Collection(object):
                 if remove_ids:
                     q  = orb.Query(through, pipe.from_()) == self.__record
                     q &= orb.Query(through, pipe.to()).in_(remove_ids)
-                    through.select(where=q).delete()
+                    context.where = q
+                    through.select(context=context).delete()
 
                 # create new records
                 if add_ids:
-                    collection = orb.Collection([through({pipe.from_(): self.__record, pipe.to(): id})
+                    collection = orb.Collection([through({pipe.from_(): self.__record, pipe.to(): id}, context=context)
                                                  for id in add_ids])
                     collection.save()
 

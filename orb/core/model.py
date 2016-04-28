@@ -436,7 +436,11 @@ class Model(object):
                 return None
         else:
             my_context = self.context()
-            context.setdefault('scope', my_context.scope)
+
+            for k, v in my_context.raw_values.items():
+                if k not in orb.Context.QueryFields:
+                    context.setdefault(k, v)
+
             sub_context = orb.Context(**context)
 
             # normalize the given column
