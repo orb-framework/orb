@@ -93,10 +93,10 @@ class System(object):
         scope[key] = obj
         return True
 
-    def model(self, code, autoGenerate=True):
+    def model(self, code, autoGenerate=False):
         return self.models(autoGenerate=autoGenerate).get(code)
 
-    def models(self, base=None, database='', autoGenerate=True):
+    def models(self, base=None, database='', autoGenerate=False):
         output = {}
         for schema in self.__schemas.values():
             model = schema.model(autoGenerate=autoGenerate)

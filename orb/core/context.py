@@ -246,7 +246,7 @@ class Context(object):
             others.append(self.defaultContext())
 
         for other in others:
-            if other:
+            if other and isinstance(other, orb.Context):
                 ignore = ('columns', 'where')
 
                 # extract expandable information
