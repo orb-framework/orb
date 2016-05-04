@@ -89,7 +89,7 @@ class LoadEvent(RecordEvent):
 
 
 class SyncEvent(ModelEvent):
-    def __init__(self, context=None):
+    def __init__(self, context=None, **options):
         super(SyncEvent, self).__init__(**options)
 
         self.context = context
