@@ -100,6 +100,9 @@ class SELECT(PSQLStatement):
                     sql_group_by.add(field)
                 sql_order_by.append(u'{0} {1}'.format(field, dir.upper()))
 
+                if context.distinct:
+                    sql_columns['standard'].append(field)
+
         if context.distinct is True:
             cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']), schema.dbname())]
         elif isinstance(context.distinct, (list, set, tuple)):
