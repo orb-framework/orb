@@ -48,6 +48,7 @@ from .core.syntax import Syntax
 from .core.security import Security
 from .core.system import System
 
+from .core.events import *
 from .core.model_types import *
 from .core.column_types import *
 from .core.connection_types import *

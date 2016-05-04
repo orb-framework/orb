@@ -110,7 +110,7 @@ class Database(object):
         
         :return     <bool> | success
         """
-        event = orb.events.ConnectionEvent()
+        event = orb.events.ConnectionEvent(database=self)
         self.onPreConnect(event)
         if event.preventDefault:
             return False
@@ -119,7 +119,7 @@ class Database(object):
         register_after_fork(self, self.disconnect)
         success = self.__connection.open()
 
-        event = orb.events.ConnectionEvent(success=success)
+        event = orb.events.PostConnectionEvent(success=success, database=self)
         self.onPostConnect(event)
         return success
 
@@ -335,14 +335,16 @@ class Database(object):
                     conn.alterModel(model, context, add=add, owner=self.username())
 
             # call the sync event
-            event = orb.events.SyncEvent()
-            model.onSync(event)
+            event = orb.events.SyncEvent(model=model)
+            if model.processEvent(event):
+                model.onSync(event)
 
         # sync views last
         for view in views:
             conn.createModel(view, context)
-            event = orb.events.SyncEvent()
-            view.onSync(event)
+            event = orb.events.SyncEvent(model=view)
+            if view.processEvent(event):
+                view.onSync(event)
 
     def username(self):
         """

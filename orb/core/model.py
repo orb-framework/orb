@@ -7,6 +7,7 @@ import logging
 import projex.rest
 import projex.security
 import projex.text
+import weakref
 
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import lazy_import
@@ -14,6 +15,7 @@ from projex import funcutil
 
 from .metamodel import MetaModel
 from .search import SearchEngine
+
 
 log = logging.getLogger(__name__)
 orb = lazy_import('orb')
@@ -236,7 +238,7 @@ class Model(object):
         else:
             if len(record) == 1 and isinstance(record[0], Model):
                 record_id = record[0].id()
-                event = orb.events.LoadEvent(data=dict(record[0]))
+                event = orb.events.LoadEvent(record=self, data=dict(record[0]))
                 self._load(event)
             elif len(record) == 1:
                 record_id = record[0]  # don't use tuples unless multiple ID columns are used
@@ -245,7 +247,7 @@ class Model(object):
 
             data = self.fetch(record_id, inflated=False, context=self.__context)
             if data:
-                event = orb.events.LoadEvent(data=data)
+                event = orb.events.LoadEvent(record=self, data=data)
                 self._load(event)
             else:
                 raise errors.RecordNotFound(self, record_id)
@@ -291,7 +293,8 @@ class Model(object):
                 self.__values[col.name()] = (default, val)
                 self.__loaded.add(col)
 
-        self.onLoad(event)
+        if self.processEvent(event):
+            self.onLoad(event)
 
     # --------------------------------------------------------------------
     #                       EVENT HANDLERS
@@ -349,8 +352,12 @@ class Model(object):
 
                 check_old = col.restore(old, context)
                 check_curr = col.restore(curr, context)
+                try:
+                    different = check_old != check_curr
+                except StandardError:
+                    different = True
 
-                if check_old != check_curr:
+                if different:
                     output[col] = (check_old, check_curr)
 
         return output
@@ -391,8 +398,10 @@ class Model(object):
         if not self.isRecord():
             return 0
 
-        event = orb.events.DeleteEvent(context=context)
-        self.onDelete(event)
+        event = orb.events.DeleteEvent(record=self, context=context)
+        if self.processEvent(event):
+            self.onDelete(event)
+
         if event.preventDefault:
             return 0
 
@@ -492,8 +501,9 @@ class Model(object):
 
                     self.__values[column.name()] = (value, value)
 
-        event = orb.events.InitEvent()
-        self.onInit(event)
+        event = orb.events.InitEvent(record=self)
+        if self.processEvent(event):
+            self.onInit(event)
 
     def isModified(self):
         """
@@ -549,8 +559,10 @@ class Model(object):
 
         # create the pre-commit event
         changes = self.changes(columns=context.columns)
-        event = orb.events.SaveEvent(context=context, newRecord=new_record, changes=changes)
-        self.onPreSave(event)
+        event = orb.events.PreSaveEvent(record=self, context=context, newRecord=new_record, changes=changes)
+        if self.processEvent(event):
+            self.onPreSave(event)
+
         if event.preventDefault:
             return event.result
 
@@ -562,7 +574,7 @@ class Model(object):
         if not self.isRecord():
             records, _ = conn.insert([self], context)
             if records:
-                event = orb.events.LoadEvent(records[0])
+                event = orb.events.LoadEvent(record=self, data=records[0])
                 self._load(event)
         else:
             conn.update([self], context)
@@ -575,8 +587,9 @@ class Model(object):
                     self.__values[col_name] = (value, value)
 
         # create post-commit event
-        event = orb.events.SaveEvent(context=context, newRecord=new_record, changes=changes)
-        self.onPostSave(event)
+        event = orb.events.PostSaveEvent(record=self, context=context, newRecord=new_record, changes=changes)
+        if self.processEvent(event):
+            self.onPostSave(event)
         return True
 
     def set(self, column, value, useMethod=True, **context):
@@ -656,8 +669,9 @@ class Model(object):
                 old_value = curr
                 new_value = value
 
-            event = orb.events.ChangeEvent(column=col, old=old_value, value=new_value)
-            self.onChange(event)
+            event = orb.events.ChangeEvent(record=self, column=col, old=old_value, value=new_value)
+            if self.processEvent(event):
+                self.onChange(event)
             if event.preventDefault:
                 with WriteLocker(self.__dataLock):
                     orig, _ = self.__values.get(col.name(), (None, None))
@@ -763,6 +777,19 @@ class Model(object):
     #----------------------------------------------------------------------
 
     @classmethod
+    def addCallback(cls, eventType, func):
+        """
+        Adds a callback method to the class.  When an event of the given type is triggered, any registered
+        callback will be executed.
+
+        :param  eventType: <str>
+        :param  func: <callable>
+        """
+        callbacks = cls.callbacks()
+        callbacks.setdefault(eventType, [])
+        callbacks[eventType].append(func)
+
+    @classmethod
     def all(cls, **options):
         """
         Returns a record set containing all records for this table class.  This
@@ -785,6 +812,22 @@ class Model(object):
         :return     <orb.Query> || None
         """
         return getattr(cls, '_%s__baseQuery' % cls.__name__, None)
+
+    @classmethod
+    def callbacks(cls, eventType=None):
+        """
+        Returns a list of callback methods that can be invoked whenever an event is processed.
+
+        :return: {subclass of <Event>: <list>, ..}
+        """
+        key = '_{0}__callbacks'.format(cls.__name__)
+        try:
+            callbacks = getattr(cls, key)
+        except AttributeError:
+            callbacks = {}
+            setattr(cls, key, callbacks)
+
+        return callbacks.get(eventType, []) if eventType is not None else callbacks
 
     @classmethod
     def create(cls, values, **context):
@@ -870,6 +913,20 @@ class Model(object):
         return record
 
     @classmethod
+    def processEvent(cls, event):
+        """
+        Processes the given event by dispatching it to any waiting callbacks.
+
+        :param event: <orb.Event>
+        """
+        callbacks = cls.callbacks(type(event))
+        for callback in callbacks:
+            callback(event)
+            if event.preventDefault:
+                return False
+        return True
+
+    @classmethod
     def fetch(cls, key, **context):
         context.setdefault('where', orb.Query(cls) == key)
         return cls.select(**context).first()
@@ -910,7 +967,7 @@ class Model(object):
                     raise orb.errors.RecordNotFound(morph_cls, values.get(id_col))
 
         if record is None:
-            event = orb.events.LoadEvent(values)
+            event = orb.events.LoadEvent(record=record, data=values)
             record = cls(loadEvent=event, context=context)
 
         return record
