@@ -50,8 +50,6 @@ class ArchiveNotFound(OrbError):
 # ------------------------------------------------------------------------------
 
 class BackendNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self, backend):
         super(BackendNotFound, self).__init__('Could not find {0} backend'.format(backend))
 
@@ -67,8 +65,6 @@ class ColumnIsVirtual(OrbError):
         super(ColumnIsVirtual, self).__init__('Cannot access {0} directly, it is virtual'.format(column))
 
 class ColumnNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self, table, column):
         super(ColumnNotFound, self).__init__('Did not find {0} column on {1}.'.format(column, table))
 
@@ -114,15 +110,11 @@ class ConnectionLost(OrbError):
 # ------------------------------------------------------------------------------
 
 class DatabaseNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self):
         super(DatabaseNotFound, self).__init__('No database was found.')
 
 
 class DependencyNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self, package):
         msg = 'Required package `{0}` is not installed.'.format(package)
         super(DependencyNotFound, self).__init__(msg)
@@ -131,15 +123,13 @@ class DependencyNotFound(OrbError):
 class DuplicateColumnFound(OrbError):
     """ Thrown when there is a duplicate column found within a single \
         hierarchy of a Table. """
-    code = 409  # conflict
-
     def __init__(self, schema, column):
         msg = '{0}: {1} is already a column and cannot be duplicated.'
         super(DuplicateColumnFound, self).__init__(msg.format(schema, column))
 
 
 class DuplicateEntryFound(OrbError):
-    code = 409  # conflict
+    pass
 
 class DryRun(OrbError):
     pass
@@ -234,16 +224,12 @@ class PrimaryKeyNotDefined(OrbError):
 #------------------------------------------------------------------------------
 
 class RecordNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self, model, pk):
         msg = 'Could not find record {0}({1}).'.format(model.schema().name(), pk)
         super(RecordNotFound, self).__init__(msg)
 
 
 class ReferenceNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self, column):
         try:
             text = column.name()
@@ -258,8 +244,6 @@ class ReferenceNotFound(OrbError):
 #------------------------------------------------------------------------------
 
 class ModelNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self, table):
         super(ModelNotFound, self).__init__('Could not find `{0}` table.'.format(table))
 
@@ -268,8 +252,6 @@ class ModelNotFound(OrbError):
 #------------------------------------------------------------------------------
 
 class ValueNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self, record, column):
         super(ValueNotFound, self).__init__('{0} has no value for {1}'.format(record, column))
 
@@ -287,7 +269,5 @@ class ValueOutOfRange(ValidationError):
         super(ValueOutOfRange, self).__init__(msg)
 
 class ViewNotFound(OrbError):
-    code = 410  # HTTPGone
-
     def __init__(self, table, view):
         super(ViewNotFound, self).__init__('{0} has no view {1}.'.format(table, view))
