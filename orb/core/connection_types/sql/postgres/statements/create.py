@@ -208,6 +208,7 @@ class CREATE(PSQLStatement):
     def _createTable(self, model, owner, includeReferences):
         ADD_COLUMN = self.byName('ADD COLUMN')
 
+        data = {}
         add_i18n = []
         add_standard = []
 
@@ -228,7 +229,14 @@ class CREATE(PSQLStatement):
         # create the standard model
         cmd_body = []
         if add_standard:
-            cmd_body += [ADD_COLUMN(col)[0].replace('ADD COLUMN ', '') for col in add_standard]
+            field_statements = []
+
+            for col in add_standard:
+                field_statement, field_data = ADD_COLUMN(col)
+                data.update(field_data)
+                field_statements.append(field_statement)
+
+            cmd_body += [statement.replace('ADD COLUMN ', '') for statement in field_statements]
 
         # get the primary column
         pcol = ''
@@ -259,7 +267,14 @@ class CREATE(PSQLStatement):
             id_column = model.schema().idColumn()
             id_type = id_column.dbType('Postgres')
 
-            i18n_body = ',\n\t'.join([ADD_COLUMN(col)[0].replace('ADD COLUMN ', '') for col in add_i18n])
+            field_statements = []
+
+            for col in add_i18n:
+                field_statement, field_data = ADD_COLUMN(col)
+                data.update(field_data)
+                field_statements.append(field_statement)
+
+            i18n_body = ',\n\t'.join([statement.replace('ADD COLUMN ', '') for statement in field_statements])
 
             i18n_cmd  = 'CREATE TABLE "{table}_i18n" (\n'
             i18n_cmd += '   "locale" CHARACTER VARYING(5),\n'
@@ -275,6 +290,6 @@ class CREATE(PSQLStatement):
 
             cmd += '\n' + i18n_cmd
 
-        return cmd, {}
+        return cmd, data
 
 PSQLStatement.registerAddon('CREATE', CREATE())

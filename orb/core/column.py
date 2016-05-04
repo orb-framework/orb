@@ -63,7 +63,10 @@ class Column(AddonManager):
                  flags=0,
                  default=None,
                  defaultOrder='asc',
-                 shortcut=''):
+                 shortcut='',
+                 readPermit=None,
+                 writePermit=None,
+                 permit=None):
         # constructor items
         self.__name = name
         self.__field = field
@@ -76,6 +79,8 @@ class Column(AddonManager):
         self.__shortcut = shortcut
         self.__settermethod = None
         self.__gettermethod = None
+        self.__readPermit = readPermit or permit
+        self.__writePermit = writePermit or permit
 
         # custom options
         self.__schema = None
@@ -96,7 +101,9 @@ class Column(AddonManager):
             defaultOrder=self.__defaultOrder,
             getterName=self.__getterName,
             setterName=self.__setterName,
-            shortcut=self.__shortcut
+            shortcut=self.__shortcut,
+            readPermit=self.__readPermit,
+            writePermit=self.__writePermit
         )
 
         return out
@@ -317,6 +324,14 @@ class Column(AddonManager):
         """
         return self.default()
 
+    def readPermit(self):
+        """
+        Returns the read permit for this column.
+
+        :return: <str> || None
+        """
+        return self.__readPermit
+
     def restore(self, value, context=None, inflated=True):
         """
         Restores the value from a table cache for usage.
@@ -443,6 +458,14 @@ class Column(AddonManager):
         """
         self.__name = name
 
+    def setReadPermit(self, permit):
+        """
+        Sets the read permission for this column.
+
+        :param permit: <str> || None
+        """
+        self.__readPermit = permit
+
     def setSchema(self, schema):
         self.__schema = schema
 
@@ -451,6 +474,14 @@ class Column(AddonManager):
 
     def setSetterName(self, setterName):
         self.__setterName = setterName
+
+    def setWritePermit(self, permit):
+        """
+        Sets the write permission for this column.
+
+        :param permit: <str> || None
+        """
+        self.__writePermit = permit
 
     def testFlag(self, flag):
         """
@@ -502,6 +533,14 @@ class Column(AddonManager):
                     extra | <variant>
         """
         return projex.text.nativestring(value)
+
+    def writePermit(self):
+        """
+        Returns the permit required to modify a particular column.
+
+        :return: <str> || None
+        """
+        return self.__writePermit
 
     @classmethod
     def fromJSON(cls, jdata):

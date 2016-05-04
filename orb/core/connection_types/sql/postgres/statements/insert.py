@@ -26,7 +26,7 @@ class INSERT(PSQLStatement):
                         continue
                     if col.testFlag(col.Flags.I18n):
                         i18n.append(col)
-                    elif not col.testFlag(col.Flags.AutoAssign):
+                    else:
                         standard.append(col)
 
                 schema_meta[schema] = {'i18n': i18n, 'standard': standard}
@@ -35,9 +35,22 @@ class INSERT(PSQLStatement):
                 schema_meta[schema] = {'i18n': [], 'standard': []}
 
             for key, columns in schema_meta[schema].items():
-                data.update({'{0}_{1}'.format(col.field(), i): col.dbStore('Postgres', record.get(col)) for col in columns})
-                values = ','.join(['%({0}_{1})s'.format(col.field(), i) for col in columns])
-                schema_records[schema][key].append(values)
+                record_values = {
+                    '{0}_{1}'.format(col.field(), i): col.dbStore('Postgres', record.get(col))
+                    for col in columns
+                }
+
+                data.update(record_values)
+
+                insert_values = []
+                for col in columns:
+                    value_key = '{0}_{1}'.format(col.field(), i)
+                    if record_values[value_key] == 'DEFAULT':
+                        insert_values.append('DEFAULT')
+                    else:
+                        insert_values.append('%({0})s'.format(value_key))
+
+                schema_records[schema][key].append(','.join(insert_values))
 
         cmd = []
         for schema, columns in schema_meta.items():
@@ -59,8 +72,19 @@ class INSERT(PSQLStatement):
                 values = schema_records[schema]['i18n']
                 subcmd += '\nINSERT INTO "{0}_i18n" ("{0}_id", "locale", {1}) VALUES'.format(schema.dbname(), cols)
                 for i, value in enumerate(values[:-1]):
-                    subcmd += '\n(LASTVAL() - {0}, %(locale)s, {1}),'.format(len(values) - (i+1), value)
-                subcmd += '\n(LASTVAL(), %(locale)s, {0})'.format(values[-1])
+                    value_key = '{0}_{1}'.format(id_column.field(), i)
+                    id_value = data[value_key]
+                    if id_value == 'DEFAULT':
+                        id_value = 'LASTVAL() - {0}'.format(len(values) - (i+1))
+
+                    subcmd += '\n({0}, %(locale)s, {1}),'.format(id_value, value)
+
+                value_key = '{0}_{1}'.format(id_column.field(), i)
+                id_value = data[value_key]
+                if id_value == 'DEFAULT':
+                    id_value = 'LASTVAL()'
+
+                subcmd += '\n({0}, %(locale)s, {1})'.format(id_value, values[-1])
                 subcmd += '\nRETURNING "{0}_id" AS "{1}";'.format(schema.dbname(), id_column.field())
 
             cmd.append(subcmd)

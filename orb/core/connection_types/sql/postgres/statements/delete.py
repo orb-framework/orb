@@ -20,6 +20,7 @@ class DELETE(PSQLStatement):
 
             sql_options = {
                 'table': model.schema().dbname(),
+                'id_col': model.schema().idColumn().field(),
                 'where': 'WHERE {0}'.format(where) if where else ''
             }
             sql = (
@@ -27,6 +28,16 @@ class DELETE(PSQLStatement):
                 u'{where}'
                 u'RETURNING *;'
             ).format(**sql_options)
+
+            if model.schema().columns(flags=orb.Column.Flags.I18n):
+                i18n_sql = (
+                    u'DELETE FROM "{table}_i18n"\n'
+                    u'WHERE "{table}_id" IN (\n'
+                    u'    SELECT "{id_col}" FROM {table}'
+                    u'    {where}'
+                    u');\n'
+                ).format(**sql_options)
+                sql = i18n_sql + sql
 
             records.clear()
             return sql, data
@@ -41,7 +52,12 @@ class DELETE(PSQLStatement):
             data = {}
             sql = []
             for schema, ids in delete_info.items():
-                sql.append(u'DELETE FROM "{0}" WHERE {1} IN %({0}_ids)s RETURNING *;'.format(schema.dbname(), schema.idColumn().field()))
+                schema_sql = u'DELETE FROM "{0}" WHERE {1} IN %({0}_ids)s RETURNING *;'
+                schema_sql = schema_sql.format(schema.dbname(), schema.idColumn().field())
+                if schema.columns(flags=orb.Column.Flags.I18n):
+                    i18n_sql = u'DELETE FROM "{0}_i18n" WHERE "{0}_id" IN %({0}_ids)s;'.format(schema.dbname())
+                    schema_sql = i18n_sql + schema_sql
+                sql.append(schema_sql)
                 data[schema.dbname() + '_ids'] = tuple(ids)
 
             return u'\n'.join(sql), data

@@ -86,6 +86,7 @@ class Schema(object):
 
         output = {
             'model': self.name(),
+            'idColumn': self.idColumn().field(),
             'dbname': self.dbname(),
             'display': self.display(),
             'inherits': self.inherits(),

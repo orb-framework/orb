@@ -19,8 +19,9 @@ class CREATE_INDEX(PSQLStatement):
         index_name = index.dbname()
         cmd = 'CREATE' if not index.testFlag(index.Flags.Unique) else 'CREATE UNIQUE'
 
-        cols = ['"{0}"'.format(col.field()) if col.testFlag(col.Flags.CaseSensitive)
-                else 'lower("{0}"::varchar)'.format(col.field())
+        cols = ['lower("{0}"::varchar)'.format(col.field())
+                if isinstance(col, orb.AbstractStringColumn) and not col.testFlag(col.Flags.CaseSensitive)
+                else '"{0}"'.format(col.field())
                 for col in index.columns()]
 
         cmd = '{0} INDEX "{1}" ON "{2}" ({3})'.format(cmd, index_name, schema_name, ', '.join(cols))

@@ -300,7 +300,7 @@ class Database(object):
 
         # create new models
         for model in models:
-            if not model.schema().dbname() in info:
+            if not (issubclass(model, orb.View) or model.schema().dbname() in info):
                 conn.createModel(model, context, includeReferences=False, owner=self.username())
 
         # update after any newly created tables get generated

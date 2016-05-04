@@ -73,15 +73,14 @@ class Collection(object):
 
         return output
 
-    def __init__(self, records=None, model=None, source='', record=None, pipe=None, preload=None, **context):
+    def __init__(self, records=None, model=None, source='', record=None, collector=None, preload=None, **context):
         self.__cacheLock = ReadWriteLock()
         self.__cache = defaultdict(dict)
         self.__preload = preload or {}
         self.__context = orb.Context(**context)
         self.__model = model
-        self.__source = source
         self.__record = record
-        self.__pipe = pipe
+        self.__collector = collector
 
         if records is not None and len(records) > 0:
             if self.__model is None:
@@ -126,15 +125,15 @@ class Collection(object):
         return records
 
     def add(self, record):
-        if self.__pipe:
-            cls = self.__pipe.throughModel()
+        if isinstance(self.__collector, orb.Pipe):
+            cls = self.__collector.throughModel()
             data = {
-                self.__pipe.from_(): self.__record,
-                self.__pipe.to(): record
+                self.__collector.from_(): self.__record,
+                self.__collector.to(): record
             }
             return cls.ensureExists(data)
-        elif self.__source:
-            record.set(self.__source, self.__record)
+        elif isinstance(self.__collector, orb.ReverseLookup):
+            record.set(self.__collector.targetColumn(), self.__record)
             record.save()
             return True
         else:
@@ -163,9 +162,9 @@ class Collection(object):
 
     def create(self, values, **context):
         # create a new pipe object
-        if self.__pipe:
-            target_model = self.__pipe.toModel()
-            target_col = self.__pipe.toColumn()
+        if isinstance(self.__collector, orb.Pipe):
+            target_model = self.__collector.toModel()
+            target_col = self.__collector.toColumn()
 
             # add the target based on the name or field
             if target_col.name() in values or target_col.field() in values:
@@ -180,8 +179,8 @@ class Collection(object):
 
         # create a new record for this collection
         else:
-            if self.__source:
-                values.setdefault(self.__source, self.__record)
+            if isinstance(self.__collector, orb.ReverseLookup):
+                values.setdefault(self.__collector.targetColumn(), self.__record)
             record = self.__model.create(values, **context)
             self.add(record)
 
@@ -203,7 +202,7 @@ class Collection(object):
             preload=self.__preload,
             model=self.__model,
             record=self.__record,
-            source=self.__source,
+            collector=self.__collector,
             context=context
         )
         return other
@@ -244,10 +243,10 @@ class Collection(object):
 
     def delete(self, **context):
         context = orb.Context(**context)
-        pipe = self.__pipe
 
         # delete piped records
-        if pipe:
+        if isinstance(self.__collector, orb.Pipe):
+            pipe = self.__collector
             through = pipe.throughModel()
 
             # collect the ids that are within this pipe
@@ -315,7 +314,7 @@ class Collection(object):
                         raw = self.__preload['first'][context]
                 except KeyError:
                     context.limit = 1
-                    context.order = '-id'
+                    context.order = [(self.__model.schema().idColumn().name(), 'desc')]
                     records = self.records(context=context)
                     record = records[0] if records else None
                 else:
@@ -367,7 +366,7 @@ class Collection(object):
     def has(self, record, **context):
         context = self.context(**context)
         context.returning = 'values'
-        context.columns = ['id']
+        context.columns = [self.__model.schema().idColumn().name()]
         return self.first(context=context) is not None
 
     def ids(self, **context):
@@ -383,7 +382,7 @@ class Collection(object):
                 with ReadLocker(self.__cacheLock):
                     ids = self.__preload['ids'][context]
             except KeyError:
-                ids = self.records(columns=['id'], returning='values', context=context)
+                ids = self.records(columns=[self.__model.schema().idColumn()], returning='values', context=context)
 
             with WriteLocker(self.__cacheLock):
                 self.__cache['ids'][context] = ids
@@ -482,9 +481,6 @@ class Collection(object):
                 count += 1
             return max(1, count)
 
-    def pipe(self):
-        return self.__pipe
-
     def preload(self, cache, **context):
         context = self.context(**context)
         with WriteLocker(self.__cacheLock):
@@ -528,14 +524,14 @@ class Collection(object):
                 records=records,
                 model=self.__model,
                 record=self.__record,
-                source=self.__source,
+                collector=self.__collector,
                 context=context
             )
             return other
 
     def remove(self, record, **context):
-        pipe = self.__pipe
-        if pipe:
+        if isinstance(self.__collector, orb.Pipe):
+            pipe = self.__collector
             through = pipe.throughModel()
             q  = orb.Query(pipe.from_()) == self.__record
             q &= orb.Query(pipe.to()) == record
@@ -555,8 +551,8 @@ class Collection(object):
             conn.delete(records, context)
 
             return len(delete)
-        elif self.__source:
-            record.set(self.__source, None)
+        elif self.__collector:
+            record.set(self.__collector.targetColumn(), None)
             record.save()
             return 1
         else:
@@ -569,7 +565,10 @@ class Collection(object):
         collection.refine(order=order)
         return collection
 
-    def update(self, records, **context):
+    def update(self, records, useMethod=True, **context):
+        if useMethod and self.__collector is not None and self.__collector.settermethod() is not None:
+            return self.__collector.settermethod()(self.__record, records, **context)
+
         # clean up the records for removal
         if isinstance(records, dict):
             if 'ids' in records:
@@ -579,13 +578,27 @@ class Collection(object):
             else:
                 raise orb.errors.OrbError('Invalid input for collection update: {0}'.format(records))
         else:
+            output_records = []
+
             if isinstance(records, (list, set, tuple)):
                 ids = []
+                id_col = self.__model.schema().idColumn()
+
                 for record in records:
                     if isinstance(record, dict):
-                        record_id = record.pop(self.__model.schema().idColumn().name(), None)
+                        record_attributes = record
+                        record_id = record_attributes.pop(id_col.name(), None)
                         if not record_id:
-                            record = self.__model.create(record, **context)
+                            if isinstance(self.__collector, orb.ReverseLookup):
+                                record_attributes[self.__collector.targetColumn().name()] = self.__record
+
+                            record = self.__model.create(record_attributes, **context).id()
+                        else:
+                            record = self.__model(record_id, **context)
+                            record.update(record_attributes)
+                            record.save()
+
+                    output_records.append(record)
 
                     if isinstance(record, orb.Model):
                         ids.append(record.id())
@@ -599,10 +612,11 @@ class Collection(object):
                 raise orb.errors.OrbError('Invalid input for collection update: {0}'.format(records))
 
             # update a pipe
-            if self.__pipe:
+            if isinstance(self.__collector, orb.Pipe):
+                pipe = self.__collector
+
                 context = self.context(**context)
-                through = self.__pipe.throughModel()
-                pipe = self.__pipe
+                through = pipe.throughModel()
                 curr_ids = self.ids()
 
                 remove_ids = set(curr_ids) - set(ids)
@@ -621,33 +635,35 @@ class Collection(object):
                                                  for id in add_ids])
                     collection.save()
 
-                return self.records()
+                return output_records or sorted(self.records(), key=lambda x: ids.index(x.id()))
 
             # udpate a reverse lookup
-            elif self.__source:
-                model = self.__source.schema().model()
+            elif isinstance(self.__collector, orb.ReverseLookup):
+                context = self.context(**context)
+                source = self.__collector.targetColumn()
+                model = source.schema().model()
 
-                q = orb.Query(self.__source) == self.__record
+                q = orb.Query(source) == self.__record
                 if ids:
                     q &= orb.Query(model).notIn(ids)
 
                 # determine the reverse lookups to remove from this collection
-                remove = model.select(where=q, **context)
+                remove = model.select(where=q, context=context)
                 for record in remove:
-                    record.set(self.__source, None)
+                    record.set(source, None)
                     record.save()
 
                 # determine the new records to add to this collection
                 if ids:
                     q  = orb.Query(model).in_(ids)
-                    q &= (orb.Query(self.__source) != self.__record) | (orb.Query(self.__source) == None)
+                    q &= (orb.Query(source) != self.__record) | (orb.Query(source) == None)
 
-                    add = model.select(where=q)
+                    add = model.select(where=q, context=context)
                     for record in add:
-                        record.set(self.__source, self.__record)
+                        record.set(source, self.__record)
                         record.save()
 
-                return self.records()
+                return output_records or sorted(self.records(), key=lambda x: ids.index(x.id()))
 
             else:
                 raise NotImplementedError
@@ -690,9 +706,6 @@ class Collection(object):
 
     def setModel(self, model):
         self.__model = model
-
-    def setPipe(self, pipe):
-        self.__pipe = pipe
 
     def values(self, *columns, **context):
         if self.isNull():

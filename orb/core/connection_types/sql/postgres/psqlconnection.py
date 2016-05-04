@@ -179,7 +179,8 @@ class PSQLConnection(SQLConnection):
         if not pg:
             raise orb.errors.BackendNotFound('psycopg2 is not installed.')
 
-        os.environ['PGOPTIONS'] = '-c statement_timeout={0}'.format(db.timeout())
+        if db.timeout():
+            os.environ['PGOPTIONS'] = '-c statement_timeout={0}'.format(db.timeout())
 
         # create the python connection
         try:

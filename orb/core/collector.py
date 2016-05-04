@@ -24,16 +24,17 @@ class Collector(object):
         }
         return output
 
-    def __init__(self, name='', flags=0, getter=None, model=None):
+    def __init__(self, name='', flags=0, getter=None, setter=None, model=None):
         self.__name = self.__name__ = name
         self.__model = model
         self.__schema = None
         self.__preload = None
         self.__getter = getter
+        self.__setter = setter
         self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
 
-    def __call__(self, record, useGetter=True, **context):
-        if self.__getter and useGetter:
+    def __call__(self, record, useMethod=True, **context):
+        if self.__getter and useMethod:
             return self.__getter(record, **context)
         else:
             if not record.isRecord():
@@ -62,9 +63,18 @@ class Collector(object):
     def collectExpand(self, query, parts, **context):
         raise NotImplementedError
 
-    def getter(self, function):
-        self.__getter = function
-        return function
+    def getter(self, function=None):
+        if function is not None:
+            self.__getter = function
+            return function
+
+        def wrapper(func):
+            self.__getter = func
+            return func
+        return wrapper
+
+    def gettermethod(self):
+        return self.__getter
 
     def flags(self):
         return self.__flags
@@ -84,6 +94,20 @@ class Collector(object):
 
     def schema(self):
         return self.__schema
+
+    def setter(self, function=None):
+        if function is not None:
+            self.__setter = function
+            return function
+
+        def wrapper(func):
+            self.__setter = func
+            return func
+
+        return wrapper
+
+    def settermethod(self):
+        return self.__setter
 
     def setName(self, name):
         self.__name = self.__name__ = name

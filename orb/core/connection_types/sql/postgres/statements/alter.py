@@ -15,6 +15,7 @@ class ALTER(PSQLStatement):
 
         :return: <bool>
         """
+        data = {}
         ADD_COLUMN = self.byName('ADD COLUMN')
 
         # determine what kind of model we're modifying
@@ -38,10 +39,17 @@ class ALTER(PSQLStatement):
 
         # add standard columns
         if add_standard:
+            field_statements = []
+
+            for col in add_standard:
+                field_statement, field_data = ADD_COLUMN(col)
+                data.update(field_data)
+                field_statements.append(field_statement)
+
             sql_options = {
                 'type': typ,
                 'name': model.schema().dbname(),
-                'fields': u'\t' + ',\n\t'.join([ADD_COLUMN(col)[0] for col in add_standard])
+                'fields': u'\t' + ',\n\t'.join(field_statements)
             }
             sql = (
                 u'ALTER {type} "{name}"\n'
@@ -55,9 +63,16 @@ class ALTER(PSQLStatement):
             id_column = model.schema().idColumn()
             id_type = id_column.dbType('Postgres')
 
+            field_statements = []
+
+            for col in add_i18n:
+                field_statement, field_data = ADD_COLUMN(col)
+                data.update(field_data)
+                field_statements.append(field_statement)
+
             i18n_options = {
                 'table': model.schema().dbname(),
-                'fields': u'\t' + ',\n\t'.join([ADD_COLUMN(col)[0] for col in add_i18n]),
+                'fields': u'\t' + ',\n\t'.join(field_statements),
                 'owner': owner,
                 'id_type': id_type,
                 'id_field': id_column.field()
@@ -76,7 +91,7 @@ class ALTER(PSQLStatement):
 
             sql += '\n' + i18n_sql
 
-        return sql, {}
+        return sql, data
 
 
 PSQLStatement.registerAddon('ALTER', ALTER())

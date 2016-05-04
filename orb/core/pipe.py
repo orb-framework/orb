@@ -39,7 +39,7 @@ class Pipe(Collector):
             context['where'] = q & context.get('where')
 
             # generate the pipe query for this record
-            return target.select(pipe=self, record=record, **context)
+            return target.select(collector=self, record=record, **context)
 
     def collectExpand(self, query, parts, **context):
         through = self.throughModel()

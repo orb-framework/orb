@@ -31,7 +31,7 @@ class ReverseLookup(Collector):
             q  = orb.Query(model, self.__target) == record
 
             context['where'] = q & context.get('where')
-            return model.select(record=record, source=self.targetColumn(), **context)
+            return model.select(record=record, collector=self, **context)
 
     def collectExpand(self, query, parts, **context):
         rmodel = self.referenceModel()

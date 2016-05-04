@@ -355,12 +355,12 @@ class Model(object):
 
         return output
 
-    def collect(self, name, useGetter=False, **context):
+    def collect(self, name, useMethod=False, **context):
         collector = self.schema().collector(name)
         if not collector:
             raise orb.errors.ColumnNotFound(self.schema().name(), name)
         else:
-            return collector(self, useGetter=useGetter, **context)
+            return collector(self, useMethod=useMethod, **context)
 
     def context(self, **context):
         """
@@ -430,6 +430,7 @@ class Model(object):
                 if not value:
                     return None
                 value = value.get(part, useMethod=useMethod, **sub_context)
+
             if value:
                 return value.get(parts[-1], useMethod=useMethod, **context)
             else:
@@ -448,7 +449,7 @@ class Model(object):
             if not col:
                 collector = self.schema().collector(column)
                 if collector:
-                    return collector.collect(self, context=context)
+                    return collector.collect(self, useMethod=useMethod, context=context)
                 else:
                     raise errors.ColumnNotFound(self.schema().name(), column)
 
@@ -474,7 +475,9 @@ class Model(object):
             return col.restore(value, sub_context)
 
     def id(self, **context):
-        return self.get(self.schema().idColumn(), useMethod=False, **context)
+        column = self.schema().idColumn()
+        useMethod = column.name() != 'id'
+        return self.get(column, useMethod=useMethod, **context)
 
     def init(self):
         columns = self.schema().columns().values()
@@ -511,7 +514,7 @@ class Model(object):
         if db in (None, self.context().db):
             col = self.schema().column(self.schema().idColumn())
             with ReadLocker(self.__dataLock):
-                if self.__values[col.name()][1] is None:
+                if col not in self.__loaded or self.__values[col.name()][0] is None:
                     return False
                 return True
         else:
@@ -594,8 +597,15 @@ class Model(object):
             # allow setting of pipes as well
             collector = self.schema().collector(column)
             if collector:
-                records = collector.collect(self, **context)
-                return records.update(value, **context)
+                my_context = self.context()
+
+                for k, v in my_context.raw_values.items():
+                    if k not in orb.Context.QueryFields:
+                        context.setdefault(k, v)
+
+                sub_context = orb.Context(**context)
+                records = collector.collect(self, context=sub_context)
+                return records.update(value, useMethod=useMethod, context=sub_context)
             else:
                 raise errors.ColumnNotFound(self.schema().name(), column)
 
@@ -674,7 +684,10 @@ class Model(object):
     def update(self, values, **context):
         # update from value dictionary
         for col, value in values.items():
-            self.set(col, value, **context)
+            try:
+                self.set(col, value, **context)
+            except orb.errors.ColumnValidationError:
+                pass
         return len(values)
 
     def validate(self):
@@ -889,11 +902,12 @@ class Model(object):
         if column and column.field() in values:
             morph_cls_name = values.get(column.name(), values.get(column.field()))
             morph_cls = orb.system.model(morph_cls_name)
+            id_col = schema.idColumn().name()
             if morph_cls and morph_cls != cls:
                 try:
-                    record = morph_cls(values['id'], context=context)
+                    record = morph_cls(values[id_col], context=context)
                 except KeyError:
-                    raise orb.errors.RecordNotFound(morph_cls, values.get('id'))
+                    raise orb.errors.RecordNotFound(morph_cls, values.get(id_col))
 
         if record is None:
             event = orb.events.LoadEvent(values)

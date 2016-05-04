@@ -302,7 +302,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             u'          FROM "{target_table}" AS "{target_alias}"\n'
             u'          {target_i18n}\n'
             u'          WHERE {target_base_where} "{target_alias}"."{target_id_field}" IN (\n'
-            u'              SELECT DISTINCT ON (t."{target_id_field}") t."{target_field}"\n'
+            u'              SELECT DISTINCT ON (t."{target_field}") t."{target_field}"\n'
             u'              FROM "{through_table}" AS t\n'
             u'              WHERE t."{source_field}" = "{source_table}"."{source_id_field}"\n'
             u'              {limit_if_unique}\n'
