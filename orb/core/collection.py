@@ -590,7 +590,10 @@ class Collection(object):
                         record_id = record_attributes.pop(id_col.name(), None)
                         if not record_id:
                             if isinstance(self.__collector, orb.ReverseLookup):
-                                record_attributes[self.__collector.targetColumn().name()] = self.__record
+                                reference_col = self.__collector.targetColumn()
+                                reference_id = self.__record.id()
+                                record_attributes.pop(reference_col.name(), None)
+                                record_attributes[reference_col.field()] = reference_id
 
                             record = self.__model.create(record_attributes, **context).id()
                         else:
