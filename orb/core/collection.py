@@ -737,16 +737,14 @@ class Collection(object):
                     record_values = [record[field.field()] for field in fields]
                 else:
                     record_values = []
-                    for field in fields:
-                        if isinstance(field, orb.ReferenceColumn):
-                            ref_model = field.referenceModel()
-                            ref_id = record[field.field()]
-                            if ref_id is not None:
-                                record_values.append(ref_model(ref_id, **orig_context))
-                            else:
-                                record_values.append(None)
-                        else:
-                            record_values.append(record[field.field()])
+                    for i, field in enumerate(fields):
+                        col = columns[i]
+                        raw_values = orig_context.copy()
+                        if isinstance(field, orb.ReferenceColumn) and raw_values.get('inflated') is None:
+                            raw_values['inflated'] = col != field.field()
+
+                        val = field.restore(record[field.field()], context=orb.Context(**raw_values))
+                        record_values.append(val)
 
                 if len(fields) == 1:
                     values.append(record_values[0])
