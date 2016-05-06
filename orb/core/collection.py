@@ -741,7 +741,10 @@ class Collection(object):
                         if isinstance(field, orb.ReferenceColumn):
                             ref_model = field.referenceModel()
                             ref_id = record[field.field()]
-                            record_values.append(ref_model(ref_id, **orig_context))
+                            if ref_id is not None:
+                                record_values.append(ref_model(ref_id, **orig_context))
+                            else:
+                                record_values.append(None)
                         else:
                             record_values.append(record[field.field()])
 
