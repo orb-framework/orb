@@ -186,6 +186,14 @@ class Collection(object):
 
         return record
 
+    def collector(self):
+        """
+        Returns the collector that generated this collection, if any.
+
+        :return:  <orb.Collector> || None
+        """
+        return self.__collector
+
     def context(self, **context):
         new_context = self.__context.copy()
         new_context.update(context)
