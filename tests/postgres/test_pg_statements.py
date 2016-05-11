@@ -21,7 +21,18 @@ def test_pg_statement_create_table(User, pg_sql):
     assert st is not None
 
     statement, data = st(User)
-    assert 'CREATE TABLE IF NOT EXISTS "users"' in statement
+    assert 'CREATE TABLE IF NOT EXISTS "public"."users"' in statement
+
+@pytest.mark.run(order=2)
+@requires_pg
+def test_pg_statement_create_table_in_namespace(User, pg_sql):
+    import orb
+    with orb.Context(namespace='custom'):
+        st = pg_sql.statement('CREATE')
+        assert st is not None
+
+        statement, data = st(User)
+        assert 'CREATE TABLE IF NOT EXISTS "custom"."users"' in statement
 
 @pytest.mark.run(order=2)
 @requires_pg
@@ -32,7 +43,20 @@ def test_pg_statement_insert_records(orb, User, pg_sql):
     user_a = User(username='bob')
     user_b = User(username='sally')
     statement, data = st([user_a, user_b])
-    assert 'INSERT INTO "users"' in statement
+    assert 'INSERT INTO "public"."users"' in statement
+
+@pytest.mark.run(order=2)
+@requires_pg
+def test_pg_statement_insert_records_in_namespace(orb, User, pg_sql):
+    user_a = User(username='bob')
+    user_b = User(username='sally')
+
+    with orb.Context(namespace='custom'):
+        st = pg_sql.statement('INSERT')
+        assert st is not None
+
+        statement, data = st([user_a, user_b])
+        assert 'INSERT INTO "custom"."users"' in statement
 
 @pytest.mark.run(order=2)
 @requires_pg

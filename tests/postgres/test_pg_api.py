@@ -381,18 +381,3 @@ def test_pg_expand_virtual(orb, GroupUser, User):
     json = u.__json__()
     assert len(json['groups']) == len(json['my_groups'])
     assert len(json['groups'][0]['users']) == len(json['my_groups'][0]['users'])
-
-@requires_pg
-def test_pg_extract_values(orb, TestAllColumns, GroupUser, Group):
-    import datetime
-    users = GroupUser.all()
-    all_records = TestAllColumns.all()
-
-    assert isinstance(all_records.values('date')[0], datetime.date)
-    assert isinstance(all_records.values('datetime')[0], datetime.datetime)
-    assert isinstance(users.values('group')[0], Group)
-    assert not isinstance(users.values('group_id')[0], Group)
-
-    group, group_id = users.values('group', 'group_id')[0]
-    assert isinstance(group, Group)
-    assert not isinstance(group_id, Group)

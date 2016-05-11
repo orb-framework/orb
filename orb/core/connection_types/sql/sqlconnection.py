@@ -113,6 +113,15 @@ class SQLConnection(orb.Connection):
     #                       PUBLIC METHODS
     #----------------------------------------------------------------------
 
+    def addNamespace(self, namespace, context):
+        CREATE_NAMESPACE = self.statement('CREATE NAMESPACE')
+        if CREATE_NAMESPACE:
+            sql, data = CREATE_NAMESPACE(namespace)
+            if context.dryRun:
+                print sql, data
+            else:
+                self.execute(sql, data)
+
     def alterModel(self, model, context, add=None, remove=None, owner='postgres'):
         add = add or {'fields': [], 'indexes': []}
         remove = remove or {'fields': [], 'indexes': []}

@@ -79,10 +79,24 @@ def test_nested_context_scope(orb, User):
     scope_a = {'session': 123}
     scope_b = {'session': 234}
 
-    with orb.Context(scope=scope_a):
+    with orb.Context(scope=scope_a) as context_a:
+        print 'context a', context_a
         user_a = User()
-        with orb.Context(scope=scope_b):
+
+        assert context_a.scope == scope_a
+        assert user_a.context().scope == scope_a
+
+        with orb.Context(scope=scope_b) as context_b:
+            print 'context b', context_b
+
+            context_c = orb.Context()
             user_b = User()
+
+            print 'context c', context_c
+
+            assert context_b.scope == scope_b
+            assert context_c.scope == scope_b
+            assert user_b.context().scope == scope_b
 
     assert user_a.context().scope == scope_a
     assert user_b.context().scope == scope_b
@@ -201,11 +215,19 @@ def test_context_paging(orb):
 def test_context_scope_merging(orb):
     with orb.Context(scope={'a': 10}) as a:
         with orb.Context(scope={'b': 20}) as b:
-            assert a.get('a') == 10
-            assert a.get('b') is None
-            assert b.get('a') == 10
-            assert b.get('b') == 20
+            assert a.scope.get('a') == 10
+            assert a.scope.get('b') is None
+            assert b.scope.get('a') == 10
+            assert b.scope.get('b') == 20
 
         with orb.Context(scope={'a': 20}) as c:
-            assert a.get('a') == 10
-            assert c.get('a') == 20
+            assert a.scope.get('a') == 10
+            assert c.scope.get('a') == 20
+
+def test_context_namespacing(orb):
+    context = orb.Context(namespace='test')
+    assert context.namespace == 'test'
+
+    with orb.Context(namespace='test'):
+        context = orb.Context()
+        assert context.namespace == 'test'

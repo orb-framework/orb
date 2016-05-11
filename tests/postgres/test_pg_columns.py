@@ -255,3 +255,18 @@ def test_pg_columns_restore_url(orb, pg_db, last_column_record):
 def test_pg_columns_restore_xml(orb, pg_db, last_column_record):
     assert last_column_record.get('xml') == TEST_XML
 
+@requires_pg
+def test_pg_extract_values(orb, TestAllColumns, GroupUser, Group):
+    import datetime
+    users = GroupUser.all()
+    all_records = TestAllColumns.all()
+
+    assert isinstance(all_records.values('date')[0], datetime.date)
+    assert isinstance(all_records.values('datetime')[0], datetime.datetime)
+    assert isinstance(users.values('group')[0], Group)
+    assert not isinstance(users.values('group_id')[0], Group)
+
+    group, group_id = users.values('group', 'group_id')[0]
+    assert isinstance(group, Group)
+    assert not isinstance(group_id, Group)
+

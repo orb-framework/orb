@@ -59,18 +59,24 @@ class INSERT(PSQLStatement):
             if columns['standard']:
                 cols = ', '.join(['"{0}"'.format(col.field()) for col in columns['standard']])
                 values = schema_records[schema]['standard']
-                subcmd += 'INSERT INTO "{0}" ({1}) VALUES'.format(schema.dbname(), cols)
+                subcmd += 'INSERT INTO "{0}"."{1}" ({2}) VALUES'.format(schema.namespace() or 'public',
+                                                                        schema.dbname(),
+                                                                        cols)
                 for value in values[:-1]:
                     subcmd += '\n({0}),'.format(value)
                 subcmd += '\n({0})'.format(values[-1])
                 subcmd += '\nRETURNING "{0}";'.format(id_column.field())
             elif columns['i18n']:
-                subcmd += '\nINSERT INTO "{0}" DEFAULT VALUES RETURNING "{1}";'.format(schema.dbname(), id_column.field())
+                subcmd += '\nINSERT INTO "{0}"."{1}" DEFAULT VALUES RETURNING "{2}";'.format(schema.namespace() or 'public',
+                                                                                             schema.dbname(),
+                                                                                             id_column.field())
 
             if columns['i18n']:
                 cols = ', '.join(['"{0}"'.format(col.field()) for col in columns['i18n']])
                 values = schema_records[schema]['i18n']
-                subcmd += '\nINSERT INTO "{0}_i18n" ("{0}_id", "locale", {1}) VALUES'.format(schema.dbname(), cols)
+                subcmd += '\nINSERT INTO "{0}"."{1}_i18n" ("{1}_id", "locale", {2}) VALUES'.format(schema.namespace() or 'public',
+                                                                                                   schema.dbname(),
+                                                                                                   cols)
                 for i, value in enumerate(values[:-1]):
                     value_key = '{0}_{1}'.format(id_column.field(), i)
                     id_value = data[value_key]

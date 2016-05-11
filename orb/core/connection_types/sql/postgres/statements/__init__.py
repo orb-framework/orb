@@ -2,6 +2,7 @@ from . import add_column
 from . import alter
 from . import create
 from . import create_index
+from . import create_namespace
 from . import delete
 from . import enable_internals
 from . import insert

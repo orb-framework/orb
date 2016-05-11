@@ -57,6 +57,15 @@ class Connection(AddonManager):
         """
 
     @abstractmethod
+    def addNamespace(self, namespace, context):
+        """
+        Creates a new namespace into this connection.
+
+        :param namespace: <str>
+        :param context: <orb.Context>
+        """
+
+    @abstractmethod
     def alterModel(self, model, context, add=None, remove=None, owner=''):
         """
         Determines the difference between the inputted table

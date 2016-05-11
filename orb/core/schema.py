@@ -383,13 +383,17 @@ class Schema(object):
         """
         return self.__name
 
-    def namespace(self):
+    def namespace(self, **context):
         """
         Returns the namespace that should be used for this schema, when specified.
 
         :return: <str>
         """
-        return self.__namespace
+        context = orb.Context(**context)
+        if context.forceNamespace:
+            return context.namespace or self.__namespace
+        else:
+            return self.__namespace or context.namespace
 
     def register(self, item):
         key = item.name()
