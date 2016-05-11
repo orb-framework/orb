@@ -114,11 +114,14 @@ class SELECT(PSQLStatement):
                 else:
                     on_.append(fields.get(col) or u'"{0}"."{1}"'.format(schema.dbname(), col.field()))
 
-            cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM "{2}"'.format(', '.join(on_),
+            cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM "{2}"."{3}"'.format(', '.join(on_),
                                                                     ', '.join(sql_columns['standard'] + sql_columns['i18n']),
+                                                                    schema.namespace() or 'public',
                                                                     schema.dbname())]
         else:
-            cmd = [u'SELECT {0} FROM "{1}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']), schema.dbname())]
+            cmd = [u'SELECT {0} FROM "{1}"."{2}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']),
+                                                         schema.namespace() or 'public',
+                                                         schema.dbname())]
 
         # add sql joins to the statement
         if sql_joins:
@@ -127,12 +130,13 @@ class SELECT(PSQLStatement):
         # join in the i18n table
         if sql_columns['i18n']:
             if context.locale == 'all':
-                cmd.append(u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
+                cmd.append(u'LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id")'.format(schema.namespace() or 'public',
+                                                                                                      schema.dbname()))
             else:
-                sql = u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'
+                sql = u'LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id" AND "i18n"."locale" = %(locale)s)'
                 if data['locale'] != data['default_locale']:
-                    sql += u'\nLEFT JOIN "{0}_i18n" AS "i18n_default" ON ("i18n_default"."{0}_id" = "id" AND "i18n_default"."locale" = %(default_locale)s)'
-                cmd.append(sql.format(schema.dbname()))
+                    sql += u'\nLEFT JOIN "{1}_i18n" AS "i18n_default" ON ("i18n_default"."{1}_id" = "id" AND "i18n_default"."locale" = %(default_locale)s)'
+                cmd.append(sql.format(schema.namespace() or 'public', schema.dbname()))
 
         # generate sql statements
         try:
@@ -150,14 +154,15 @@ class SELECT(PSQLStatement):
 
             cmd.append(u'WHERE "{0}"."{1}" IN ('.format(schema.dbname(), schema.idColumn().field()))
             cmd.append(u'    SELECT DISTINCT {0} "{1}"."{2}"'.format(distinct, schema.dbname(), schema.idColumn().field()))
-            cmd.append(u'    FROM "{0}"\n'.format(schema.dbname()))
+            cmd.append(u'    FROM "{0}"."{1}"\n'.format(schema.namespace() or 'public', schema.dbname()))
 
             if sql_columns['i18n']:
                 if context.locale == 'all':
-                    cmd.append(u'    LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id")'.format(schema.dbname()))
+                    cmd.append(u'    LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id")'.format(schema.namespace() or 'public',
+                                                                                                              schema.dbname()))
                 else:
-                    sql = u'LEFT JOIN "{0}_i18n" AS "i18n" ON ("i18n"."{0}_id" = "id" AND "i18n"."locale" = %(locale)s)'
-                    cmd.append('    ' + sql.format(schema.dbname()))
+                    sql = u'LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id" AND "i18n"."locale" = %(locale)s)'
+                    cmd.append('    ' + sql.format(schema.namespace() or 'public', schema.dbname()))
 
             if sql_where:
                 cmd.append(u'    WHERE {0}'.format(sql_where))

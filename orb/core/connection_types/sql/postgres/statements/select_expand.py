@@ -81,10 +81,11 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
 
         if has_translations:
             target_data = '"{0}".*, "{0}_i18n".*'.format(target_alias)
-            target_i18n = u'LEFT JOIN "{target}_i18n" AS "{target_alias}_i18n" ON ' \
+            target_i18n = u'LEFT JOIN "{target_namespace}"."{target}_i18n" AS "{target_alias}_i18n" ON ' \
                           u'"{target_alias}"."{target_id_field}" = "{target_alias}_i18n"."{target}_id" AND ' \
                           u'"{target_alias}_i18n"."locale" = %(locale)s'
             target_i18n = target_i18n.format(target=target.schema().dbname(),
+                                             target_namespace=target.schema().namespace() or 'public',
                                              target_alias=target_alias,
                                              target_id_field=target.schema().idColumn().field())
         else:
@@ -103,6 +104,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
             'target_id_field': target_id_field,
             'target_base_where': target_base_where,
             'target_target_i18n': target_i18n,
+            'target_namespace': target.schema().namespace() or 'public',
             'target_table': target.schema().dbname(),
             'source_table': alias or column.schema().dbname(),
             'source_field': column.field()
@@ -114,7 +116,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
             u'  SELECT row_to_json({target_name}_row) FROM\n'
             u'  (\n'
             u'      SELECT {target_data} {target_expand}\n'
-            u'      FROM "{target_table}" AS "{target_alias}"\n'
+            u'      FROM "{target_namespace}"."{target_table}" AS "{target_alias}"\n'
             u'      {target_target_i18n}\n'
             u'      WHERE {target_base_where} "{target_alias}"."{target_id_field}" = "{source_table}"."{source_field}"\n'
             u'  ) AS {target_name}_row\n'
@@ -164,11 +166,12 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
 
         if has_translations:
             target_data = u'"{target_alias}".*, "{target_alias}_i18n".*'.format(target_alias=target_alias)
-            target_i18n = u'LEFT JOIN "{table}_i18n" AS "{target_alias}_i18n" ON ' \
+            target_i18n = u'LEFT JOIN "{namespace}"."{table}_i18n" AS "{target_alias}_i18n" ON ' \
                           u'"{target_alias}"."{target_id_field}" = "{target_alias}_i18n"."{table}_id" AND ' \
                           u'"{target_alias}_i18n"."locale" = %(locale)s'
             target_i18n = target_i18n.format(target_alias=target_alias,
-                                                         table=target.schema().dbname())
+                                             namespace=target.schema().namespace() or 'public',
+                                             table=target.schema().dbname())
         else:
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
@@ -185,6 +188,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             'target_base_where': target_base_where,
             'target_fields': u', '.join(target_fields),
             'target_table': target.schema().dbname(),
+            'target_namespace': target.schema().namespace() or 'public',
             'target_id_field': target.schema().idColumn().field(),
             'target_expand': target_expand,
             'target_records_alias': target_records_alias,
@@ -201,7 +205,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             u'      SELECT {target_fields}\n'
             u'      FROM (\n'
             u'          SELECT {target_data} {target_expand}\n'
-            u'          FROM "{target_table}" AS "{target_alias}"\n'
+            u'          FROM "{target_namespace}"."{target_table}" AS "{target_alias}"\n'
             u'          {target_i18n}\n'
             u'          WHERE {target_base_where} "{target_alias}"."{source_field}" = "{source_table}"."{source_id_field}"\n'
             u'          {limit_if_unique}'
@@ -260,10 +264,12 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
 
         if has_translations:
             target_data = u'"{target_alias}".*, "{target_alias}_i18n".*'.format(target_alias=target_alias)
-            target_i18n = u'LEFT JOIN "{table}_i18n" AS "{target_alias}_i18n" ON ' \
+            target_i18n = u'LEFT JOIN "{namespace}"."{table}_i18n" AS "{target_alias}_i18n" ON ' \
                           u'"{target_alias}"."{target_id_field}" = "{target_alias}_i18n"."{table}_id" AND ' \
                           u'"{target_alias}_i18n"."locale" = %(locale)s'
-            target_i18n = target_i18n.format(target_alias=target_alias, table=target.schema().dbname(),
+            target_i18n = target_i18n.format(target_alias=target_alias,
+                                             namespace=target.schema().namespace() or 'public',
+                                             table=target.schema().dbname(),
                                              target_id_field=target.schema().idColumn().field())
         else:
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
@@ -280,9 +286,11 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             'target_base_where': target_base_where,
             'target_alias': target_alias,
             'target_name': target_name,
+            'target_namespace': target.schema().namespace() or 'public',
             'target_table': target.schema().dbname(),
             'target_i18n': target_i18n,
             'through_table': through.schema().dbname(),
+            'through_namespace': through.schema().namespace() or 'public',
             'target_id_field': target.schema().idColumn().field(),
             'target_field': target_col.field(),
             'target_records_alias': target_records_alias,
@@ -299,11 +307,11 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             u'      SELECT {target_fields}\n'
             u'      FROM (\n'
             u'          SELECT {target_data} {target_expand}\n'
-            u'          FROM "{target_table}" AS "{target_alias}"\n'
+            u'          FROM "{target_namespace}"."{target_table}" AS "{target_alias}"\n'
             u'          {target_i18n}\n'
             u'          WHERE {target_base_where} "{target_alias}"."{target_id_field}" IN (\n'
             u'              SELECT DISTINCT ON (t."{target_field}") t."{target_field}"\n'
-            u'              FROM "{through_table}" AS t\n'
+            u'              FROM "{through_namespace}"."{through_table}" AS t\n'
             u'              WHERE t."{source_field}" = "{source_table}"."{source_id_field}"\n'
             u'              {limit_if_unique}\n'
             u'          )\n'

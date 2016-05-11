@@ -36,6 +36,7 @@ class Context(object):
         'limit': None,
         'locale': None,
         'namespace': '',
+        'forceNamespace': False,
         'order': None,
         'page': None,
         'pageSize': None,
@@ -96,7 +97,10 @@ class Context(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.popDefaultContext()
-        return self
+        if exc_type:
+            raise
+        else:
+            return self
 
     def __init__(self, **kwds):
         self.__dict__['raw_values'] = {}
@@ -231,41 +235,73 @@ class Context(object):
 
         :param      other_context | <dict> || <orb.Context>
         """
+        # convert a context instance into a dictionary
         if isinstance(other_context, orb.Context):
-            other_context = other_context.raw_values
+            other_context = copy.copy(other_context.raw_values)
 
+        ignore = ('where', 'columns', 'scope')
+        inherit_kwds = {}
+        inherit_scope = {}
+        inherit_columns = []
+        inherit_where = orb.Query()
+
+        # update from the base context
+        base_context = other_context.pop('context', None)
+        if base_context is not None:
+            inherit_kwds = base_context.raw_values
+
+        # use the default contexts
+        else:
+            for default in self.defaultContexts():
+                if default is not None:
+                    # extract expandable information
+                    for k, v in default.raw_values.items():
+                        if k not in ignore:
+                            inherit_kwds[k] = copy.copy(v)
+
+                    # merge where queries
+                    where = default.where
+                    if where is not None:
+                        inherit_where &= where
+
+                    # merge column queries
+                    columns = default.columns
+                    if columns is not None:
+                        inherit_columns += list(columns)
+
+                    # merge scope
+                    scope = default.scope
+                    if scope:
+                        inherit_scope.update(scope)
+
+        # update the inherited kwds
+        for k, v in inherit_kwds.items():
+            other_context.setdefault(k, v)
+
+        # update the inherited query
+        if inherit_where:
+            other_context.setdefault('where', orb.Query())
+            other_context['where'] &= inherit_where
+
+        # update the inherited columns
+        if inherit_columns:
+            other_context['columns'] = inherit_columns + (other_context.get('columns') or [])
+
+        # update the inherited scope
+        if inherit_scope:
+            new_scope = {}
+            new_scope.update(inherit_scope)
+            new_scope.update(other_context.get('scope') or {})
+            other_context['scope'] = new_scope
+
+        # convert the columns to a list
         if 'columns' in other_context and isinstance(other_context['columns'], (str, unicode)):
             other_context['columns'] = other_context['columns'].split(',')
 
-        # utilize values from another context
-        others = []
-        base = other_context.pop('context', None)
-        if base is not None:
-            others.append(base)
-        if self.defaultContext() is not None:
-            others.append(self.defaultContext())
-
-        for other in others:
-            if other and isinstance(other, orb.Context):
-                ignore = ('columns', 'where')
-
-                # extract expandable information
-                for k, v in other.raw_values.items():
-                    if k not in ignore:
-                        other_context.setdefault(k, copy.copy(v))
-
-                # merge where queries
-                where = other.where
-                if where is not None:
-                    q = orb.Query()
-                    q &= where
-                    q &= other_context.get('where')
-                    other_context['where'] = q
-
-                # merge column queries
-                columns = other.columns
-                if columns is not None:
-                    other_context['columns'] = list(columns) + [col for col in other_context.get('columns', []) if not col in columns]
+        # convert where to query
+        where = other_context.get('where')
+        if isinstance(where, dict):
+            other_context['where'] = orb.Query.fromJSON(where)
 
         # validate values
         if other_context.get('start') is not None and (type(other_context['start']) != int or other_context['start'] < 0):
@@ -281,21 +317,11 @@ class Context(object):
             msg = 'Page size needs to be a number equal to or greater than 1, got {0} instead'
             raise orb.errors.InvalidContextOption(msg.format(other_context.get('pageSize')))
 
-        where = other_context.get('where')
-        if isinstance(where, dict):
-            other_context['where'] = orb.Query.fromJSON(where)
-
-        my_scope = self.raw_values.get('scope')
-        other_scope = other_context.get('scope')
-
-        # merge the two scopes together
-        if my_scope and other_scope:
-            my_scope.update(other_scope)
-
+        # update the raw values
         self.raw_values.update({k: v for k, v in other_context.items() if k in self.Defaults})
 
     @classmethod
-    def defaultContext(cls):
+    def defaultContexts(cls):
         defaults = getattr(cls, '_{0}__defaults'.format(cls.__name__), None)
         if defaults is None:
             defaults = defaultdict(list)
@@ -307,10 +333,7 @@ class Context(object):
 
         tid = threading.currentThread().ident
         with ReadLocker(lock):
-            try:
-                return defaults[tid][-1]
-            except IndexError:
-                return None
+            return defaults.get(tid) or []
 
     @classmethod
     def popDefaultContext(cls):

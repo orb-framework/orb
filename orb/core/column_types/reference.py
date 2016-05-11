@@ -67,6 +67,7 @@ class ReferenceColumn(Column):
 
     def dbType(self, connectionType):
         model = self.referenceModel()
+        namespace = model.schema().namespace()
         dbname = model.schema().dbname()
         id_column = model.schema().idColumn()
 
@@ -74,7 +75,7 @@ class ReferenceColumn(Column):
             typ = id_column.dbType(connectionType)
             if typ == 'SERIAL':
                 typ = 'BIGINT'
-            return '{0} REFERENCES "{1}"'.format(typ, dbname)
+            return '{0} REFERENCES "{1}"."{2}"'.format(typ, namespace or 'public', dbname)
         elif connectionType == 'SQLite':
             return id_column.dbType(connectionType)
         else:

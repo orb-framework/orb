@@ -113,12 +113,15 @@ class WHERE(PSQLStatement):
                     model_name = aliases.get(model) or model.schema().dbname()
                     i18n_sql = u'"{name}"."{field}" IN (' \
                           u'    SELECT "{name}_id"' \
-                          u'    FROM "{name}_i18n"' \
+                          u'    FROM "{namespace}"."{name}_i18n"' \
                           u'    WHERE {sub_sql}' \
                           u')'
 
                     sub_sql = sql.replace('"{0}"'.format(model_name), '"{0}_i18n"'.format(model_name))
-                    sql = i18n_sql.format(name=model_name, sub_sql=sub_sql, field=model.schema().idColumn().field())
+                    sql = i18n_sql.format(name=model_name,
+                                          namespace=model.schema().namespace() or 'public',
+                                          sub_sql=sub_sql,
+                                          field=model.schema().idColumn().field())
 
         return sql, data
 

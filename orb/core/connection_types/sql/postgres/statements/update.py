@@ -52,11 +52,14 @@ class UPDATE(PSQLStatement):
         sql = []
         if standard_values:
             standard_sql = (
-                u'UPDATE "{table}"\n'
+                u'UPDATE "{namespace}"."{table}"\n'
                 u'SET {values}\n'
-                u'WHERE "{table}"."{field}" = %({id})s;'
-            ).format(table=record.schema().dbname(), id=id_key,
-                     values=', '.join(standard_values), field=record.schema().idColumn().field())
+                u'WHERE "{namespace}"."{table}"."{field}" = %({id})s;'
+            ).format(table=record.schema().dbname(),
+                     namespace=record.schema().namespace() or 'public',
+                     id=id_key,
+                     values=', '.join(standard_values),
+                     field=record.schema().idColumn().field())
             sql.append(standard_sql)
 
         if i18n_fields:
@@ -66,11 +69,11 @@ class UPDATE(PSQLStatement):
                     u'BEGIN\n'
                     u'IF NOT EXISTS (\n'
                     u'  SELECT 1\n'
-                    u'  FROM "{table}_i18n"\n'
+                    u'  FROM "{namespace}"."{table}_i18n"\n'
                     u'  WHERE "{table}_id" = %({id})s AND "locale" = \'{locale}\'\n'
                     u')\n'
                     u'THEN\n'
-                    u'  INSERT INTO "{table}_i18n" ("{table}_id", "locale", {fields})\n'
+                    u'  INSERT INTO "{namespace}"."{table}_i18n" ("{table}_id", "locale", {fields})\n'
                     u'  VALUES (%({id})s, \'{locale}\', {keys});\n'
                     u'ELSE\n'
                     u'  UPDATE "{table}_i18n"\n'
@@ -78,7 +81,10 @@ class UPDATE(PSQLStatement):
                     u'  WHERE "{table}_id" = %({id})s AND "locale" = \'{locale}\';\n'
                     u'END IF;\n'
                     u'END $$;'
-                ).format(table=record.schema().dbname(), id=id_key, locale=locale,
+                ).format(table=record.schema().dbname(),
+                         namespace=record.schema().namespace() or 'public',
+                         id=id_key,
+                         locale=locale,
                          values=', '.join(i18n_values[locale]),
                          keys=', '.join(i18n_keys[locale]),
                          fields=', '.join(i18n_fields[locale]))

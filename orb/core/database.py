@@ -66,6 +66,14 @@ class Database(object):
         manager.activate(self)
         return True
 
+    def addNamespace(self, namespace, **context):
+        """
+        Creates a new namespace within this database.
+
+        :param namespace: <str>
+        """
+        self.connection().addNamespace(namespace, orb.Context(**context))
+
     def code(self):
         """
         Returns the ID code for this database.  Using codes for different database instances will allow
@@ -268,7 +276,7 @@ class Database(object):
         """
         self.__username = nstr(username)
 
-    def sync(self, **context):
+    def sync(self, models=None, **context):
         """
         Syncs the database by calling its schema sync method.  If
         no specific schema has been set for this database, then
@@ -289,18 +297,29 @@ class Database(object):
 
         # collect the information for this database
         conn = self.__connection
-        models = orb.system.models(orb.Model).values()
-        models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
+        all_models = orb.system.models(orb.Model).values()
+        all_models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
+
+        tables = [model for model in all_models if issubclass(model, orb.Table) and
+                  (not models or model.schema().name() in models)]
+        views = [model for model in all_models if issubclass(model, orb.View) and
+                  (not models or model.schema().name() in models)]
 
         # initialize the database
         event = orb.events.SyncEvent(context=context)
         self.__connection.onSync(event)
 
+        namespaces = set()
         info = conn.schemaInfo(context)
 
         # create new models
-        for model in models:
-            if not (issubclass(model, orb.View) or model.schema().dbname() in info):
+        for model in tables:
+            if model.schema().dbname() not in info:
+                namespace = model.schema().namespace()
+                if namespace not in namespaces:
+                    conn.addNamespace(namespace, context)
+                    namespaces.add(namespace)
+
                 conn.createModel(model, context, includeReferences=False, owner=self.username())
 
         # update after any newly created tables get generated
@@ -310,11 +329,7 @@ class Database(object):
         # will be generated
         views = []
 
-        for model in models:
-            if issubclass(model, orb.View):
-                views.append(model)
-                continue
-
+        for model in tables:
             try:
                 model_info = info[model.schema().dbname()]
             except KeyError:
@@ -334,6 +349,7 @@ class Database(object):
                 if add['fields'] or add['indexes']:
                     conn.alterModel(model, context, add=add, owner=self.username())
 
+        for model in tables:
             # call the sync event
             event = orb.events.SyncEvent(model=model)
             if model.processEvent(event):

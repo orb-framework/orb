@@ -390,7 +390,9 @@ class Collection(object):
                 with ReadLocker(self.__cacheLock):
                     ids = self.__preload['ids'][context]
             except KeyError:
-                ids = self.records(columns=[self.__model.schema().idColumn()], returning='values', context=context)
+                ids = self.records(columns=[self.__model.schema().idColumn()],
+                                   returning='values',
+                                   context=context)
 
             with WriteLocker(self.__cacheLock):
                 self.__cache['ids'][context] = ids
@@ -660,9 +662,14 @@ class Collection(object):
 
                 # determine the reverse lookups to remove from this collection
                 remove = model.select(where=q, context=context)
-                for record in remove:
-                    record.set(source, None)
-                    record.save()
+
+                # check the remove action to determine how to handle this situation
+                if self.__collector.removeAction() == 'delete':
+                    remove.delete()
+                else:
+                    for record in remove:
+                        record.set(source, None)
+                        record.save()
 
                 # determine the new records to add to this collection
                 if ids:

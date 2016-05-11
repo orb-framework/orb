@@ -48,11 +48,12 @@ class ALTER(PSQLStatement):
 
             sql_options = {
                 'type': typ,
+                'namespace': model.schema().namespace() or 'public',
                 'name': model.schema().dbname(),
                 'fields': u'\t' + ',\n\t'.join(field_statements)
             }
             sql = (
-                u'ALTER {type} "{name}"\n'
+                u'ALTER {type} "{namespace}"."{name}"\n'
                 u'{fields};'
             ).format(**sql_options)
         else:
@@ -71,6 +72,7 @@ class ALTER(PSQLStatement):
                 field_statements.append(field_statement)
 
             i18n_options = {
+                'namespace': model.schema().namespace() or 'public',
                 'table': model.schema().dbname(),
                 'fields': u'\t' + ',\n\t'.join(field_statements),
                 'owner': owner,
@@ -79,13 +81,13 @@ class ALTER(PSQLStatement):
             }
 
             i18n_sql = (
-                u'CREATE TABLE IF NOT EXISTS "{table}_i18n" (\n'
+                u'CREATE TABLE IF NOT EXISTS "{namespace}"."{table}_i18n" (\n'
                 u'  "locale" CHARACTER VARYING(5),\n'
-                u'  "{table}_id" {id_type} REFERENCES "{table}" ("{id_field}") ON DELETE CASCADE,\n'
+                u'  "{table}_id" {id_type} REFERENCES "{namespace}"."{table}" ("{id_field}") ON DELETE CASCADE,\n'
                 u'  CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("locale", "{table}_id")\n'
                 u') WITH (OIDS=FALSE);'
-                u'ALTER TABLE "{table}_i18n" OWNER TO "{owner}";'
-                u'ALTER TABLE "{table}_i18n"'
+                u'ALTER TABLE "{namespace}"."{table}_i18n" OWNER TO "{owner}";'
+                u'ALTER TABLE "{namespace}"."{table}_i18n"'
                 u'{fields};'
             ).format(**i18n_options)
 

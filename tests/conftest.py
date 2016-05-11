@@ -3,6 +3,7 @@ import logging
 from projex.enum import enum
 
 logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
 
 
 def pytest_runtest_makereport(item, call):
@@ -88,6 +89,30 @@ def TestAllColumns(orb):
         xml = orb.XmlColumn()
 
     return TestAllColumns
+
+@pytest.fixture(scope='session')
+def namespace_models(orb):
+    class TestDefault(orb.Table):
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+
+        @classmethod
+        def onSync(cls, event):
+            print 'syncing defaults'
+            cls.ensureExists({'name': 'test'})
+
+    class TestExplicit(orb.Table):
+        __namespace__ = 'test_explicit'
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+
+        @classmethod
+        def onSync(cls, event):
+            print 'syncing explicit'
+            cls.ensureExists({'name': 'test'})
+
+    return {'TestDefault': TestDefault, 'TestExplicit': TestExplicit}
 
 @pytest.fixture(scope='session')
 def all_column_record(orb, TestAllColumns):

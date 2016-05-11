@@ -20,6 +20,7 @@ class CREATE(PSQLStatement):
         schema = model.schema()
         data = {}
 
+        namespace = schema.namespace() or 'public'
         id_column = schema.idColumn()
         base_model = id_column.referenceModel()
         base_schema = base_model.schema()
@@ -47,6 +48,7 @@ class CREATE(PSQLStatement):
                     target = '"{0}"."{1}"'.format(join_alias, ref_model.schema().idColumn().field())
                     source = '"{0}"."{1}"'.format(alias, column.field())
                     join = {
+                        'namespace': ref_model.schema().namespace() or 'public',
                         'table': ref_model.schema().dbname(),
                         'alias': join_alias,
                         'on': '{0} = {1}'.format(target, source)
@@ -87,14 +89,17 @@ class CREATE(PSQLStatement):
                         order = [(x[0], 'asc' if x[1] == 'desc' else 'desc') for x in order]
 
                     order = [
-                        '"{0}"."{1}" {2}'.format(join_schema.dbname(),
-                                                 join_schema.column(x[0]).field(), x[1].upper())
+                        '"{0}"."{1}"."{2}" {3}'.format(join_schema.namespace() or 'public',
+                                                       join_schema.dbname(),
+                                                       join_schema.column(x[0]).field(), x[1].upper())
                         for x in order
                     ]
 
                     opts = {
                         'source': '"{0}"'.format(source_col.field()),
+                        'namespace': '"{0}"'.format(join_schema.namespace() or 'public'),
                         'model': '"{0}"'.format(join_schema.dbname()),
+                        'through_namespace': '"{0}"'.format(pipe_schema.namespace() or 'public'),
                         'through': '"{0}"'.format(pipe_schema.dbname()),
                         'target': '"{0}"'.format(target_col.field()),
                         'column': '"{0}"'.format(join_schema.dbname(), join_id.field()),
@@ -105,13 +110,14 @@ class CREATE(PSQLStatement):
                         join_table = '"{0}_{1}_{2}"'.format(join_schema.dbname(), column_name, record_part)
                         preload_as = '(' \
                                      '    SELECT DISTINCT ON (j.{source}) {model}.*, j.{source}' \
-                                     '    FROM {model}' \
-                                     '    LEFT JOIN {through} ON j.{target} = {column}' \
+                                     '    FROM {namespace}.{model}' \
+                                     '    LEFT JOIN {through_namespace}.{through} ON j.{target} = {column}' \
                                      '    ORDER BY j.{source}, {order}' \
                                      ')'
                         preload.setdefault(join_table, preload_as.format(**opts))
                     else:
-                        join_table = '"{0}"'.format(join_schema.dbname())
+                        join_table = '"{0}"."{1}"'.format(join_schema.namespace() or 'public',
+                                                          join_schema.dbname())
                 else:
                     join_schema = collector.targetModel()
                     join_id = join_schema.idColumn()
@@ -122,13 +128,15 @@ class CREATE(PSQLStatement):
                         order = [(x[0], 'asc' if x[1] == 'desc' else 'desc') for x in order]
 
                     order = [
-                        '"{0}"."{1}" {2}'.format(join_schema.dbname(),
-                                                 join_schema.column(x[0]).field(), x[1].upper())
+                        '"{0}"."{1}"."{2}" {3}'.format(join_schema.namespace() or 'public',
+                                                       join_schema.dbname(),
+                                                       join_schema.column(x[0]).field(), x[1].upper())
                         for x in order
                     ]
 
                     opts = {
                         'source': collector.field(),
+                        'namespace': join_schema.namespace() or 'public',
                         'target': join_schema.dbname(),
                         'column': join_id.field(),
                         'order': ', '.join(order)
@@ -138,12 +146,13 @@ class CREATE(PSQLStatement):
                         join_table = '"{0}"."{1}"."{2}"'.format(join_schema.dbname(), column_name, record_part)
                         preload_as = '(' \
                                      '    SELECT DISTINCT ON ({source}) {target}.*' \
-                                     '    FROM {target}' \
+                                     '    FROM "{namespace}"."{target}"' \
                                      '    ORDER BY {source}, {column}' \
                                      ')'
                         preload.setdefault(join_table, preload_as.format(**opts))
                     else:
-                        join_table = '"{0}"'.format(join_schema.dbname())
+                        join_table = '"{0}"."{1}"'.format(join_schema.namespace() or 'public',
+                                                          join_schema.dbname())
 
                 join_alias = '"{0}_{1}_{2}"'.format(join_schema.dbname(), column_name, record_part)
                 target = '{0}."{1}"'.format(join_alias, join_id.field())
@@ -257,10 +266,14 @@ class CREATE(PSQLStatement):
 
             inherits = '\nINHERITS ("{0}")\n'.format(inherits_model.schema().dbname())
 
-        cmd  = 'CREATE TABLE IF NOT EXISTS "{table}" ({body}) {inherits}WITH (OIDS=FALSE);\n'
+        cmd  = 'CREATE TABLE IF NOT EXISTS "{namespace}"."{table}" ({body}) {inherits}WITH (OIDS=FALSE);\n'
         if owner:
-            cmd += 'ALTER TABLE "{table}" OWNER TO "{owner}";'
-        cmd = cmd.format(table=model.schema().dbname(), body=body, inherits=inherits, owner=owner)
+            cmd += 'ALTER TABLE "{namespace}"."{table}" OWNER TO "{owner}";'
+        cmd = cmd.format(namespace=model.schema().namespace() or 'public',
+                         table=model.schema().dbname(),
+                         body=body,
+                         inherits=inherits,
+                         owner=owner)
 
         # create the i18n model
         if add_i18n:
@@ -276,17 +289,23 @@ class CREATE(PSQLStatement):
 
             i18n_body = ',\n\t'.join([statement.replace('ADD COLUMN ', '') for statement in field_statements])
 
-            i18n_cmd  = 'CREATE TABLE "{table}_i18n" (\n'
+            i18n_cmd  = 'CREATE TABLE "{namespace}"."{table}_i18n" (\n'
             i18n_cmd += '   "locale" CHARACTER VARYING(5),\n'
-            i18n_cmd += '   "{table}_id" {id_type} REFERENCES "{table}" ({pcol}),\n'
+            i18n_cmd += '   "{table}_id" {id_type} REFERENCES "{namespace}"."{table}" ({pcol}),\n'
             i18n_cmd += '   {body},\n'
             i18n_cmd += '   CONSTRAINT "{table}_i18n_pkey" PRIMARY KEY ("{table}_id", "locale")\n'
             i18n_cmd += ') WITH (OIDS=FALSE);\n'
             if owner:
-                i18n_cmd += 'ALTER TABLE "{table}_i18n" OWNER TO "{owner}";'
+                i18n_cmd += 'ALTER TABLE "{namespace}"."{table}_i18n" OWNER TO "{owner}";'
 
-            i18n_cmd = i18n_cmd.format(table=model.schema().dbname(),
-                                       id_type=id_type, pcol=pcol, body=i18n_body, owner=owner)
+            i18n_cmd = i18n_cmd.format(
+                namespace=model.schema().namespace() or 'public',
+                table=model.schema().dbname(),
+                id_type=id_type,
+                pcol=pcol,
+                body=i18n_body,
+                owner=owner
+            )
 
             cmd += '\n' + i18n_cmd
 
