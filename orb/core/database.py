@@ -316,7 +316,7 @@ class Database(object):
         for model in tables:
             if model.schema().dbname() not in info:
                 namespace = model.schema().namespace()
-                if namespace not in namespaces:
+                if namespace and namespace not in namespaces:
                     conn.addNamespace(namespace, context)
                     namespaces.add(namespace)
 
@@ -324,10 +324,6 @@ class Database(object):
 
         # update after any newly created tables get generated
         info = conn.schemaInfo(context)
-
-        # second pass will ensure that ll columns, including references
-        # will be generated
-        views = []
 
         for model in tables:
             try:

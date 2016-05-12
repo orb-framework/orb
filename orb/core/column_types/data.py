@@ -15,7 +15,8 @@ yaml = lazy_import('yaml')
 class BinaryColumn(Column):
     TypeMap = {
         'Postgres': 'TEXT',
-        'SQLite': 'BLOB'
+        'SQLite': 'BLOB',
+        'MySQL': 'TEXT'
     }
 
     def random(self):
@@ -58,7 +59,8 @@ class BinaryColumn(Column):
 class JSONColumn(Column):
     TypeMap = {
         'Postgres': 'TEXT',
-        'SQLite': 'TEXT'
+        'SQLite': 'TEXT',
+        'MySQL': 'TEXT'
     }
 
     def random(self):
@@ -131,7 +133,8 @@ class QueryColumn(JSONColumn):
 class YAMLColumn(Column):
     TypeMap = {
         'Postgres': 'TEXT',
-        'SQLite': 'TEXT'
+        'SQLite': 'TEXT',
+        'MySQL': 'TEXT'
     }
 
     def random(self):

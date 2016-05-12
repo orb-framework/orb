@@ -5,7 +5,7 @@ orb = lazy_import('orb')
 
 
 class SCHEMA_INFO(PSQLStatement):
-    def __call__(self, namespace='public'):
+    def __call__(self, context):
         sql = u'SELECT t.table_name AS name,\n' \
               u'(\n' \
               u'   SELECT  array_agg(c.column_name::varchar)\n' \
@@ -23,7 +23,7 @@ class SCHEMA_INFO(PSQLStatement):
               u'WHERE t.table_schema = \'{namespace}\'\n' \
               u'AND   t.table_name NOT ILIKE \'%%_i18n\''
 
-        return sql.format(namespace=namespace), {}
+        return sql.format(namespace=context.namespace or 'public'), {}
 
 
 PSQLStatement.registerAddon('SCHEMA INFO', SCHEMA_INFO())
