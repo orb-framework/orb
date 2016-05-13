@@ -44,8 +44,12 @@ class PSQLConnection(SQLConnection):
     # ----------------------------------------------------------------------
     # PROTECTED METHODS
     # ----------------------------------------------------------------------
-    def _execute(self, native, command, data=None, autoCommit=True, autoClose=True,
-                 returning=True, mapper=dict):
+    def _execute(self,
+                 native,
+                 command,
+                 data=None,
+                 returning=True,
+                 mapper=dict):
         """
         Executes the inputted command into the current \
         connection cursor.
@@ -57,19 +61,10 @@ class PSQLConnection(SQLConnection):
         
         :return     [{<str> key: <variant>, ..}, ..], <int> count
         """
-        rowcount = 0
         if data is None:
             data = {}
 
-        # check to make sure the connection hasn't been reset or lost
-        try:
-            cursor = native.cursor(cursor_factory=DictCursor)
-        except pg.InterfaceError as err:
-            native = self.open(force=True)
-            if native:
-                cursor = native.cursor(cursor_factory=DictCursor)
-            else:
-                raise err
+        cursor = native.cursor(cursor_factory=DictCursor)
 
         # register the hstore option
         try:
@@ -158,11 +153,6 @@ class PSQLConnection(SQLConnection):
             results = [mapper(record) for record in cursor.fetchall()]
         except pg.ProgrammingError:
             results = []
-
-        if autoCommit:
-            self.commit()
-        if autoClose:
-            cursor.close()
 
         return results, rowcount
 

@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.fixture()
-def pg_db():
+def pg_db(request):
     import getpass
     import orb
 
@@ -15,6 +15,8 @@ def pg_db():
 
     def fin():
         db.disconnect()
+
+    request.addfinalizer(fin)
 
     return db
 
