@@ -256,7 +256,7 @@ class HtmlColumn(TextColumn):
         """
         try:
             import bleach
-            py_value = bleach.clean(py_value, **self.__bleachOptions)
+            return bleach.clean(py_value, **self.__bleachOptions)
         except ImportError:
             warnings.warn('Unable to clean string column without webhelpers installed.')
             return py_value
@@ -420,6 +420,10 @@ class UrlColumn(StringColumn):
 
 
 class XmlColumn(TextColumn):
+    def __init__(self, **kwds):
+        kwds.setdefault('escaped', False)
+        super(XmlColumn, self).__init__(**kwds)
+
     def clean(self, py_value):
         """
         No cleaning right now for XML columns.  The strip tags and HTML cleaners will erase
