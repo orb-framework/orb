@@ -1,3 +1,4 @@
+import cgi
 import os
 import projex.text
 import random
@@ -7,16 +8,6 @@ import warnings
 from projex.lazymodule import lazy_import
 from ..column import Column
 
-try:
-    from webhelpers.text import strip_tags
-except ImportError:
-    strip_tags = None
-
-try:
-    import bleach
-except ImportError:
-    bleach = None
-
 
 orb = lazy_import('orb')
 
@@ -24,12 +15,13 @@ class AbstractStringColumn(Column):
     MathMap = Column.MathMap.copy()
     MathMap['Default']['Add'] = '||'
 
-    def __init__(self, cleaned=True, **kwds):
+    def __init__(self, cleaned=True, escaped=True, **kwds):
         kwds.setdefault('defaultOrder', 'desc')
 
         super(AbstractStringColumn, self).__init__(**kwds)
 
         self.__cleaned = cleaned
+        self.__escaped = escaped
 
     def clean(self, py_value):
         """
@@ -39,12 +31,12 @@ class AbstractStringColumn(Column):
 
         :return:    <str>
         """
-        if strip_tags:
-            py_value = strip_tags(py_value)
-        else:
+        try:
+            from webhelpers.text import strip_tags
+            return strip_tags(py_value)
+        except ImportError:
             warnings.warn('Unable to clean string column without webhelpers installed.')
-
-        return py_value
+            return py_value
 
     def cleaned(self):
         """
@@ -69,9 +61,30 @@ class AbstractStringColumn(Column):
             if self.cleaned():
                 py_value = self.clean(py_value)
 
+            if self.escaped():
+                py_value = self.escape(py_value)
+
             return py_value
         else:
             return py_value
+
+    def escape(self, value):
+        """
+        Escapes the given value, blocking invalid characters.
+
+        :param value: <str>
+
+        :return: <str>
+        """
+        return cgi.escape(value)
+
+    def escaped(self):
+        """
+        Returns whether or not this column escape's HTML characters
+
+        :return: <bool>
+        """
+        return self.__escaped
 
     def random(self):
         """
@@ -227,6 +240,8 @@ class FilepathColumn(StringColumn):
 
 class HtmlColumn(TextColumn):
     def __init__(self, bleachOptions=None, **kwds):
+        kwds.setdefault('escaped', False)
+
         super(HtmlColumn, self).__init__(**kwds)
 
         self.__bleachOptions = bleachOptions or {}
@@ -239,12 +254,12 @@ class HtmlColumn(TextColumn):
 
         :return:    <str>
         """
-        if bleach:
+        try:
+            import bleach
             py_value = bleach.clean(py_value, **self.__bleachOptions)
-        else:
+        except ImportError:
             warnings.warn('Unable to clean string column without webhelpers installed.')
-
-        return py_value
+            return py_value
 
 
 class PasswordColumn(StringColumn):

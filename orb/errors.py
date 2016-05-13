@@ -16,7 +16,7 @@ class OrbError(StandardError):
 class DatabaseError(OrbError):
     """ Defines the base error class for all database related errors """
 
-    def __init__(self, msg='Unknown database error occurred.'):
+    def __init__(self, msg=u'Unknown database error occurred.'):
         super(DatabaseError, self).__init__(msg)
 
 
@@ -43,7 +43,7 @@ class ActionNotAllowed(OrbError):
 
 class ArchiveNotFound(OrbError):
     def __init__(self, table):
-        msg = 'Could not find archives for the {0} table.'.format(table)
+        msg = u'Could not find archives for the {0} table.'.format(table)
         super(ArchiveNotFound, self).__init__(msg)
 
 # B
@@ -51,7 +51,7 @@ class ArchiveNotFound(OrbError):
 
 class BackendNotFound(OrbError):
     def __init__(self, backend):
-        super(BackendNotFound, self).__init__('Could not find {0} backend'.format(backend))
+        super(BackendNotFound, self).__init__(u'Could not find {0} backend'.format(backend))
 
 
 # C
@@ -62,11 +62,11 @@ class CannotDelete(OrbError):
 
 class ColumnIsVirtual(OrbError):
     def __init__(self, column):
-        super(ColumnIsVirtual, self).__init__('Cannot access {0} directly, it is virtual'.format(column))
+        super(ColumnIsVirtual, self).__init__(u'Cannot access {0} directly, it is virtual'.format(column))
 
 class ColumnNotFound(OrbError):
     def __init__(self, table, column):
-        super(ColumnNotFound, self).__init__('Did not find {0} column on {1}.'.format(column, table))
+        super(ColumnNotFound, self).__init__(u'Did not find {0} column on {1}.'.format(column, table))
 
 
 class ColumnReadOnly(OrbError):
@@ -76,7 +76,7 @@ class ColumnReadOnly(OrbError):
         except AttributeError:
             text = nstr(column)
 
-        super(ColumnReadOnly, self).__init__('{0} is a read-only column.'.format(text))
+        super(ColumnReadOnly, self).__init__(u'{0} is a read-only column.'.format(text))
 
 
 class ColumnValidationError(ValidationError):
@@ -93,17 +93,17 @@ class ColumnRequired(OrbError):
         except AttributeError:
             text = nstr(column)
 
-        super(ColumnRequired, self).__init__('{0} is a required column.'.format(text))
+        super(ColumnRequired, self).__init__(u'{0} is a required column.'.format(text))
 
 
 class ConnectionFailed(OrbError):
     def __init__(self):
-        super(ConnectionFailed, self).__init__('Failed to connect to database')
+        super(ConnectionFailed, self).__init__(u'Failed to connect to database')
 
 
 class ConnectionLost(OrbError):
     def __init__(self):
-        OrbError.__init__(self, 'Connection was lost to the database.  Please retry again soon.')
+        OrbError.__init__(self, u'Connection was lost to the database.  Please retry again soon.')
 
 
 # D
@@ -111,12 +111,12 @@ class ConnectionLost(OrbError):
 
 class DatabaseNotFound(OrbError):
     def __init__(self):
-        super(DatabaseNotFound, self).__init__('No database was found.')
+        super(DatabaseNotFound, self).__init__(u'No database was found.')
 
 
 class DependencyNotFound(OrbError):
     def __init__(self, package):
-        msg = 'Required package `{0}` is not installed.'.format(package)
+        msg = u'Required package `{0}` is not installed.'.format(package)
         super(DependencyNotFound, self).__init__(msg)
 
 
@@ -124,7 +124,7 @@ class DuplicateColumnFound(OrbError):
     """ Thrown when there is a duplicate column found within a single \
         hierarchy of a Table. """
     def __init__(self, schema, column):
-        msg = '{0}: {1} is already a column and cannot be duplicated.'
+        msg = u'{0}: {1} is already a column and cannot be duplicated.'
         super(DuplicateColumnFound, self).__init__(msg.format(schema, column))
 
 
@@ -145,23 +145,23 @@ class EncryptionDisabled(OrbError):
 
 class IdNotFound(OrbError):
     def __init__(self, name):
-        super(IdNotFound, self).__init__('No id column found for {0}'.format(name))
+        super(IdNotFound, self).__init__(u'No id column found for {0}'.format(name))
 
 class Interruption(StandardError):
     def __init__(self):
-        super(Interruption, self).__init__('Database operation was interrupted.')
+        super(Interruption, self).__init__(u'Database operation was interrupted.')
 
 class InvalidContextOption(ValidationError):
     pass
 
 class InvalidReference(ValidationError):
     def __init__(self, column, value_type, expected_type):
-        msg = '{0} expects {1} records, not {2}'.format(column, expected_type, value_type)
+        msg = u'{0} expects {1} records, not {2}'.format(column, expected_type, value_type)
         super(InvalidReference, self).__init__(msg)
 
 class InvalidColumnType(OrbError):
     def __init__(self, typ):
-        msg = '{0} is not a valid column type.'
+        msg = u'{0} is not a valid column type.'
         super(InvalidColumnType, self).__init__(msg.format(typ))
 
 class EmptyCommand(OrbError):
@@ -172,7 +172,7 @@ class InvalidSearch(OrbError):
 
 class InvalidResponse(OrbError):
     def __init__(self, method, err):
-        msg = 'Invalid response from rest method "{0}": {1}'
+        msg = u'Invalid response from rest method "{0}": {1}'
         super(InvalidResponse, self).__init__(msg.format(method, err))
 
 
@@ -187,7 +187,7 @@ class IndexValidationError(ValidationError):
 
 class QueryFailed(OrbError):
     def __init__(self, sql, options, err):
-        msg = 'Query was:\n\n"%s"\n\nArgs: %s\n\nError: %s'
+        msg = u'Query was:\n\n"%s"\n\nArgs: %s\n\nError: %s'
         msg %= (sql, options, err)
         super(QueryFailed, self).__init__(msg)
 
@@ -199,12 +199,12 @@ class QueryInvalid(OrbError):
 
 class QueryIsNull(OrbError):
     def __init__(self):
-        super(QueryIsNull, self).__init__('This query will result in no items.')
+        super(QueryIsNull, self).__init__(u'This query will result in no items.')
 
 
 class QueryTimeout(DatabaseError):
     def __init__(self, query=None, msecs=None, msg=None):
-        msg = msg or 'The server cancelled the query because it was taking too long.'
+        msg = msg or u'The server cancelled the query because it was taking too long.'
 
         self.query = query
         self.msecs = msecs
@@ -217,7 +217,7 @@ class QueryTimeout(DatabaseError):
 
 class PrimaryKeyNotDefined(OrbError):
     def __init__(self, record):
-        super(OrbError, self).__init__('No primary key defined for {0}.'.format(record))
+        super(OrbError, self).__init__(u'No primary key defined for {0}.'.format(record))
 
 
 # R
@@ -225,7 +225,7 @@ class PrimaryKeyNotDefined(OrbError):
 
 class RecordNotFound(OrbError):
     def __init__(self, model, pk):
-        msg = 'Could not find record {0}({1}).'.format(model.schema().name(), pk)
+        msg = u'Could not find record {0}({1}).'.format(model.schema().name(), pk)
         super(RecordNotFound, self).__init__(msg)
 
 
@@ -236,7 +236,7 @@ class ReferenceNotFound(OrbError):
         except AttributeError:
             text = nstr(column)
 
-        msg = '{0} is a foreign key with no reference table.'
+        msg = u'{0} is a foreign key with no reference table.'
         super(ReferenceNotFound, self).__init__(msg.format(text))
 
 
@@ -245,7 +245,7 @@ class ReferenceNotFound(OrbError):
 
 class ModelNotFound(OrbError):
     def __init__(self, table):
-        super(ModelNotFound, self).__init__('Could not find `{0}` table.'.format(table))
+        super(ModelNotFound, self).__init__(u'Could not find `{0}` table.'.format(table))
 
 
 # V
@@ -253,21 +253,21 @@ class ModelNotFound(OrbError):
 
 class ValueNotFound(OrbError):
     def __init__(self, record, column):
-        super(ValueNotFound, self).__init__('{0} has no value for {1}'.format(record, column))
+        super(ValueNotFound, self).__init__(u'{0} has no value for {1}'.format(record, column))
 
 class ValueOutOfRange(ValidationError):
     def __init__(self, column, value, minimum, maximum):
-        msg = '{0} for {1} is out of range.  Value must be '.format(value, column)
+        msg = u'{0} for {1} is out of range.  Value must be '.format(value, column)
 
         if minimum is not None and maximum is not None:
-            msg += 'between {0} and {1}'.format(minimum, maximum)
+            msg += u'between {0} and {1}'.format(minimum, maximum)
         elif minimum is not None:
-            msg += 'greater than {0}'
+            msg += u'greater than {0}'
         elif maximum is not None:
-            msg += 'less than {0}'.format(maximum)
+            msg += u'less than {0}'.format(maximum)
 
         super(ValueOutOfRange, self).__init__(msg)
 
 class ViewNotFound(OrbError):
     def __init__(self, table, view):
-        super(ViewNotFound, self).__init__('{0} has no view {1}.'.format(table, view))
+        super(ViewNotFound, self).__init__(u'{0} has no view {1}.'.format(table, view))
