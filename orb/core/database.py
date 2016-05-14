@@ -109,28 +109,6 @@ class Database(object):
         """
         return self.__credentials or (self.username(), self.password())
 
-    def connect(self):
-        """
-        Creates the backend instance for this database and connects it to its
-        database server.
-        
-        :sa         backend
-        
-        :return     <bool> | success
-        """
-        event = orb.events.ConnectionEvent(database=self)
-        self.onPreConnect(event)
-        if event.preventDefault:
-            return False
-
-        # disconnect after a multiprocess fork or this will error out
-        register_after_fork(self, self.disconnect)
-        success = self.__connection.open()
-
-        event = orb.events.PostConnectionEvent(success=success, database=self)
-        self.onPostConnect(event)
-        return success
-
     def disconnect(self):
         """
         Disconnects the current database connection from the

@@ -79,8 +79,15 @@ class SQLiteConnection(SQLConnection):
     # ----------------------------------------------------------------------
     # PROTECTED METHODS
     # ----------------------------------------------------------------------
-    def _execute(self, native, command, data=None, autoCommit=True, autoClose=True,
-                 returning=True, mapper=dict):
+    def _closed(self, native):
+        return False
+
+    def _execute(self,
+                 native,
+                 command,
+                 data=None,
+                 returning=True,
+                 mapper=dict):
         """
         Executes the inputted command into the current \
         connection cursor.
@@ -105,8 +112,6 @@ class SQLiteConnection(SQLConnection):
             commands.insert(0, 'BEGIN TRANSACTION')
         else:
             native.isolation_level = None
-
-        start = datetime.datetime.now()
 
         def _gen_sub_value(val):
             output = []
@@ -184,13 +189,7 @@ class SQLiteConnection(SQLConnection):
         else:
             results = []
 
-        if autoCommit:
-            self.commit()
-
         native.isolation_level = None
-        if autoClose:
-            cursor.close()
-
         return results, rowcount
 
     def _open(self, db):

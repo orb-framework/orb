@@ -3,17 +3,13 @@ Defines the base abstract SQL connection for all SQL based
 connection backends. """
 
 import datetime
+import contextlib
 import logging
 import orb
-import projex.iters
-import projex.text
-import threading
 import time
+import sys
 
-from collections import defaultdict
 from projex.decorators import abstractmethod
-from projex.contexts import MultiContext
-from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
 
 log = logging.getLogger(__name__)
 
@@ -31,12 +27,17 @@ class SQLConnection(orb.Connection):
     def __init__(self, database):
         super(SQLConnection, self).__init__(database)
 
+        # determine the connection pooling type
+        if orb.system.settings().worker_class == 'gevent':
+            from gevent.queue import Queue
+        else:
+            from Queue import Queue
+
         # define custom properties
         self.__batchSize = 500
-        self.__connections = {}
-        self.__connectionLock = ReadWriteLock()
-        self.__concurrencyLocks = defaultdict(ReadWriteLock)
-
+        self.__poolSize = 0
+        self.__maxSize = int(orb.system.settings().max_connections)
+        self.__pool = Queue()
 
     # ----------------------------------------------------------------------
     #                       EVENTS
@@ -56,13 +57,14 @@ class SQLConnection(orb.Connection):
     # ----------------------------------------------------------------------
     #                       PROTECTED METHODS
     # ----------------------------------------------------------------------
+    def _closed(self, native):
+        return native.closed
+
     @abstractmethod()
     def _execute(self,
                  native,
                  command,
                  data=None,
-                 autoCommit=True,
-                 autoClose=True,
                  returning=True,
                  mapper=dict):
         """
@@ -92,7 +94,6 @@ class SQLConnection(orb.Connection):
 
     def _commit(self, native):
         native.commit()
-        return True
 
     def _close(self, native):
         native.close()
@@ -107,7 +108,15 @@ class SQLConnection(orb.Connection):
         """
 
     def _rollback(self, native):
-        native.rollback()
+        try:
+            native.rollback()
+        except Exception:
+            if orb.system.settings().worker_class == 'gevent':
+                import gevent
+                gevent.get_hub().handle_error(native, *sys.exc_info)
+            return
+        else:
+            return native
 
     #----------------------------------------------------------------------
     #                       PUBLIC METHODS
@@ -122,7 +131,7 @@ class SQLConnection(orb.Connection):
             else:
                 self.execute(sql, data)
 
-    def alterModel(self, model, context, add=None, remove=None, owner='postgres'):
+    def alterModel(self, model, context, add=None, remove=None, owner=''):
         add = add or {'fields': [], 'indexes': []}
         remove = remove or {'fields': [], 'indexes': []}
 
@@ -155,18 +164,15 @@ class SQLConnection(orb.Connection):
 
         :return     <bool> closed
         """
-        cid = threading.current_thread().ident
-        with WriteLocker(self.__connectionLock):
-            for tid, native in self.__connections.items():
-                # closes out a connection from the main thread
-                if tid == cid:
-                    self._close(native)
-                # otherwise, interruptes a connection from a calling thread
-                else:
-                    self._interrupt(native)
+        while not self.__pool.empty():
+            conn = self.__pool.get_nowait()
+            try:
+                self._close(conn)
+            except Exception:
+                pass
 
-            self.__connections.clear()
-            return True
+        # reset the pool size after closing all connections
+        self.__poolSize = 0
 
     def count(self, model, context):
         """
@@ -198,13 +204,10 @@ class SQLConnection(orb.Connection):
 
         :return     <bool> success
         """
-        result = False
-        conn = self.native()
-        if conn is not None:
-            result = self._commit(conn)
-        return result
+        with self.native() as conn:
+            return self._commit(conn)
 
-    def createModel(self, model, context, owner='postgres', includeReferences=True):
+    def createModel(self, model, context, owner='', includeReferences=True):
         """
         Creates a new table in the database based cff the inputted
         schema information.  If the dryRun flag is specified, then
@@ -249,8 +252,14 @@ class SQLConnection(orb.Connection):
         else:
             return self.execute(sql, data, writeAccess=True)
 
-    def execute(self, command, data=None, autoCommit=True, autoClose=True, returning=True,
-                mapper=dict, writeAccess=False, retries=0, dryRun=False, locale=None):
+    def execute(self,
+                command,
+                data=None,
+                returning=True,
+                mapper=dict,
+                writeAccess=False,
+                dryRun=False,
+                locale=None):
         """
         Executes the inputted command into the current \
         connection cursor.
@@ -274,61 +283,39 @@ class SQLConnection(orb.Connection):
             raise orb.errors.DryRun()
 
         # define properties for execution
-        rowcount = 0
         data = data or {}
         command = command.strip()
         data.setdefault('locale', locale or orb.Context().locale)
-        conn = self.open()
-        if conn is None:
-            raise orb.errors.ConnectionFailed()
-
-        results = []
         start = datetime.datetime.now()
-        for i in xrange(1 + retries):
-            start = datetime.datetime.now()
 
-            try:
+        try:
+            with self.native() as conn:
                 results, rowcount = self._execute(conn,
                                                   command,
                                                   data,
-                                                  autoCommit,
-                                                  autoClose,
                                                   returning,
                                                   mapper)
-                break
 
-            # always raise interruption errors as these need to be handled
-            # from a thread properly
-            except orb.errors.Interruption:
-                delta = datetime.datetime.now() - start
-                log.critical('Query took: %s' % delta)
-                raise
+        # always raise interruption errors as these need to be handled
+        # from a thread properly
+        except orb.errors.Interruption:
+            delta = datetime.datetime.now() - start
+            log.critical('Query took: %s' % delta)
+            raise
 
-            # attempt to reconnect as long as we have enough retries left
-            # otherwise raise the error
-            except orb.errors.ConnectionLost:
-                delta = datetime.datetime.now() - start
-                log.error('Query took: %s' % delta)
+        # handle any known a database errors with feedback information
+        except orb.errors.DatabaseError as err:
+            delta = datetime.datetime.now() - start
+            log.error(u'{0}: \n {1}'.format(err, command))
+            log.error('Query took: %s' % delta)
+            raise
 
-                if i != (retries - 1):
-                    time.sleep(0.25)
-                    self.reconnect()
-                else:
-                    raise
-
-            # handle any known a database errors with feedback information
-            except orb.errors.DatabaseError as err:
-                delta = datetime.datetime.now() - start
-                log.error(u'{0}: \n {1}'.format(err, command))
-                log.error('Query took: %s' % delta)
-                raise
-
-            # always raise any unknown issues for the developer
-            except StandardError as err:
-                delta = datetime.datetime.now() - start
-                log.error(u'{0}: \n {1}'.format(err, command))
-                log.error('Query took: %s' % delta)
-                raise
+        # always raise any unknown issues for the developer
+        except StandardError as err:
+            delta = datetime.datetime.now() - start
+            log.error(u'{0}: \n {1}'.format(err, command))
+            log.error('Query took: %s' % delta)
+            raise
 
         delta = (datetime.datetime.now() - start).total_seconds()
         if delta * 1000 < 3000:
@@ -372,34 +359,6 @@ class SQLConnection(orb.Connection):
         """
         return self.__batchSize
 
-    def interrupt(self, threadId=None):
-        """
-        Interrupts the access to the database for the given thread.
-
-        :param      threadId | <int> || None
-        """
-        cid = threading.current_thread().ident
-
-        # interrupt all connections not on current thread
-        if threadId is None:
-            cid = threading.current_thread().ident
-            with WriteLocker(self.__connectionLock):
-                for tid, conn in self.__connections.items():
-                    if tid != cid:
-                        self._interrupt(threadId, conn)
-                        self.__connections.pop(tid)
-
-        # interrupt just the given thread
-        else:
-            with WriteLocker(self.__connectionLock):
-                conn = self.__connections.pop(threadId, None)
-
-            if not conn is not None:
-                if threadId == cid:
-                    self._close(conn)
-                else:
-                    self._interrupt(threadId, conn)
-
     def isConnected(self):
         """
         Returns whether or not this connection is currently
@@ -407,82 +366,75 @@ class SQLConnection(orb.Connection):
 
         :return     <bool> connected
         """
-        return self.native() is not None
+        return not self.__pool.empty()
 
-    def native(self):
-        """
-        Returns the sqlite database for the current thread.
-
-        :return     <variant> || None
-        """
-        with ReadLocker(self.__connectionLock):
-            tid = threading.current_thread().ident
-            return self.__connections.get(tid)
-
-    def open(self):
+    @contextlib.contextmanager
+    def native(self, isolation_level=None):
         """
         Opens a new database connection to the database defined
         by the inputted database.
 
         :return     <varaint> native connection
         """
-        tid = threading.current_thread().ident
+        conn = self.open()
+        try:
+            if isolation_level is not None:
+                if conn.isolation_level == isolation_level:
+                    isolation_level = None
+                else:
+                    conn.set_isolation_level(isolation_level)
+            yield conn
+        except Exception:
+            if self._closed(conn):
+                conn = None
+                self.close()
+            else:
+                conn = self._rollback(conn)
+            raise
+        else:
+            if self._closed(conn):
+                raise orb.errors.DatabaseError('Cannot commit because connection was closed: {0}'.format(conn))
+            self._commit(conn)
+        finally:
+            if conn is not None and not self._closed(conn):
+                if isolation_level is not None:
+                    conn.set_isolation_level(isolation_level)
+                self.__pool.put(conn)
 
-        # clear out inactive connections
-        with WriteLocker(self.__connectionLock):
-            for thread in threading.enumerate():
-                if not thread.isAlive():
-                    self.__connections.pop(thread.ident, None)
+    def open(self):
+        """
+        Returns the sqlite database for the current thread.
 
-            conn = self.__connections.get(tid)
+        :return     <variant> || None
+        """
+        pool = self.__pool
 
-        if conn is not None:
-            return conn
+        if self.__poolSize >= self.__maxSize or pool.qsize():
+            return pool.get()
         else:
             db = self.database()
 
             # process a pre-connect event
             event = orb.events.ConnectionEvent()
             db.onPreConnect(event)
-            if event.preventDefault:
-                return None
 
-            conn = self._open(db)
-
-            # process a post-connect event
-            event = orb.events.ConnectionEvent(success=conn is not None, native=conn)
-            db.onPostConnect(event)
-            if not event.preventDefault and event.success:
-                with WriteLocker(self.__connectionLock):
-                    self.__connections[tid] = conn
-
-                return conn
+            self.__poolSize += 1
+            try:
+                conn = self._open(self.database())
+            except Exception:
+                self.__poolSize -= 1
+                raise
             else:
-                return None
-
-    def reconnect(self):
-        """
-        Forces a reconnection to the database.
-        """
-        tid = threading.current_thread().ident
-
-        with WriteLocker(self.__connectionLock):
-            native = self.__connections.pop(tid, None)
-            if native:
-                self._close(native)
-
-        return self.open()
+                event = orb.events.ConnectionEvent(success=conn is not None, native=conn)
+                db.onPostConnect(event)
+                return conn
 
     def rollback(self):
         """
         Rolls back changes to this database.
         """
-        native = self.native()
-        if native is not None:
-            self._rollback(native)
-            return True
-        else:
-            return False
+        with self.native() as conn:
+            return self._rollback(conn)
 
     def schemaInfo(self, context):
         INFO = self.statement('SCHEMA INFO')
@@ -496,11 +448,10 @@ class SQLConnection(orb.Connection):
         if not sql:
             return []
         elif context.dryRun:
-            print sql % data
+            log.info(sql % data)
             return []
         else:
-            with ReadLocker(self.__concurrencyLocks[model.schema().name()]):
-                return self.execute(sql, data)[0]
+            return self.execute(sql, data)[0]
 
     def setBatchSize(self, size):
         """
