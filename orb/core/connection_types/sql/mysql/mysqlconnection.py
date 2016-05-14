@@ -56,11 +56,12 @@ class MySQLConnection(SQLConnection):
             log.debug('***********************')
 
             try:
+                rowcount = 0
                 for cmd in command.split(';'):
                     cmd = cmd.strip()
                     if cmd:
-                        cursor.execute(cmd + ';', data)
-                rowcount = cursor.rowcount
+                        cursor.execute(cmd.strip(';') + ';', data)
+                        rowcount += cursor.rowcount
 
             # look for a disconnection error
             except pymysql.InterfaceError:
@@ -94,12 +95,7 @@ class MySQLConnection(SQLConnection):
                 raw = cursor.fetchall()
                 results = [mapper(record) for record in raw]
             except pymysql.ProgrammingError:
-                raw = None
                 results = []
-
-            print cursor.lastrowid
-            print raw
-            print results
 
             if autoCommit:
                 self.commit()

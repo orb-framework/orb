@@ -98,11 +98,13 @@ class INSERT(MySQLStatement):
                 subcmd += '\n({0}, %(locale)s, {1});'.format(id_value, values[-1])
 
             cmd.append(subcmd)
-            cmd.append('SELECT LAST_INSERT_ID() AS `{0}` FROM `{1}`.`{2}`;'.format(
-                id_column.field(),
-                id_column.schema().namespace() or default_namespace,
-                id_column.schema().dbname()
-            ))
+
+            if schema.idColumn().testFlag(orb.Column.Flags.AutoAssign):
+                cmd.append('SELECT * FROM `{1}`.`{2}` WHERE `{0}` >= LAST_INSERT_ID();'.format(
+                    id_column.field(),
+                    id_column.schema().namespace() or default_namespace,
+                    id_column.schema().dbname()
+                ))
 
         return '\n'.join(cmd), data
 
