@@ -106,7 +106,7 @@ class RequiredValidator(AbstractColumnValidator):
 
         :return     <bool>
         """
-        if type(value) not in [bool, int, float] and not bool(value):
+        if value is None or value == '':
             msg = '{0} is required.'.format(column.name())
             raise errors.ColumnValidationError(column, msg=msg)
         return True
