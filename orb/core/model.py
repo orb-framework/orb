@@ -461,7 +461,7 @@ class Model(object):
             if not col:
                 collector = self.schema().collector(column)
                 if collector:
-                    return collector.collect(self, useMethod=useMethod, **context)
+                    return collector.collect(self, useMethod=useMethod, context=sub_context)
                 else:
                     raise errors.ColumnNotFound(self.schema().name(), column)
 
@@ -1027,4 +1027,3 @@ class Model(object):
         :param      query | <orb.Query> || None
         """
         setattr(cls, '_%s__baseQuery' % cls.__name__, query)
-
