@@ -264,7 +264,7 @@ class Connection(AddonManager):
         """
 
     @abstractmethod()
-    def schemaInfo(self, options):
+    def schemaInfo(self, context):
         """
         Returns the schema information from the database.
 

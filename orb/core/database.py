@@ -294,7 +294,7 @@ class Database(object):
         for model in tables:
             if model.schema().dbname() not in info:
                 namespace = model.schema().namespace()
-                if namespace not in namespaces:
+                if namespace and namespace not in namespaces:
                     conn.addNamespace(namespace, context)
                     namespaces.add(namespace)
 

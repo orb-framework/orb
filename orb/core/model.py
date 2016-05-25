@@ -95,7 +95,10 @@ class Model(object):
                     except AttributeError:
                         continue
 
-                value = getter(inflated=True, expand=subtree, returning=context.returning)
+                value = getter(inflated=True,
+                               expand=subtree,
+                               returning=context.returning,
+                               scope=context.scope)
                 json = getattr(value, '__json__', None)
                 if json:
                     output[key] = json()

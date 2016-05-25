@@ -438,7 +438,7 @@ class SQLConnection(orb.Connection):
 
     def schemaInfo(self, context):
         INFO = self.statement('SCHEMA INFO')
-        sql, data = INFO(context.namespace or 'public')
+        sql, data = INFO(context)
         info, _ = self.execute(sql, data)
         return {table['name']: table for table in info}
 

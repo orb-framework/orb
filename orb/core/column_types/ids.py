@@ -33,7 +33,7 @@ class IdColumn(Column):
     def dbStore(self, typ, py_value, context=None):
         if py_value is None:
             if self.type() in {'default', 'numeric'}:
-                if typ == 'Postgres':
+                if typ in ('Postgres', 'MySQL'):
                     return 'DEFAULT'
                 else:
                     return py_value
@@ -51,7 +51,7 @@ class IdColumn(Column):
             elif typ == 'SQLite':
                 return 'INTEGER'
             else:
-                return 'BIGINT'
+                return 'BIGINT AUTO_INCREMENT'
 
         elif self.type() == 'hash':
             if typ == 'Postgres':
@@ -59,7 +59,7 @@ class IdColumn(Column):
             elif typ == 'SQLite':
                 return 'TEXT'
             else:
-                return 'varchar'
+                return 'varchar({0})'.format(self.__bits * 2)
 
         else:
             raise orb.errors.OrbError('Unknown ID type: {0}'.format(self.__type))

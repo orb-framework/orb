@@ -6,7 +6,7 @@ orb = lazy_import('orb')
 def virtual(cls, **options):
     def wrapped(func):
         param_name = orb.system.syntax().name(func.__name__)
-        options['name'] = param_name
+        options.setdefault('name', param_name)
         is_column = issubclass(cls, orb.Column)
 
         if 'flags' in options:
@@ -21,17 +21,12 @@ def virtual(cls, **options):
         def define_setter():
             def setter_wrapped(setter_func):
                 func.__orb__.setFlags(func.__orb__.flags() & ~cls.Flags.ReadOnly)
-                if is_column:
-                    func.__orb__.setSetterName(setter_func.__name__)
+                func.__orb__.setter()(setter_func)
                 return setter_func
             return setter_wrapped
 
-        if is_column:
-            options['getterName'] = func.__name__
-        else:
-            options['getter'] = func
-
         func.__orb__ = cls(**options)
+        func.__orb__.getter()(func)
         func.setter = define_setter
         return func
     return wrapped

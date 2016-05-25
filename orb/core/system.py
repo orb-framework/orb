@@ -101,7 +101,7 @@ class System(object):
         for schema in self.__schemas.values():
             model = schema.model(autoGenerate=autoGenerate)
             if (model and
-                (base is None or issubclass(model, base)) and
+                (base is None or (issubclass(model, base) and model != base)) and
                 (not database or not model.schema().database() or database == model.schema().database())):
                 output[schema.name()] = model
         return output

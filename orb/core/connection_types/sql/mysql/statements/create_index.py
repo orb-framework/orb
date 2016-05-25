@@ -1,10 +1,10 @@
 from projex.lazymodule import lazy_import
-from ..psqlconnection import PSQLStatement
+from ..mysqlconnection import MySQLStatement
 
 orb = lazy_import('orb')
 
 
-class CREATE_INDEX(PSQLStatement):
+class CREATE_INDEX(MySQLStatement):
     def __call__(self, index, checkFirst=False):
         """
         Modifies the table to add and remove the given columns.
@@ -19,12 +19,12 @@ class CREATE_INDEX(PSQLStatement):
         index_name = index.dbname()
         cmd = 'CREATE' if not index.testFlag(index.Flags.Unique) else 'CREATE UNIQUE'
 
-        cols = ['lower("{0}"::varchar)'.format(col.field())
+        cols = ['`{0}`'.format(col.field())
                 if isinstance(col, orb.AbstractStringColumn) and not col.testFlag(col.Flags.CaseSensitive)
-                else '"{0}"'.format(col.field())
+                else '`{0}`'.format(col.field())
                 for col in index.columns()]
 
-        cmd = '{0} INDEX "{1}" ON "{2}" ({3})'.format(cmd, index_name, schema_name, ', '.join(cols))
+        cmd = '{0} INDEX `{1}` ON `{2}` ({3})'.format(cmd, index_name, schema_name, ', '.join(cols))
 
         if checkFirst:
             cmd = """\
@@ -38,11 +38,11 @@ class CREATE_INDEX(PSQLStatement):
             ) THEN {2};
             END IF;
             END$$;
-            """.format(index.schema().namespace(), index_name, cmd)
+            """.format(index.schema().namespace() or orb.Context().db.name(), index_name, cmd)
         else:
             cmd += ';'
 
         return cmd, {}
 
 
-PSQLStatement.registerAddon('CREATE INDEX', CREATE_INDEX())
+MySQLStatement.registerAddon('CREATE INDEX', CREATE_INDEX())

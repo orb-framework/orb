@@ -12,7 +12,7 @@ def test_pg_statement_add_column(User, pg_sql):
     assert st is not None
 
     statement, data = st(User.schema().column('username'))
-    assert statement == 'ADD COLUMN "username" CHARACTER VARYING(256) UNIQUE'
+    assert statement == 'ADD COLUMN "username" CHARACTER VARYING(255) UNIQUE'
 
 @pytest.mark.run(order=2)
 @requires_pg
