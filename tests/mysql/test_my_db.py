@@ -10,10 +10,5 @@ def test_my_loaded(orb):
 
 @pytest.mark.run(order=1)
 @requires_mysql
-def test_my_db_connection(my_db):
-    assert my_db.connect() is not None
-
-@pytest.mark.run(order=1)
-@requires_mysql
 def test_my_db_sync(orb, my_db, testing_schema, Comment, TestAllColumns):
     my_db.sync()

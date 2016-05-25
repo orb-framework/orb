@@ -361,6 +361,21 @@ class Schema(object):
         """
         return self.__inherits
 
+    def inheritanceTree(self):
+        """
+        Returns the inheritance tree for this schema, traversing up the hierarchy for the inherited schema instances.
+
+        :return: <generator>
+        """
+        inherits = self.inherits()
+        while inherits:
+            ischema = orb.system.schema(inherits)
+            if not ischema:
+                raise orb.errors.ModelNotFound(inherits)
+
+            yield ischema
+            inherits = ischema.inherits()
+
     def model(self, autoGenerate=False):
         """
         Returns the default Table class that is associated with this \
@@ -396,6 +411,17 @@ class Schema(object):
             return self.__namespace or context.namespace
 
     def register(self, item):
+        """
+        Registers a new orb object to this schema.  This could be a column, index, or collector -- including
+        a virtual object defined through the orb.virtual decorator.
+
+        :param item: <variant>
+
+        :return:
+        """
+        if callable(item) and hasattr(item, '__orb__'):
+            item = item.__orb__
+
         key = item.name()
         model = self.__model
 

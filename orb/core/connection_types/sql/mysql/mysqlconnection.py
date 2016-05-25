@@ -34,16 +34,21 @@ class MySQLConnection(SQLConnection):
     # ----------------------------------------------------------------------
     # PROTECTED METHODS
     # ----------------------------------------------------------------------
-    def _execute(self, native, command, data=None, autoCommit=True, autoClose=True,
-                 returning=True, mapper=dict):
+    def _closed(self, native):
+        return not bool(native.open)
+
+    def _execute(self,
+                 native,
+                 command,
+                 data=None,
+                 returning=True,
+                 mapper=dict):
         """
         Executes the inputted command into the current \
         connection cursor.
 
         :param      command    | <str>
                     data       | <dict> || None
-                    autoCommit | <bool> | commit database changes immediately
-                    autoClose  | <bool> | closes connections immediately
 
         :return     [{<str> key: <variant>, ..}, ..], <int> count
         """
@@ -96,9 +101,6 @@ class MySQLConnection(SQLConnection):
                 results = [mapper(record) for record in raw]
             except pymysql.ProgrammingError:
                 results = []
-
-            if autoCommit:
-                self.commit()
 
             return results, rowcount
 

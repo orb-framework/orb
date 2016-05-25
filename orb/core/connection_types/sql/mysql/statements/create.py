@@ -168,7 +168,7 @@ class CREATE(MySQLStatement):
                 if record_part == 'count':
                     return 'count({0}.*)'.format(join_alias)
                 elif record_part == 'ids':
-                    return 'array_agg({0})'.format(target)
+                    return 'group_concat({0})'.format(target)
                 elif not parts:
                     group_by.append(target)
                     return target

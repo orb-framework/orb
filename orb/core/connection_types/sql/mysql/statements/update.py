@@ -66,22 +66,9 @@ class UPDATE(MySQLStatement):
         if i18n_fields:
             for locale in i18n_values:
                 i18n_sql = (
-                    u'DO $$\n'
-                    u'BEGIN\n'
-                    u'IF NOT EXISTS (\n'
-                    u'  SELECT 1\n'
-                    u'  FROM `{namespace}`.`{table}_i18n`\n'
-                    u'  WHERE `{table}_id` = %({id})s AND `locale` = \'{locale}\'\n'
-                    u')\n'
-                    u'THEN\n'
-                    u'  INSERT INTO `{namespace}`.`{table}_i18n` (`{table}_id`, `locale`, {fields})\n'
-                    u'  VALUES (%({id})s, \'{locale}\', {keys});\n'
-                    u'ELSE\n'
-                    u'  UPDATE `{table}_i18n`\n'
-                    u'  SET {values}\n'
-                    u'  WHERE `{table}_id` = %({id})s AND `locale` = \'{locale}\';\n'
-                    u'END IF;\n'
-                    u'END $$;'
+                    u'INSERT INTO `{namespace}`.`{table}_i18n` (`{table}_id`, `locale`, {fields})\n'
+                    u'VALUES (%({id})s, \'{locale}\', {keys})'
+                    u'ON DUPLICATE KEY UPDATE {values};\n'
                 ).format(table=record.schema().dbname(),
                          namespace=record.schema().namespace() or context.db.name(),
                          id=id_key,

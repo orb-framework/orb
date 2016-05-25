@@ -95,7 +95,10 @@ class Model(object):
                     except AttributeError:
                         continue
 
-                value = getter(inflated=True, expand=subtree, returning=context.returning)
+                value = getter(inflated=True,
+                               expand=subtree,
+                               returning=context.returning,
+                               scope=context.scope)
                 json = getattr(value, '__json__', None)
                 if json:
                     output[key] = json()
@@ -458,7 +461,7 @@ class Model(object):
             if not col:
                 collector = self.schema().collector(column)
                 if collector:
-                    return collector.collect(self, useMethod=useMethod, context=context)
+                    return collector.collect(self, useMethod=useMethod, **context)
                 else:
                     raise errors.ColumnNotFound(self.schema().name(), column)
 

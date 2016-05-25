@@ -41,9 +41,9 @@ class SELECT(MySQLStatement):
                 if context.locale == 'all':
                     sql = u'hstore_agg(hstore(`i18n`.`locale`, `i18n`.`{0}`)) AS `{0}`'
                 elif data['locale'] == data['default_locale'] or column.testFlag(column.Flags.I18n_NoDefault):
-                    sql = u'(array_agg(`i18n`.`{0}`))[1] AS `{0}`'
+                    sql = u'group_concat(`i18n`.`{0}`) AS `{0}`'
                 else:
-                    sql = u'(coalesce((array_agg(`i18n`.`{0}`))[1], (array_agg(`i18n_default`.`{0}`))[1])) AS `{0}`'
+                    sql = u'(coalesce(group_concat(`i18n`.`{0}`), group_concat(`i18n_default`.`{0}`))) AS `{0}`'
 
                 sql_columns['i18n'].append(sql.format(column.field()))
                 sql_group_by.add(u'`{0}`.`{1}`'.format(schema.dbname(), schema.idColumn().field()))
@@ -70,8 +70,31 @@ class SELECT(MySQLStatement):
                 if context.distinct:
                     sql_columns['standard'].append(field)
 
+        if schema.inherits():
+            icols = ['`{0}`.`{1}` AS `{1}`'.format(col.schema().dbname(), col.field()) for col in columns]
+            inherited_sources = []
+            curr_schema = schema
+
+            for ischema in schema.inheritanceTree():
+                isql = 'LEFT JOIN `{0}`.`{1}` ON `{1}`.`{2}` = `{3}`.`{2}`'.format(ischema.namespace() or context.db.name(),
+                                                                                   ischema.dbname(),
+                                                                                   ischema.idColumn().field(),
+                                                                                   curr_schema.dbname())
+                inherited_sources.append(isql)
+                curr_schema = ischema
+
+            source = '(SELECT {0} FROM `{1}`.`{3}` ' \
+                     '{2}' \
+                     ') AS `{3}`'.format(', '.join(icols),
+                                         schema.namespace() or context.db.name(),
+                                         '\n'.join(inherited_sources),
+                                         schema.dbname())
+        else:
+            source = '`{0}`.`{1}`'.format(schema.namespace() or context.db.name(), schema.dbname())
+
+        # determine the selection criteria
         if context.distinct is True:
-            cmd = ['SELECT DISTINCT {0} FROM `{1}`'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']), schema.dbname())]
+            cmd = ['SELECT DISTINCT {0} FROM `{1}`'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']), )]
         elif isinstance(context.distinct, (list, set, tuple)):
             on_ = []
             for col in context.distinct:
@@ -81,14 +104,11 @@ class SELECT(MySQLStatement):
                 else:
                     on_.append(fields.get(col) or u'`{0}`.`{1}`'.format(schema.dbname(), col.field()))
 
-            cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM `{2}`.`{3}`'.format(', '.join(on_),
-                                                                    ', '.join(sql_columns['standard'] + sql_columns['i18n']),
-                                                                    schema.namespace() or context.db.name(),
-                                                                    schema.dbname())]
+            cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM {2}'.format(', '.join(on_),
+                                                                   ', '.join(sql_columns['standard'] + sql_columns['i18n']),
+                                                                   source)]
         else:
-            cmd = [u'SELECT {0} FROM `{1}`.`{2}`'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']),
-                                                         schema.namespace() or context.db.name(),
-                                                         schema.dbname())]
+            cmd = [u'SELECT {0} FROM {1}'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']), source)]
 
         # add sql joins to the statement
         if sql_joins:
@@ -112,7 +132,6 @@ class SELECT(MySQLStatement):
             sql_where, sql_where_data = '', {}
         else:
             data.update(sql_where_data)
-
 
         if sql_where:
             cmd.append(u'WHERE {0}'.format(sql_where))
