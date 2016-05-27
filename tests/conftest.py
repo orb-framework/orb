@@ -66,7 +66,7 @@ def TestAllColumns(orb):
 
         # numeric
         id = orb.IdColumn()
-        decimal = orb.DecimalColumn()
+        decimal = orb.DecimalColumn(scale=2)
         float = orb.FloatColumn()
         integer = orb.IntegerColumn()
         long = orb.LongColumn()
@@ -113,16 +113,6 @@ def namespace_models(orb):
             cls.ensureExists({'name': 'test'})
 
     return {'TestDefault': TestDefault, 'TestExplicit': TestExplicit}
-
-@pytest.fixture(scope='session')
-def all_column_record(orb, TestAllColumns):
-    record = TestAllColumns(password='T3st1ng!')
-    return record
-
-@pytest.fixture(scope='session')
-def last_column_record(orb, TestAllColumns):
-    record = TestAllColumns.select().last()
-    return record
 
 @pytest.fixture(scope='session')
 def testing_schema(orb):

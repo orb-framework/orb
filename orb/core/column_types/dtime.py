@@ -19,6 +19,19 @@ pytz = lazy_import('pytz')
 
 class AbstractDatetimeColumn(Column):
 
+    def __init__(self, defaultFormat='%Y-%m-%d %H:%M:%S', **kwds):
+        super(AbstractDatetimeColumn, self).__init__(**kwds)
+
+        self.__defaultFormat = defaultFormat
+
+    def defaultFormat(self):
+        """
+        Returns the default format for this datetime column.
+
+        :return: <str>
+        """
+        return self.__defaultFormat
+
     def random(self):
         """
         Returns a random value that fits this column's parameters.
@@ -26,7 +39,7 @@ class AbstractDatetimeColumn(Column):
         :return: <variant>
         """
         utc_now = datetime.datetime.utcnow()
-        return self.valueFromString(utc_now.strftime('%Y-%m-%d %H:%M:%S'))
+        return self.valueFromString(utc_now.strftime(self.defaultFormat()))
 
     def dbRestore(self, db_value, context=None):
         """
@@ -58,6 +71,14 @@ class AbstractDatetimeColumn(Column):
             return None
         return self.valueToString(py_value, context=context)
 
+    def setDefaultFormat(self, form):
+        """
+        Sets the default string format for rendering this instance.
+
+        :param form: <str>
+        """
+        self.__defaultFormat = form
+
 
 class DateColumn(AbstractDatetimeColumn):
     TypeMap = {
@@ -65,6 +86,11 @@ class DateColumn(AbstractDatetimeColumn):
         'SQLite': 'TEXT',
         'MySQL': 'DATE'
     }
+
+    def __init__(self, **kwds):
+        kwds.setdefault('defaultFormat', '%Y-%m-%d')
+
+        super(DateColumn, self).__init__(**kwds)
 
     def dbRestore(self, db_value, context=None):
         """
@@ -90,7 +116,7 @@ class DateColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value).date()
         else:
-            time_struct = time.strptime(value, '%Y-%m-%d')
+            time_struct = time.strptime(value, self.defaultFormat())
             return datetime.date(time_struct.tm_year,
                                  time_struct.tm_month,
                                  time_struct.tm_day)
@@ -104,7 +130,7 @@ class DateColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%Y-%m-%d')
+        return value.strftime(self.defaultFormat())
 
 
 class DatetimeColumn(AbstractDatetimeColumn):
@@ -113,6 +139,11 @@ class DatetimeColumn(AbstractDatetimeColumn):
         'SQLite': 'TEXT',
         'MySQL': 'DATETIME'
     }
+
+    def __init__(self, **kwds):
+        kwds.setdefault('defaultFormat', '%Y-%m-%d %H:%M:%S')
+
+        super(DatetimeColumn, self).__init__(**kwds)
 
     def valueFromString(self, value, context=None):
         """
@@ -126,7 +157,7 @@ class DatetimeColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            time_struct = time.strptime(value, '%Y-%m-%d %H:%M:%S')
+            time_struct = time.strptime(value, self.defaultFormat())
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -143,7 +174,7 @@ class DatetimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%Y-%m-%d %H:%M:%S')
+        return value.strftime(self.defaultFormat())
 
 
 class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
@@ -152,6 +183,12 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         'SQLite': 'TEXT',
         'MySQL': 'DATETIME'
     }
+
+    def __init__(self, **kwds):
+        kwds.setdefault('defaultFormat', '%Y-%m-%d %H:%M:%S')
+
+        super(DatetimeWithTimezoneColumn, self).__init__(**kwds)
+
 
     def dbStore(self, typ, py_value):
         """
@@ -233,7 +270,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         if dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            time_struct = time.strptime(value, '%Y-%m-%d %H:%M:S')
+            time_struct = time.strptime(value, self.defaultFormat())
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -250,15 +287,35 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%Y-%m-%d %H:%M:%S')
+        return value.strftime(self.defaultFormat())
 
 
-class IntervalColumn(Column):
+class IntervalColumn(AbstractDatetimeColumn):
     TypeMap = {
         'Postgres': 'INTERVAL',
         'SQLite': 'TEXT',
         'MySQL': 'TEXT'
     }
+
+    def valueFromString(self, value, context=None):
+        """
+        Converts the inputted string text to a value that matches the type from
+        this column type.
+
+        :param      value | <str>
+        """
+        return datetime.timedelta(seconds=float(value))
+
+    def valueToString(self, value, context=None):
+        """
+        Converts the inputted string text to a value that matches the type from
+        this column type.
+
+        :sa         engine
+
+        :param      value | <str>
+        """
+        return str(value.total_seconds())
 
 
 class TimeColumn(AbstractDatetimeColumn):
@@ -267,6 +324,27 @@ class TimeColumn(AbstractDatetimeColumn):
         'SQLite': 'TEXT',
         'MySQL': 'TIME'
     }
+
+    def __init__(self, **kwds):
+        kwds.setdefault('defaultFormat', '%H:%M:%S')
+
+        super(TimeColumn, self).__init__(**kwds)
+
+    def dbRestore(self, db_value, context=None):
+        """
+        Converts a stored database value to Python.
+
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        if isinstance(db_value, datetime.timedelta):
+            hours, remain = divmod(db_value.seconds, 3600)
+            minutes, seconds = divmod(remain, 60)
+            return datetime.time(hours, minutes, seconds)
+        else:
+            return super(TimeColumn, self).dbRestore(db_value, context=context)
 
     def valueFromString(self, value, context=None):
         """
@@ -280,7 +358,7 @@ class TimeColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value).time()
         else:
-            time_struct = time.strptime(value, '%H:%M:%S')
+            time_struct = time.strptime(value, self.defaultFormat())
             return datetime.time(time_struct.tm_hour,
                                  time_struct.tm_min,
                                  time_struct.tm_sec)
@@ -294,7 +372,7 @@ class TimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%H:%M:%S')
+        return value.strftime(self.defaultFormat())
 
 
 class TimestampColumn(AbstractDatetimeColumn):
@@ -353,6 +431,11 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
         'MySQL': 'DATETIME'
     }
 
+    def __init__(self, **kwds):
+        kwds.setdefault('defaultFormat', '%Y-%m-%d %H:%M:%S')
+
+        super(UTC_DatetimeColumn, self).__init__(**kwds)
+
     def valueFromString(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
@@ -366,7 +449,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            time_struct = time.strptime(value, '%Y-%m-%d %h:%m:s')
+            time_struct = time.strptime(value, self.defaultFormat())
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -383,7 +466,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime('%Y-%m-%d %H:%M:%S')
+        return value.strftime(self.defaultFormat())
 
 
 class UTC_TimestampColumn(AbstractDatetimeColumn):

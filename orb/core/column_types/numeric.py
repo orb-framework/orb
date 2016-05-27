@@ -71,6 +71,53 @@ class DecimalColumn(AbstractNumericColumn):
         'MySQL': 'DECIMAL'
     }
 
+    def __init__(self, precision=65, scale=30, **kwds):
+        super(DecimalColumn, self).__init__(**kwds)
+
+        # define custom properties
+        self.__precision = precision
+        self.__scale = scale
+
+    def dbType(self, connectionType):
+        if connectionType in ('Postgres', 'MySQL'):
+            return 'DECIMAL({0}, {1})'.format(self.precision(), self.scale())
+        else:
+            return super(DecimalColumn, self).dbType(connectionType)
+
+    def precision(self):
+        """
+        Returns the maximum number of digits (the precision). It has a range of 1 to 65.
+
+        :return: <int>
+        """
+        return self.__precision
+
+    def scale(self):
+        """
+        Returns the number of digits to the right of the decimal point (the scale).
+        It has a range of 0 to 30 and must be no larger than the precision.
+
+        :return: <int>
+        """
+        return self.__scale
+
+    def setPrecision(self, precision):
+        """
+        Sets the maximum number of digits (the precision). It has a range of 1 to 65.
+
+        :param precision: <int>
+        """
+        self.__precision = precision
+
+    def setScale(self, scale):
+        """
+        Sets the number of digits to the right of the decimal point (the scale).
+        It has a range of 0 to 30 and must be no larger than the precision.
+
+        :param scale: <int>
+        """
+        self.__scale = scale
+
 
 class FloatColumn(AbstractNumericColumn):
     TypeMap = {

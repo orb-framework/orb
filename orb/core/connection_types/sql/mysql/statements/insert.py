@@ -17,6 +17,7 @@ class INSERT(MySQLStatement):
         schema_records = defaultdict(lambda: defaultdict(list))
         for i, record in enumerate(records):
             schema = record.schema()
+            id_column = schema.idColumn()
 
             # define the
             if not schema in schema_meta:
@@ -36,10 +37,12 @@ class INSERT(MySQLStatement):
                 schema_meta[schema] = {'i18n': [], 'standard': []}
 
             for key, columns in schema_meta[schema].items():
-                record_values = {
-                    '{0}_{1}'.format(col.field(), i): col.dbStore('MySQL', record.get(col))
-                    for col in columns
-                }
+                record_values = {}
+                for col in columns:
+                    value = col.dbStore('MySQL', record.get(col))
+                    if col == id_column and not id_column.testFlag(id_column.Flags.AutoAssign) and record.id() is None:
+                        record.set(col, value)
+                    record_values['{0}_{1}'.format(col.field(), i)] = value
 
                 data.update(record_values)
 
