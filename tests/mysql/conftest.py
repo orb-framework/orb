@@ -22,3 +22,13 @@ def my_db():
 def my_sql(my_db):
     import orb
     return orb.Connection.byName('MySQL')
+
+@pytest.fixture(scope='session')
+def my_all_column_record(orb, TestAllColumns):
+    record = TestAllColumns(password='T3st1ng!')
+    return record
+
+@pytest.fixture()
+def my_last_column_record(orb, TestAllColumns):
+    record = TestAllColumns.select().last()
+    return record

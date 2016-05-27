@@ -24,3 +24,13 @@ def pg_db(request):
 def pg_sql(pg_db):
     import orb
     return orb.Connection.byName('Postgres')
+
+@pytest.fixture(scope='session')
+def pg_all_column_record(orb, TestAllColumns):
+    record = TestAllColumns(password='T3st1ng!')
+    return record
+
+@pytest.fixture()
+def pg_last_column_record(orb, TestAllColumns):
+    record = TestAllColumns.select().last()
+    return record
