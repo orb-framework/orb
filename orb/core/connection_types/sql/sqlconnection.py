@@ -205,7 +205,8 @@ class SQLConnection(orb.Connection):
         :return     <bool> success
         """
         with self.native() as conn:
-            return self._commit(conn)
+            if not self._closed(conn):
+                return self._commit(conn)
 
     def createModel(self, model, context, owner='', includeReferences=True):
         """
@@ -392,9 +393,8 @@ class SQLConnection(orb.Connection):
                 conn = self._rollback(conn)
             raise
         else:
-            if self._closed(conn):
-                raise orb.errors.DatabaseError('Cannot commit because connection was closed: {0}'.format(conn))
-            self._commit(conn)
+            if not self._closed(conn):
+                self._commit(conn)
         finally:
             if conn is not None and not self._closed(conn):
                 if isolation_level is not None:
