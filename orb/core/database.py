@@ -279,8 +279,10 @@ class Database(object):
         all_models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
 
         tables = [model for model in all_models if issubclass(model, orb.Table) and
+                  not model.schema().testFlags(orb.Schema.Flags.Abstract) and
                   (not models or model.schema().name() in models)]
         views = [model for model in all_models if issubclass(model, orb.View) and
+                  not model.schema().testFlags(orb.Schema.Flags.Abstract) and
                   (not models or model.schema().name() in models)]
 
         # initialize the database
