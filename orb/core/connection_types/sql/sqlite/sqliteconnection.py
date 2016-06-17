@@ -80,7 +80,7 @@ class SQLiteConnection(SQLConnection):
     # PROTECTED METHODS
     # ----------------------------------------------------------------------
     def _closed(self, native):
-        return True
+        return False
 
     def _execute(self,
                  native,
@@ -191,7 +191,6 @@ class SQLiteConnection(SQLConnection):
 
         native.isolation_level = None
         native.commit()
-        native.close()
 
         return results, rowcount
 
