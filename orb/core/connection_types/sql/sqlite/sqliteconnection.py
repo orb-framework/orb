@@ -1,9 +1,9 @@
 """ Defines the backend connection class for PostgreSQL databases. """
 
-import datetime
 import logging
 import orb
 import re
+import threading
 
 from projex.text import nativestring as nstr
 
@@ -75,12 +75,16 @@ class SQLiteConnection(SQLConnection):
     Creates a PostgreSQL backend connection type for handling database
     connections to PostgreSQL databases.
     """
+    def __init__(self, *args, **kwds):
+        super(SQLiteConnection, self).__init__(*args, **kwds)
+
+        self.__threaded_connections = {}
 
     # ----------------------------------------------------------------------
     # PROTECTED METHODS
     # ----------------------------------------------------------------------
     def _closed(self, native):
-        return False
+        return self.__threaded_connections.get(native) != threading.current_thread().ident
 
     def _execute(self,
                  native,
@@ -214,6 +218,9 @@ class SQLiteConnection(SQLConnection):
             sqlite_db.create_function('REGEXP', 2, matches)
             sqlite_db.row_factory = dict_factory
             sqlite_db.text_factory = unicode
+
+            self.__threaded_connections[sqlite_db] = threading.current_thread().ident
+
             return sqlite_db
         except sqlite.Error:
             log.exception('Failed to connect to sqlite')
