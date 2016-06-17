@@ -58,8 +58,9 @@ class DELETE(PSQLStatement):
                                                schema.dbname(),
                                                schema.idColumn().field())
                 if schema.columns(flags=orb.Column.Flags.I18n):
-                    i18n_sql = u'DELETE FROM "{0}"."{1}_i18n" WHERE "{1}_id" IN %({1}_ids)s;'.format(schema.namespace(),
-                                                                                                     schema.dbname())
+                    i18n_sql = u'DELETE FROM "{0}"."{1}_i18n" WHERE "{1}_id" IN %({1}_ids)s;'
+                    i18n_sql = i18n_sql.format(schema.namespace() or 'public',
+                                               schema.dbname())
                     schema_sql = i18n_sql + schema_sql
                 sql.append(schema_sql)
                 data[schema.dbname() + '_ids'] = tuple(ids)

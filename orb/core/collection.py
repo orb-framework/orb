@@ -170,17 +170,17 @@ class Collection(object):
             if target_col.name() in values or target_col.field() in values:
                 record = values.get(target_col.name(), values.get(target_col.field()))
                 if not isinstance(record, orb.Model):
-                    record = target_model(record)
+                    record = target_model(record, context=orb.Context(**context))
                 self.add(record)
             else:
-                record = target_model(values)
+                record = target_model(values, context=orb.Context(**context))
                 record.save()
                 self.add(record)
 
         # create a new record for this collection
         else:
             if isinstance(self.__collector, orb.ReverseLookup):
-                values.setdefault(self.__collector.targetColumn(), self.__record)
+                values.setdefault(self.__collector.targetColumn().name(), self.__record)
             record = self.__model.create(values, **context)
             self.add(record)
 
