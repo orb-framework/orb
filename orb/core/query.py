@@ -732,8 +732,11 @@ class Query(object):
         # expand the current column
         lookup = schema.column(parts[0], raise_=False)
         if lookup and lookup.shortcut():
-            parts = lookup.shortcut().split('.')
-            lookup = schema.column(parts[0], raise_=False)
+            if callable(lookup.shortcut()):
+                return lookup.shortcut()(self, model=model)
+            else:
+                parts = lookup.shortcut().split('.')
+                lookup = schema.column(parts[0], raise_=False)
 
         if len(parts) == 1:
             return self

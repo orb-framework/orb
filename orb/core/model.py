@@ -7,7 +7,6 @@ import logging
 import projex.rest
 import projex.security
 import projex.text
-import weakref
 
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import lazy_import
@@ -536,7 +535,7 @@ class Model(object):
     def preload(self, name):
         return self.__preload.get(name) or {}
 
-    def save(self, values=None, **context):
+    def save(self, values=None, after=None, before=None, **context):
         """
         Commits the current change set information to the database,
         or inserts this object as a new record into the database.
@@ -544,6 +543,17 @@ class Model(object):
         has any local changes to it, otherwise, no commit will
         take place.  If the dryRun flag is set, then the SQL
         will be logged but not executed.
+
+        :param values: None or dictionary of values to update before save
+        :param after: <orb.Model> || None (optional)
+                      if provided, this save call will be delayed
+                      until after the given record has been saved,
+                      triggering a PostSaveEvent callback
+        :param before: <orb.Model> || None (optional)
+                      if provided, this save call will be delayed
+                      until before the given record is about to be
+                      saved, triggering a PreSaveEvent callback
+
 
         :note       From version 0.6.0 on, this method now accepts a mutable
                     keyword dictionary of values.  You can supply any member
@@ -553,6 +563,20 @@ class Model(object):
 
         :return     <bool> success
         """
+        # specify that this save call should be performed after the save of
+        # another record, useful for chaining events
+        if after is not None:
+            callback = orb.events.Callback(self.save, values=values, **context)
+            after.addCallback(orb.events.PostSaveEvent, callback, record=after, once=True)
+            return callback
+
+        # specify that this save call should be performed before the save
+        # of another record, useful for chaining events
+        elif before is not None:
+            callback = orb.events.Callback(self.save, values=values, **context)
+            after.addCallback(orb.events.PreSaveEvent, callback, record=after, once=True)
+            return callback
+
         if values is not None:
             self.update(values, **context)
 
@@ -780,7 +804,7 @@ class Model(object):
     #----------------------------------------------------------------------
 
     @classmethod
-    def addCallback(cls, eventType, func):
+    def addCallback(cls, eventType, func, record=None, once=False):
         """
         Adds a callback method to the class.  When an event of the given type is triggered, any registered
         callback will be executed.
@@ -790,7 +814,7 @@ class Model(object):
         """
         callbacks = cls.callbacks()
         callbacks.setdefault(eventType, [])
-        callbacks[eventType].append(func)
+        callbacks[eventType].append((func, record, once))
 
     @classmethod
     def all(cls, **options):
@@ -923,11 +947,25 @@ class Model(object):
         :param event: <orb.Event>
         """
         callbacks = cls.callbacks(type(event))
-        for callback in callbacks:
+        keep_going = True
+        remove_callbacks = []
+
+        for callback, record, once in callbacks:
+            if record is not None and record != event.record:
+                continue
+
             callback(event)
+            if once:
+                remove_callbacks.append((callback, record))
+
             if event.preventDefault:
-                return False
-        return True
+                keep_going = False
+                break
+
+        for callback, record in remove_callbacks:
+            cls.removeCallback(type(event), callback, record=record)
+
+        return keep_going
 
     @classmethod
     def fetch(cls, key, **context):
@@ -974,6 +1012,22 @@ class Model(object):
             record = cls(loadEvent=event, context=context)
 
         return record
+
+    @classmethod
+    def removeCallback(cls, eventType, func, record=None):
+        """
+        Removes a callback from the model's event callbacks.
+
+        :param  eventType: <str>
+        :param  func: <callable>
+        """
+        callbacks = cls.callbacks()
+        callbacks.setdefault(eventType, [])
+        for i in xrange(len(callbacks[eventType])):
+            my_func, my_record, _ = callbacks[eventType][i]
+            if func == my_func and record == my_record:
+                del callbacks[eventType][i]
+                break
 
     @classmethod
     def schema(cls):

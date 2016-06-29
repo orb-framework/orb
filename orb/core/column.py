@@ -66,7 +66,10 @@ class Column(AddonManager):
                  shortcut='',
                  readPermit=None,
                  writePermit=None,
-                 permit=None):
+                 permit=None,
+                 getter=None,
+                 setter=None,
+                 schema=None):
         # constructor items
         self.__name = name
         self.__field = field
@@ -77,14 +80,18 @@ class Column(AddonManager):
         self.__getterName = getterName
         self.__setterName = setterName
         self.__shortcut = shortcut
-        self.__settermethod = None
-        self.__gettermethod = None
+        self.__settermethod = setter
+        self.__gettermethod = getter
         self.__readPermit = readPermit or permit
         self.__writePermit = writePermit or permit
 
         # custom options
         self.__schema = None
         self.__timezone = None
+
+        # auto-register to the schema if provided
+        if schema:
+            schema.register(self)
 
     def copy(self):
         """
@@ -101,6 +108,8 @@ class Column(AddonManager):
             defaultOrder=self.__defaultOrder,
             getterName=self.__getterName,
             setterName=self.__setterName,
+            getter=self.__gettermethod,
+            setter=self.__settermethod,
             shortcut=self.__shortcut,
             readPermit=self.__readPermit,
             writePermit=self.__writePermit

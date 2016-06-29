@@ -4,6 +4,14 @@ orb = lazy_import('orb')
 
 
 def virtual(cls, **options):
+    """
+    Allows for defining virtual columns and collectors on models -- these
+    are objects that are defined in code and not directly in a data store.
+
+    :param cls:
+    :param options:
+    :return:
+    """
     def wrapped(func):
         param_name = orb.system.syntax().name(func.__name__)
         options.setdefault('name', param_name)
@@ -25,8 +33,15 @@ def virtual(cls, **options):
                 return setter_func
             return setter_wrapped
 
+        def define_shortcut():
+            def shortcut_wrapped(shortcut_func):
+                func.__orb__.setShortcut(shortcut_func)
+                return shortcut_func
+            return shortcut_wrapped
+
         func.__orb__ = cls(**options)
         func.__orb__.getter()(func)
         func.setter = define_setter
+        func.shortcut = define_shortcut
         return func
     return wrapped
