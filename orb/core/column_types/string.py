@@ -15,7 +15,7 @@ class AbstractStringColumn(Column):
     MathMap = Column.MathMap.copy()
     MathMap['Default']['Add'] = '||'
 
-    def __init__(self, cleaned=True, escaped=True, **kwds):
+    def __init__(self, cleaned=False, escaped=False, **kwds):
         kwds.setdefault('defaultOrder', 'desc')
 
         super(AbstractStringColumn, self).__init__(**kwds)

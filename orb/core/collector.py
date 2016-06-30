@@ -58,6 +58,8 @@ class Collector(object):
         return out
 
     def collect(self, record, **context):
+        if self.__getter:
+            return self.__getter(record, **context)
         raise NotImplementedError
 
     def collectExpand(self, query, parts, **context):

@@ -727,7 +727,7 @@ class Collection(object):
 
     def values(self, *columns, **context):
         if self.isNull():
-            return None
+            return []
 
         orig_context = context
         context = self.context(**orig_context)
