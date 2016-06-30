@@ -738,34 +738,45 @@ class Collection(object):
         except KeyError:
             try:
                 with ReadLocker(self.__cacheLock):
-                    raw = self.__preload['records'][context]
+                    records = self.__cache['records'][context]
             except KeyError:
-                context.columns = columns
-                conn = context.db.connection()
-                raw = conn.select(self.__model, context)
+                try:
+                    with ReadLocker(self.__cacheLock):
+                        raw = self.__preload['records'][context]
+                except KeyError:
+                    context.columns = columns
+                    conn = context.db.connection()
+                    raw = conn.select(self.__model, context)
 
-            schema = self.__model.schema()
-            values = []
-            fields = [schema.column(col) for col in columns]
-            for record in raw:
-                if not context.inflated:
-                    record_values = [record[field.field()] for field in fields]
+                schema = self.__model.schema()
+                values = []
+                fields = [schema.column(col) for col in columns]
+                for record in raw:
+                    if not context.inflated:
+                        record_values = [record[field.field()] for field in fields]
+                    else:
+                        record_values = []
+                        for i, field in enumerate(fields):
+                            col = columns[i]
+                            raw_values = orig_context.copy()
+                            if isinstance(field, orb.ReferenceColumn) and raw_values.get('inflated') is None:
+                                raw_values['inflated'] = col != field.field()
+
+                            val = field.restore(record[field.field()], context=orb.Context(**raw_values))
+                            record_values.append(val)
+
+                    if len(fields) == 1:
+                        values.append(record_values[0])
+                    else:
+                        values.append(record_values)
+
+                with WriteLocker(self.__cacheLock):
+                    self.__cache['values'][(context, columns)] = values
+                return values
+
+            # use preloaded cache for values when possible
+            else:
+                if len(columns) == 1:
+                    return [record.get(columns[0]) for record in records]
                 else:
-                    record_values = []
-                    for i, field in enumerate(fields):
-                        col = columns[i]
-                        raw_values = orig_context.copy()
-                        if isinstance(field, orb.ReferenceColumn) and raw_values.get('inflated') is None:
-                            raw_values['inflated'] = col != field.field()
-
-                        val = field.restore(record[field.field()], context=orb.Context(**raw_values))
-                        record_values.append(val)
-
-                if len(fields) == 1:
-                    values.append(record_values[0])
-                else:
-                    values.append(record_values)
-
-            with WriteLocker(self.__cacheLock):
-                self.__cache['values'][(context, columns)] = values
-            return values
+                    return [(record.get(c) for c in columns) for record in records]
