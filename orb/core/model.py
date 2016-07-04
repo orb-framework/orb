@@ -35,17 +35,15 @@ class Model(object):
         return len(self.schema().columns())
 
     def __getitem__(self, key):
-        column = self.schema().column(key)
-        if column is not None:
+        try:
             return self.get(key)
-        else:
+        except StandardError:
             raise KeyError
 
     def __setitem__(self, key, value):
-        column = self.schema().column(key)
-        if column is not None:
+        try:
             return self.set(key, value)
-        else:
+        except StandardError:
             raise KeyError
 
     def __json__(self, *args):

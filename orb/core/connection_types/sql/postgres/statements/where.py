@@ -67,18 +67,18 @@ class WHERE(PSQLStatement):
                 val_column = value.column()
                 val_field = self.generateField(val_model, val_column, value, aliases)
                 if invert:
-                    sql =  u' '.join((val_field, sql_op, field))
+                    sql = u' '.join((val_field, sql_op, field))
                 else:
                     sql = u' '.join((field, sql_op, val_field))
 
             # convert a null value
             elif value is None:
-                if op == orb.Query.Op.Is:
+                if op in (orb.Query.Op.Is, orb.Query.Op.Matches):
                     sql = u'{0} IS NULL'.format(field)
-                elif op == orb.Query.Op.IsNot:
+                elif op in (orb.Query.Op.IsNot, orb.Query.Op.DoesNotMatch):
                     sql = u'{0} IS NOT NULL'.format(field)
                 else:
-                    raise orb.QueryInvalid('Invalid operation for NULL: {0}'.format(orb.Query.Op(op)))
+                    raise orb.errors.QueryInvalid('Invalid operation for NULL: {0}'.format(orb.Query.Op(op)))
 
             # convert a collection value
             elif isinstance(value, orb.Collection):
@@ -88,7 +88,7 @@ class WHERE(PSQLStatement):
                     sql = u'{0} {1} ({2})'.format(field, sql_op, sub_sql.strip(';'))
                     data.update(sub_data)
                 else:
-                    raise orb.QueryInvalid('Could not create sub-query')
+                    raise orb.errors.QueryInvalid('Could not create sub-query')
 
             # convert all other data
             else:
