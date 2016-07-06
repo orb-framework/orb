@@ -69,7 +69,8 @@ class Column(AddonManager):
                  permit=None,
                  getter=None,
                  setter=None,
-                 schema=None):
+                 schema=None,
+                 order=99999):
         # constructor items
         self.__name = name
         self.__field = field
@@ -84,6 +85,7 @@ class Column(AddonManager):
         self.__gettermethod = getter
         self.__readPermit = readPermit or permit
         self.__writePermit = writePermit or permit
+        self.__order = order
 
         # custom options
         self.__schema = None
@@ -112,7 +114,8 @@ class Column(AddonManager):
             setter=self.__settermethod,
             shortcut=self.__shortcut,
             readPermit=self.__readPermit,
-            writePermit=self.__writePermit
+            writePermit=self.__writePermit,
+            order=self.__order
         )
 
         return out
@@ -325,6 +328,15 @@ class Column(AddonManager):
         """
         return self.__name
 
+    def order(self):
+        """
+        Returns the priority order for this column.  Lower
+        number priorities will be processed first.
+
+        :return: <int>
+        """
+        return self.__order
+
     def random(self):
         """
         Returns a random value that fits this column's parameters.
@@ -480,6 +492,16 @@ class Column(AddonManager):
 
     def setGetterName(self, getterName):
         self.__getterName = getterName
+
+    def setOrder(self, order):
+        """
+        Sets the priority order for this column.  Lower
+        orders will be processed first during updates
+        (in case one column should be set before another).
+
+        :param order: <int>
+        """
+        self.__order = order
 
     def setSetterName(self, setterName):
         self.__setterName = setterName

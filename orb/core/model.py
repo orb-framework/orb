@@ -8,6 +8,7 @@ import projex.rest
 import projex.security
 import projex.text
 
+from collections import OrderedDict as odict
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import lazy_import
 from projex import funcutil
@@ -721,12 +722,34 @@ class Model(object):
         return self.set(self.schema().idColumn(), value, useMethod=False, **context)
 
     def update(self, values, **context):
-        # update from value dictionary
-        for col, value in values.items():
+        """
+        Updates the model with the given dictionary of values.
+
+        :param values: <dict>
+        :param context: <orb.Context>
+
+        :return: <int>
+        """
+        schema = self.schema()
+        column_updates = odict()
+        other_updates = odict()
+        for key, value in values.items():
             try:
-                self.set(col, value, **context)
+                column_updates[schema.column(key)] = value
+            except orb.errors.ColumnValidationError:
+                other_updates[key] = value
+
+        # update the columns in order
+        for col in sorted(column_updates.keys(), key=lambda x: x.order()):
+            self.set(col, column_updates[col], **context)
+
+        # update the other values
+        for key, value in other_updates:
+            try:
+                self.set(key, value, **context)
             except orb.errors.ColumnValidationError:
                 pass
+
         return len(values)
 
     def validate(self):
@@ -930,7 +953,7 @@ class Model(object):
 
         record = cls.select(where=q).first()
         if record is None:
-            record = cls()
+            record = cls(context=orb.Context(**context))
             record.update(values)
             record.update(defaults or {})
             record.save()

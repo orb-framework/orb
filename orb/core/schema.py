@@ -2,6 +2,7 @@
 
 import logging
 
+from collections import OrderedDict as odict
 from new import instancemethod
 from projex.enum import enum
 from projex.lazymodule import lazy_import
@@ -277,7 +278,11 @@ class Schema(object):
             return self.__cache[key]
         except KeyError:
 
-            output = {col.name(): col for col in self.__columns.values() if (not flags or col.testFlag(flags))}
+            output = odict(
+                (col.name(), col) for col
+                in sorted(self.__columns.values(), key=lambda x: x.order())
+                if (not flags or col.testFlag(flags))
+            )
 
             if recurse:
                 inherits = self.inherits()
