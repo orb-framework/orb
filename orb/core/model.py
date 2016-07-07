@@ -8,7 +8,6 @@ import projex.rest
 import projex.security
 import projex.text
 
-from collections import OrderedDict as odict
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import lazy_import
 from projex import funcutil
@@ -731,12 +730,12 @@ class Model(object):
         :return: <int>
         """
         schema = self.schema()
-        column_updates = odict()
-        other_updates = odict()
+        column_updates = {}
+        other_updates = {}
         for key, value in values.items():
             try:
                 column_updates[schema.column(key)] = value
-            except orb.errors.ColumnValidationError:
+            except orb.errors.ColumnNotFound:
                 other_updates[key] = value
 
         # update the columns in order
@@ -744,7 +743,7 @@ class Model(object):
             self.set(col, column_updates[col], **context)
 
         # update the other values
-        for key, value in other_updates:
+        for key, value in other_updates.items():
             try:
                 self.set(key, value, **context)
             except orb.errors.ColumnValidationError:
