@@ -131,7 +131,7 @@ class Collection(object):
                 self.__collector.from_(): self.__record,
                 self.__collector.to(): record
             }
-            return cls.ensureExists(data)
+            return cls.ensureExists(data, context=self.context())
         elif isinstance(self.__collector, orb.ReverseLookup):
             record.set(self.__collector.targetColumn(), self.__record)
             record.save()
@@ -262,7 +262,7 @@ class Collection(object):
             ids = self.ids()
 
             # remove them from the system
-            q = orb.Query(pipe.target()).in_(ids)
+            q = orb.Query(pipe.targetColumn()).in_(ids)
             base_context.where = q
 
             records = through.select(where=q, context=base_context)
@@ -299,7 +299,10 @@ class Collection(object):
         return self.values(*columns, **context)
 
     def empty(self):
-        return self.update([])
+        if self.isNull():
+            return 0
+        else:
+            return self.update([])
 
     def first(self, **context):
         if self.isNull():

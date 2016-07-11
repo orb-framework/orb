@@ -632,7 +632,7 @@ class Model(object):
         col = self.schema().column(column, raise_=False)
 
         if col is None:
-            # allow setting of pipes as well
+            # allow setting of collections as well
             collector = self.schema().collector(column)
             if collector:
                 my_context = self.context()
@@ -642,8 +642,12 @@ class Model(object):
                         context.setdefault(k, v)
 
                 sub_context = orb.Context(**context)
-                records = collector.collect(self, context=sub_context)
-                return records.update(value, useMethod=useMethod, context=sub_context)
+                method = collector.settermethod()
+                if method and useMethod:
+                    return method(self, value, context=sub_context)
+                else:
+                    records = collector.collect(self, context=sub_context)
+                    return records.update(value, useMethod=useMethod, context=sub_context)
             else:
                 raise errors.ColumnNotFound(self.schema().name(), column)
 
