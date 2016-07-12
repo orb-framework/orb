@@ -945,6 +945,8 @@ class Model(object):
             column = cls.schema().column(key)
             if not column:
                 raise orb.errors.ColumnNotFound(cls.schema().name(), key)
+            elif column.testFlag(column.Flags.Virtual):
+                continue
 
             if (isinstance(column, orb.AbstractStringColumn) and
                 not column.testFlag(column.Flags.CaseSensitive) and
