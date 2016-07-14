@@ -743,9 +743,9 @@ class Query(object):
         if lookup:
             # utilize query filters to generate
             # a new filter based on this object
-            query_filter = lookup.queryFilter()
+            query_filter = lookup.queryFilterMethod()
             if query_filter:
-                return query_filter(model, self)
+                return query_filter(model, self).expand(model)
 
             # otherwise, check to see if the lookup
             # has a shortcut to look through
@@ -758,8 +758,6 @@ class Query(object):
         if len(parts) == 1:
             return self
         else:
-            lookup = lookup or schema.collector(parts[0])
-
             if isinstance(lookup, orb.Collector):
                 return orb.Query(model).in_(lookup.collectExpand(self, parts))
 
