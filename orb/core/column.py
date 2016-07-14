@@ -69,6 +69,7 @@ class Column(AddonManager):
                  permit=None,
                  getter=None,
                  setter=None,
+                 queryFilter=None,
                  schema=None,
                  order=99999):
         # constructor items
@@ -81,6 +82,7 @@ class Column(AddonManager):
         self.__getterName = getterName
         self.__setterName = setterName
         self.__shortcut = shortcut
+        self.__query_filter = queryFilter
         self.__settermethod = setter
         self.__gettermethod = getter
         self.__readPermit = readPermit or permit
@@ -112,6 +114,7 @@ class Column(AddonManager):
             setterName=self.__setterName,
             getter=self.__gettermethod,
             setter=self.__settermethod,
+            queryFilter=self.__query_filter,
             shortcut=self.__shortcut,
             readPermit=self.__readPermit,
             writePermit=self.__writePermit,
@@ -337,6 +340,46 @@ class Column(AddonManager):
         """
         return self.__order
 
+    def queryFilter(self, function=None):
+        """
+        Defines a decorator that can be used to filter
+        queries.  It will assume the function being associated
+        with the decorator will take a query as an input and
+        return a modified query to use.
+
+        :usage
+
+            class MyModel(orb.Model):
+                objects = orb.ReverseLookup('Object')
+
+                @classmethod
+                @objects.queryFilter()
+                def objectsFilter(cls, query, **context):
+                    return orb.Query()
+
+        :param function: <callable>
+
+        :return: <wrapper>
+        """
+        if function is not None:
+            self.__query_filter = function
+            return function
+
+        def wrapper(func):
+            self.__query_filter = func
+            return func
+
+        return wrapper
+
+    def queryFilterMethod(self):
+        """
+        Returns the actual query filter method, if any,
+        that is associated with this collector.
+
+        :return: <callable>
+        """
+        return self.__query_filter
+
     def random(self):
         """
         Returns a random value that fits this column's parameters.
@@ -382,7 +425,21 @@ class Column(AddonManager):
         else:
             return value
 
+    def setShortcut(self, shortcut):
+        """
+        Sets the shortcut information for this column.
+
+        :param shortcut: <str>
+        """
+        self.__shortcut = shortcut
+
     def shortcut(self):
+        """
+        Returns the shortcut path that will be taken through
+        this column.
+
+        :return: <str> || None
+        """
         return self.__shortcut
 
     def store(self, value, context=None):

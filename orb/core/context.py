@@ -44,7 +44,8 @@ class Context(object):
         'returning': 'records',
         'start': None,
         'timezone': None,
-        'where': None
+        'where': None,
+        'useBaseQuery': True
     }
 
     QueryFields = {

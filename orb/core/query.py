@@ -583,6 +583,14 @@ class Query(object):
         else:
             return schema.column(self.__column)
 
+    def collector(self, model=None):
+        try:
+            schema = (self.__model or model).schema()
+        except AttributeError:
+            return None
+        else:
+            return schema.collector(self.__column)
+
     def columns(self, model=None):
         """
         Returns a generator that loops through the columns that are associated with this query.
@@ -730,13 +738,22 @@ class Query(object):
         parts = self.__column.split('.')
 
         # expand the current column
-        lookup = schema.column(parts[0], raise_=False)
-        if lookup and lookup.shortcut():
-            if callable(lookup.shortcut()):
-                return lookup.shortcut()(self, model=model)
-            else:
-                parts = lookup.shortcut().split('.')
-                lookup = schema.column(parts[0], raise_=False)
+        lookup = schema.column(parts[0], raise_=False) or schema.collector(parts[0])
+
+        if lookup:
+            # utilize query filters to generate
+            # a new filter based on this object
+            query_filter = lookup.queryFilter()
+            if query_filter:
+                return query_filter(model, self)
+
+            # otherwise, check to see if the lookup
+            # has a shortcut to look through
+            elif isinstance(lookup, orb.Column) and lookup.shortcut():
+                shortcut = lookup.shortcut()
+                if shortcut:
+                    parts = lookup.shortcut().split('.')
+                    lookup = schema.column(parts[0], raise_=False)
 
         if len(parts) == 1:
             return self

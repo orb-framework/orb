@@ -16,11 +16,11 @@ class SELECT(PSQLStatement):
         WHERE = self.byName('WHERE')
 
         # generate the where query
-        base_where = model.baseQuery(context=context)
-        if base_where:
-            where = base_where & context.where
-        else:
-            where = context.where
+        where = context.where
+        if context.useBaseQuery:
+            base_where = model.baseQuery(context=context)
+            if base_where:
+                where = base_where & where
 
         # determine what to expand
         schema = model.schema()

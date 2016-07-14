@@ -33,15 +33,15 @@ def virtual(cls, **options):
                 return setter_func
             return setter_wrapped
 
-        def define_shortcut():
+        def define_query_filter():
             def shortcut_wrapped(shortcut_func):
-                func.__orb__.setShortcut(shortcut_func)
+                func.__orb__.queryFilter(shortcut_func)
                 return shortcut_func
             return shortcut_wrapped
 
         func.__orb__ = cls(**options)
         func.__orb__.getter()(func)
         func.setter = define_setter
-        func.shortcut = define_shortcut
+        func.queryFilter = define_query_filter
         return func
     return wrapped

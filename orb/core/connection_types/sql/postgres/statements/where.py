@@ -7,7 +7,7 @@ orb = lazy_import('orb')
 
 class WHERE(PSQLStatement):
     def __call__(self, model, query, aliases=None, fields=None):
-        if query is None:
+        if query is None or model is None:
             return u'', {}
 
         aliases = aliases or {}
@@ -28,9 +28,22 @@ class WHERE(PSQLStatement):
             sql = u'({0})'.format(joiner.join(sub_query_sql))
 
         else:
-            column = query.column(model)
-            if not column:
-                raise orb.errors.ColumnNotFound(model.schema().name(), query.columnName())
+            try:
+                column = query.column(model)
+            except orb.errors.ColumnNotFound:
+                # check to see if the query has a collector vs. column
+                collector = query.collector(model)
+
+                # determine if the collector has a filter
+                if collector:
+                    query_filter = collector.queryFilterMethod()
+                    if query_filter:
+                        new_query = query_filter(model, query)
+                        return self(model, new_query, aliases=aliases, fields=fields)
+                    else:
+                        raise
+                else:
+                    raise
 
             # generate the sql field
             field = fields.get(column) or self.generateField(model, column, query, aliases)

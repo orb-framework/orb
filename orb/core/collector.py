@@ -24,13 +24,20 @@ class Collector(object):
         }
         return output
 
-    def __init__(self, name='', flags=0, getter=None, setter=None, model=None):
+    def __init__(self,
+                 name='',
+                 flags=0,
+                 getter=None,
+                 setter=None,
+                 model=None,
+                 queryFilter=None):
         self.__name = self.__name__ = name
         self.__model = model
         self.__schema = None
         self.__preload = None
         self.__getter = getter
         self.__setter = setter
+        self.__queryFilter = queryFilter
         self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
 
     def __call__(self, record, useMethod=True, **context):
@@ -64,6 +71,45 @@ class Collector(object):
 
     def collectExpand(self, query, parts, **context):
         raise NotImplementedError
+
+    def queryFilter(self, function=None):
+        """
+        Defines a decorator that can be used to filter
+        queries.  It will assume the function being associated
+        with the decorator will take a query as an input and
+        return a modified query to use.
+
+        :usage
+
+            class MyModel(orb.Model):
+                objects = orb.ReverseLookup('Object')
+
+                @classmethod
+                @objects.queryFilter()
+                def objectsFilter(cls, query, **context):
+                    return orb.Query()
+
+        :param function: <callable>
+
+        :return: <wrapper>
+        """
+        if function is not None:
+            self.__query_filter = function
+            return function
+
+        def wrapper(func):
+            self.__query_filter = func
+            return func
+        return wrapper
+
+    def queryFilterMethod(self):
+        """
+        Returns the actual query filter method, if any,
+        that is associated with this collector.
+
+        :return: <callable>
+        """
+        return self.__query_filter
 
     def getter(self, function=None):
         if function is not None:
