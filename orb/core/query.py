@@ -716,7 +716,7 @@ class Query(object):
         newq.setValue(value)
         return newq
 
-    def expand(self, model=None):
+    def expand(self, model=None, ignoreFilter=False):
         """
         Expands any shortcuts that were created for this query.  Shortcuts
         provide the user access to joined methods using the '.' accessor to
@@ -744,8 +744,8 @@ class Query(object):
             # utilize query filters to generate
             # a new filter based on this object
             query_filter = lookup.queryFilterMethod()
-            if query_filter:
-                return query_filter(model, self).expand(model)
+            if query_filter and not ignoreFilter:
+                return query_filter(model, self).expand(model, ignoreFilter=True)
 
             # otherwise, check to see if the lookup
             # has a shortcut to look through
@@ -1363,7 +1363,7 @@ class QueryCompound(object):
             for column in query.columns(model=model):
                 yield column
 
-    def expand(self, model=None):
+    def expand(self, model=None, ignoreFilter=False):
         """
         Expands any shortcuts that were created for this query.  Shortcuts
         provide the user access to joined methods using the '.' accessor to
