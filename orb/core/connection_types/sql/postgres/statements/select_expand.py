@@ -132,11 +132,17 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
         target = reversed.referenceModel()
         source = reversed.schema().model()
 
+        target_name = projex.text.underscore(reversed.name())
+        target_records_alias = '{0}_records'.format(target_name)
+        target_alias = '{0}_table'.format(target_name)
+        has_translations = target.schema().hasTranslations()
+        target_fields = []
+
         # get the base table query
         target_q = target.baseQuery()
         if target_q:
             WHERE = self.byName('WHERE')
-            filter_sql, filter_data = WHERE(target, target_q)
+            filter_sql, filter_data = WHERE(target, target_q, aliases={target: target_alias})
             if filter_sql:
                 data.update(filter_data)
                 target_base_where = '({0}) AND '.format(filter_sql)
@@ -144,13 +150,6 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
                 target_base_where = ''
         else:
             target_base_where = ''
-
-
-        target_name = projex.text.underscore(reversed.name())
-        target_records_alias = '{0}_records'.format(target_name)
-        target_alias = '{0}_table'.format(target_name)
-        has_translations = target.schema().hasTranslations()
-        target_fields = []
 
         # collect keywords
         if 'ids' in tree:
@@ -231,18 +230,6 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         target = pipe.toModel()
         target_records_alias = projex.text.underscore(pipe.name()) + '_records'
 
-        # include the base table's filter, if one exists
-        target_q = target.baseQuery()
-        if target_q is not None:
-            filter_sql, filter_data = WHERE(target, target_q)
-            if filter_sql:
-                data.update(filter_data)
-                target_base_where = '({0}) AND '.format(filter_sql)
-            else:
-                target_base_where = ''
-        else:
-            target_base_where = ''
-
         target_fields = []
 
         # collect keywords
@@ -261,6 +248,18 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         target_name = projex.text.underscore(pipe.name())
         target_alias = '{0}_table'.format(target_name)
         has_translations = target.schema().hasTranslations()
+
+        # include the base table's filter, if one exists
+        target_q = target.baseQuery()
+        if target_q is not None:
+            filter_sql, filter_data = WHERE(target, target_q, aliases={target: target_alias})
+            if filter_sql:
+                data.update(filter_data)
+                target_base_where = '({0}) AND '.format(filter_sql)
+            else:
+                target_base_where = ''
+        else:
+            target_base_where = ''
 
         if has_translations:
             target_data = u'"{target_alias}".*, "{target_alias}_i18n".*'.format(target_alias=target_alias)

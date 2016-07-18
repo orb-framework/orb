@@ -410,6 +410,8 @@ class SQLConnection(orb.Connection):
         pool = self.__pool
 
         if self.__poolSize >= self.__maxSize or pool.qsize():
+            if pool.qsize() == 0:
+                log.warning('Waiting for connection to database!!!')
             return pool.get()
         else:
             db = self.database()

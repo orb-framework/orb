@@ -780,6 +780,6 @@ class Collection(object):
             # use preloaded cache for values when possible
             else:
                 if len(columns) == 1:
-                    return [record.get(columns[0]) for record in records]
+                    return [record.get(columns[0]) if record else None for record in records]
                 else:
                     return [(record.get(c) for c in columns) for record in records]
