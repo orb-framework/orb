@@ -264,6 +264,14 @@ class HtmlColumn(TextColumn):
             return py_value
 
 
+class PlainTextColumn(StringColumn):
+    def __init__(self, **kwds):
+        kwds.setdefault('escaped', True)
+        kwds.setdefault('cleaned', True)
+
+        super(PlainTextColumn, self).__init__(**kwds)
+
+
 class PasswordColumn(StringColumn):
     def __init__(self,
                  minlength=8,

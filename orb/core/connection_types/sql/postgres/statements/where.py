@@ -51,7 +51,7 @@ class WHERE(PSQLStatement):
 
             # calculate any math operations to the sql field
             for op, target in query.math():
-                field = column.dbMath(field, op, target)
+                field = column.dbMath('Default', field, op, target)
 
             # get the additional information
             value = query.value()

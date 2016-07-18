@@ -654,9 +654,6 @@ class Model(object):
         elif col.testFlag(col.Flags.ReadOnly):
             raise errors.ColumnReadOnly(column)
 
-        # ensure the value is good
-        col.validate(value)
-
         context = self.context(**context)
         if useMethod:
             try:
