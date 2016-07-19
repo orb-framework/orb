@@ -141,7 +141,7 @@ class Column(AddonManager):
                     try:
                         value = projex.text.safe_eval(db_value)
                     except StandardError:
-                        value = None
+                        value = {context.locale: db_value}
                 else:
                     value = {context.locale: db_value}
             else:

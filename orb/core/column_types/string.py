@@ -119,7 +119,7 @@ class AbstractStringColumn(Column):
         if isinstance(value, (str, unicode)) and self.testFlag(self.Flags.Encrypted):
             value = orb.system.security().encrypt(value)
 
-        return super(AbstractStringColumn, self).store(value)
+        return super(AbstractStringColumn, self).store(value, context=context)
 
 
 # define base string based class types
