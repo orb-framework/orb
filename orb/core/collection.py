@@ -762,6 +762,7 @@ class Collection(object):
                         for i, field in enumerate(fields):
                             col = columns[i]
                             raw_values = orig_context.copy()
+                            raw_values['distinct'] = None
                             if isinstance(field, orb.ReferenceColumn) and raw_values.get('inflated') is None:
                                 raw_values['inflated'] = col != field.field()
 

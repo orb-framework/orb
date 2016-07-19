@@ -992,7 +992,28 @@ class Model(object):
 
     @classmethod
     def fetch(cls, key, **context):
-        context.setdefault('where', orb.Query(cls) == key)
+        """
+        Looks up a record based on the given key.  This will use the
+        default id field, as well as any keyable properties if the
+        given key is a string.
+
+        :param key: <variant>
+        :param context: <orb.Context>
+        :return: <orb.Model> || None
+        """
+        # include any keyable columns for lookup
+        if isinstance(key, basestring) and not key.isdigit():
+            keyable_columns = cls.schema().columns(flags=orb.Column.Flags.Keyable)
+            if keyable_columns:
+                base_q = orb.Query()
+                for col in keyable_columns:
+                    base_q |= orb.Query(col) == key
+                context.setdefault('where', base_q)
+            else:
+                context.setdefault('where', orb.Query(cls) == key)
+        else:
+            context.setdefault('where', orb.Query(cls) == key)
+
         return cls.select(**context).first()
 
     @classmethod

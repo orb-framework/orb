@@ -110,9 +110,9 @@ class WHERE(PSQLStatement):
                 elif op in (orb.Query.Op.Contains, orb.Query.Op.DoesNotContain):
                     value = u'%{0}%'.format(value)
                 elif op in (orb.Query.Op.Startswith, orb.Query.Op.DoesNotStartwith):
-                    value = u'%{0}'.format(value)
-                elif op in (orb.Query.Op.Endswith, orb.Query.Op.DoesNotEndwith):
                     value = u'{0}%'.format(value)
+                elif op in (orb.Query.Op.Endswith, orb.Query.Op.DoesNotEndwith):
+                    value = u'%{0}'.format(value)
 
                 if invert:
                     opts = (u'%({0})s'.format(value_key), sql_op, field)
@@ -174,14 +174,18 @@ class WHERE(PSQLStatement):
             orb.Query.Op.Matches: u'~',
             orb.Query.Op.DoesNotMatch: u'!~',
             orb.Query.Op.Contains: u'LIKE',
-            orb.Query.Op.DoesNotContain: u'NOT LIKE'
+            orb.Query.Op.DoesNotContain: u'NOT LIKE',
+            orb.Query.Op.Startswith: u'LIKE',
+            orb.Query.Op.Endswith: u'LIKE'
         }
 
         non_sensitive_mapping = {
             orb.Query.Op.Matches: u'~*',
             orb.Query.Op.DoesNotMatch: u'!~*',
             orb.Query.Op.Contains: u'ILIKE',
-            orb.Query.Op.DoesNotContain: u'NOT ILIKE'
+            orb.Query.Op.DoesNotContain: u'NOT ILIKE',
+            orb.Query.Op.Startswith: u'ILIKE',
+            orb.Query.Op.Endswith: u'ILIKE'
         }
 
         return general_mapping.get(op) or (sensitive_mapping[op] if caseSensitive else non_sensitive_mapping[op])

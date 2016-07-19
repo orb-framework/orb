@@ -40,7 +40,8 @@ class Column(AddonManager):
         'Static',
         'Protected',
         'Private',
-        'RequiresExpand'
+        'RequiresExpand',
+        'Keyable'
     )
 
     def __json__(self):
