@@ -27,7 +27,6 @@ class Context(object):
         'db': None,
         'database': None,
         'distinct': False,
-        'disinctOn': '',
         'dryRun': False,
         'expand': None,
         'format': 'json',

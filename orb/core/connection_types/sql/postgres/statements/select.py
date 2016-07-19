@@ -100,11 +100,12 @@ class SELECT(PSQLStatement):
                     sql_group_by.add(field)
                 sql_order_by.append(u'{0} {1}'.format(field, dir.upper()))
 
-                if context.distinct:
+                if context.distinct is True:
                     sql_columns['standard'].append(field)
 
         if context.distinct is True:
-            cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']), schema.dbname())]
+            cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']),
+                                                           schema.dbname())]
         elif isinstance(context.distinct, (list, set, tuple)):
             on_ = []
             for col in context.distinct:
@@ -112,12 +113,13 @@ class SELECT(PSQLStatement):
                 if not column:
                     raise orb.errors.ColumnNotFound(col)
                 else:
-                    on_.append(fields.get(col) or u'"{0}"."{1}"'.format(schema.dbname(), col.field()))
+                    on_.append(fields.get(col) or u'"{0}"."{1}"'.format(schema.dbname(), column.field()))
 
             cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM "{2}"."{3}"'.format(', '.join(on_),
                                                                     ', '.join(sql_columns['standard'] + sql_columns['i18n']),
                                                                     schema.namespace() or 'public',
                                                                     schema.dbname())]
+            sql_order_by = on_ + sql_order_by
         else:
             cmd = [u'SELECT {0} FROM "{1}"."{2}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']),
                                                          schema.namespace() or 'public',

@@ -295,7 +295,7 @@ class Collection(object):
             return conn.delete(remove, context)[1]
 
     def distinct(self, *columns, **context):
-        context['distinct'] = True
+        context['distinct'] = columns
         return self.values(*columns, **context)
 
     def empty(self):
