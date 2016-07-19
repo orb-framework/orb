@@ -745,7 +745,11 @@ class Query(object):
             # a new filter based on this object
             query_filter = lookup.queryFilterMethod()
             if query_filter and not ignoreFilter:
-                return query_filter(model, self).expand(model, ignoreFilter=True)
+                new_q = query_filter(model, self)
+                if new_q:
+                    return new_q.expand(model, ignoreFilter=True)
+                else:
+                    return None
 
             # otherwise, check to see if the lookup
             # has a shortcut to look through
@@ -1382,6 +1386,8 @@ class QueryCompound(object):
 
         for query in self.__queries:
             sub_q = query.expand(model)
+            if not sub_q:
+                continue
 
             # chain together joins into sub-queries
             if ((isinstance(sub_q, orb.Query) and isinstance(sub_q.value(), orb.Query)) and

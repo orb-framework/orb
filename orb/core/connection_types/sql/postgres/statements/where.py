@@ -14,6 +14,8 @@ class WHERE(PSQLStatement):
         fields = fields or {}
         data = {}
         query = query.expand(model)
+        if query is None:
+            return u'', {}
 
         # generate a query compound
         if isinstance(query, orb.QueryCompound):
