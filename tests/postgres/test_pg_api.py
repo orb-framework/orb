@@ -381,3 +381,14 @@ def test_pg_expand_virtual(orb, GroupUser, User):
     json = u.__json__()
     assert len(json['groups']) == len(json['my_groups'])
     assert len(json['groups'][0]['users']) == len(json['my_groups'][0]['users'])
+
+@requires_pg
+def test_pg_sub_selection(orb, GroupUser, User):
+    a = orb.Query('user').in_(User.select())
+    b = orb.Query('user').in_(User.select(columns=['id']))
+    c = orb.Query('user.username').in_(User.select(columns=['username']))
+
+    assert len(GroupUser.select()) != 0
+    assert len(GroupUser.select()) == len(GroupUser.select(where=a))
+    assert len(GroupUser.select()) == len(GroupUser.select(where=b))
+    assert len(GroupUser.select()) == len(GroupUser.select(where=c))

@@ -98,7 +98,10 @@ class WHERE(PSQLStatement):
             # convert a collection value
             elif isinstance(value, orb.Collection):
                 SELECT = self.byName('SELECT')
-                sub_sql, sub_data = SELECT(value.model(), value.context(), fields=fields)
+                context = value.context()
+                if not context.columns:
+                    context.columns = [value.model().schema().idColumn()]
+                sub_sql, sub_data = SELECT(value.model(), context, fields=fields)
                 if sub_sql:
                     sql = u'{0} {1} ({2})'.format(field, sql_op, sub_sql.strip(';'))
                     data.update(sub_data)
