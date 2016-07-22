@@ -94,6 +94,9 @@ class Column(AddonManager):
         self.__schema = None
         self.__timezone = None
 
+        if shortcut:
+            self.setFlag(self.Flags.Virtual)
+
         # auto-register to the schema if provided
         if schema:
             schema.register(self)

@@ -754,10 +754,8 @@ class Query(object):
             # otherwise, check to see if the lookup
             # has a shortcut to look through
             elif isinstance(lookup, orb.Column) and lookup.shortcut():
-                shortcut = lookup.shortcut()
-                if shortcut:
-                    parts = lookup.shortcut().split('.')
-                    lookup = schema.column(parts[0], raise_=False)
+                parts = lookup.shortcut().split('.')
+                lookup = schema.column(parts[0], raise_=False)
 
         if len(parts) == 1:
             return self

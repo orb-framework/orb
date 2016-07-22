@@ -472,10 +472,6 @@ class Model(object):
                 if method is not None and type(method.im_func).__name__ != 'orb_getter_method':
                     return method(self, context=sub_context)
 
-            # virtual columns can only be looked up using their method
-            elif col.testFlag(col.Flags.Virtual):
-                raise orb.errors.ColumnIsVirtual(col.name())
-
             # grab the current value
             with ReadLocker(self.__dataLock):
                 _, value = self.__values.get(col.name(), (None, None))
