@@ -61,7 +61,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
     def __call__(self, column, tree, alias=''):
         data = {}
         target = column.referenceModel()
-        has_translations = target.schema().hasTranslations()
+        translation_columns = target.schema().columns(flags=orb.Column.Flags.I18n).values()
         target_name = projex.text.underscore(column.name())
         target_alias = '{0}_table'.format(target_name)
         target_id_field = target.schema().idColumn().field()
@@ -79,18 +79,45 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
         else:
             target_base_where = ''
 
-        if has_translations:
-            target_data = '"{0}".*, "{0}_i18n".*'.format(target_alias)
-            target_i18n = u'LEFT JOIN "{target_namespace}"."{target}_i18n" AS "{target_alias}_i18n" ON ' \
-                          u'"{target_alias}"."{target_id_field}" = "{target_alias}_i18n"."{target}_id" AND ' \
-                          u'"{target_alias}_i18n"."locale" = %(locale)s'
+        # setup the base information
+        target_data = u'"{0}".*'.format(target_alias)
+        target_i18n = u''
+        target_i18n_grouping = u''
+
+        # be able to filter on
+        if translation_columns:
+            target_data_sql = u'(coalesce((array_agg("{0}_i18n"."{1}"))[1], ' \
+                              u'(array_agg("{0}_i18n_default"."{1}"))[1])) AS "{1}"'
+            target_data_options = [target_data]
+            target_data_options += [
+                target_data_sql.format(target_alias, c.field())
+                for c in translation_columns
+            ]
+            target_data = ','.join(target_data_options)
+            target_id_field = target.schema().idColumn().field()
+
+            target_i18n_grouping = u"""
+            GROUP BY "{target_alias}"."{target_id_field}"
+            ORDER BY "{target_alias}"."{target_id_field}"
+            """.format(target_alias=target_alias, target_id_field=target_id_field)
+
+            # include translated columns
+            target_i18n = u"""
+            LEFT JOIN "{target_namespace}"."{target}_i18n" AS "{target_alias}_i18n" ON
+                "{target_alias}"."{target_id_field}"    = "{target_alias}_i18n"."{target}_id" AND
+                "{target_alias}_i18n"."locale"          = %(locale)s
+
+            LEFT JOIN "{target_namespace}"."{target}_i18n" AS "{target_alias}_i18n_default" ON
+                "{target_alias}"."{target_id_field}"    = "{target_alias}_i18n_default"."{target}_id" AND
+                "{target_alias}_i18n_default"."locale"  = %(default_locale)s
+
+            """
+
             target_i18n = target_i18n.format(target=target.schema().dbname(),
                                              target_namespace=target.schema().namespace() or 'public',
                                              target_alias=target_alias,
-                                             target_id_field=target.schema().idColumn().field())
-        else:
-            target_data = '"{0}".*'.format(target_alias)
-            target_i18n = ''
+                                             target_id_field=target_id_field)
+
 
         target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias)
         data.update(target_expand_data)
@@ -103,7 +130,8 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
             'target_alias': target_alias,
             'target_id_field': target_id_field,
             'target_base_where': target_base_where,
-            'target_target_i18n': target_i18n,
+            'target_i18n': target_i18n,
+            'target_i18n_grouping': target_i18n_grouping,
             'target_namespace': target.schema().namespace() or 'public',
             'target_table': target.schema().dbname(),
             'source_table': alias or column.schema().dbname(),
@@ -117,8 +145,9 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
             u'  (\n'
             u'      SELECT {target_data} {target_expand}\n'
             u'      FROM "{target_namespace}"."{target_table}" AS "{target_alias}"\n'
-            u'      {target_target_i18n}\n'
+            u'      {target_i18n}\n'
             u'      WHERE {target_base_where} "{target_alias}"."{target_id_field}" = "{source_table}"."{source_field}"\n'
+            u'      {target_i18n_grouping}'
             u'  ) AS {target_name}_row\n'
             u') AS "{target_name}"'
         ).format(**sql_options)
