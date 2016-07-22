@@ -71,11 +71,6 @@ def test_user_good_password(User):
     record = User({'username': 'bob'})
     assert record.setPassword('T3st1ng!')
 
-def test_user_bad_password(orb, User):
-    record = User({'username': 'bob'})
-    with pytest.raises(orb.errors.ColumnValidationError):
-        record.setPassword('bad')
-
 def test_user_inflate(orb, User):
     record = User.inflate({'username': 'bob'})
     assert record.get('username') == 'bob'
