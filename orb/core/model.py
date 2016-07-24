@@ -462,6 +462,10 @@ class Model(object):
                 else:
                     raise errors.ColumnNotFound(self.schema().name(), column)
 
+            # lookup the shortuct value vs. the local one
+            elif col.shortcut():
+                return self.get(col.shortcut(), **context)
+
             # don't inflate if the requested value is a field
             if column == col.field():
                 sub_context.inflated = False
