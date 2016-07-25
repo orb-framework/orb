@@ -37,7 +37,7 @@ class Collector(object):
         self.__preload = None
         self.__getter = getter
         self.__setter = setter
-        self.__queryFilter = queryFilter
+        self.__query_filter = queryFilter
         self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
 
     def __call__(self, record, useMethod=True, **context):
