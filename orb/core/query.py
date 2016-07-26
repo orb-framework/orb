@@ -97,6 +97,26 @@ class Query(object):
     EMPTY = '__QUERY__EMPTY__'
     ALL = '__QUERY__ALL__'
 
+    def __hash__(self):
+        if isinstance(self.__value, (list, set)):
+            val_hash = tuple(self.__value)
+        else:
+            try:
+                val_hash = hash(self.__value)
+            except TypeError:
+                val_hash = hash(unicode(self.__value))
+
+        return hash((
+            self.__model,
+            self.__column,
+            self.__op,
+            self.__caseSensitive,
+            val_hash,
+            self.__inverted,
+            tuple(self.__functions),
+            tuple(self.__math)
+        ))
+
     # python 2.x
     def __nonzero__(self):
         return not self.isNull()
@@ -744,7 +764,7 @@ class Query(object):
             # utilize query filters to generate
             # a new filter based on this object
             query_filter = lookup.queryFilterMethod()
-            if query_filter and not ignoreFilter:
+            if callable(query_filter) and not ignoreFilter:
                 new_q = query_filter(model, self)
                 if new_q:
                     return new_q.expand(model, ignoreFilter=True)
@@ -1227,6 +1247,12 @@ class QueryCompound(object):
         'And',
         'Or'
     )
+
+    def __hash__(self):
+        return hash((
+            self.__op,
+            hash(hash(q) for q in self.__queries)
+        ))
 
     def __json__(self):
         data = {

@@ -326,7 +326,6 @@ class SQLConnection(orb.Connection):
         else:
             lvl = logging.CRITICAL
 
-        log.log(lvl, '{0}\n\ndata:{1}'.format(command, delta))
         log.log(lvl, 'Query took: %s' % delta)
 
         return results, rowcount

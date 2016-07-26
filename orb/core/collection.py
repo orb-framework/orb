@@ -131,11 +131,21 @@ class Collection(object):
                 self.__collector.from_(): self.__record,
                 self.__collector.to(): record
             }
+
+            with WriteLocker(self.__cacheLock):
+                self.__cache = defaultdict(dict)
+
             return cls.ensureExists(data, context=self.context())
+
         elif isinstance(self.__collector, orb.ReverseLookup):
             record.set(self.__collector.targetColumn(), self.__record)
             record.save()
+
+            with WriteLocker(self.__cacheLock):
+                self.__cache = defaultdict(dict)
+
             return True
+
         else:
             try:
                 records = self.__cache['records'][self.__context]
@@ -499,7 +509,7 @@ class Collection(object):
         with WriteLocker(self.__cacheLock):
             for key, value in cache.items():
                 self.__preload.setdefault(key, {})
-                self.__preload[key][context] = value
+                self.__preload[key][context] = value or []
 
     def records(self, **context):
         if self.isNull():
@@ -623,6 +633,7 @@ class Collection(object):
 
             elif isinstance(records, orb.Collection):
                 ids = records.ids()
+                output_records = records.records()
 
             else:
                 raise orb.errors.OrbError('Invalid input for collection update: {0}'.format(records))
@@ -631,7 +642,7 @@ class Collection(object):
             if isinstance(self.__collector, orb.Pipe):
                 pipe = self.__collector
 
-                context = self.context(**context)
+                orb_context = self.context(**context)
                 through = pipe.throughModel()
                 curr_ids = self.ids()
 
@@ -642,20 +653,23 @@ class Collection(object):
                 if remove_ids:
                     q  = orb.Query(through, pipe.from_()) == self.__record
                     q &= orb.Query(through, pipe.to()).in_(remove_ids)
-                    context.where = q
-                    through.select(context=context).delete()
+                    orb_context.where = q
+                    through.select(context=orb_context).delete()
 
                 # create new records
                 if add_ids:
-                    collection = orb.Collection([through({pipe.from_(): self.__record, pipe.to(): id}, context=context)
-                                                 for id in add_ids])
+                    collection = orb.Collection([
+                        through({
+                            pipe.from_(): self.__record,
+                            pipe.to(): id
+                        }, context=orb_context)
+                        for id in add_ids
+                    ])
                     collection.save()
-
-                return output_records or sorted(self.records(), key=lambda x: ids.index(x.id()))
 
             # udpate a reverse lookup
             elif isinstance(self.__collector, orb.ReverseLookup):
-                context = self.context(**context)
+                orb_context = self.context(**context)
                 source = self.__collector.targetColumn()
                 model = source.schema().model()
 
@@ -664,7 +678,7 @@ class Collection(object):
                     q &= orb.Query(model).notIn(ids)
 
                 # determine the reverse lookups to remove from this collection
-                remove = model.select(where=q, context=context)
+                remove = model.select(where=q, context=orb_context)
 
                 # check the remove action to determine how to handle this situation
                 if self.__collector.removeAction() == 'delete':
@@ -679,15 +693,20 @@ class Collection(object):
                     q  = orb.Query(model).in_(ids)
                     q &= (orb.Query(source) != self.__record) | (orb.Query(source) == None)
 
-                    add = model.select(where=q, context=context)
+                    add = model.select(where=q, context=orb_context)
                     for record in add:
                         record.set(source, self.__record)
                         record.save()
 
-                return output_records or sorted(self.records(), key=lambda x: ids.index(x.id()))
-
             else:
                 raise NotImplementedError
+
+            # cache the output records
+            with WriteLocker(self.__cacheLock):
+                self.__preload.clear()
+                self.__cache = defaultdict(dict)
+
+            return output_records
 
     def save(self, **context):
         records = self.records(**context)

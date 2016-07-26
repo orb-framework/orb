@@ -71,14 +71,25 @@ class Context(object):
 
     def __hash__(self):
         keys = sorted(self.Defaults.keys())
-        hash_values = []
+
+        hash_keys = []
         for key in keys:
+            if key in self.__class__.UnhashableOptions:
+                continue
+
+            value = self.raw_values.get(key, self.__class__.Defaults[key])
+            if isinstance(value, (list, set)):
+                value = tuple(value)
+
             try:
-                value = self.raw_values[key]
-            except KeyError:
-                value = self.Defaults[key]
-            hash_values.append(unicode(value))
-        return hash(','.join(hash_values))
+                hash_value = hash(value)
+            except TypeError:
+                hash_value = unicode(value)
+
+            hash_keys.append(hash_value)
+
+
+        return hash(tuple(hash_keys))
 
     def __enter__(self):
         """
