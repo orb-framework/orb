@@ -48,6 +48,8 @@ class Collector(object):
                 return orb.Collection()
             else:
                 collection = self.collect(record, **context)
+
+                # preload the results
                 if isinstance(collection, orb.Collection):
                     cache = record.preload(projex.text.underscore(self.name()))
                     collection.preload(cache, **context)

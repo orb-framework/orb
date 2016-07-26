@@ -49,13 +49,15 @@ class ReferenceColumn(Column):
     def _restore(self, value, context=None):
         if not context.inflated and isinstance(value, orb.Model):
             return value.id()
+
         elif context.inflated and value is not None:
             model = self.referenceModel()
 
-            if not isinstance(value, model):
+            if not isinstance(value, orb.Model):
                 return model.fetch(value, context=context)
             else:
                 return value
+
         else:
             return value
 
@@ -172,7 +174,9 @@ class ReferenceColumn(Column):
 
     def validate(self, value):
         if isinstance(value, orb.Model) and not isinstance(value, self.referenceModel()):
-            raise orb.errors.InvalidReference(self.name(), type(value).__name__, type(self.referenceModel()).__name__)
+            raise orb.errors.InvalidReference(self.name(),
+                                              type(value).__name__,
+                                              type(self.referenceModel()).__name__)
         else:
             return super(ReferenceColumn, self).validate(value)
 

@@ -11,57 +11,6 @@ log = logging.getLogger(__name__)
 orb = lazy_import('orb')
 errors = lazy_import('orb.errors')
 
-# ------------------------------------------------------------------------------
-
-class orb_getter_method(object):
-    """ Creates a method for tables to use as a field accessor. """
-
-    def __init__(self, column):
-        """
-        Defines the getter method that will be used when accessing
-        information about a column on a database record.  This
-        class should only be used by the ModelType class when
-        generating column methods on a model.
-        """
-        self.column = column
-        self.__name__ = column.getterName()
-
-    def __call__(self, record, **context):
-        """
-        Calls the getter lookup method for the database record.
-
-        :param      record      <Table>
-        """
-        return record.get(self.column, useMethod=False, **context)
-
-
-#------------------------------------------------------------------------------
-
-class orb_setter_method(object):
-    """ Defines a method for setting database fields on a Table instance. """
-
-    def __init__(self, column):
-        """
-        Defines the setter method that will be used when accessing
-        information about a column on a database record.  This
-        class should only be used by the ModelType class when
-        generating column methods on a model
-        """
-        self.column = column
-        self.__name__ = column.setterName()
-
-    def __call__(self, record, value, **context):
-        """
-        Calls the setter method for the inputted database record.
-
-        :param      record      <Table>
-                    value       <variant>
-        """
-        return record.set(self.column, value, useMethod=False, **context)
-
-
-#----------------------------------------------------------------------
-
 
 class Schema(object):
     """ 
@@ -451,27 +400,6 @@ class Schema(object):
         elif isinstance(item, orb.Column):
             self.__columns[key] = item
             item.setSchema(self)
-
-            if model:
-                # create the getter method
-                getter_name = item.getterName()
-                if getter_name and not hasattr(model, getter_name):
-                    gmethod = item.gettermethod()
-                    if gmethod is None:
-                        gmethod = orb_getter_method(column=item)
-
-                    getter = instancemethod(gmethod, None, model)
-                    setattr(model, getter_name, getter)
-
-                # create the setter method
-                setter_name = item.setterName()
-                if setter_name and not (item.testFlag(item.Flags.ReadOnly) or hasattr(model, setter_name)):
-                    smethod = item.settermethod()
-                    if smethod is None:
-                        smethod = orb_setter_method(column=item)
-
-                    setter = instancemethod(smethod, None, model)
-                    setattr(model, setter_name, setter)
 
     def setColumns(self, columns):
         """

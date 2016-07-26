@@ -8,6 +8,7 @@ import projex.rest
 import projex.security
 import projex.text
 
+from collections import defaultdict
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import lazy_import
 from projex import funcutil
@@ -81,30 +82,30 @@ class Model(object):
         expand_tree = context.expandtree()
         if expand_tree:
             for key, subtree in expand_tree.items():
-                col = schema.column(key, raise_=False)
-                if col and col.testFlag(col.Flags.Private):
+                try:
+                    value = self.get(
+                        key,
+                        expand=subtree,
+                        returning=context.returning,
+                        scope=context.scope
+                    )
+                except orb.errors.ColumnNotFound:
                     continue
-                elif col:
-                    getter = getattr(self, col.getterName())
                 else:
-                    try:
-                        getter = getattr(self, key)
-                    except AttributeError:
-                        continue
-
-                value = getter(inflated=True,
-                               expand=subtree,
-                               returning=context.returning,
-                               scope=context.scope)
-                json = getattr(value, '__json__', None)
-                if json:
-                    output[key] = json()
-                else:
-                    output[key] = value
+                    if hasattr(value, '__json__'):
+                        if key == 'qualifiers':
+                            print value
+                            print 'WHAT THE HOLY FUCK'
+                            print value.records()
+                            print value.__json__()
+                        output[key] = value.__json__()
+                    else:
+                        output[key] = value
 
         # don't include the column names
         if context.returning == 'values':
-            output = tuple(output[column.field()] for column in context.schemaColumns(self.schema()))
+            output = tuple(output[column.field()]
+                           for column in context.schemaColumns(self.schema()))
             if len(output) == 1:
                 output = output[0]
 
@@ -215,6 +216,7 @@ class Model(object):
         self.__values = {}
         self.__loaded = set()
         self.__context = orb.Context(**context)
+        self.__cache = defaultdict(dict)
         self.__preload = {}
 
         # extract values to use from the record
@@ -458,7 +460,12 @@ class Model(object):
             if not col:
                 collector = self.schema().collector(column)
                 if collector:
-                    return collector.collect(self, useMethod=useMethod, context=sub_context)
+                    try:
+                        return self.__cache[collector][sub_context]
+                    except KeyError:
+                        records = collector(self, useMethod=useMethod, context=sub_context)
+                        self.__cache[collector][sub_context] = records
+                        return records
                 else:
                     raise errors.ColumnNotFound(self.schema().name(), column)
 
@@ -472,16 +479,20 @@ class Model(object):
 
             # call the getter method fot this record if one exists
             if useMethod:
-                method = getattr(type(self), col.getterName(), None)
-                if method is not None and type(method.im_func).__name__ != 'orb_getter_method':
+                method = col.gettermethod()
+                if method is not None:
                     return method(self, context=sub_context)
 
             # grab the current value
             with ReadLocker(self.__dataLock):
-                _, value = self.__values.get(col.name(), (None, None))
+                old_value, value = self.__values.get(col.name(), (None, None))
 
             # return a reference when desired
-            return col.restore(value, sub_context)
+            out_value = col.restore(value, sub_context)
+            if isinstance(out_value, orb.Model) and not isinstance(value, orb.Model):
+                with WriteLocker(self.__dataLock):
+                    self.__values[col.name()] = (old_value, out_value)
+            return out_value
 
     def id(self, **context):
         column = self.schema().idColumn()
@@ -646,8 +657,15 @@ class Model(object):
                 if method and useMethod:
                     return method(self, value, context=sub_context)
                 else:
-                    records = collector.collect(self, context=sub_context)
-                    return records.update(value, useMethod=useMethod, context=sub_context)
+                    records = self.get(collector.name(), context=sub_context)
+                    records.update(value,
+                                   useMethod=useMethod,
+                                   context=sub_context)
+
+                    # remove any preloaded values from the collector
+                    self.__preload.pop(collector.name(), None)
+
+                    return records
             else:
                 raise errors.ColumnNotFound(self.schema().name(), column)
 
@@ -656,17 +674,13 @@ class Model(object):
 
         context = self.context(**context)
         if useMethod:
-            try:
-                method = getattr(type(self), col.setterName())
-            except AttributeError:
-                pass
-            else:
-                if type(method.im_func).__name__ != 'orb_setter_method':
-                    keywords = list(funcutil.extract_keywords(method))
-                    if 'locale' in keywords:
-                        return method(self, value, locale=context.locale)
-                    else:
-                        return method(self, value)
+            method = col.settermethod()
+            if method:
+                keywords = list(funcutil.extract_keywords(method))
+                if 'locale' in keywords:
+                    return method(self, value, locale=context.locale)
+                else:
+                    return method(self, value)
 
         with WriteLocker(self.__dataLock):
             orig, curr = self.__values.get(col.name(), (None, None))
@@ -752,7 +766,7 @@ class Model(object):
 
         return len(values)
 
-    def validate(self):
+    def validate(self, columns=None):
         """
         Validates the current record object to make sure it is ok to commit to the database.  If
         the optional override dictionary is passed in, then it will use the given values vs. the one
@@ -763,15 +777,25 @@ class Model(object):
 
         :return     <bool>
         """
-        columns = self.schema().columns(flags=~(orb.Column.Flags.Virtual | orb.Column.Flags.ReadOnly)).values()
+        schema = self.schema()
+        if not columns:
+            ignore_flags = orb.Column.Flags.Virtual | orb.Column.Flags.ReadOnly
+            columns = schema.columns(flags=~ignore_flags).values()
+            use_indexes = True
+        else:
+            use_indexes = False
+
+        # validate the column values
         values = self.values(key='column', columns=columns)
         for col, value in values.items():
             if not col.validate(value):
                 return False
 
-        for index in self.schema().indexes().values():
-            if not index.validate(self, values):
-                return False
+        # valide the index values
+        if use_indexes:
+            for index in self.schema().indexes().values():
+                if not index.validate(self, values):
+                    return False
 
         return True
 
@@ -893,7 +917,7 @@ class Model(object):
         polymorphic_columns = schema.columns(flags=orb.Column.Flags.Polymorphic)
         if polymorphic_columns:
             polymorphic_column = polymorphic_columns.values()[0]
-            schema_name = values.get(polymorphic_column.name(), polymorphic_column)
+            schema_name = values.get(polymorphic_column.name(), schema.name())
             if schema_name and schema_name != schema.name():
                 schema = orb.system.schema(schema_name)
                 if not schema:

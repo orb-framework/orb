@@ -44,7 +44,7 @@ def test_lite_api_update_bob(orb, lite_sql, lite_db, User):
     record = User.select(where=orb.Query('username') == 'bob').first()
 
     assert record is not None
-    assert record.username() == 'bob'
+    assert record.get('username') == 'bob'
 
     st = lite_sql.statement('UPDATE')
     conn = lite_db.connection()
@@ -70,7 +70,7 @@ def test_lite_api_update_bob(orb, lite_sql, lite_db, User):
 @requires_lite
 def test_lite_api_create_admins(orb, User, GroupUser, Group):
     user = User.byUsername('bob')
-    assert user is not None and user.username() == 'bob'
+    assert user is not None and user.get('username') == 'bob'
 
     group = Group.ensureExists({'name': 'admins'})
     assert group is not None
@@ -89,11 +89,11 @@ def test_lite_api_get_user_groups(orb, User):
 @requires_lite
 def test_lite_api_get_group_users(orb, Group):
     grp = Group.select(where=orb.Query('name') == 'admins').first()
-    assert grp is not None and grp.name() == 'admins'
+    assert grp is not None and grp.get('name') == 'admins'
 
     users = grp.users()
     assert len(users) == 1
-    assert users[0].username() == 'bob'
+    assert users[0].get('username') == 'bob'
 
 @requires_lite
 def test_lite_api_get_group_users_reverse(orb, User, Group):
@@ -116,7 +116,7 @@ def test_lite_api_get_group_users_by_index(orb, GroupUser, User):
     u = User.byUsername('bob')
     users = GroupUser.byUser(u)
     assert len(users) == 1
-    assert users[0].user() == u
+    assert users[0].get('user') == u
 
 @requires_lite
 def test_lite_api_select_with_join(orb, Group, User, GroupUser):
@@ -127,7 +127,7 @@ def test_lite_api_select_with_join(orb, Group, User, GroupUser):
     records = User.select(where=q)
 
     assert len(records) == 1
-    assert records[0].username() == 'bob'
+    assert records[0].get('username') == 'bob'
 
 @requires_lite
 def test_lite_api_select_standard_with_shortcut(orb, GroupUser):
@@ -135,7 +135,7 @@ def test_lite_api_select_standard_with_shortcut(orb, GroupUser):
     records = GroupUser.select(where=q)
 
     assert len(records) == 1
-    assert records[0].user().username() == 'bob'
+    assert records[0].get('user.username') == 'bob'
 
 @requires_lite
 def test_lite_api_select_reverse_with_shortcut(orb, User):
@@ -143,7 +143,7 @@ def test_lite_api_select_reverse_with_shortcut(orb, User):
     records = User.select(where=q)
 
     assert len(records) == 1
-    assert records[0].username() == 'bob'
+    assert records[0].get('username') == 'bob'
 
 @requires_lite
 def test_lite_api_select_pipe_with_shortcut(orb, User):
@@ -151,7 +151,7 @@ def test_lite_api_select_pipe_with_shortcut(orb, User):
     records = User.select(where=q)
 
     assert len(records) == 1
-    assert records[0].username() == 'bob'
+    assert records[0].get('username') == 'bob'
 
 # @requires_lite
 # def test_lite_api_expand(orb, GroupUser):
@@ -316,8 +316,8 @@ def test_lite_api_select_multiple_columns(orb, User):
 #     with orb.Context(locale='es_ES'):
 #         doc_sp = Document.select(locale='es_ES').last()
 #
-#     assert doc_en.title() == 'Fast'
-#     assert doc_sp.title() == 'Rapido'
+#     assert doc_en.get('title') == 'Fast'
+#     assert doc_sp.get('title') == 'Rapido'
 #     assert doc_en.id() == doc_sp.id()
 #
 # @requires_lite
@@ -329,8 +329,8 @@ def test_lite_api_select_multiple_columns(orb, User):
 #         docs_sp = Document.select(where=orb.Query('title') == 'Rapido')
 #
 #     assert len(docs_en) == len(docs_sp)
-#     assert docs_en[0].title() == 'Fast'
-#     assert docs_sp[0].title() == 'Rapido'
+#     assert docs_en[0].get('title') == 'Fast'
+#     assert docs_sp[0].get('title') == 'Rapido'
 #     assert len(set(docs_sp.values('id')).difference(docs_en.values('id'))) == 0
 
 @requires_lite
@@ -338,7 +338,8 @@ def test_lite_api_invalid_reference(orb, Employee, User):
     user = User()
     employee = Employee()
     with pytest.raises(orb.errors.InvalidReference):
-        employee.setRole(user)
+        employee.set('role', user)
+        employee.validate(columns=['role'])
 
 # @requires_lite
 # def test_lite_api_save_employee(orb, Employee, Role):
@@ -352,8 +353,8 @@ def test_lite_api_invalid_reference(orb, Employee, User):
 #         })
 #         sam.save()
 #
-#     assert sam.username() == 'samantha'
-#    assert sam.role() == role
+#     assert sam.get('username') == 'samantha'
+#    assert sam.get('role') == role
 
 # @requires_lite
 # def test_lite_api_save_hash_id(orb, Comment):

@@ -42,14 +42,6 @@ def test_user_columns(orb, User):
 def test_user_indexes(User):
     assert len(User.schema().indexes()) == 1
 
-def test_user_properties(User):
-    assert None not in (getattr(User, 'id', None) != None,
-                        getattr(User, 'username', None) != None,
-                        getattr(User, 'password', None) != None,
-                        getattr(User, 'setUsername', None) != None,
-                        getattr(User, 'setPassword', None) != None,
-                        getattr(User, 'byUsername', None) != None)
-
 def test_private_properties(User):
     u = User()
     data = u.__json__()
@@ -60,7 +52,6 @@ def test_user_make_record(User):
 
 def test_user_create_with_properties(User):
     record = User({'username': 'bob'})
-    assert record.username() == 'bob'
     assert record.get('username') == 'bob'
 
 def test_user_collection(orb, User):
@@ -69,12 +60,11 @@ def test_user_collection(orb, User):
 
 def test_user_good_password(User):
     record = User({'username': 'bob'})
-    assert record.setPassword('T3st1ng!')
+    assert record.set('password', 'T3st1ng!')
 
 def test_user_inflate(orb, User):
     record = User.inflate({'username': 'bob'})
     assert record.get('username') == 'bob'
-    assert record.username() == 'bob'
 
 def test_user_empty_reverse_lookup(orb, User):
     user = User()
@@ -83,7 +73,7 @@ def test_user_empty_reverse_lookup(orb, User):
 
 def test_user_token(orb, User):
     user = User()
-    assert user.token() is not None and user.token() != ''
+    assert user.get('token') not in (None, '')
 
 def test_user_empty_pipe(orb, User):
     user = User()
