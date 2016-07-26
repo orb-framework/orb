@@ -17,6 +17,8 @@ def test_pg_api_save_bill(orb, pg_db, User):
     user.save()
 
     assert user.isRecord() == True
+    assert user.get('user_type_id') == 1
+    assert user.get('user_type.code') == 'basic'
 
 @requires_pg
 def test_pg_api_fetch_bill(orb, pg_db, User):

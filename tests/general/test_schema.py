@@ -35,9 +35,9 @@ def test_empty_user_pipes(EmptyUser):
 # ----
 
 def test_user_columns(orb, User):
-    assert len(User.schema().columns()) == 5
+    assert len(User.schema().columns()) == 6
     assert len(User.schema().columns(flags=orb.Column.Flags.Virtual)) == 1
-    assert len(User.schema().columns(flags=~orb.Column.Flags.Virtual)) == 4
+    assert len(User.schema().columns(flags=~orb.Column.Flags.Virtual)) == 5
 
 def test_user_indexes(User):
     assert len(User.schema().indexes()) == 1
@@ -103,7 +103,6 @@ def test_virtual_collector(orb, User):
     u = User()
 
     assert len(u.myGroups()) == 0
-    print u.schema().collectors().keys()
     my_groups = u.schema().collector('my_groups')
     assert my_groups is not None
     assert my_groups.testFlag(my_groups.Flags.Virtual)

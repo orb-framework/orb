@@ -18,6 +18,8 @@ def test_my_api_save_bill(orb, my_db, User):
 
     assert user.id() is not None
     assert user.isRecord() == True
+    assert user.get('user_type_id') == 1
+    assert user.get('user_type.code') == 'basic'
 
 @requires_mysql
 def test_my_api_fetch_bill(orb, my_db, User):

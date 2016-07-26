@@ -128,6 +128,15 @@ def testing_schema(orb):
 
         byName = orb.Index(columns=['name'], flags={'Unique'})
 
+    class UserType(orb.Table):
+        id = orb.IdColumn()
+        code = orb.StringColumn(flags={'Required', 'Unique', 'Keyable'})
+
+        @classmethod
+        def onSync(cls, event):
+            for code in ('basic', 'superuser'):
+                UserType.ensureExists({'code': code})
+
     class User(orb.Table):
         __resouce__ = True
 
@@ -135,6 +144,7 @@ def testing_schema(orb):
         username = orb.StringColumn(flags={'Unique'})
         password = orb.PasswordColumn()
         token = orb.TokenColumn()
+        user_type = orb.ReferenceColumn('UserType', default='basic')
 
         groups = orb.Pipe(through='GroupUser', from_='user', to='group')
         userGroups = orb.ReverseLookup(from_column='GroupUser.user')
