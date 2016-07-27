@@ -152,13 +152,13 @@ class Schema(object):
         """
         return self.collectors(recurse=recurse).get(name)
 
-    def collectors(self, recurse=True):
+    def collectors(self, recurse=True, flags=0):
         """
         Returns a list of the collectors for this instance.
 
-        :return     [<orb.Collector>, ..]
+        :return     {<str> name: <orb.Collector>, ..}
         """
-        output = self.__collectors.copy()
+        output = {c.name(): c for c in self.__collectors.values() if not flags or c.testFlag(flags)}
         if recurse and self.inherits():
             schema = orb.system.schema(self.inherits())
             if not schema:

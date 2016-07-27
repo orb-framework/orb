@@ -24,7 +24,7 @@ class SELECT(PSQLStatement):
 
         # determine what to expand
         schema = model.schema()
-        expand = context.expandtree()
+        expand = context.expandtree(model)
         expanded = bool(expand)
         columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
 

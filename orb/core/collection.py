@@ -40,7 +40,7 @@ class CollectionIterator(object):
 class Collection(object):
     def __json__(self):
         context = self.context()
-        expand = context.expandtree()
+        expand = context.expandtree(self.__model)
 
         output = {}
 
@@ -509,7 +509,7 @@ class Collection(object):
         with WriteLocker(self.__cacheLock):
             for key, value in cache.items():
                 self.__preload.setdefault(key, {})
-                self.__preload[key][context] = value or []
+                self.__preload[key][context] = value
 
     def records(self, **context):
         if self.isNull():

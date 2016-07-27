@@ -40,6 +40,7 @@ class Column(AddonManager):
         'Static',
         'Protected',
         'Private',
+        'AutoExpand',
         'RequiresExpand',
         'Keyable'
     )

@@ -79,7 +79,7 @@ class Model(object):
         output = self.values(key='field', columns=columns, inflated=False)
 
         # expand any references we need
-        expand_tree = context.expandtree()
+        expand_tree = context.expandtree(self.__class__)
         if expand_tree:
             for key, subtree in expand_tree.items():
                 try:
@@ -93,11 +93,6 @@ class Model(object):
                     continue
                 else:
                     if hasattr(value, '__json__'):
-                        if key == 'qualifiers':
-                            print value
-                            print 'WHAT THE HOLY FUCK'
-                            print value.records()
-                            print value.__json__()
                         output[key] = value.__json__()
                     else:
                         output[key] = value
@@ -258,6 +253,15 @@ class Model(object):
         self.update({k: v for k, v in values.items() if self.schema().column(k)})
 
     def _load(self, event):
+        """
+        Processes a load event by setting the properties of this record
+        to the data restored from the database.
+
+        :param event: <orb.events.LoadEvent>
+        """
+        if not event.data:
+            return
+
         context = self.context()
         schema = self.schema()
         dbname = schema.dbname()

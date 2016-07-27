@@ -174,12 +174,12 @@ def testing_schema(orb):
     class Comment(orb.Table):
         id = orb.IdColumn(type='hash')
         text = orb.TextColumn()
-        attachments = orb.ReverseLookup(from_column='Attachment.comment')
+        attachments = orb.ReverseLookup(from_column='Attachment.comment', flags={'AutoExpand'})
 
     class Attachment(orb.Table):
         id = orb.IdColumn(type='hash')
         filename = orb.StringColumn()
-        comment = orb.ReferenceColumn(reference='Comment')
+        comment = orb.ReferenceColumn(reference='Comment', flags={'AutoExpand'})
 
     return locals()
 

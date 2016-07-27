@@ -112,7 +112,7 @@ class ReferenceColumn(Column):
                 # update the expansion information to not propagate to references
                 if context:
                     context = context.copy()
-                    expand = context.expandtree()
+                    expand = context.expandtree(cls)
                     sub_expand = expand.pop(self.name(), {})
                     context.expand = context.raw_values['expand'] = sub_expand
 

@@ -376,6 +376,21 @@ def test_pg_api_reference_hash_id(orb, Comment, Attachment):
     assert isinstance(attachment.get('comment_id'), str)
 
 @requires_pg
+def test_pg_api_reference_auto_expanding(orb, Comment, Attachment):
+    comment = Comment.select().last()
+    attachment = Attachment.select().last()
+
+    # ensure default collector expands work
+    comment_json = comment.__json__()
+    assert 'attachments' in comment_json
+    assert len(comment_json['attachments']) == 1
+
+    # ensure default column expands work
+    attachment_json = attachment.__json__()
+    assert 'comment' in attachment_json
+    assert attachment_json['comment']['id'] == comment.get('id')
+
+@requires_pg
 def test_pg_expand_virtual(orb, GroupUser, User):
     gu = GroupUser.select().first().get('user')
     u = User.select(where=orb.Query('id') == gu, expand='my_groups.users,groups.users').first()
