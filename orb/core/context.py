@@ -329,6 +329,9 @@ class Context(object):
         if isinstance(where, dict):
             other_context['where'] = orb.Query.fromJSON(where)
 
+        if isinstance(where, (orb.Query, orb.QueryCompound)):
+            other_context['where'] &= self.where
+
         # validate values
         if other_context.get('start') is not None and (type(other_context['start']) != int or other_context['start'] < 0):
             msg = 'Start needs to be a positive number, got {0} instead'
