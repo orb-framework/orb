@@ -68,7 +68,7 @@ def test_user_inflate(orb, User):
 
 def test_user_empty_reverse_lookup(orb, User):
     user = User()
-    grps = user.userGroups()
+    grps = user.get('userGroups')
     assert len(grps) == 0
 
 def test_user_token(orb, User):
@@ -77,7 +77,7 @@ def test_user_token(orb, User):
 
 def test_user_empty_pipe(orb, User):
     user = User()
-    grps = user.groups()
+    grps = user.get('groups')
     assert len(grps) == 0
 
 def test_empty_collection(orb):
@@ -130,3 +130,26 @@ def test_schema_json_export(User):
 
     # ensure virtual objects exist
     assert 'my_groups' in json['collectors']
+
+
+def test_virtual_schema_columns_and_collectors_are_class_specific(orb):
+    class A(orb.Table):
+        @orb.virtual(orb.Column)
+        def value(self, **context):
+            pass
+
+        @orb.virtual(orb.Collector)
+        def options(self, **context):
+            pass
+
+    class B(A):
+        @orb.virtual(orb.Column)
+        def value(self, **context):
+            pass
+
+        @orb.virtual(orb.Collector)
+        def options(self, **context):
+            pass
+
+    assert A.schema().column('value') != B.schema().column('value')
+    assert A.schema().collector('options') != B.schema().collector('options')

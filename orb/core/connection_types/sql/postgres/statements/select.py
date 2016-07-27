@@ -76,9 +76,9 @@ class SELECT(PSQLStatement):
 
                     sub_tree = expand.pop(collector.name(), None)
                     if isinstance(collector, orb.Pipe):
-                        sql, sub_data = EXPAND_PIPE(collector, sub_tree)
+                        sql, sub_data = EXPAND_PIPE(collector, sub_tree, alias=schema.dbname())
                     elif isinstance(collector, orb.ReverseLookup):
-                        sql, sub_data = EXPAND_REV(collector, sub_tree)
+                        sql, sub_data = EXPAND_REV(collector, sub_tree, alias=schema.dbname())
 
                     if sql:
                         sql_columns['standard'].append(sql)
