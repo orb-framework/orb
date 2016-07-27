@@ -141,7 +141,7 @@ def testing_schema(orb):
 
         @orb.virtual(orb.BooleanColumn)
         def hasGroups(self, **context):
-            return len(self.groups()) != 0
+            return len(self.get('groups')) != 0
 
         @orb.virtual(orb.Collector, model='Group')
         def myGroups(self, **context):
@@ -169,7 +169,7 @@ def testing_schema(orb):
         name = orb.StringColumn()
 
     class Employee(User):
-        role = orb.ReferenceColumn(reference='Role')
+        role = orb.ReferenceColumn(reference='Role', flags={'AutoExpand'})
 
     class Comment(orb.Table):
         id = orb.IdColumn(type='hash')
@@ -179,7 +179,7 @@ def testing_schema(orb):
     class Attachment(orb.Table):
         id = orb.IdColumn(type='hash')
         filename = orb.StringColumn()
-        comment = orb.ReferenceColumn(reference='Comment', flags={'AutoExpand'})
+        comment = orb.ReferenceColumn(reference='Comment')
 
     return locals()
 

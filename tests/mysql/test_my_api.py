@@ -84,7 +84,7 @@ def test_my_api_get_user_groups(orb, User):
     user = User.byUsername('bob')
     assert user is not None
 
-    groups = user.groups()
+    groups = user.get('groups')
     assert len(groups) == 1
 
 @requires_mysql
@@ -92,17 +92,17 @@ def test_my_api_get_group_users(orb, Group):
     grp = Group.select(where=orb.Query('name') == 'admins').first()
     assert grp is not None and grp.get('name') == 'admins'
 
-    users = grp.users()
+    users = grp.get('users')
     assert len(users) == 1
     assert users[0].get('username') == 'bob'
 
 @requires_mysql
 def test_my_api_get_group_users_reverse(orb, User, Group):
     bob = User.byUsername('bob')
-    assert len(bob.userGroups()) == 1
+    assert len(bob.get('userGroups')) == 1
 
     admins = Group.byName('admins')
-    assert len(admins.groupUsers()) == 1
+    assert len(admins.get('groupUsers')) == 1
 
 @requires_mysql
 def test_my_api_get_group_users_by_unique_index(orb, GroupUser, User, Group):
@@ -161,7 +161,7 @@ def test_my_api_expand(orb, GroupUser):
 
 @requires_mysql
 def test_my_api_expand_pipe(orb, User):
-    groups = User.byUsername('bob', expand='groups').groups()
+    groups = User.byUsername('bob', expand='groups').get('groups')
     assert len(groups) == 1
 
     for group in groups:
@@ -169,7 +169,7 @@ def test_my_api_expand_pipe(orb, User):
 
 @requires_mysql
 def test_my_api_expand_lookup(orb, User):
-    userGroups = User.byUsername('bob', expand='userGroups').userGroups()
+    userGroups = User.byUsername('bob', expand='userGroups').get('userGroups')
     assert len(userGroups) == 1
 
     for userGroup in userGroups:

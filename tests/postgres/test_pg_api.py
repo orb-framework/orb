@@ -83,7 +83,7 @@ def test_pg_api_get_user_groups(orb, User):
     user = User.byUsername('bob')
     assert user is not None
 
-    groups = user.groups()
+    groups = user.get('groups')
     assert len(groups) == 1
 
 @requires_pg
@@ -91,17 +91,17 @@ def test_pg_api_get_group_users(orb, Group):
     grp = Group.select(where=orb.Query('name') == 'admins').first()
     assert grp is not None and grp.get('name') == 'admins'
 
-    users = grp.users()
+    users = grp.get('users')
     assert len(users) == 1
     assert users[0].get('username') == 'bob'
 
 @requires_pg
 def test_pg_api_get_group_users_reverse(orb, User, Group):
     bob = User.byUsername('bob')
-    assert len(bob.userGroups()) == 1
+    assert len(bob.get('userGroups')) == 1
 
     admins = Group.byName('admins')
-    assert len(admins.groupUsers()) == 1
+    assert len(admins.get('groupUsers')) == 1
 
 @requires_pg
 def test_pg_api_get_group_users_by_unique_index(orb, GroupUser, User, Group):
@@ -160,7 +160,7 @@ def test_pg_api_expand(orb, GroupUser):
 
 @requires_pg
 def test_pg_api_expand_pipe(orb, User):
-    groups = User.byUsername('bob', expand='groups').groups()
+    groups = User.byUsername('bob', expand='groups').get('groups')
     assert len(groups) == 1
 
     for group in groups:
@@ -168,7 +168,7 @@ def test_pg_api_expand_pipe(orb, User):
 
 @requires_pg
 def test_pg_api_expand_lookup(orb, User):
-    userGroups = User.byUsername('bob', expand='userGroups').userGroups()
+    userGroups = User.byUsername('bob', expand='userGroups').get('userGroups')
     assert len(userGroups) == 1
 
     for userGroup in userGroups:
@@ -376,19 +376,19 @@ def test_pg_api_reference_hash_id(orb, Comment, Attachment):
     assert isinstance(attachment.get('comment_id'), str)
 
 @requires_pg
-def test_pg_api_reference_auto_expanding(orb, Comment, Attachment):
+def test_pg_api_reference_auto_expanding(orb, Comment, Employee):
     comment = Comment.select().last()
-    attachment = Attachment.select().last()
+    user = Employee.select().last()
 
     # ensure default collector expands work
     comment_json = comment.__json__()
     assert 'attachments' in comment_json
-    assert len(comment_json['attachments']) == 1
+    assert len(comment_json['attachments']) > 0
 
-    # ensure default column expands work
-    attachment_json = attachment.__json__()
-    assert 'comment' in attachment_json
-    assert attachment_json['comment']['id'] == comment.get('id')
+    # ensure default user expands work
+    user_json = user.__json__()
+    assert 'role' in user_json
+    assert user_json['role']['id'] is not None
 
 @requires_pg
 def test_pg_expand_virtual(orb, GroupUser, User):
