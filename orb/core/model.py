@@ -250,7 +250,9 @@ class Model(object):
                 raise errors.RecordNotFound(self, record_id)
 
         # after loading everything else, update the values for this model
-        self.update({k: v for k, v in values.items() if self.schema().column(k)})
+        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
+        if update_values:
+            self.update(update_values)
 
     def _load(self, event):
         """
