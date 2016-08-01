@@ -179,7 +179,7 @@ def testing_schema(orb):
     class Attachment(orb.Table):
         id = orb.IdColumn(type='hash')
         filename = orb.StringColumn()
-        comment = orb.ReferenceColumn(reference='Comment')
+        comment = orb.ReferenceColumn(reference='Comment', flags={'Required'})
 
     return locals()
 
