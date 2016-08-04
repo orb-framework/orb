@@ -173,10 +173,11 @@ class ReferenceColumn(Column):
             return self._restore(value, context)
 
     def validate(self, value):
-        if isinstance(value, orb.Model) and not isinstance(value, self.referenceModel()):
+        ref_model = self.referenceModel()
+        if isinstance(value, orb.Model) and value.schema().name() != ref_model.schema().name():
             raise orb.errors.InvalidReference(self.name(),
-                                              type(value).__name__,
-                                              type(self.referenceModel()).__name__)
+                                              value.schema().name(),
+                                              ref_model.schema().name())
         else:
             return super(ReferenceColumn, self).validate(value)
 
