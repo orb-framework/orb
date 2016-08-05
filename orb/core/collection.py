@@ -46,25 +46,29 @@ class Collection(object):
 
         use_records = False
 
-        if expand.pop('count', None) is not None or context.returning == 'count':
+        if 'count' in expand or context.returning == 'count':
+            expand.pop('count', None)
             use_records = True
             output['count'] = self.count()
 
-        if expand.pop('ids', None) is not None or context.returning == 'ids':
+        if 'ids' in expand or context.returning == 'ids':
+            expand.pop('ids', None)
             use_records = True
             output['ids'] = self.ids()
 
-        if expand.pop('first', None) is not None or context.returning == 'first':
+        if 'first' in expand or context.returning == 'first':
+            expand.pop('first', None)
             use_records = True
             record = self.first()
             output['first'] = record.__json__() if record else None
 
-        if expand.pop('last', None) is not None or context.returning == 'last':
+        if 'last' in expand or context.returning == 'last':
+            expand.pop('last', None)
             use_records = True
             record = self.last()
             output['last'] = record.__json__() if record else None
 
-        if not output or expand:
+        if not output or (expand and context.returning not in ('count', 'ids', 'first', 'last')):
             records = [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
             if not use_records:
                 return records
