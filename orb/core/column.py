@@ -296,7 +296,7 @@ class Column(AddonManager):
 
         :return: <bool>
         """
-        return type(value) is not bool and not bool(value)
+        return value is None
 
     def loadJSON(self, jdata):
         """
