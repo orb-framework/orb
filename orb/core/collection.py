@@ -497,7 +497,7 @@ class Collection(object):
         else:
             context['page'] = None
             context['limit'] = None
-            
+
             fraction = self.count(**context) / float(size)
             count = int(fraction)
             if count % 1:
@@ -559,19 +559,19 @@ class Collection(object):
             q  = orb.Query(pipe.from_()) == self.__record
             q &= orb.Query(pipe.to()) == record
 
-            context['where'] = q & context.get('where')
-            context = self.context(**context)
+            my_context = self.context(**context)
+            records = through.select(where=q, scope=my_context.scope)
 
-            records = through.select(context=context)
             delete = []
-            for record in records:
+            for r in records:
                 event = orb.events.DeleteEvent()
-                record.onDelete(event)
+                r.onDelete(event)
                 if not event.preventDefault:
-                    delete.append(record)
+                    delete.append(r)
 
-            conn = context.db.connection()
-            conn.delete(records, context)
+            if delete:
+                conn = my_context.db.connection()
+                conn.delete(delete, my_context)
 
             return len(delete)
         elif self.__collector:
