@@ -118,7 +118,7 @@ class SearchEngine(AddonManager):
                 raise orb.errors.InvalidSearch('No searchable columns found for {0}'.format(model.schema().name()))
 
             for column in searchable_columns:
-                general_q |= orb.Query(column).asString().matches(pattern)
+                general_q |= orb.Query(column).asString().lower().matches(pattern)
             q &= general_q
 
         # build comparison nodes

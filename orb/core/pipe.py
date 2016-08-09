@@ -99,4 +99,3 @@ class Pipe(Collector):
             return schema.model()
         except AttributeError:
             raise orb.errors.ModelNotFound(self.__through)
-
