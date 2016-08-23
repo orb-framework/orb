@@ -625,8 +625,9 @@ class Collection(object):
                             record = self.__model.create(record_attributes, **context).id()
                         else:
                             record = self.__model(record_id, **context)
-                            record.update(record_attributes)
-                            record.save()
+                            if record_attributes:
+                                record.update(record_attributes)
+                                record.save()
 
                     output_records.append(record)
 
