@@ -1,6 +1,7 @@
 from collections import defaultdict
 from projex.lazymodule import lazy_import
 from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
+import math
 
 orb = lazy_import('orb')
 
