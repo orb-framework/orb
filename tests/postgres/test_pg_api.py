@@ -408,3 +408,53 @@ def test_pg_sub_selection(orb, GroupUser, User):
     assert len(GroupUser.select()) == len(GroupUser.select(where=a))
     assert len(GroupUser.select()) == len(GroupUser.select(where=b))
     assert len(GroupUser.select()) == len(GroupUser.select(where=c))
+
+@requires_pg
+def test_read_write_servers(orb, Comment):
+    db = orb.system.database()
+
+    read_host = 'localhost'
+    write_host = '127.0.0.1'
+
+    # connect to different read/write servers
+    db.setHost(read_host)
+    db.setWriteHost(write_host)
+
+    conn = db.connection()
+    orig_open = conn.open
+
+    def new_open(writeAccess=False):
+        # make sure the operation is performing the proper
+        # level of access
+        assert new_open.read != writeAccess
+
+        # create a new connection
+        out = orig_open(writeAccess=writeAccess)
+        hosts = conn._SQLConnection__pool.keys()
+        if writeAccess:
+            assert write_host in hosts
+        else:
+            assert read_host in hosts
+        return out
+
+    setattr(new_open, 'read', False)
+    conn.open = new_open
+
+    # test read
+    new_open.read = True
+    comment = Comment.select().first()
+    assert comment is not None
+
+    # test update
+    new_open.read = False
+    comment.set('text', 'some new text')
+    comment.save()
+
+    # test create
+    comment = Comment({'text': 'New comment'})
+    assert comment.id() is None
+    comment.save()
+    assert comment.id() is not None
+
+    # test delete
+    assert comment.delete() == 1
