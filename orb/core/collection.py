@@ -500,12 +500,10 @@ class Collection(object):
             return 1
         else:
             context['page'] = None
-            context['limit'] = None
+            context['pageSize'] = None
 
             fraction = self.count(**context) / float(size)
-            count = int(fraction)
-            if count % 1:
-                count += 1
+            count = int(math.ceil(fraction))
             return max(1, count)
 
     def preload(self, cache, **context):
