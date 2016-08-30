@@ -198,7 +198,7 @@ class SQLiteConnection(SQLConnection):
 
         return results, rowcount
 
-    def _open(self, db):
+    def _open(self, db, writeAccess=False):
         """
         Handles simple, SQL specific connection creation.  This will not
         have to manage thread information as it is already managed within

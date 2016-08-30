@@ -156,7 +156,7 @@ class PSQLConnection(SQLConnection):
 
         return results, rowcount
 
-    def _open(self, db):
+    def _open(self, db, writeAccess=False):
         """
         Handles simple, SQL specific connection creation.  This will not
         have to manage thread information as it is already managed within
@@ -177,7 +177,7 @@ class PSQLConnection(SQLConnection):
             return pg.connect(database=db.name(),
                               user=db.username(),
                               password=db.password(),
-                              host=db.host(),
+                              host=db.writeHost() if writeAccess else db.host(),
                               port=db.port(),
                               connect_timeout=3)
         except pg.OperationalError as err:

@@ -16,8 +16,17 @@ errors = lazy_import('orb.errors')
 
 class Database(object):
     """ Contains all the database connectivity information. """
-    def __init__(self, connectionType, code='', username='', password='',
-                 host=None, port=None, name=None, timeout=20000, credentials=None):
+    def __init__(self,
+                 connectionType,
+                 code='',
+                 username='',
+                 password='',
+                 host=None,
+                 port=None,
+                 name=None,
+                 writeHost=None,
+                 timeout=20000,
+                 credentials=None):
 
         # define custom properties
         conn = orb.Connection.byName(connectionType)
@@ -29,6 +38,7 @@ class Database(object):
         self.__code = code
         self.__name = name
         self.__host = host
+        self.__writeHost = writeHost
         self.__port = port
         self.__username = username
         self.__password = password
@@ -212,22 +222,24 @@ class Database(object):
         """
         self.__timeout = msecs
 
-    def setName(self, name):
-        """
-        Sets the database name for this instance to the given name.
-        
-        :param      name   <str>
-        """
-        self.__name = name
-
     def setHost(self, host):
         """
         Sets the host path location assigned to this
-        database object.
+        database object.  By default, this value will be used
+        for both reads and writes.  To set a write specific host,
+        use the setWriteHost method.
         
         :param      host      <str>
         """
         self.__host = host
+
+    def setName(self, name):
+        """
+        Sets the database name for this instance to the given name.
+
+        :param      name   <str>
+        """
+        self.__name = name
 
     def setPassword(self, password):
         """ 
@@ -253,6 +265,14 @@ class Database(object):
         :param      username        <str>
         """
         self.__username = nstr(username)
+
+    def setWriteHost(self, host):
+        """
+        Sets the host to use for write operations.
+
+        :param host: <str>
+        """
+        self.__writeHost = host
 
     def sync(self, models=None, **context):
         """
@@ -346,3 +366,11 @@ class Database(object):
         :return     <str>
         """
         return self.__username
+
+    def writeHost(self):
+        """
+        Returns the host used for write operations.
+
+        :return: <str>
+        """
+        return self.__writeHost or self.__host

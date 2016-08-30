@@ -6,9 +6,9 @@ import datetime
 import contextlib
 import logging
 import orb
-import time
 import sys
 
+from collections import defaultdict
 from projex.decorators import abstractmethod
 
 log = logging.getLogger(__name__)
@@ -35,9 +35,9 @@ class SQLConnection(orb.Connection):
 
         # define custom properties
         self.__batchSize = 500
-        self.__poolSize = 0
         self.__maxSize = int(orb.system.settings().max_connections)
-        self.__pool = Queue()
+        self.__poolSize = defaultdict(lambda: 0)
+        self.__pool = defaultdict(Queue)
 
     # ----------------------------------------------------------------------
     #                       EVENTS
@@ -83,7 +83,7 @@ class SQLConnection(orb.Connection):
         """
 
     @abstractmethod()
-    def _open(self):
+    def _open(self, db, writeAccess=False):
         """
         Handles simple, SQL specific connection creation.  This will not
         have to manage thread information as it is already managed within
@@ -164,15 +164,16 @@ class SQLConnection(orb.Connection):
 
         :return     <bool> closed
         """
-        while not self.__pool.empty():
-            conn = self.__pool.get_nowait()
-            try:
-                self._close(conn)
-            except Exception:
-                pass
+        for pool in self.__pool.values():
+            while not pool.empty():
+                conn = pool.get_nowait()
+                try:
+                    self._close(conn)
+                except Exception:
+                    pass
 
         # reset the pool size after closing all connections
-        self.__poolSize = 0
+        self.__poolSize.clear()
 
     def count(self, model, context):
         """
@@ -204,7 +205,7 @@ class SQLConnection(orb.Connection):
 
         :return     <bool> success
         """
-        with self.native() as conn:
+        with self.native(writeAccess=True) as conn:
             if not self._closed(conn):
                 return self._commit(conn)
 
@@ -290,7 +291,7 @@ class SQLConnection(orb.Connection):
         start = datetime.datetime.now()
 
         try:
-            with self.native() as conn:
+            with self.native(writeAccess=writeAccess) as conn:
                 results, rowcount = self._execute(conn,
                                                   command,
                                                   data,
@@ -366,17 +367,21 @@ class SQLConnection(orb.Connection):
 
         :return     <bool> connected
         """
-        return not self.__pool.empty()
+        for pool in self.__pool.values():
+            if not pool.empty():
+                return True
+        return False
 
     @contextlib.contextmanager
-    def native(self, isolation_level=None):
+    def native(self, writeAccess=False, isolation_level=None):
         """
         Opens a new database connection to the database defined
         by the inputted database.
 
         :return     <varaint> native connection
         """
-        conn = self.open()
+        host = self.database().writeHost() if writeAccess else self.database().host()
+        conn = self.open(writeAccess=writeAccess)
         try:
             if isolation_level is not None:
                 if conn.isolation_level == isolation_level:
@@ -398,17 +403,18 @@ class SQLConnection(orb.Connection):
             if conn is not None and not self._closed(conn):
                 if isolation_level is not None:
                     conn.set_isolation_level(isolation_level)
-                self.__pool.put(conn)
+                self.__pool[host].put(conn)
 
-    def open(self):
+    def open(self, writeAccess=False):
         """
         Returns the sqlite database for the current thread.
 
         :return     <variant> || None
         """
-        pool = self.__pool
+        host = self.database().writeHost() if writeAccess else self.database().host()
+        pool = self.__pool[host]
 
-        if self.__poolSize >= self.__maxSize or pool.qsize():
+        if self.__poolSize[host] >= self.__maxSize or pool.qsize():
             if pool.qsize() == 0:
                 log.warning('Waiting for connection to database!!!')
             return pool.get()
@@ -419,11 +425,11 @@ class SQLConnection(orb.Connection):
             event = orb.events.ConnectionEvent()
             db.onPreConnect(event)
 
-            self.__poolSize += 1
+            self.__poolSize[host] += 1
             try:
-                conn = self._open(self.database())
+                conn = self._open(self.database(), writeAccess=writeAccess)
             except Exception:
-                self.__poolSize -= 1
+                self.__poolSize[host] -= 1
                 raise
             else:
                 event = orb.events.ConnectionEvent(success=conn is not None, native=conn)
@@ -434,7 +440,7 @@ class SQLConnection(orb.Connection):
         """
         Rolls back changes to this database.
         """
-        with self.native() as conn:
+        with self.native(writeAccess=True) as conn:
             return self._rollback(conn)
 
     def schemaInfo(self, context):
