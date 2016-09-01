@@ -110,8 +110,15 @@ class WHERE(PSQLStatement):
 
             # convert all other data
             else:
-                if op in (orb.Query.Op.IsIn, orb.Query.Op.IsNotIn) and not value:
+                # if the query is value IS IN <empty list>, the result will always be
+                # empty, no need to query
+                if op == orb.Query.Op.IsIn and not value:
                     raise orb.errors.QueryIsNull()
+                # if the query is value IS NOT IN <empty list>, the result will
+                # always return all records because the value will never be found
+                # in an empty list -- we can just ignore this filter
+                elif op == orb.Query.Op.IsNotIn and not value:
+                    return '', {}
                 elif op in (orb.Query.Op.Contains, orb.Query.Op.DoesNotContain):
                     value = u'%{0}%'.format(value)
                 elif op in (orb.Query.Op.Startswith, orb.Query.Op.DoesNotStartwith):

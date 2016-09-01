@@ -458,3 +458,11 @@ def test_read_write_servers(orb, Comment):
 
     # test delete
     assert comment.delete() == 1
+
+    # reset the open command
+    conn.open = orig_open
+
+@requires_pg
+def test_null_query(orb, Comment):
+    assert len(Comment.select(where=orb.Query('id').in_([]))) == 0
+    assert len(Comment.select(where=orb.Query('id').notIn([]))) == len(Comment.select())
