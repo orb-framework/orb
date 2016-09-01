@@ -196,7 +196,11 @@ class SQLConnection(orb.Connection):
                 print sql % data
                 return 0
             else:
-                rows, _ = self.execute(sql, data)
+                try:
+                    rows, _ = self.execute(sql, data)
+                except orb.errors.EmptyCommand:
+                    rows = []
+
                 return sum([row['count'] for row in rows])
 
     def commit(self):
@@ -458,7 +462,10 @@ class SQLConnection(orb.Connection):
             log.info(sql % data)
             return []
         else:
-            return self.execute(sql, data)[0]
+            try:
+                return self.execute(sql, data)[0]
+            except orb.errors.EmptyCommand:
+                return [], 0
 
     def setBatchSize(self, size):
         """
