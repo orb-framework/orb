@@ -363,12 +363,12 @@ def test_my_api_save_employee(orb, Employee, Role):
 def test_my_api_save_hash_id(orb, Comment):
     comment = Comment({'text': 'Testing'})
     comment.save()
-    assert isinstance(comment.id(), str)
+    assert isinstance(comment.id(), unicode)
 
 @requires_mysql
 def test_my_api_restore_hash_id(orb, Comment):
     comment = Comment.select().last()
-    assert isinstance(comment.id(), str)
+    assert isinstance(comment.id(), unicode)
 
 @requires_mysql
 def test_my_api_reference_hash_id(orb, Comment, Attachment):
@@ -376,7 +376,7 @@ def test_my_api_reference_hash_id(orb, Comment, Attachment):
     attachment = Attachment({'filename': '/path/to/somewhere', 'comment': comment})
     attachment.save()
 
-    assert isinstance(attachment.get('comment_id'), str)
+    assert isinstance(attachment.get('comment_id'), unicode)
 
 @requires_mysql
 def test_my_expand_virtual(orb, GroupUser, User):
