@@ -78,7 +78,7 @@ class Model(object):
         # simple json conversion
         output = self.values(key='field', columns=columns, inflated=False)
 
-        # expand any references we need
+        # expand any references
         expand_tree = context.expandtree(self.__class__)
         if expand_tree:
             for key, subtree in expand_tree.items():
