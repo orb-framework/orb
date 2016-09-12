@@ -29,7 +29,7 @@ class SELECT_EXPAND(PSQLStatement):
             else:
                 column = schema.column(name, raise_=False)
                 if column:
-                    if not column.testFlag(column.Flags.Virtual):
+                    if not column.testFlag(column.Flags.Virtual) or issubclass(model, orb.View):
                         yield expand_col, column, sub_tree
                 else:
                     collector = schema.collector(name)

@@ -1,7 +1,9 @@
+import math
+
 from collections import defaultdict
 from projex.lazymodule import lazy_import
 from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
-import math
+
 
 orb = lazy_import('orb')
 
@@ -70,6 +72,7 @@ class Collection(object):
             output['last'] = record.__json__() if record else None
 
         if not output or (expand and context.returning not in ('count', 'ids', 'first', 'last')):
+
             records = [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
             if not use_records:
                 return records

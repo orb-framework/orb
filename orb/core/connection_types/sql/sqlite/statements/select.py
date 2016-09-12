@@ -34,7 +34,7 @@ class SELECT(SQLiteStatement):
 
         # process columns to select
         for column in sorted(columns, self.cmpcol):
-            if column.testFlag(column.Flags.Virtual):
+            if column.testFlag(column.Flags.Virtual) and not issubclass(model, orb.View):
                 continue
 
             if column.testFlag(column.Flags.I18n):

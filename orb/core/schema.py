@@ -185,27 +185,35 @@ class Schema(object):
         if isinstance(key, orb.Column):
             return key
         else:
-            parts = key.split('.')
-            schema = self
-            last_column = None
+            cache_key = (key, recurse, flags)
+            try:
+                last_column = self.__cache[cache_key]
+            except KeyError:
 
-            for part in parts:
-                cols = schema.columns(recurse=recurse, flags=flags)
-                found = None
+                parts = key.split('.')
+                schema = self
+                last_column = None
 
-                for column in cols.values():
-                    if part in (column.name(), column.field()):
-                        found = column
+                for part in parts:
+                    cols = schema.columns(recurse=recurse, flags=flags)
+                    found = None
+
+                    for column in cols.values():
+                        if part in (column.name(), column.field()):
+                            found = column
+                            break
+
+                    if found is None:
                         break
 
-                if found is None:
-                    break
+                    elif isinstance(found, orb.ReferenceColumn):
+                        schema = found.referenceModel().schema()
 
-                elif isinstance(found, orb.ReferenceColumn):
-                    schema = column.referenceModel().schema()
+                    last_column = found
 
-                last_column = found
+                self.__cache[cache_key] = last_column
 
+            # return the column response
             if last_column is not None:
                 return last_column
             elif raise_:

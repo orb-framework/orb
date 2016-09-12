@@ -60,12 +60,36 @@ class Model(object):
         # additional options
         context = self.context()
 
+        # don't include the column names
+        if context.returning == 'values':
+            schema_fields = {c.field() for c in context.schemaColumns(self.schema())}
+            output = tuple(value for field, value in self if field in schema_fields)
+            if len(output) == 1:
+                output = output[0]
+        else:
+            output = dict(self)
+
+        return projex.rest.jsonify(output) if context.format == 'text' else output
+
+    def __iter__(self):
+        """
+        Iterates this object for its values.  This will return the field names from the
+        database rather than the API names.  If you want the API names, you should use
+        the recordValues method.
+
+        :sa         recordValues
+
+        :return     <iter>
+        """
+        # additional options
+        context = self.context()
+
         # hide private columns
         def _allowed(columns=None, context=None):
             return not columns[0].testFlag(columns[0].Flags.Private)
 
         auth = self.__auth__ if callable(self.__auth__) else _allowed
-
+        expand_tree = context.expandtree(self.__class__)
         schema = self.schema()
 
         if context.columns:
@@ -73,13 +97,46 @@ class Model(object):
         else:
             columns = schema.columns(flags=~orb.Column.Flags.RequiresExpand).values()
 
-        columns = [x for x in columns if x and auth(columns=(x,), context=context)]
+        # extract the data values for this model
+        for column in columns:
+            if (not column or
+                    column.testFlag(column.Flags.RequiresExpand) or
+                    not auth(columns=(column,), context=context)):
+                continue
 
-        # simple json conversion
-        output = self.values(key='field', columns=columns, inflated=False)
+            elif column.testFlag(column.Flags.Virtual) and not isinstance(self, orb.View):
+                yield column.field(), self.get(column, inflated=False)
 
-        # expand any references
-        expand_tree = context.expandtree(self.__class__)
+            else:
+                try:
+                    value = self.__values[column.name()][1]
+                except KeyError:
+                    pass
+                else:
+                    # for references, yield both the raw value for the field
+                    # and the expanded value if desired
+                    if isinstance(column, orb.ReferenceColumn):
+                        if isinstance(value, orb.Model):
+                            yield column.field(), value.id()
+                        else:
+                            yield column.field(), value
+
+                        try:
+                            subtree = expand_tree.pop(column.name())
+                        except KeyError:
+                            pass
+                        else:
+                            reference = self.get(column,
+                                                 expand=subtree,
+                                                 returning=context.returning,
+                                                 scope=context.scope)
+                            yield column.name(), reference.__json__()
+
+                    else:
+                        yield column.field(), value
+
+        # expand any other values which can include custom
+        # or virtual columns and collectors
         if expand_tree:
             for key, subtree in expand_tree.items():
                 try:
@@ -93,34 +150,9 @@ class Model(object):
                     continue
                 else:
                     if hasattr(value, '__json__'):
-                        output[key] = value.__json__()
+                        yield key, value.__json__()
                     else:
-                        output[key] = value
-
-        # don't include the column names
-        if context.returning == 'values':
-            output = tuple(output[column.field()]
-                           for column in context.schemaColumns(self.schema()))
-            if len(output) == 1:
-                output = output[0]
-
-        if context.format == 'text':
-            return projex.rest.jsonify(output)
-        else:
-            return output
-
-    def __iter__(self):
-        """
-        Iterates this object for its values.  This will return the field names from the
-        database rather than the API names.  If you want the API names, you should use
-        the recordValues method.
-
-        :sa         recordValues
-
-        :return     <iter>
-        """
-        for col in self.schema().columns().values():
-            yield col.field(), self.get(col, inflated=False)
+                        yield key, value
 
     def __format__(self, spec):
         """
@@ -462,21 +494,30 @@ class Model(object):
             sub_context = orb.Context(**context)
 
             # normalize the given column
-            col = self.schema().column(column, raise_=False)
-            if not col:
-                collector = self.schema().collector(column)
-                if collector:
-                    try:
-                        return self.__cache[collector][sub_context]
-                    except KeyError:
-                        records = collector(self, useMethod=useMethod, context=sub_context)
-                        self.__cache[collector][sub_context] = records
-                        return records
-                else:
-                    raise errors.ColumnNotFound(self.schema().name(), column)
+            if isinstance(column, orb.Column):
+                col = column
+            else:
+                col = self.schema().column(column, raise_=False)
 
-            # lookup the shortuct value vs. the local one
-            elif col.shortcut():
+                if not col:
+                    if isinstance(column, orb.Collector):
+                        collector = column
+                    else:
+                        collector = self.schema().collector(column)
+
+                    if collector:
+                        try:
+                            return self.__cache[collector][sub_context]
+                        except KeyError:
+                            records = collector(self, useMethod=useMethod, context=sub_context)
+                            self.__cache[collector][sub_context] = records
+                            return records
+                    else:
+                        raise errors.ColumnNotFound(self.schema().name(), column)
+
+            # lookup the shortuct value vs. the local one (bypass for views
+            # since they define tables for shortcuts)
+            if col.shortcut() and not isinstance(self, orb.View):
                 return self.get(col.shortcut(), **context)
 
             # don't inflate if the requested value is a field
@@ -828,25 +869,18 @@ class Model(object):
         """
         output = {}
         schema = self.schema()
-        all_columns = schema.columns(recurse=recurse, flags=flags).values()
-        req_columns = [schema.column(col) for col in columns] if columns else None
 
-        for column in all_columns:
-            if req_columns is not None and column not in req_columns:
-                continue
-
-            if key == 'column':
-                val_key = column
+        for column in columns or schema.columns(recurse=recurse, flags=flags).values():
+            column = column if isinstance(column, orb.Column) else schema.column(column)
+            try:
+                val_key = column if key == 'column' else getattr(column, key)()
+            except AttributeError:
+                raise errors.OrbError(
+                    'Invalid key used in data collection.  Must be name, field, or column.'
+                )
             else:
-                try:
-                    val_key = getattr(column, key)()
-                except AttributeError:
-                    raise errors.OrbError('Invalid key used in data collection.  Must be name, field, or column.')
-
-            value = self.get(column, **get_options)
-            if mapper:
-                value = mapper(value)
-            output[val_key] = value
+                value = self.get(column, **get_options)
+                output[val_key] = mapper(value) if mapper else value
 
         return output
 
