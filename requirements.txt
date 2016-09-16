@@ -1,3 +1,0 @@
-projex>=2015.0.12
-pycrypto
-pyparsing

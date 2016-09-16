@@ -54,3 +54,4 @@ htmlcov
 report.html
 orb_testing
 intro.db
+.eggs
