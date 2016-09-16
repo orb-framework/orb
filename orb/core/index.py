@@ -1,6 +1,7 @@
 """ Defines an indexing system to use when looking up records. """
 
 import logging
+import inflection
 
 from projex.enum import enum
 from projex.lazymodule import lazy_import
@@ -92,7 +93,11 @@ class Index(object):
         return [schema.column(col) for col in self.__columns]
 
     def dbname(self):
-        return self.__dbname or orb.system.syntax().indexdb(self.__schema, self.__name)
+        schema = inflection.underscore(self.__schema)
+        name = inflection.underscore(self.__name)
+
+        default_db_name = '{0}_{1}_idx'.format(schema, name)
+        return self.__dbname or default_db_name
 
     def flags(self):
         return self.__flags
