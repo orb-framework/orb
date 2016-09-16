@@ -61,7 +61,13 @@ def test_lite_statement_alter_invalid(orb, lite_sql):
 @pytest.mark.run(order=2)
 @requires_lite
 def test_lite_statement_create_index(orb, GroupUser, lite_sql):
-    index = orb.Index(name='byGroupAndUser', columns=[orb.ReferenceColumn(name='group'), orb.ReferenceColumn('user')])
+    index = orb.Index(
+        name='byGroupAndUser',
+        columns=[
+            orb.ReferenceColumn(name='group'),
+            orb.ReferenceColumn(name='user')
+        ]
+    )
     index.setSchema(GroupUser.schema())
     st = lite_sql.statement('CREATE INDEX')
     assert st is not None

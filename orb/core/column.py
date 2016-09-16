@@ -230,9 +230,12 @@ class Column(AddonManager):
 
         :return     <str>
         """
-        default_field = inflection.underscore(self.__name)
-        if isinstance(self, orb.ReferenceColumn):
-            default_field += '_id'
+        if not self.__field:
+            default_field = inflection.underscore(self.__name)
+            if isinstance(self, orb.ReferenceColumn):
+                default_field += '_id'
+            self.__field = default_field
+
         return self.__field or default_field
 
     def firstMemberSchema(self, schemas):

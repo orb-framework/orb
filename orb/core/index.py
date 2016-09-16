@@ -93,7 +93,7 @@ class Index(object):
         return [schema.column(col) for col in self.__columns]
 
     def dbname(self):
-        schema = inflection.underscore(self.__schema)
+        schema = inflection.underscore(self.__schema.dbname())
         name = inflection.underscore(self.__name)
 
         default_db_name = '{0}_{1}_idx'.format(schema, name)

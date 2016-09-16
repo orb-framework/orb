@@ -94,7 +94,13 @@ def test_pg_statement_alter_invalid(orb, pg_sql):
 @pytest.mark.run(order=2)
 @requires_pg
 def test_pg_statement_create_index(orb, GroupUser, pg_sql):
-    index = orb.Index(name='byGroupAndUser', columns=[orb.ReferenceColumn(name='group'), orb.ReferenceColumn('user')])
+    index = orb.Index(
+        name='byGroupAndUser',
+        columns=[
+            orb.ReferenceColumn(name='group'),
+            orb.ReferenceColumn(name='user')
+        ]
+    )
     index.setSchema(GroupUser.schema())
     st = pg_sql.statement('CREATE INDEX')
     assert st is not None
