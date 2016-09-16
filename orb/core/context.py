@@ -31,7 +31,7 @@ class Context(object):
         'expand': None,
         'format': 'json',
         'force': False,
-        'inflated': True,
+        'inflated': None,
         'limit': None,
         'locale': None,
         'namespace': '',

@@ -81,6 +81,10 @@ class Model(object):
 
         :return     <iter>
         """
+        if self.isRecord() and self.__delayed:
+            self.__delayed = False
+            self.reload_()
+
         # additional options
         context = self.context()
 
@@ -249,6 +253,7 @@ class Model(object):
         self.__context = orb.Context(**context)
         self.__cache = defaultdict(dict)
         self.__preload = {}
+        self.__delayed = False
 
         # extract values to use from the record
         record = []
@@ -278,7 +283,12 @@ class Model(object):
             else:
                 record_id = tuple(record)
 
-            data = self.fetch(record_id, inflated=False, context=self.__context)
+            self.__delayed = self.__context.inflated in (False, None)
+            if not self.__delayed:
+                data = self.fetch(record_id, inflated=False, context=self.__context)
+            else:
+                data = {self.schema().idColumn().name(): record_id}
+
             if data:
                 event = orb.events.LoadEvent(record=self, data=data)
                 self._load(event)
@@ -474,20 +484,45 @@ class Model(object):
 
         :return     <variant>
         """
-        if isinstance(column, (str, unicode)) and '.' in column:
-            parts = column.split('.')
-            sub_context = context.copy()
-            sub_context['inflated'] = True
-            value = self
-            for part in parts[:-1]:
-                if not value:
-                    return None
-                value = value.get(part, useMethod=useMethod, **sub_context)
 
-            if value:
-                return value.get(parts[-1], useMethod=useMethod, **context)
+        # look for shortcuts (dot-noted path)
+        if isinstance(column, (str, unicode)) and '.' in column:
+            # create the sub context
+            base_context = context.copy()
+            base_context['inflated'] = True
+
+            # generate the expansion to avoid unnecessary lookups
+            parts = column.split('.')
+
+            # include the target if it is a reference
+            if isinstance(self.schema().column(column), orb.ReferenceColumn):
+                expand_path_index = None
+
+            # otherwise, just get to the end column
             else:
-                return None
+                expand_path_index = -1
+
+            value = self
+            for i, part in enumerate(parts[:-1]):
+                sub_context = base_context.copy()
+                expand_path = '.'.join(parts[i+1:expand_path_index])
+
+                if 'expand' in sub_context:
+                    if isinstance(sub_context['expand'], basestring):
+                        sub_context['expand'] += ',{0}'.format(expand_path)
+                    else:
+                        sub_context['expand'].append(expand_path)
+                else:
+                    sub_context['expand'] = expand_path
+
+
+                value = value.get(part, useMethod=useMethod, **sub_context)
+                if value is None:
+                    return None
+
+            return value.get(parts[-1], useMethod=useMethod, **context)
+
+        # otherwise, lookup a column
         else:
             my_context = self.context()
 
@@ -519,31 +554,36 @@ class Model(object):
                     else:
                         raise errors.ColumnNotFound(self.schema().name(), column)
 
+            # don't inflate if the requested value is a field
+            if sub_context.inflated is None and isinstance(col, orb.ReferenceColumn):
+                sub_context.inflated = column != col.field()
+
             # lookup the shortuct value vs. the local one (bypass for views
             # since they define tables for shortcuts)
             if col.shortcut() and not isinstance(self, orb.View):
                 return self.get(col.shortcut(), **context)
 
-            # don't inflate if the requested value is a field
-            if column == col.field():
-                sub_context.inflated = False
-
             # call the getter method fot this record if one exists
-            if useMethod:
-                method = col.gettermethod()
-                if method is not None:
-                    return method(self, context=sub_context)
+            elif useMethod and col.gettermethod():
+                return col.gettermethod()(self, context=sub_context)
 
-            # grab the current value
-            with ReadLocker(self.__dataLock):
-                old_value, value = self.__values.get(col.name(), (None, None))
+            else:
+                # ensure content is actually loaded
+                if self.isRecord() and self.__delayed:
+                    self.__delayed = False
+                    self.reload_()
 
-            # return a reference when desired
-            out_value = col.restore(value, sub_context)
-            if isinstance(out_value, orb.Model) and not isinstance(value, orb.Model):
-                with WriteLocker(self.__dataLock):
-                    self.__values[col.name()] = (old_value, out_value)
-            return out_value
+                # grab the current value
+                with ReadLocker(self.__dataLock):
+                    old_value, value = self.__values.get(col.name(), (None, None))
+
+                # return a reference when desired
+                out_value = col.restore(value, sub_context)
+                if isinstance(out_value, orb.Model) and not isinstance(value, orb.Model):
+                    with WriteLocker(self.__dataLock):
+                        self.__values[col.name()] = (old_value, out_value)
+
+                return out_value
 
     def id(self, **context):
         column = self.schema().idColumn()
@@ -732,6 +772,10 @@ class Model(object):
                     return method(self, value, locale=context.locale)
                 else:
                     return method(self, value)
+
+        if self.isRecord() and self.__delayed:
+            self.__delayed = False
+            self.reload_()
 
         with WriteLocker(self.__dataLock):
             orig, curr = self.__values.get(col.name(), (None, None))
@@ -1124,6 +1168,15 @@ class Model(object):
             record = cls(loadEvent=event, context=context)
 
         return record
+
+    def reload_(self):
+        record_id = self.id()
+        data = self.fetch(record_id, inflated=False, context=self.__context)
+        if data:
+            event = orb.events.LoadEvent(record=self, data=data)
+            self._load(event)
+        else:
+            raise errors.RecordNotFound(self, record_id)
 
     @classmethod
     def removeCallback(cls, eventType, func, record=None):

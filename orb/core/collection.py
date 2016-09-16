@@ -34,7 +34,7 @@ class CollectionIterator(object):
         if not self.__records or self.__index == len(self.__records):
             raise StopIteration()
         else:
-            if self.__collection.context().inflated:
+            if self.__collection.context().inflated in (True, None):
                 return self.__model.inflate(self.__records[self.__index], context=self.__collection.context())
             else:
                 return self.__records[self.__index]
@@ -72,8 +72,7 @@ class Collection(object):
             output['last'] = record.__json__() if record else None
 
         if not output or (expand and context.returning not in ('count', 'ids', 'first', 'last')):
-
-            records = [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
+            records = [r.__json__() if hasattr(r, '__json__') else r for r in self]
             if not use_records:
                 return records
             else:
@@ -81,7 +80,13 @@ class Collection(object):
 
         return output
 
-    def __init__(self, records=None, model=None, source='', record=None, collector=None, preload=None, **context):
+    def __init__(self,
+                 records=None,
+                 model=None,
+                 record=None,
+                 collector=None,
+                 preload=None,
+                 **context):
         self.__cacheLock = ReadWriteLock()
         self.__cache = defaultdict(dict)
         self.__preload = preload or {}
@@ -100,8 +105,35 @@ class Collection(object):
         return self.count()
 
     def __iter__(self):
-        for record in self.records():
-            yield record
+        if self.isNull():
+            return
+
+        context = self.context()
+
+        try:
+            with ReadLocker(self.__cacheLock):
+                records = self.__cache['records'][context]
+
+        except KeyError:
+            try:
+                with ReadLocker(self.__cacheLock):
+                    raw = self.__preload['records'][context]
+
+            except KeyError:
+                conn = context.db.connection()
+                raw = conn.select(self.__model, context)
+
+            cache = []
+            for x in self._process(raw, context):
+                yield x
+                cache.append(x)
+
+            with WriteLocker(self.__cacheLock):
+                self.__cache['records'][context] = cache
+
+        else:
+            for r in records:
+                yield r
 
     def __getitem__(self, index):
         if isinstance(index, slice):
@@ -114,23 +146,29 @@ class Collection(object):
                 return record
 
     def _process(self, raw, context):
-        if context.inflated and context.returning != 'values':
-            records = [self.__model.inflate(x, context=context) for x in raw or []]
+        if context.inflated in (True, None) and context.returning != 'values':
+            for x in raw or []:
+                yield self.__model.inflate(x, context=context)
+
         elif context.columns:
             schema = self.__model.schema()
             if context.returning == 'values':
                 if len(context.columns) == 1:
                     col = schema.column(context.columns[0])
-                    records = [x[col.field()] for x in raw or []]
+                    for x in raw or []:
+                        yield x[col.field()]
+
                 else:
                     cols = [schema.column(col) for col in context.columns]
-                    records = [tuple(r.get(col.field()) for col in cols) for r in raw or []]
+                    for x in raw or []:
+                        yield tuple(x.get(col.field()) for col in cols)
             else:
                 cols = [schema.column(col) for col in context.columns]
-                records = [{col.field(): r.get(col.field()) for col in cols} for r in raw or []]
+                for x in raw or []:
+                    yield {col.field(): x.get(col.field()) for col in cols}
         else:
-            records = raw
-        return records
+            for x in raw:
+                yield x
 
     def add(self, record):
         if isinstance(self.__collector, orb.Pipe):
@@ -347,7 +385,7 @@ class Collection(object):
                     records = self.records(context=context)
                     record = records[0] if records else None
                 else:
-                    record = self._process([raw], context)[0]
+                    record = self._process([raw], context).next()
 
                 with WriteLocker(self.__cacheLock):
                     self.__cache['first'][context] = record
@@ -461,7 +499,7 @@ class Collection(object):
             except KeyError:
                 record = self.reversed().first(context=context)
             else:
-                record = self._process([raw], context)[0]
+                record = self._process([raw], context).next()
 
             with WriteLocker(self.__cacheLock):
                 self.__cache['last'][context] = record
@@ -534,7 +572,7 @@ class Collection(object):
                 conn = context.db.connection()
                 raw = conn.select(self.__model, context)
 
-            records = self._process(raw, context)
+            records = list(self._process(raw, context))
 
             with WriteLocker(self.__cacheLock):
                 self.__cache['records'][context] = records
@@ -781,7 +819,7 @@ class Collection(object):
                 values = []
                 fields = [schema.column(col) for col in columns]
                 for record in raw:
-                    if not context.inflated:
+                    if context.inflated is False:
                         record_values = [record[field.field()] for field in fields]
                     else:
                         record_values = []
@@ -789,6 +827,7 @@ class Collection(object):
                             col = columns[i]
                             raw_values = orig_context.copy()
                             raw_values['distinct'] = None
+
                             if isinstance(field, orb.ReferenceColumn) and raw_values.get('inflated') is None:
                                 raw_values['inflated'] = col != field.field()
 
