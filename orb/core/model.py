@@ -113,6 +113,9 @@ class Model(object):
                 except KeyError:
                     pass
                 else:
+                    if column.testFlag(orb.Column.Flags.I18n) and type(value) == dict:
+                        value = value.get(context.locale)
+
                     # for references, yield both the raw value for the field
                     # and the expanded value if desired
                     if isinstance(column, orb.ReferenceColumn):
@@ -130,7 +133,8 @@ class Model(object):
                                                  expand=subtree,
                                                  returning=context.returning,
                                                  scope=context.scope)
-                            yield column.name(), reference.__json__()
+                            output = reference.__json__() if reference is not None else None
+                            yield column.name(), output
 
                     else:
                         yield column.field(), value
