@@ -1,9 +1,9 @@
 """ Defines the meta information for a Table class. """
 
 import logging
+import inflection
 
 from collections import OrderedDict as odict
-from new import instancemethod
 from projex.enum import enum
 from projex.lazymodule import lazy_import
 
@@ -59,8 +59,10 @@ class Schema(object):
                  columns=None,
                  indexes=None,
                  collectors=None):
+
+        default_db_name = inflection.pluralize(inflection.underscore(name))
         self.__name = name
-        self.__dbname = dbname or orb.system.syntax().schemadb(name)
+        self.__dbname = dbname or default_db_name
         self.__database = database
         self.__namespace = namespace
         self.__flags = flags
@@ -273,7 +275,7 @@ class Schema(object):
         
         :return     <str>
         """
-        return self.__display or orb.system.syntax().display(self.__name)
+        return self.__display or inflection.titleize(self.__name)
 
     def hasColumn(self, column, recurse=True, flags=0):
         """

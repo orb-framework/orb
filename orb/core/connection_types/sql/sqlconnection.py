@@ -8,8 +8,8 @@ import logging
 import orb
 import sys
 
+from abc import abstractmethod
 from collections import defaultdict
-from projex.decorators import abstractmethod
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class SQLConnection(orb.Connection):
     def _closed(self, native):
         return native.closed
 
-    @abstractmethod()
+    @abstractmethod
     def _execute(self,
                  native,
                  command,
@@ -82,7 +82,7 @@ class SQLConnection(orb.Connection):
         :return     [{<str> key: <variant>, ..}, ..], <int> rowcount
         """
 
-    @abstractmethod()
+    @abstractmethod
     def _open(self, db, writeAccess=False):
         """
         Handles simple, SQL specific connection creation.  This will not
@@ -98,7 +98,7 @@ class SQLConnection(orb.Connection):
     def _close(self, native):
         native.close()
 
-    @abstractmethod()
+    @abstractmethod
     def _interrupt(self, threadId, native):
         """
         Interrupts the given backend database connection from a separate thread.

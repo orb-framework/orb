@@ -5,14 +5,14 @@ out.
 
 import logging
 
-from projex.decorators import abstractmethod
+from abc import abstractmethod
 from projex.addon import AddonManager
 
 log = logging.getLogger(__name__)
 
 
 class SQLStatement(AddonManager):
-    @abstractmethod()
+    @abstractmethod
     def __call__(self):
         """
         Executes this statement with the inputted keywords to generate
