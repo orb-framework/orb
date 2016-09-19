@@ -18,7 +18,6 @@ class System(object):
         self.__databases = {}
         self.__schemas = {}
         self.__settings = Settings()
-        self.__syntax = None
         self.__security = Security(self.__settings.security_key)
 
     def activate(self, db):
@@ -138,21 +137,3 @@ class System(object):
 
     def setSecurity(self, security):
         self.__security = security
-
-    def setSyntax(self, syntax):
-        if not isinstance(syntax, orb.Syntax):
-            syntax = orb.Syntax.byName(syntax)
-            if syntax:
-                self.__syntax = syntax()
-        else:
-            self.__syntax = syntax
-
-    def syntax(self):
-        """
-        Returns the syntax that is being used for this system.
-
-        :return:    <orb.Syntax>
-        """
-        if self.__syntax is None:
-            self.__syntax = orb.Syntax.byName(self.__settings.syntax)()
-        return self.__syntax

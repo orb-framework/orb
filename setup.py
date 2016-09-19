@@ -85,6 +85,7 @@ setup(
     url='https://github.com/ProjexSoftware/orb',
     install_requires=(
         'projex>=2015.0.12',
+        'inflection',
         'pycrypto',
         'pyparsing',
         'pyyaml',
