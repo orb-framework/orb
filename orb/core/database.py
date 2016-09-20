@@ -29,9 +29,12 @@ class Database(object):
                  credentials=None):
 
         # define custom properties
-        conn = orb.Connection.byName(connectionType)
-        if not conn:
-            raise orb.errors.BackendNotFound(connectionType)
+        if not isinstance(connectionType, orb.Connection):
+            conn = orb.Connection.byName(connectionType)
+            if not conn:
+                raise orb.errors.BackendNotFound(connectionType)
+        else:
+            connectionType.setDatabase(self)
 
         # define custom properties
         self.__connection = conn(self)
