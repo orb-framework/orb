@@ -93,7 +93,7 @@ class Connection(AddonManager):
         """
 
     @abstractmethod
-    def count(self, table_or_join, lookup, options):
+    def count(self, model, context):
         """
         Returns the number of records that exist for this connection for
         a given lookup and options.
@@ -136,7 +136,7 @@ class Connection(AddonManager):
         processing of grouping records together by schema and only works
         on the primary key.
 
-        :param      table     | <subclass of orb.Table>
+        :param      table     | <orb.Collection>
                     context   | <orb.Context>
 
         :return     <int> | number of rows removed
@@ -161,9 +161,8 @@ class Connection(AddonManager):
         Inserts the database record into the database with the
         given values.
         
-        :param      records     | <orb.Table>
-                    lookup      | <orb.LookupOptions>
-                    options     | <orb.Context>
+        :param      records     | <orb.Collection>
+                    context     | <orb.Context>
         
         :return     <bool>
         """
@@ -219,6 +218,14 @@ class Connection(AddonManager):
         """
         Initializes the database with any additional information that is required.
         """
+
+    def setDatabase(self, db):
+        """
+        Assigns the database instance that this connection serves.
+
+        :param db: <orb.Database>
+        """
+        self.__database = db
 
     @abstractmethod
     def schemaInfo(self, context):

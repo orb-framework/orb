@@ -29,12 +29,7 @@ class Database(object):
                  credentials=None):
 
         # define custom properties
-        conn = orb.Connection.byName(connectionType)
-        if not conn:
-            raise orb.errors.BackendNotFound(connectionType)
-
-        # define custom properties
-        self.__connection = conn(self)
+        self.__connection = None
         self.__code = code
         self.__name = name
         self.__host = host
@@ -44,6 +39,9 @@ class Database(object):
         self.__password = password
         self.__credentials = credentials
         self.__timeout = timeout  # ms
+
+        # setup the connection type
+        self.setConnection(connectionType)
 
     def __del__(self):
         self.disconnect()
@@ -204,6 +202,23 @@ class Database(object):
         :param      credentials | <tuple> || None
         """
         self.__credentials = credentials
+
+    def setConnection(self, connection):
+        """
+        Assigns the backend connection for this database instance.
+
+        :param connection: <str> || <orb.Connection>
+        """
+        # define custom properties
+        if not isinstance(connection, orb.Connection):
+            conn = orb.Connection.byName(connection)
+            if not conn:
+                raise orb.errors.BackendNotFound(connection)
+            connection = conn(self)
+        else:
+            connection.setDatabase(self)
+
+        self.__connection = connection
 
     def setDefault(self, state):
         """
