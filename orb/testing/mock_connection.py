@@ -245,17 +245,7 @@ class MockConnection(orb.Connection):
         assert issubclass(model, orb.Model)
         assert isinstance(context, orb.Context)
 
-        resp = self.next_response('select', model, context)
-
-        if not isinstance(resp, tuple):
-            if isinstance(resp, list):
-                return resp, len(resp)
-            elif resp is not None:
-                return resp, 1
-            else:
-                return resp, 0
-        else:
-            return resp
+        return self.next_response('select', model, context)
 
 
     def setup(self, context):
