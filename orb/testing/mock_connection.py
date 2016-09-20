@@ -8,15 +8,16 @@ from collections import defaultdict
 
 
 class MockConnection(orb.Connection):
-    def __init__(self, database, responses=None):
+    def __init__(self, database=None, responses=None, base=None):
         super(MockConnection, self).__init__(database)
 
         self.counter = defaultdict(lambda: 0)
-        self.responses = responses
+        self.responses = responses or {}
+        self.base_connection = base
 
     def onSync(self, event):
         assert isinstance(event, orb.events.SyncEvent)
-        return self.next_response('onSync')
+        return self.next_response('onSync', event)
 
     def addNamespace(self, namespace, context):
         """
@@ -30,7 +31,7 @@ class MockConnection(orb.Connection):
         assert isinstance(context, orb.Context)
 
         # return desired response
-        return self.next_response('addNamespace')
+        return self.next_response('addNamespace', namespace, context)
 
     def alterModel(self, model, context, add=None, remove=None, owner=''):
         """
@@ -49,7 +50,7 @@ class MockConnection(orb.Connection):
         assert (remove is None or type(remove) is list)
 
         # return the desired response
-        return self.next_response('alterModel')
+        return self.next_response('alterModel', model, context, add, remove, owner)
 
     def close(self):
         """
@@ -75,7 +76,7 @@ class MockConnection(orb.Connection):
         assert isinstance(model, orb.Context)
 
         # return the desired response
-        return self.next_response('count')
+        return self.next_response('count', model, context)
 
     def createModel(self, model, context, owner='', includeReferences=True):
         """
@@ -94,7 +95,7 @@ class MockConnection(orb.Connection):
         assert type(includeReferences) == bool
 
         # return the desired response
-        return self.next_response('createModel')
+        return self.next_response('createModel', model, context, owner, includeReferences)
 
     def delete(self, records, context):
         """
@@ -113,7 +114,7 @@ class MockConnection(orb.Connection):
         assert isinstance(context, orb.Context)
 
         # return the desired response
-        return self.next_response('delete')
+        return self.next_response('delete', records, context)
 
     def execute(self, command, data=None, flags=0):
         """
@@ -132,7 +133,7 @@ class MockConnection(orb.Connection):
         assert type(flags) == int
 
         # return the desired response
-        return self.next_response('execute')
+        return self.next_response('execute', command, data, flags)
 
     def insert(self, records, context):
         """
@@ -149,7 +150,7 @@ class MockConnection(orb.Connection):
         assert isinstance(context, orb.Context)
 
         # return the desired response
-        return self.next_response('insert')
+        return self.next_response('insert', records, context)
 
     def isConnected(self):
         """
@@ -167,9 +168,9 @@ class MockConnection(orb.Connection):
         :param      threadId | <int> || None
         """
         assert (threadId is None or type(threadId) == int)
-        return self.next_response('interrupt')
+        return self.next_response('interrupt', threadId)
 
-    def next_response(self, method):
+    def next_response(self, method, *args):
         """
         Returns the next response for a particular method call.  This
         can be used to drive the connection response information.
@@ -178,14 +179,23 @@ class MockConnection(orb.Connection):
 
         :return: <variant>
         """
+        self.counter['all'] += 1
         self.counter[method] += 1
 
         resp = self.responses.get(method)
 
+        # pass along the query to the base connection when desired
+        if self.base_connection is not None:
+            return getattr(self.base_connection, method)(*args)
+
+        # responses can be generators
+        elif callable(resp):
+            return resp(*args)
+
         # responses can be provided a list for ordered response execution
-        if isinstance(resp, list):
+        elif isinstance(resp, list):
             try:
-                return resp.pop()
+                return resp.pop(0)
             except IndexError:
                 return None
 
@@ -203,7 +213,7 @@ class MockConnection(orb.Connection):
 
         :return     <bool> success
         """
-        return self.next_response('open')
+        return self.next_response('open', force)
 
     def rollback(self):
         """
@@ -219,7 +229,7 @@ class MockConnection(orb.Connection):
         """
         assert isinstance(context, orb.Context)
 
-        return self.next_response('schemaInfo')
+        return self.next_response('schemaInfo', context)
 
     def select(self, model, context):
         """
@@ -235,14 +245,25 @@ class MockConnection(orb.Connection):
         assert issubclass(model, orb.Model)
         assert isinstance(context, orb.Context)
 
-        return self.next_response('select')
+        resp = self.next_response('select', model, context)
+
+        if not isinstance(resp, tuple):
+            if isinstance(resp, list):
+                return resp, len(resp)
+            elif resp is not None:
+                return resp, 1
+            else:
+                return resp, 0
+        else:
+            return resp
+
 
     def setup(self, context):
         """
         Initializes the database with any additional information that is required.
         """
         assert isinstance(context, orb.Context)
-        return self.next_response('setup')
+        return self.next_response('setup', context)
 
     def update(self, records, context):
         """
@@ -257,4 +278,4 @@ class MockConnection(orb.Connection):
         assert isinstance(records, orb.Context)
         assert isinstance(context, orb.Context)
 
-        return self.next_response('update')
+        return self.next_response('update', records, context)
