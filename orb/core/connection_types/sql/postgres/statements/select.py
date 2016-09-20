@@ -24,9 +24,9 @@ class SELECT(PSQLStatement):
 
         # determine what to expand
         schema = model.schema()
+        columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
         expand = context.expandtree(model)
         expanded = bool(expand)
-        columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
 
         data = {
             'locale': context.locale,
@@ -68,7 +68,7 @@ class SELECT(PSQLStatement):
                                                                              column.field()))
 
         # expand any pipes
-        if expand:
+        if expand and not context.columns:
             for collector in schema.collectors().values():
                 if collector.name() in expand:
                     if collector.testFlag(collector.Flags.Virtual):
@@ -103,8 +103,9 @@ class SELECT(PSQLStatement):
                 if context.distinct is True:
                     sql_columns['standard'].append(field)
 
+        column_text = ', '.join(sql_columns['standard'] + sql_columns['i18n']).strip(', ')
         if context.distinct is True:
-            cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']),
+            cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(column_text,
                                                            schema.dbname())]
         elif isinstance(context.distinct, (list, set, tuple)):
             on_ = []
@@ -116,12 +117,12 @@ class SELECT(PSQLStatement):
                     on_.append(fields.get(col) or u'"{0}"."{1}"'.format(schema.dbname(), column.field()))
 
             cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM "{2}"."{3}"'.format(', '.join(on_),
-                                                                    ', '.join(sql_columns['standard'] + sql_columns['i18n']),
+                                                                    column_text,
                                                                     schema.namespace() or 'public',
                                                                     schema.dbname())]
             sql_order_by = on_ + sql_order_by
         else:
-            cmd = [u'SELECT {0} FROM "{1}"."{2}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']),
+            cmd = [u'SELECT {0} FROM "{1}"."{2}"'.format(column_text,
                                                          schema.namespace() or 'public',
                                                          schema.dbname())]
 

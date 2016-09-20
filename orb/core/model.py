@@ -83,7 +83,7 @@ class Model(object):
         """
         if self.isRecord() and self.__delayed:
             self.__delayed = False
-            self.reload_()
+            self.read()
 
         # additional options
         context = self.context()
@@ -244,6 +244,7 @@ class Model(object):
 
         # pop off additional keywords
         loader = context.pop('loadEvent', None)
+        delayed = context.pop('delay', False)
 
         context.setdefault('namespace', self.schema().namespace())
 
@@ -253,7 +254,7 @@ class Model(object):
         self.__context = orb.Context(**context)
         self.__cache = defaultdict(dict)
         self.__preload = {}
-        self.__delayed = False
+        self.__delayed = delayed
 
         # extract values to use from the record
         record = []
@@ -283,7 +284,6 @@ class Model(object):
             else:
                 record_id = tuple(record)
 
-            self.__delayed = self.__context.inflated in (False, None)
             if not self.__delayed:
                 data = self.fetch(record_id, inflated=False, context=self.__context)
             else:
@@ -459,6 +459,10 @@ class Model(object):
         if event.preventDefault:
             return 0
 
+        if self.__delayed:
+            self.__delayed = False
+            self.read()
+
         with WriteLocker(self.__dataLock):
             self.__loaded.clear()
 
@@ -507,14 +511,20 @@ class Model(object):
                 sub_context = base_context.copy()
                 expand_path = '.'.join(parts[i+1:expand_path_index])
 
-                if 'expand' in sub_context:
-                    if isinstance(sub_context['expand'], basestring):
-                        sub_context['expand'] += ',{0}'.format(expand_path)
-                    else:
-                        sub_context['expand'].append(expand_path)
-                else:
+                try:
+                    sub_expand = sub_context['expand']
+                except KeyError:
                     sub_context['expand'] = expand_path
-
+                else:
+                    if isinstance(sub_expand, basestring):
+                        sub_context['expand'] += ',{0}'.format(expand_path)
+                    elif isinstance(sub_expand, list):
+                        sub_expand.append(expand_path)
+                    elif isinstance(sub_expand, dict):
+                        curr = {}
+                        for x in xrange(len(parts) - (1 + (expand_path_index or 0)), i, -1):
+                            curr = {parts[x]: curr}
+                        sub_expand.update(curr)
 
                 value = value.get(part, useMethod=useMethod, **sub_context)
                 if value is None:
@@ -571,7 +581,7 @@ class Model(object):
                 # ensure content is actually loaded
                 if self.isRecord() and self.__delayed:
                     self.__delayed = False
-                    self.reload_()
+                    self.read()
 
                 # grab the current value
                 with ReadLocker(self.__dataLock):
@@ -775,7 +785,7 @@ class Model(object):
 
         if self.isRecord() and self.__delayed:
             self.__delayed = False
-            self.reload_()
+            self.read()
 
         with WriteLocker(self.__dataLock):
             orig, curr = self.__values.get(col.name(), (None, None))
@@ -1169,14 +1179,15 @@ class Model(object):
 
         return record
 
-    def reload_(self):
+    def read(self):
         record_id = self.id()
         data = self.fetch(record_id, inflated=False, context=self.__context)
-        if data:
-            event = orb.events.LoadEvent(record=self, data=data)
-            self._load(event)
-        else:
+
+        if not data:
             raise errors.RecordNotFound(self, record_id)
+
+        event = orb.events.LoadEvent(record=self, data=data)
+        self._load(event)
 
     @classmethod
     def removeCallback(cls, eventType, func, record=None):

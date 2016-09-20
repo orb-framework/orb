@@ -101,6 +101,8 @@ class WHERE(PSQLStatement):
                 context = value.context()
                 if not context.columns:
                     context.columns = [value.model().schema().idColumn()]
+                    context.distinct = True
+
                 sub_sql, sub_data = SELECT(value.model(), context, fields=fields)
                 if sub_sql:
                     sql = u'{0} {1} ({2})'.format(field, sql_op, sub_sql.strip(';'))
