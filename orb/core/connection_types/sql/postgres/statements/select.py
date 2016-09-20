@@ -37,12 +37,33 @@ class SELECT(PSQLStatement):
         sql_columns = defaultdict(list)
         sql_joins = []
 
+        # pre-process columns for expansion based on shortcuts
+        cleaned_columns = []
+        for column in columns:
+            if column.shortcut() and column.testFlag(column.Flags.AutoExpand):
+                shortcut = column.shortcut()
+                ref_column = schema.column(shortcut.partition('.')[0])
+                index = None if isinstance(column, orb.ReferenceColumn) else -1
+
+                parts = column.shortcut().split('.')
+                curr = expand
+                for part in parts[:index]:
+                    curr.setdefault(part, {})
+                    curr = curr[part]
+
+                expanded = bool(expand)
+                cleaned_columns.append(ref_column)
+            else:
+                cleaned_columns.append(column)
+
+        columns = cleaned_columns
+
         # process columns to select
         for column in sorted(columns, self.cmpcol):
             if column.testFlag(column.Flags.Virtual) and not issubclass(model, orb.View):
                 continue
 
-            if column.testFlag(column.Flags.I18n):
+            elif column.testFlag(column.Flags.I18n):
                 if context.locale == 'all':
                     sql = u'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{0}"'
                 elif data['locale'] == data['default_locale'] or column.testFlag(column.Flags.I18n_NoDefault):
@@ -53,6 +74,7 @@ class SELECT(PSQLStatement):
                 sql_columns['i18n'].append(sql.format(column.field()))
                 sql_group_by.add(u'"{0}"."{1}"'.format(schema.dbname(), schema.idColumn().field()))
                 fields[column] = u'"i18n"."{0}"'.format(column.field())
+
             else:
                 # expand a reference
                 if isinstance(column, orb.ReferenceColumn) and column.name() in expand:

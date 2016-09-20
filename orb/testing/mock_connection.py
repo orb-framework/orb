@@ -3,6 +3,7 @@ Defines a mock backend database connection
 """
 
 import orb
+import logging
 
 from collections import defaultdict
 
@@ -14,6 +15,7 @@ class MockConnection(orb.Connection):
         self.counter = defaultdict(lambda: 0)
         self.responses = responses or {}
         self.base_connection = base
+        self.log = logging.getLogger(__name__)
 
     def onSync(self, event):
         assert isinstance(event, orb.events.SyncEvent)
@@ -146,7 +148,7 @@ class MockConnection(orb.Connection):
         :return     <bool>
         """
         # validate inputs
-        assert isinstance(records, orb.Collection)
+        assert isinstance(records, (orb.Collection, list))
         assert isinstance(context, orb.Context)
 
         # return the desired response
@@ -179,8 +181,10 @@ class MockConnection(orb.Connection):
 
         :return: <variant>
         """
-        self.counter['all'] += 1
-        self.counter[method] += 1
+        if self.log.propagate:
+            self.log.info('{0}{1}'.format(method, args))
+            self.counter['all'] += 1
+            self.counter[method] += 1
 
         resp = self.responses.get(method)
 
@@ -265,7 +269,7 @@ class MockConnection(orb.Connection):
 
         :return     <bool>
         """
-        assert isinstance(records, orb.Context)
+        assert isinstance(records, (orb.Collection, list))
         assert isinstance(context, orb.Context)
 
         return self.next_response('update', records, context)

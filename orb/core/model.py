@@ -522,7 +522,7 @@ class Model(object):
                         sub_expand.append(expand_path)
                     elif isinstance(sub_expand, dict):
                         curr = {}
-                        for x in xrange(len(parts) - (1 + (expand_path_index or 0)), i, -1):
+                        for x in xrange(len(parts) - 1 + (expand_path_index or 0), i, -1):
                             curr = {parts[x]: curr}
                         sub_expand.update(curr)
 
