@@ -146,7 +146,7 @@ class Collection(object):
                 return record
 
     def _process(self, raw, context):
-        if context.inflated in (True, None) and context.returning != 'values':
+        if context.inflated in (True, None) and context.returning not in ('values', 'data'):
             for x in raw or []:
                 yield self.__model.inflate(x, context=context)
 
