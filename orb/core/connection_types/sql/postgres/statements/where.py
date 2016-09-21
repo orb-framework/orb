@@ -21,7 +21,19 @@ class WHERE(PSQLStatement):
         if isinstance(query, orb.QueryCompound):
             sub_query_sql = []
             for sub_query in query:
-                sub_sql, sub_data = self(model, sub_query, aliases, fields)
+                try:
+                    sub_sql, sub_data = self(model, sub_query, aliases, fields)
+
+                # if a sub-query is null, for OR'd queries, we can just ignore that
+                # criteria since it will not affect it, for AND'd criteria we
+                # can propagate the error up since it will affect all of the
+                # rest of the query
+                except orb.errors.QueryIsNull:
+                    if query.op() == query.Op.And:
+                        raise
+                    else:
+                        continue
+
                 if sub_sql:
                     sub_query_sql.append(sub_sql)
                     data.update(sub_data)
@@ -116,6 +128,7 @@ class WHERE(PSQLStatement):
                 # empty, no need to query
                 if op == orb.Query.Op.IsIn and not value:
                     raise orb.errors.QueryIsNull()
+
                 # if the query is value IS NOT IN <empty list>, the result will
                 # always return all records because the value will never be found
                 # in an empty list -- we can just ignore this filter

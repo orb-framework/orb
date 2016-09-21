@@ -40,7 +40,7 @@ class SELECT(PSQLStatement):
         # pre-process columns for expansion based on shortcuts
         cleaned_columns = []
         for column in columns:
-            if column.shortcut() and column.testFlag(column.Flags.AutoExpand):
+            if column.shortcut() and not issubclass(model, orb.View):
                 shortcut = column.shortcut()
                 ref_column = schema.column(shortcut.partition('.')[0])
                 index = None if isinstance(column, orb.ReferenceColumn) else -1
