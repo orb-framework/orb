@@ -104,7 +104,7 @@ class MySQLConnection(SQLConnection):
 
             return results, rowcount
 
-    def _open(self, db):
+    def _open(self, db, writeAccess=False):
         """
         Handles simple, SQL specific connection creation.  This will not
         have to manage thread information as it is already managed within
@@ -122,7 +122,7 @@ class MySQLConnection(SQLConnection):
             return pymysql.connect(db=db.name(),
                                    user=db.username(),
                                    passwd=db.password(),
-                                   host=db.host() or 'localhost',
+                                   host=(db.writeHost() if writeAccess else db.host()) or 'localhost',
                                    port=db.port() or 3306,
                                    cursorclass=pymysql.cursors.DictCursor)
         except pymysql.OperationalError as err:

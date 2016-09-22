@@ -38,7 +38,7 @@ class BinaryColumn(Column):
         """
         if db_value is not None:
             try:
-                return pickle.loads(db_value)
+                return pickle.loads(str(db_value))
             except StandardError:
                 log.exception('Failed to restore pickle')
                 raise orb.errors.DataStoreError('Failed to restore pickle.')

@@ -10,7 +10,13 @@ class ADD_COLUMN(SQLiteStatement):
         flags = []
         Flags = orb.Column.Flags
         for key, value in Flags.items():
-            if column.flags() & value:
+            # SQLite has an issue with adding NOT NULL constraints during an ADD COLUMN during
+            # modification of an existing table
+            if value == Flags.Required:
+                continue
+
+            # otherwise, add the column flag
+            elif column.flags() & value:
                 flag_sql = SQLiteStatement.byName('Flag::{0}'.format(key))
                 if flag_sql:
                     flags.append(flag_sql)

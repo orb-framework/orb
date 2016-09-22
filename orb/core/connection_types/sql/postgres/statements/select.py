@@ -24,7 +24,7 @@ class SELECT(PSQLStatement):
 
         # determine what to expand
         schema = model.schema()
-        expand = context.expandtree()
+        expand = context.expandtree(model)
         expanded = bool(expand)
         columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
 
@@ -76,9 +76,9 @@ class SELECT(PSQLStatement):
 
                     sub_tree = expand.pop(collector.name(), None)
                     if isinstance(collector, orb.Pipe):
-                        sql, sub_data = EXPAND_PIPE(collector, sub_tree)
+                        sql, sub_data = EXPAND_PIPE(collector, sub_tree, alias=schema.dbname())
                     elif isinstance(collector, orb.ReverseLookup):
-                        sql, sub_data = EXPAND_REV(collector, sub_tree)
+                        sql, sub_data = EXPAND_REV(collector, sub_tree, alias=schema.dbname())
 
                     if sql:
                         sql_columns['standard'].append(sql)
@@ -143,63 +143,70 @@ class SELECT(PSQLStatement):
         # generate sql statements
         try:
             sql_where, sql_where_data = WHERE(model, where, fields=fields)
+
+        # null queries should not result in any results
+        # examples of this scenario would be query like
+        #    orb.Query('id').in_([])
+        # this query would obviously not ever return results, so no need
+        # to ever query it
         except orb.errors.QueryIsNull:
-            sql_where, sql_where_data = '', {}
+            return '', {}
+
         else:
             data.update(sql_where_data)
 
-        if expanded:
-            if sql_order_by:
-                distinct = u'ON ({0})'.format(', '.join((order.split(' ')[0] for order in sql_order_by)))
-            else:
-                distinct = ''
-
-            cmd.append(u'WHERE "{0}"."{1}" IN ('.format(schema.dbname(), schema.idColumn().field()))
-            cmd.append(u'    SELECT DISTINCT {0} "{1}"."{2}"'.format(distinct, schema.dbname(), schema.idColumn().field()))
-            cmd.append(u'    FROM "{0}"."{1}"\n'.format(schema.namespace() or 'public', schema.dbname()))
-
-            if sql_columns['i18n']:
-                if context.locale == 'all':
-                    cmd.append(u'    LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id")'.format(schema.namespace() or 'public',
-                                                                                                              schema.dbname()))
+            if expanded:
+                if sql_order_by:
+                    distinct = u'ON ({0})'.format(', '.join((order.split(' ')[0] for order in sql_order_by)))
                 else:
-                    sql = u'LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id" AND "i18n"."locale" = %(locale)s)'
-                    cmd.append('    ' + sql.format(schema.namespace() or 'public', schema.dbname()))
+                    distinct = ''
 
-            if sql_where:
-                cmd.append(u'    WHERE {0}'.format(sql_where))
-            if sql_group_by:
-                cmd.append(u'    GROUP BY {0}'.format(', '.join(list(sql_group_by) + [order.split(' ')[0] for order in sql_order_by])))
-            if sql_order_by:
-                cmd.append(u'    ORDER BY {0}'.format(', '.join(sql_order_by)))
-            if context.start:
-                if not isinstance(context.limit, (int, long)):
-                    raise orb.errors.DatabaseError('Invalid value provided for start')
-                cmd.append(u'    OFFSET {0}'.format(context.start))
-            if context.limit > 0:
-                if not isinstance(context.limit, (int, long)):
-                    raise orb.errors.DatabaseError('Invalid value provided for limit')
-                cmd.append(u'    LIMIT {0}'.format(context.limit))
+                cmd.append(u'WHERE "{0}"."{1}" IN ('.format(schema.dbname(), schema.idColumn().field()))
+                cmd.append(u'    SELECT DISTINCT {0} "{1}"."{2}"'.format(distinct, schema.dbname(), schema.idColumn().field()))
+                cmd.append(u'    FROM "{0}"."{1}"\n'.format(schema.namespace() or 'public', schema.dbname()))
 
-            cmd.append(u')')
-            if sql_group_by:
-                cmd.append(u'GROUP BY {0}'.format(', '.join(list(sql_group_by))))
-        else:
-            if sql_where:
-                cmd.append(u'WHERE {0}'.format(sql_where))
-            if sql_group_by:
-                cmd.append(u'GROUP BY {0}'.format(', '.join(list(sql_group_by))))
-            if sql_order_by:
-                cmd.append(u'ORDER BY {0}'.format(', '.join(sql_order_by)))
-            if context.start:
-                if not isinstance(context.start, (int, long)):
-                    raise orb.errors.DatabaseError('Invalid value provided for start')
-                cmd.append(u'OFFSET {0}'.format(context.start))
-            if context.limit > 0:
-                if not isinstance(context.limit, (int, long)):
-                    raise orb.errors.DatabaseError('Invalid value provided for limit')
-                cmd.append(u'LIMIT {0}'.format(context.limit))
+                if sql_columns['i18n']:
+                    if context.locale == 'all':
+                        cmd.append(u'    LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id")'.format(schema.namespace() or 'public',
+                                                                                                                  schema.dbname()))
+                    else:
+                        sql = u'LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id" AND "i18n"."locale" = %(locale)s)'
+                        cmd.append('    ' + sql.format(schema.namespace() or 'public', schema.dbname()))
 
-        return u'\n'.join(cmd), data
+                if sql_where:
+                    cmd.append(u'    WHERE {0}'.format(sql_where))
+                if sql_group_by:
+                    cmd.append(u'    GROUP BY {0}'.format(', '.join(list(sql_group_by) + [order.split(' ')[0] for order in sql_order_by])))
+                if sql_order_by:
+                    cmd.append(u'    ORDER BY {0}'.format(', '.join(sql_order_by)))
+                if context.start:
+                    if not isinstance(context.limit, (int, long)):
+                        raise orb.errors.DatabaseError('Invalid value provided for start')
+                    cmd.append(u'    OFFSET {0}'.format(context.start))
+                if context.limit > 0:
+                    if not isinstance(context.limit, (int, long)):
+                        raise orb.errors.DatabaseError('Invalid value provided for limit')
+                    cmd.append(u'    LIMIT {0}'.format(context.limit))
+
+                cmd.append(u')')
+                if sql_group_by:
+                    cmd.append(u'GROUP BY {0}'.format(', '.join(list(sql_group_by))))
+            else:
+                if sql_where:
+                    cmd.append(u'WHERE {0}'.format(sql_where))
+                if sql_group_by:
+                    cmd.append(u'GROUP BY {0}'.format(', '.join(list(sql_group_by))))
+                if sql_order_by:
+                    cmd.append(u'ORDER BY {0}'.format(', '.join(sql_order_by)))
+                if context.start:
+                    if not isinstance(context.start, (int, long)):
+                        raise orb.errors.DatabaseError('Invalid value provided for start')
+                    cmd.append(u'OFFSET {0}'.format(context.start))
+                if context.limit > 0:
+                    if not isinstance(context.limit, (int, long)):
+                        raise orb.errors.DatabaseError('Invalid value provided for limit')
+                    cmd.append(u'LIMIT {0}'.format(context.limit))
+
+            return u'\n'.join(cmd), data
 
 PSQLStatement.registerAddon('SELECT', SELECT())

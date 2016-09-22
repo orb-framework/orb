@@ -84,8 +84,12 @@ setup(
     keywords='',
     url='https://github.com/ProjexSoftware/orb',
     install_requires=(
-        'projex',
-        'pycrypto'
+        'projex>=2015.0.12',
+        'inflection',
+        'pycrypto',
+        'pyparsing',
+        'pyyaml',
+        'pytz'
     ),
     include_package_data=True,
     packages=find_packages(),
@@ -93,7 +97,17 @@ setup(
         'tag': tag,
         'test': PyTest
     },
-    tests_require=[],
+    tests_require=[
+        # testing framework
+        'pytest',
+        'pytest-cov',
+        'pytest-html',
+        'pytest-ordering',
+
+        # used for functional testing
+        'psycopg2',
+        'PyMySQL'
+    ],
     long_description='Database ORM and API builder.',
     classifiers=[],
 )

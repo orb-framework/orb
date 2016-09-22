@@ -2,6 +2,7 @@
 
 import logging
 import projex.text
+import inflection
 
 from projex.addon import AddonManager
 from projex.enum import enum
@@ -40,6 +41,7 @@ class Column(AddonManager):
         'Static',
         'Protected',
         'Private',
+        'AutoExpand',
         'RequiresExpand',
         'Keyable'
     )
@@ -59,8 +61,6 @@ class Column(AddonManager):
                  name=None,
                  field=None,
                  display=None,
-                 getterName=None,
-                 setterName=None,
                  flags=0,
                  default=None,
                  defaultOrder='asc',
@@ -80,8 +80,6 @@ class Column(AddonManager):
         self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
         self.__default = default
         self.__defaultOrder = defaultOrder
-        self.__getterName = getterName
-        self.__setterName = setterName
         self.__shortcut = shortcut
         self.__query_filter = queryFilter
         self.__settermethod = setter
@@ -114,8 +112,6 @@ class Column(AddonManager):
             flags=self.__flags,
             default=self.__default,
             defaultOrder=self.__defaultOrder,
-            getterName=self.__getterName,
-            setterName=self.__setterName,
             getter=self.__gettermethod,
             setter=self.__settermethod,
             queryFilter=self.__query_filter,
@@ -226,7 +222,7 @@ class Column(AddonManager):
 
         :return     <str>
         """
-        return self.__display or orb.system.syntax().display(self.__name)
+        return self.__display or inflection.titleize(self.__name)
 
     def field(self):
         """
@@ -234,7 +230,13 @@ class Column(AddonManager):
 
         :return     <str>
         """
-        return self.__field or orb.system.syntax().field(self.__name, isinstance(self, orb.ReferenceColumn))
+        if not self.__field:
+            default_field = inflection.underscore(self.__name)
+            if isinstance(self, orb.ReferenceColumn):
+                default_field += '_id'
+            self.__field = default_field
+
+        return self.__field or default_field
 
     def firstMemberSchema(self, schemas):
         """
@@ -264,9 +266,6 @@ class Column(AddonManager):
             return func
         return wrapped
 
-    def getterName(self):
-        return self.__getterName or orb.system.syntax().getterName(self.__name)
-
     def gettermethod(self):
         return self.__gettermethod
 
@@ -295,7 +294,7 @@ class Column(AddonManager):
 
         :return: <bool>
         """
-        return type(value) is not bool and not bool(value)
+        return value is None
 
     def loadJSON(self, jdata):
         """
@@ -476,9 +475,6 @@ class Column(AddonManager):
         """
         return self.__schema
 
-    def setterName(self):
-        return self.__setterName or orb.system.syntax().setterName(self.__name)
-
     def settermethod(self):
         return self.__settermethod
 
@@ -551,9 +547,6 @@ class Column(AddonManager):
     def setSchema(self, schema):
         self.__schema = schema
 
-    def setGetterName(self, getterName):
-        self.__getterName = getterName
-
     def setOrder(self, order):
         """
         Sets the priority order for this column.  Lower
@@ -563,9 +556,6 @@ class Column(AddonManager):
         :param order: <int>
         """
         self.__order = order
-
-    def setSetterName(self, setterName):
-        self.__setterName = setterName
 
     def setWritePermit(self, permit):
         """

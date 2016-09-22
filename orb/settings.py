@@ -13,8 +13,7 @@ class Settings(object):
         'max_cache_timeout': str(1000 * 60 * 60 * 24), # 24 hours
         'max_connections': '10',
         'default_page_size': '40',
-        'worker_class': 'default',
-        'syntax': 'standard'  # possible values include standard, PEP8
+        'worker_class': 'default'
     }
 
     def __init__(self):

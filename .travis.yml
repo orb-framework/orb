@@ -1,7 +1,6 @@
 language: python
 python:
   - "2.7"
-install:
-  - "pip install -r requirements.txt"
-  - "pip install -r requirements-test.txt"
+env:
+  - IGNORE_POSTGRES=1 IGNORE_MYSQL=1
 script: "python setup.py test"

@@ -1,20 +1,31 @@
+import os
 import pytest
 
-try:
-    import psycopg2 as pg
-except ImportError:
-    pg = None
+test_backends = set()
 
-try:
-    import sqlite3 as sqlite
-except ImportError:
-    sqlite = None
+# setup sqlite testing
+if os.environ.get('IGNORE_SQLITE') != '1':
+    test_backends.add('sqlite')
 
-try:
-    import pymysql as mysql
-except ImportError:
-    mysql = None
+# setup postgres testing
+if os.environ.get('IGNORE_POSTGRES') != '1':
+    try:
+        import psycopg2
+    except ImportError:
+        pass
+    else:
+        test_backends.add('postgres')
 
-requires_pg = pytest.mark.skipif(pg is None, reason='psycopg2 required for Postgres')
-requires_mysql = pytest.mark.skipif(mysql is None, reason='PyMySQL required for MySQL')
-requires_lite = pytest.mark.skipif(sqlite is None, reason='sqlite3 required for SQLite')
+# setup MySQL testing
+if os.environ.get('IGNORE_MYSQL') != '1':
+    try:
+        import pymysql
+    except ImportError:
+        pass
+    else:
+        test_backends.add('mysql')
+
+# setup the requirement markers
+requires_mysql = pytest.mark.skipif('mysql' not in test_backends, reason='Ignoring MySQL')
+requires_pg = pytest.mark.skipif('postgres' not in test_backends, reason='Ignoring PostgreSQL')
+requires_lite = pytest.mark.skipif('sqlite' not in test_backends, reason='Ignoring SQLite')

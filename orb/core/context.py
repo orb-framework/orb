@@ -174,8 +174,23 @@ class Context(object):
         else:
             return out
 
-    def expandtree(self):
-        expand = self.expand
+    def expandtree(self, model=None):
+        """
+        Goes through the expand options associated with this context and
+        returns a trie of data.
+
+        :param model: subclass of <orb.Model> || None
+
+        :return: <dict>
+        """
+        if model:
+            schema = model.schema()
+            defaults = schema.columns(flags=orb.Column.Flags.AutoExpand).keys()
+            defaults += schema.collectors(flags=orb.Collector.Flags.AutoExpand).keys()
+        else:
+            defaults = []
+
+        expand = self.expand or defaults
         if not expand:
             return {}
 
@@ -313,6 +328,9 @@ class Context(object):
         where = other_context.get('where')
         if isinstance(where, dict):
             other_context['where'] = orb.Query.fromJSON(where)
+
+        if isinstance(where, (orb.Query, orb.QueryCompound)):
+            other_context['where'] &= self.where
 
         # validate values
         if other_context.get('start') is not None and (type(other_context['start']) != int or other_context['start'] < 0):

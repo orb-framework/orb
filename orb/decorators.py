@@ -1,3 +1,5 @@
+import inflection
+
 from projex.lazymodule import lazy_import
 
 orb = lazy_import('orb')
@@ -13,7 +15,7 @@ def virtual(cls, **options):
     :return:
     """
     def wrapped(func):
-        param_name = orb.system.syntax().name(func.__name__)
+        param_name = inflection.underscore(func.__name__)
         options.setdefault('name', param_name)
         is_column = issubclass(cls, orb.Column)
 

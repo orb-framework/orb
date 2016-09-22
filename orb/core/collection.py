@@ -1,6 +1,7 @@
 from collections import defaultdict
 from projex.lazymodule import lazy_import
 from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
+import math
 
 orb = lazy_import('orb')
 
@@ -40,31 +41,35 @@ class CollectionIterator(object):
 class Collection(object):
     def __json__(self):
         context = self.context()
-        expand = context.expandtree()
+        expand = context.expandtree(self.__model)
 
         output = {}
 
         use_records = False
 
-        if expand.pop('count', None) is not None or context.returning == 'count':
+        if 'count' in expand or context.returning == 'count':
+            expand.pop('count', None)
             use_records = True
             output['count'] = self.count()
 
-        if expand.pop('ids', None) is not None or context.returning == 'ids':
+        if 'ids' in expand or context.returning == 'ids':
+            expand.pop('ids', None)
             use_records = True
             output['ids'] = self.ids()
 
-        if expand.pop('first', None) is not None or context.returning == 'first':
+        if 'first' in expand or context.returning == 'first':
+            expand.pop('first', None)
             use_records = True
             record = self.first()
             output['first'] = record.__json__() if record else None
 
-        if expand.pop('last', None) is not None or context.returning == 'last':
+        if 'last' in expand or context.returning == 'last':
+            expand.pop('last', None)
             use_records = True
             record = self.last()
             output['last'] = record.__json__() if record else None
 
-        if not output or expand:
+        if not output or (expand and context.returning not in ('count', 'ids', 'first', 'last')):
             records = [record.__json__() if hasattr(record, '__json__') else record for record in self.records()]
             if not use_records:
                 return records
@@ -496,12 +501,10 @@ class Collection(object):
             return 1
         else:
             context['page'] = None
-            context['limit'] = None
-            
+            context['pageSize'] = None
+
             fraction = self.count(**context) / float(size)
-            count = int(fraction)
-            if count % 1:
-                count += 1
+            count = int(math.ceil(fraction))
             return max(1, count)
 
     def preload(self, cache, **context):
@@ -509,7 +512,7 @@ class Collection(object):
         with WriteLocker(self.__cacheLock):
             for key, value in cache.items():
                 self.__preload.setdefault(key, {})
-                self.__preload[key][context] = value or []
+                self.__preload[key][context] = value
 
     def records(self, **context):
         if self.isNull():
@@ -559,19 +562,19 @@ class Collection(object):
             q  = orb.Query(pipe.from_()) == self.__record
             q &= orb.Query(pipe.to()) == record
 
-            context['where'] = q & context.get('where')
-            context = self.context(**context)
+            my_context = self.context(**context)
+            records = through.select(where=q, scope=my_context.scope)
 
-            records = through.select(context=context)
             delete = []
-            for record in records:
+            for r in records:
                 event = orb.events.DeleteEvent()
-                record.onDelete(event)
+                r.onDelete(event)
                 if not event.preventDefault:
-                    delete.append(record)
+                    delete.append(r)
 
-            conn = context.db.connection()
-            conn.delete(records, context)
+            if delete:
+                conn = my_context.db.connection()
+                conn.delete(delete, my_context)
 
             return len(delete)
         elif self.__collector:
@@ -621,8 +624,9 @@ class Collection(object):
                             record = self.__model.create(record_attributes, **context).id()
                         else:
                             record = self.__model(record_id, **context)
-                            record.update(record_attributes)
-                            record.save()
+                            if record_attributes:
+                                record.update(record_attributes)
+                                record.save()
 
                     output_records.append(record)
 

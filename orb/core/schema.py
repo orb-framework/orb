@@ -1,9 +1,9 @@
 """ Defines the meta information for a Table class. """
 
 import logging
+import inflection
 
 from collections import OrderedDict as odict
-from new import instancemethod
 from projex.enum import enum
 from projex.lazymodule import lazy_import
 
@@ -59,8 +59,10 @@ class Schema(object):
                  columns=None,
                  indexes=None,
                  collectors=None):
+
+        default_db_name = inflection.pluralize(inflection.underscore(name))
         self.__name = name
-        self.__dbname = dbname or orb.system.syntax().schemadb(name)
+        self.__dbname = dbname or default_db_name
         self.__database = database
         self.__namespace = namespace
         self.__flags = flags
@@ -152,19 +154,21 @@ class Schema(object):
         """
         return self.collectors(recurse=recurse).get(name)
 
-    def collectors(self, recurse=True):
+    def collectors(self, recurse=True, flags=0):
         """
         Returns a list of the collectors for this instance.
 
-        :return     [<orb.Collector>, ..]
+        :return     {<str> name: <orb.Collector>, ..}
         """
-        output = self.__collectors.copy()
+        output = {}
         if recurse and self.inherits():
             schema = orb.system.schema(self.inherits())
             if not schema:
                 raise orb.errors.ModelNotFound(self.inherits())
             else:
-                output.update(schema.collectors(recurse=recurse))
+                iflags = (flags & ~orb.Collector.Flags.Virtual) if flags else ~orb.Collector.Flags.Virtual
+                output.update(schema.collectors(recurse=recurse, flags=iflags))
+        output.update({c.name(): c for c in self.__collectors.values() if not flags or c.testFlag(flags)})
         return output
 
     def column(self, key, recurse=True, flags=0, raise_=True):
@@ -227,11 +231,7 @@ class Schema(object):
             return self.__cache[key]
         except KeyError:
 
-            output = odict(
-                (col.name(), col) for col
-                in sorted(self.__columns.values(), key=lambda x: x.order())
-                if (not flags or col.testFlag(flags))
-            )
+            output = odict()
 
             if recurse:
                 inherits = self.inherits()
@@ -241,13 +241,19 @@ class Schema(object):
                         raise orb.errors.ModelNotFound(inherits)
                     else:
                         # lookup ancestor columns (don't care about virtual columns)
-                        flags = (flags & ~orb.Column.Flags.Virtual) if flags else ~orb.Column.Flags.Virtual
-                        ancest_columns = schema.columns(recurse=recurse, flags=flags)
+                        iflags = (flags & ~orb.Column.Flags.Virtual) if flags else ~orb.Column.Flags.Virtual
+                        ancest_columns = schema.columns(recurse=recurse, flags=iflags)
                         dups = set(ancest_columns.keys()).intersection(output.keys())
                         if dups:
                             raise orb.errors.DuplicateColumnFound(self.name(), ','.join(dups))
                         else:
                             output.update(ancest_columns)
+
+            output.update(odict(
+                (col.name(), col) for col
+                in sorted(self.__columns.values(), key=lambda x: x.order())
+                if (not flags or col.testFlag(flags))
+            ))
 
             self.__cache[key] = output
             return output
@@ -269,7 +275,7 @@ class Schema(object):
         
         :return     <str>
         """
-        return self.__display or orb.system.syntax().display(self.__name)
+        return self.__display or inflection.titleize(self.__name)
 
     def hasColumn(self, column, recurse=True, flags=0):
         """
@@ -391,10 +397,6 @@ class Schema(object):
         elif isinstance(item, orb.Collector):
             self.__collectors[key] = item
             item.setSchema(self)
-
-            if model and not hasattr(model, key):
-                collectormethod = instancemethod(item, None, model)
-                setattr(model, key, collectormethod)
 
         # create instance methods for columns
         elif isinstance(item, orb.Column):

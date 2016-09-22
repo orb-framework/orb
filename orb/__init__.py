@@ -44,7 +44,6 @@ from .core.collector import Collector
 from .core.pipe import Pipe
 from .core.reverselookup import ReverseLookup
 from .core.schema import Schema
-from .core.syntax import Syntax
 from .core.security import Security
 from .core.system import System
 
@@ -52,9 +51,10 @@ from .core.events import *
 from .core.model_types import *
 from .core.column_types import *
 from .core.connection_types import *
-from .core.syntax_types import *
 
 from .core.modelmixin import ModelMixin
+
+from .testing import *
 
 # define the global system
 system = System()

@@ -16,17 +16,24 @@ log = logging.getLogger(__name__)
 
 try:
     import psycopg2 as pg
+    import psycopg2.extensions as pg_ext
+
     from psycopg2.extras import DictCursor, register_hstore, register_json
-    from psycopg2.extensions import QueryCanceledError
 
 except ImportError:
     log.debug('For PostgreSQL backend, download the psycopg2 module')
 
-    QueryCanceledError = orb.errors.DatabaseError
     DictCursor = None
     register_hstore = None
     register_json = None
     pg = None
+    pg_ext = None
+
+else:
+    # ensure that psycopg2 uses unicode for all the database strings
+    pg_ext.register_type(pg_ext.UNICODE)
+    pg_ext.register_type(pg_ext.UNICODEARRAY)
+
 
 # ----------------------------------------------------------------------
 
@@ -89,7 +96,7 @@ class PSQLConnection(SQLConnection):
             rowcount = cursor.rowcount
 
         # look for a cancelled query
-        except QueryCanceledError as cancelled:
+        except pg_ext.QueryCanceledError as cancelled:
             try:
                 native.rollback()
             except StandardError as err:
@@ -156,7 +163,7 @@ class PSQLConnection(SQLConnection):
 
         return results, rowcount
 
-    def _open(self, db):
+    def _open(self, db, writeAccess=False):
         """
         Handles simple, SQL specific connection creation.  This will not
         have to manage thread information as it is already managed within
@@ -177,7 +184,7 @@ class PSQLConnection(SQLConnection):
             return pg.connect(database=db.name(),
                               user=db.username(),
                               password=db.password(),
-                              host=db.host(),
+                              host=db.writeHost() if writeAccess else db.host(),
                               port=db.port(),
                               connect_timeout=3)
         except pg.OperationalError as err:
