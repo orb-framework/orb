@@ -181,5 +181,18 @@ class ReferenceColumn(Column):
         else:
             return super(ReferenceColumn, self).validate(value)
 
+    def valueFromString(self, value, context=None):
+        """
+        Re-implements the orb.Column.valueFromString method to
+        lookup a reference object based on the given value.
+
+        :param value: <str>
+        :param context: <orb.Context> || None
+
+        :return: <orb.Model> || None
+        """
+        model = self.referenceModel()
+        return model(value, context=context)
+
 # register the column addon
 Column.registerAddon('Reference', ReferenceColumn)

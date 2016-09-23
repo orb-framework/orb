@@ -17,6 +17,8 @@ def test_lite_api_save_bill(orb, lite_db, User):
     user.save()
 
     assert user.isRecord() == True
+    assert user.get('user_type_id') == 1
+    assert user.get('user_type.code') == 'basic'
 
 @requires_lite
 def test_lite_api_fetch_bill(orb, lite_db, User):
