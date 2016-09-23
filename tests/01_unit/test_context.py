@@ -158,7 +158,7 @@ def test_context_dict_key(orb):
 
 def test_invalid_context_property(orb):
     context = orb.Context()
-    assert context.inflated == True
+    assert context.inflated is None
     with pytest.raises(AttributeError):
         context.bad_property
 

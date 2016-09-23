@@ -60,12 +60,40 @@ class Model(object):
         # additional options
         context = self.context()
 
+        # don't include the column names
+        if context.returning == 'values':
+            schema_fields = {c.field() for c in context.schemaColumns(self.schema())}
+            output = tuple(value for field, value in self if field in schema_fields)
+            if len(output) == 1:
+                output = output[0]
+        else:
+            output = dict(self)
+
+        return projex.rest.jsonify(output) if context.format == 'text' else output
+
+    def __iter__(self):
+        """
+        Iterates this object for its values.  This will return the field names from the
+        database rather than the API names.  If you want the API names, you should use
+        the recordValues method.
+
+        :sa         recordValues
+
+        :return     <iter>
+        """
+        if self.isRecord() and self.__delayed:
+            self.__delayed = False
+            self.read()
+
+        # additional options
+        context = self.context()
+
         # hide private columns
         def _allowed(columns=None, context=None):
             return not columns[0].testFlag(columns[0].Flags.Private)
 
         auth = self.__auth__ if callable(self.__auth__) else _allowed
-
+        expand_tree = context.expandtree(self.__class__)
         schema = self.schema()
 
         if context.columns:
@@ -73,13 +101,50 @@ class Model(object):
         else:
             columns = schema.columns(flags=~orb.Column.Flags.RequiresExpand).values()
 
-        columns = [x for x in columns if x and auth(columns=(x,), context=context)]
+        # extract the data values for this model
+        for column in columns:
+            if (not column or
+                    column.testFlag(column.Flags.RequiresExpand) or
+                    not auth(columns=(column,), context=context)):
+                continue
 
-        # simple json conversion
-        output = self.values(key='field', columns=columns, inflated=False)
+            elif column.testFlag(column.Flags.Virtual) and not isinstance(self, orb.View):
+                yield column.field(), self.get(column, inflated=False)
 
-        # expand any references
-        expand_tree = context.expandtree(self.__class__)
+            else:
+                try:
+                    value = self.__values[column.name()][1]
+                except KeyError:
+                    pass
+                else:
+                    if column.testFlag(orb.Column.Flags.I18n) and type(value) == dict:
+                        value = value.get(context.locale)
+
+                    # for references, yield both the raw value for the field
+                    # and the expanded value if desired
+                    if isinstance(column, orb.ReferenceColumn):
+                        if isinstance(value, orb.Model):
+                            yield column.field(), value.id()
+                        else:
+                            yield column.field(), value
+
+                        try:
+                            subtree = expand_tree.pop(column.name())
+                        except KeyError:
+                            pass
+                        else:
+                            reference = self.get(column,
+                                                 expand=subtree,
+                                                 returning=context.returning,
+                                                 scope=context.scope)
+                            output = reference.__json__() if reference is not None else None
+                            yield column.name(), output
+
+                    else:
+                        yield column.field(), value
+
+        # expand any other values which can include custom
+        # or virtual columns and collectors
         if expand_tree:
             for key, subtree in expand_tree.items():
                 try:
@@ -93,34 +158,9 @@ class Model(object):
                     continue
                 else:
                     if hasattr(value, '__json__'):
-                        output[key] = value.__json__()
+                        yield key, value.__json__()
                     else:
-                        output[key] = value
-
-        # don't include the column names
-        if context.returning == 'values':
-            output = tuple(output[column.field()]
-                           for column in context.schemaColumns(self.schema()))
-            if len(output) == 1:
-                output = output[0]
-
-        if context.format == 'text':
-            return projex.rest.jsonify(output)
-        else:
-            return output
-
-    def __iter__(self):
-        """
-        Iterates this object for its values.  This will return the field names from the
-        database rather than the API names.  If you want the API names, you should use
-        the recordValues method.
-
-        :sa         recordValues
-
-        :return     <iter>
-        """
-        for col in self.schema().columns().values():
-            yield col.field(), self.get(col, inflated=False)
+                        yield key, value
 
     def __format__(self, spec):
         """
@@ -204,6 +244,7 @@ class Model(object):
 
         # pop off additional keywords
         loader = context.pop('loadEvent', None)
+        delayed = context.pop('delay', False)
 
         context.setdefault('namespace', self.schema().namespace())
 
@@ -213,6 +254,7 @@ class Model(object):
         self.__context = orb.Context(**context)
         self.__cache = defaultdict(dict)
         self.__preload = {}
+        self.__delayed = delayed
 
         # extract values to use from the record
         record = []
@@ -242,7 +284,11 @@ class Model(object):
             else:
                 record_id = tuple(record)
 
-            data = self.fetch(record_id, inflated=False, context=self.__context)
+            if not self.__delayed:
+                data = self.fetch(record_id, inflated=False, context=self.__context)
+            else:
+                data = {self.schema().idColumn().name(): record_id}
+
             if data:
                 event = orb.events.LoadEvent(record=self, data=data)
                 self._load(event)
@@ -413,6 +459,10 @@ class Model(object):
         if event.preventDefault:
             return 0
 
+        if self.__delayed:
+            self.__delayed = False
+            self.read()
+
         with WriteLocker(self.__dataLock):
             self.__loaded.clear()
 
@@ -438,20 +488,51 @@ class Model(object):
 
         :return     <variant>
         """
-        if isinstance(column, (str, unicode)) and '.' in column:
-            parts = column.split('.')
-            sub_context = context.copy()
-            sub_context['inflated'] = True
-            value = self
-            for part in parts[:-1]:
-                if not value:
-                    return None
-                value = value.get(part, useMethod=useMethod, **sub_context)
 
-            if value:
-                return value.get(parts[-1], useMethod=useMethod, **context)
+        # look for shortcuts (dot-noted path)
+        if isinstance(column, (str, unicode)) and '.' in column:
+            # create the sub context
+            base_context = context.copy()
+            base_context['inflated'] = True
+
+            # generate the expansion to avoid unnecessary lookups
+            parts = column.split('.')
+
+            # include the target if it is a reference
+            if isinstance(self.schema().column(column), orb.ReferenceColumn):
+                expand_path_index = None
+
+            # otherwise, just get to the end column
             else:
-                return None
+                expand_path_index = -1
+
+            value = self
+            for i, part in enumerate(parts[:-1]):
+                sub_context = base_context.copy()
+                expand_path = '.'.join(parts[i+1:expand_path_index])
+
+                try:
+                    sub_expand = sub_context['expand']
+                except KeyError:
+                    sub_context['expand'] = expand_path
+                else:
+                    if isinstance(sub_expand, basestring):
+                        sub_context['expand'] += ',{0}'.format(expand_path)
+                    elif isinstance(sub_expand, list):
+                        sub_expand.append(expand_path)
+                    elif isinstance(sub_expand, dict):
+                        curr = {}
+                        for x in xrange(len(parts) - 1 + (expand_path_index or 0), i, -1):
+                            curr = {parts[x]: curr}
+                        sub_expand.update(curr)
+
+                value = value.get(part, useMethod=useMethod, **sub_context)
+                if value is None:
+                    return None
+
+            return value.get(parts[-1], useMethod=useMethod, **context)
+
+        # otherwise, lookup a column
         else:
             my_context = self.context()
 
@@ -462,43 +543,57 @@ class Model(object):
             sub_context = orb.Context(**context)
 
             # normalize the given column
-            col = self.schema().column(column, raise_=False)
-            if not col:
-                collector = self.schema().collector(column)
-                if collector:
-                    try:
-                        return self.__cache[collector][sub_context]
-                    except KeyError:
-                        records = collector(self, useMethod=useMethod, context=sub_context)
-                        self.__cache[collector][sub_context] = records
-                        return records
-                else:
-                    raise errors.ColumnNotFound(self.schema().name(), column)
+            if isinstance(column, orb.Column):
+                col = column
+            else:
+                col = self.schema().column(column, raise_=False)
 
-            # lookup the shortuct value vs. the local one
-            elif col.shortcut():
-                return self.get(col.shortcut(), **context)
+                if not col:
+                    if isinstance(column, orb.Collector):
+                        collector = column
+                    else:
+                        collector = self.schema().collector(column)
+
+                    if collector:
+                        try:
+                            return self.__cache[collector][sub_context]
+                        except KeyError:
+                            records = collector(self, useMethod=useMethod, context=sub_context)
+                            self.__cache[collector][sub_context] = records
+                            return records
+                    else:
+                        raise errors.ColumnNotFound(self.schema().name(), column)
 
             # don't inflate if the requested value is a field
-            if column == col.field():
-                sub_context.inflated = False
+            if sub_context.inflated is None and isinstance(col, orb.ReferenceColumn):
+                sub_context.inflated = column != col.field()
+
+            # lookup the shortuct value vs. the local one (bypass for views
+            # since they define tables for shortcuts)
+            if col.shortcut() and not isinstance(self, orb.View):
+                return self.get(col.shortcut(), **context)
 
             # call the getter method fot this record if one exists
-            if useMethod:
-                method = col.gettermethod()
-                if method is not None:
-                    return method(self, context=sub_context)
+            elif useMethod and col.gettermethod():
+                return col.gettermethod()(self, context=sub_context)
 
-            # grab the current value
-            with ReadLocker(self.__dataLock):
-                old_value, value = self.__values.get(col.name(), (None, None))
+            else:
+                # ensure content is actually loaded
+                if self.isRecord() and self.__delayed:
+                    self.__delayed = False
+                    self.read()
 
-            # return a reference when desired
-            out_value = col.restore(value, sub_context)
-            if isinstance(out_value, orb.Model) and not isinstance(value, orb.Model):
-                with WriteLocker(self.__dataLock):
-                    self.__values[col.name()] = (old_value, out_value)
-            return out_value
+                # grab the current value
+                with ReadLocker(self.__dataLock):
+                    old_value, value = self.__values.get(col.name(), (None, None))
+
+                # return a reference when desired
+                out_value = col.restore(value, sub_context)
+                if isinstance(out_value, orb.Model) and not isinstance(value, orb.Model):
+                    with WriteLocker(self.__dataLock):
+                        self.__values[col.name()] = (old_value, out_value)
+
+                return out_value
 
     def id(self, **context):
         column = self.schema().idColumn()
@@ -688,6 +783,10 @@ class Model(object):
                 else:
                     return method(self, value)
 
+        if self.isRecord() and self.__delayed:
+            self.__delayed = False
+            self.read()
+
         with WriteLocker(self.__dataLock):
             orig, curr = self.__values.get(col.name(), (None, None))
             value = col.store(value, context)
@@ -828,25 +927,18 @@ class Model(object):
         """
         output = {}
         schema = self.schema()
-        all_columns = schema.columns(recurse=recurse, flags=flags).values()
-        req_columns = [schema.column(col) for col in columns] if columns else None
 
-        for column in all_columns:
-            if req_columns is not None and column not in req_columns:
-                continue
-
-            if key == 'column':
-                val_key = column
+        for column in columns or schema.columns(recurse=recurse, flags=flags).values():
+            column = column if isinstance(column, orb.Column) else schema.column(column)
+            try:
+                val_key = column if key == 'column' else getattr(column, key)()
+            except AttributeError:
+                raise errors.OrbError(
+                    'Invalid key used in data collection.  Must be name, field, or column.'
+                )
             else:
-                try:
-                    val_key = getattr(column, key)()
-                except AttributeError:
-                    raise errors.OrbError('Invalid key used in data collection.  Must be name, field, or column.')
-
-            value = self.get(column, **get_options)
-            if mapper:
-                value = mapper(value)
-            output[val_key] = value
+                value = self.get(column, **get_options)
+                output[val_key] = mapper(value) if mapper else value
 
         return output
 
@@ -1086,6 +1178,16 @@ class Model(object):
             record = cls(loadEvent=event, context=context)
 
         return record
+
+    def read(self):
+        record_id = self.id()
+        data = self.fetch(record_id, inflated=False, context=self.__context)
+
+        if not data:
+            raise errors.RecordNotFound(self, record_id)
+
+        event = orb.events.LoadEvent(record=self, data=data)
+        self._load(event)
 
     @classmethod
     def removeCallback(cls, eventType, func, record=None):

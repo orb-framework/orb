@@ -24,9 +24,9 @@ class SELECT(PSQLStatement):
 
         # determine what to expand
         schema = model.schema()
+        columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
         expand = context.expandtree(model)
         expanded = bool(expand)
-        columns = [schema.column(c) for c in context.columns] if context.columns else schema.columns().values()
 
         data = {
             'locale': context.locale,
@@ -37,12 +37,33 @@ class SELECT(PSQLStatement):
         sql_columns = defaultdict(list)
         sql_joins = []
 
+        # pre-process columns for expansion based on shortcuts
+        cleaned_columns = []
+        for column in columns:
+            if column.shortcut() and not issubclass(model, orb.View):
+                shortcut = column.shortcut()
+                ref_column = schema.column(shortcut.partition('.')[0])
+                index = None if isinstance(column, orb.ReferenceColumn) else -1
+
+                parts = column.shortcut().split('.')
+                curr = expand
+                for part in parts[:index]:
+                    curr.setdefault(part, {})
+                    curr = curr[part]
+
+                expanded = bool(expand)
+                cleaned_columns.append(ref_column)
+            else:
+                cleaned_columns.append(column)
+
+        columns = cleaned_columns
+
         # process columns to select
         for column in sorted(columns, self.cmpcol):
-            if column.testFlag(column.Flags.Virtual):
+            if column.testFlag(column.Flags.Virtual) and not issubclass(model, orb.View):
                 continue
 
-            if column.testFlag(column.Flags.I18n):
+            elif column.testFlag(column.Flags.I18n):
                 if context.locale == 'all':
                     sql = u'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{0}"'
                 elif data['locale'] == data['default_locale'] or column.testFlag(column.Flags.I18n_NoDefault):
@@ -53,6 +74,7 @@ class SELECT(PSQLStatement):
                 sql_columns['i18n'].append(sql.format(column.field()))
                 sql_group_by.add(u'"{0}"."{1}"'.format(schema.dbname(), schema.idColumn().field()))
                 fields[column] = u'"i18n"."{0}"'.format(column.field())
+
             else:
                 # expand a reference
                 if isinstance(column, orb.ReferenceColumn) and column.name() in expand:
@@ -68,7 +90,7 @@ class SELECT(PSQLStatement):
                                                                              column.field()))
 
         # expand any pipes
-        if expand:
+        if expand and not context.columns:
             for collector in schema.collectors().values():
                 if collector.name() in expand:
                     if collector.testFlag(collector.Flags.Virtual):
@@ -103,8 +125,9 @@ class SELECT(PSQLStatement):
                 if context.distinct is True:
                     sql_columns['standard'].append(field)
 
+        column_text = ', '.join(sql_columns['standard'] + sql_columns['i18n']).strip(', ')
         if context.distinct is True:
-            cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']),
+            cmd = ['SELECT DISTINCT {0} FROM "{1}"'.format(column_text,
                                                            schema.dbname())]
         elif isinstance(context.distinct, (list, set, tuple)):
             on_ = []
@@ -116,12 +139,12 @@ class SELECT(PSQLStatement):
                     on_.append(fields.get(col) or u'"{0}"."{1}"'.format(schema.dbname(), column.field()))
 
             cmd = [u'SELECT DISTINCT ON ({0}) {1} FROM "{2}"."{3}"'.format(', '.join(on_),
-                                                                    ', '.join(sql_columns['standard'] + sql_columns['i18n']),
+                                                                    column_text,
                                                                     schema.namespace() or 'public',
                                                                     schema.dbname())]
             sql_order_by = on_ + sql_order_by
         else:
-            cmd = [u'SELECT {0} FROM "{1}"."{2}"'.format(', '.join(sql_columns['standard'] + sql_columns['i18n']),
+            cmd = [u'SELECT {0} FROM "{1}"."{2}"'.format(column_text,
                                                          schema.namespace() or 'public',
                                                          schema.dbname())]
 

@@ -31,7 +31,7 @@ class Context(object):
         'expand': None,
         'format': 'json',
         'force': False,
-        'inflated': True,
+        'inflated': None,
         'limit': None,
         'locale': None,
         'namespace': '',
@@ -183,7 +183,7 @@ class Context(object):
 
         :return: <dict>
         """
-        if model:
+        if model and not self.columns:
             schema = model.schema()
             defaults = schema.columns(flags=orb.Column.Flags.AutoExpand).keys()
             defaults += schema.collectors(flags=orb.Collector.Flags.AutoExpand).keys()
