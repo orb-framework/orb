@@ -1,5 +1,5 @@
 import pytest
-from test_marks import requires_pg
+from tests.test_marks import requires_pg
 
 
 @pytest.mark.run(order=1)

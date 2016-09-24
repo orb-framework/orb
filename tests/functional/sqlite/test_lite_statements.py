@@ -1,5 +1,5 @@
 import pytest
-from test_marks import requires_lite
+from tests.test_marks import requires_lite
 
 
 # ----

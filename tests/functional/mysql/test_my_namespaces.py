@@ -1,14 +1,14 @@
 import pytest
 
-from test_marks import requires_pg
+from tests.test_marks import requires_mysql
 
 
-@requires_pg
-def test_pg_namespace_sync(orb, pg_db, namespace_models):
-    conn = pg_db.connection()
+@requires_mysql
+def test_my_namespace_sync(orb, my_db, namespace_models):
+    conn = my_db.connection()
 
     with orb.Context(namespace='test_namespace_a'):
-        pg_db.sync(models=namespace_models.keys())
+        my_db.sync(models=namespace_models.keys())
 
         result_default = conn.execute('SELECT * FROM test_namespace_a.test_defaults ORDER BY id DESC LIMIT 1')[0]
         result_explicit = conn.execute('SELECT * FROM test_explicit.test_explicits ORDER BY id DESC LIMIT 1')[0]
@@ -16,12 +16,12 @@ def test_pg_namespace_sync(orb, pg_db, namespace_models):
         assert result_default[0]['name'] == 'test'
         assert result_explicit[0]['name'] == 'test'
 
-@requires_pg
-def test_pg_second_namespace_sync(orb, pg_db, namespace_models):
-    conn = pg_db.connection()
+@requires_mysql
+def test_my_second_namespace_sync(orb, my_db, namespace_models):
+    conn = my_db.connection()
 
     with orb.Context(namespace='test_namespace_b'):
-        pg_db.sync(models=namespace_models.keys())
+        my_db.sync(models=namespace_models.keys())
 
         result_default = conn.execute('SELECT * FROM test_namespace_b.test_defaults ORDER BY id DESC LIMIT 1')[0]
         result_explicit = conn.execute('SELECT * FROM test_explicit.test_explicits ORDER BY id DESC LIMIT 1')[0]
@@ -29,8 +29,8 @@ def test_pg_second_namespace_sync(orb, pg_db, namespace_models):
         assert result_default[0]['name'] == 'test'
         assert result_explicit[0]['name'] == 'test'
 
-@requires_pg
-def test_pg_check_namespace_ids(orb, namespace_models):
+@requires_mysql
+def test_my_check_namespace_ids(orb, namespace_models):
     TestDefault = namespace_models['TestDefault']
 
     with orb.Context(namespace='test_namespace_a'):

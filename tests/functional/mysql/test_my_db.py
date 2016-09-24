@@ -1,5 +1,5 @@
 import pytest
-from test_marks import requires_mysql
+from tests.test_marks import requires_mysql
 
 
 @pytest.mark.run(order=1)

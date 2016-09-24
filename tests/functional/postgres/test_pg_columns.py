@@ -3,7 +3,7 @@ import datetime
 import decimal
 import pytz
 
-from test_marks import requires_pg
+from tests.test_marks import requires_pg
 
 
 TEST_DATA = {'testing': 10}

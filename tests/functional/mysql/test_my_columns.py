@@ -2,7 +2,7 @@ import datetime
 import decimal
 import pytz
 
-from test_marks import requires_mysql
+from tests.test_marks import requires_mysql
 
 
 TEST_DATA = {'testing': 10}
