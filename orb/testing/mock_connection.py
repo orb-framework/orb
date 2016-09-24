@@ -75,7 +75,7 @@ class MockConnection(orb.Connection):
         """
         # validate inputs
         assert issubclass(model, orb.Model)
-        assert isinstance(model, orb.Context)
+        assert isinstance(context, orb.Context)
 
         # return the desired response
         return self.next_response('count', model, context)
@@ -92,7 +92,7 @@ class MockConnection(orb.Connection):
         """
         # validate inputs
         assert issubclass(model, orb.Model)
-        assert isinstance(model, orb.Context)
+        assert isinstance(context, orb.Context)
         assert isinstance(owner, basestring)
         assert type(includeReferences) == bool
 

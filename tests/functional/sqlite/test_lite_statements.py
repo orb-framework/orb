@@ -1,12 +1,3 @@
-import pytest
-from tests.test_marks import requires_lite
-
-
-# ----
-# test SQL statement generation
-
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_statement_add_column(User, lite_sql):
     st = lite_sql.statement('ADD COLUMN')
     assert st is not None
@@ -14,8 +5,6 @@ def test_lite_statement_add_column(User, lite_sql):
     statement, data = st(User.schema().column('username'))
     assert statement == 'ADD COLUMN `username` TEXT(255) UNIQUE'
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_statement_create_table(User, lite_sql):
     st = lite_sql.statement('CREATE')
     assert st is not None
@@ -23,8 +12,6 @@ def test_lite_statement_create_table(User, lite_sql):
     statement, data = st(User)
     assert 'CREATE TABLE IF NOT EXISTS `users`' in statement
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_statement_insert_records(orb, User, lite_sql):
     st = lite_sql.statement('INSERT')
     assert st is not None
@@ -34,8 +21,6 @@ def test_lite_statement_insert_records(orb, User, lite_sql):
     statement, data = st([user_a, user_b])
     assert 'INSERT INTO `users`' in statement
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_statement_alter(orb, GroupUser, lite_sql):
     add = [orb.StringColumn(name='test_add')]
     remove = [orb.StringColumn(name='test_remove')]
@@ -49,8 +34,6 @@ def test_lite_statement_alter(orb, GroupUser, lite_sql):
     statement, data = st(GroupUser, add)
     assert 'ALTER' in statement
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_statement_alter_invalid(orb, lite_sql):
     st = lite_sql.statement('ALTER')
     assert st is not None
@@ -58,8 +41,6 @@ def test_lite_statement_alter_invalid(orb, lite_sql):
     with pytest.raises(orb.errors.OrbError):
         statement, data = st(orb.View)
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_statement_create_index(orb, GroupUser, lite_sql):
     index = orb.Index(
         name='byGroupAndUser',
@@ -78,11 +59,6 @@ def test_lite_statement_create_index(orb, GroupUser, lite_sql):
     statement, data = st(index, checkFirst=True)
     assert 'DO $$' in statement
 
-# ----
-# test SQL statement execution
-
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_create_table(User, lite_sql, lite_db):
     st = lite_sql.statement('CREATE')
     sql, data = st(User)
@@ -90,8 +66,6 @@ def test_lite_create_table(User, lite_sql, lite_db):
     conn.execute(sql)
     assert True
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_insert_bob(orb, User, lite_sql, lite_db):
     st = lite_sql.statement('INSERT')
     user_a = User({
@@ -108,8 +82,6 @@ def test_lite_insert_bob(orb, User, lite_sql, lite_db):
         pass
     assert True
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_insert_sally(orb, User, lite_sql, lite_db):
     st = lite_sql.statement('INSERT')
     user_a = User({
@@ -127,8 +99,6 @@ def test_lite_insert_sally(orb, User, lite_sql, lite_db):
         pass
     assert True
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_select_all(orb, User, lite_sql, lite_db):
     st = lite_sql.statement('SELECT')
     sql, data = st(User, orb.Context())
@@ -136,8 +106,6 @@ def test_lite_select_all(orb, User, lite_sql, lite_db):
     records, count = conn.execute(sql, data)
     assert len(records) == count
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_select_one(orb, User, lite_sql, lite_db):
     st = lite_sql.statement('SELECT')
     sql, data = st(User, orb.Context(limit=1))
@@ -145,8 +113,6 @@ def test_lite_select_one(orb, User, lite_sql, lite_db):
     records, count = conn.execute(sql, data)
     assert count == 1
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_select_bob(orb, User, lite_sql, lite_db):
     st = lite_sql.statement('SELECT')
     sql, data = st(User, orb.Context(where=orb.Query('username') == 'bob'))
@@ -154,8 +120,6 @@ def test_lite_select_bob(orb, User, lite_sql, lite_db):
     records, count = conn.execute(sql, data)
     assert count == 1 and records[0]['username'] == 'bob'
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_select_count(orb, User, lite_sql, lite_db):
     select_st = lite_sql.statement('SELECT')
     select_sql, data = select_st(User, orb.Context())
@@ -169,8 +133,6 @@ def test_lite_select_count(orb, User, lite_sql, lite_db):
 
     assert results[0]['count'] == count
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_select_bob_or_sally(orb, lite_sql, lite_db, User):
     st = lite_sql.statement('SELECT')
     q = orb.Query('username') == 'bob'
@@ -181,8 +143,6 @@ def test_lite_select_bob_or_sally(orb, lite_sql, lite_db, User):
     records, count = conn.execute(sql, data)
     assert count == 2 and records[0]['username'] in ('bob', 'sally') and records[1]['username'] in ('bob', 'sally')
 
-@pytest.mark.run(order=2)
-@requires_lite
 def test_lite_select_bob_and_sally(orb, lite_sql, lite_db, User):
     st = lite_sql.statement('SELECT')
     q = orb.Query('username') == 'bob'

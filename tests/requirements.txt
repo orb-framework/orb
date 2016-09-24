@@ -1,6 +1,3 @@
 tox
 coverage
 pytest
-pytest-cov
-pytest-html
-pytest-ordering

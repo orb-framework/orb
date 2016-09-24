@@ -1,16 +1,21 @@
 import pytest
 
-def test_context_null(orb):
+def test_context_null():
+    import orb
+
     context = orb.Context()
     assert context.isNull() == True
 
-@pytest.mark.run(order=1)
-def test_context_no_database(orb):
+def test_context_no_database():
+    import orb
+
     context = orb.Context()
     with pytest.raises(orb.errors.DatabaseNotFound):
         print context.db
 
-def test_context(orb, User):
+def test_context(mock_db, User):
+    import orb
+
     with orb.Context(database='testing'):
         user_a = User()
 
@@ -20,7 +25,9 @@ def test_context(orb, User):
     assert user_a.context().database == 'testing'
     assert user_b.context().database == 'testing_2'
 
-def test_invalid_context_properties(orb):
+def test_invalid_context_properties(mock_db):
+    import orb
+
     with pytest.raises(orb.errors.InvalidContextOption):
         context = orb.Context(page=-1)
 
@@ -39,7 +46,9 @@ def test_invalid_context_properties(orb):
     with pytest.raises(orb.errors.InvalidContextOption):
         context = orb.Context(start=-1)
 
-def test_valid_context_properties(orb):
+def test_valid_context_properties(mock_db):
+    import orb
+
     context = orb.Context(
         page=1,
         pageSize=10
@@ -60,7 +69,9 @@ def test_valid_context_properties(orb):
     assert context.start == 10
     assert context.limit == 10
 
-def test_context_equality(orb):
+def test_context_equality(mock_db):
+    import orb
+
     context_a = orb.Context(database='testing')
     context_b = orb.Context(database='testing2')
     context_c = orb.Context(database='testing')
@@ -68,14 +79,18 @@ def test_context_equality(orb):
     assert context_a != context_b
     assert context_a == context_c
 
-def test_context_scope(orb, User):
+def test_context_scope(mock_db, User):
+    import orb
+
     scope = {'session': 123}
     with orb.Context(scope=scope):
         user_a = User()
 
     assert user_a.context().scope == scope
 
-def test_nested_context_scope(orb, User):
+def test_nested_context_scope(mock_db, User):
+    import orb
+
     scope_a = {'session': 123}
     scope_b = {'session': 234}
 
@@ -101,7 +116,9 @@ def test_nested_context_scope(orb, User):
     assert user_a.context().scope == scope_a
     assert user_b.context().scope == scope_b
 
-def test_locale_scope(orb, User):
+def test_locale_scope(mock_db, User):
+    import orb
+
     with orb.Context(locale='en_US'):
         user_a = User()
         user_b = User()
@@ -113,12 +130,16 @@ def test_locale_scope(orb, User):
     assert user_b.context().locale == 'en_US'
     assert user_c.context().locale == 'fr_FR'
 
-def test_context_update(orb):
+def test_context_update(mock_db):
+    import orb
+
     context_a = orb.Context()
     context_a.update({'limit': 1})
     assert context_a.limit == 1
 
-def test_context_merge_by_dict(orb):
+def test_context_merge_by_dict(mock_db):
+    import orb
+
     context_a = orb.Context(limit=1)
     context_b = context_a.copy()
     context_b.update({'locale': 'fr_FR'})
@@ -126,7 +147,9 @@ def test_context_merge_by_dict(orb):
     assert context_b.limit == 1
     assert context_b.locale == 'fr_FR'
 
-def test_context_merge_by_context(orb):
+def test_context_merge_by_context(mock_db):
+    import orb
+
     context_a = orb.Context(limit=1)
     context_c = orb.Context(locale='fr_FR')
     context_b = context_a.copy()
@@ -135,7 +158,9 @@ def test_context_merge_by_context(orb):
     assert context_b.limit == 1
     assert context_b.locale == 'fr_FR'
 
-def test_context_hash(orb):
+def test_context_hash(mock_db):
+    import orb
+
     context_a = orb.Context()
     context_b = orb.Context()
 
@@ -148,7 +173,9 @@ def test_context_hash(orb):
 
     assert context_a == context_b
 
-def test_context_dict_key(orb):
+def test_context_dict_key(mock_db):
+    import orb
+
     context_a = orb.Context(limit=10)
     context_b = orb.Context(limit=10)
 
@@ -156,7 +183,9 @@ def test_context_dict_key(orb):
 
     assert test[context_b] == 1
 
-def test_invalid_context_property(orb):
+def test_invalid_context_property(mock_db):
+    import orb
+
     context = orb.Context()
     assert context.inflated is None
     with pytest.raises(AttributeError):
@@ -165,41 +194,55 @@ def test_invalid_context_property(orb):
     with pytest.raises(AttributeError):
         context.bad_property = 'bad'
 
-def test_context_iterator(orb):
+def test_context_iterator(mock_db):
+    import orb
+
     context = orb.Context()
     for k, v in context:
         assert v == getattr(context, k)
 
-def test_context_scope_copy(orb):
+def test_context_scope_copy(mock_db):
+    import orb
+
     context = orb.Context(scope={'request': 'blah'})
     context_b = context.copy()
     assert context.scope == context_b.scope
 
-def test_context_expand_as_set(orb):
+def test_context_expand_as_set(mock_db):
+    import orb
+
     context = orb.Context(expand={'user', 'group'})
     assert type(context.expand) == list
     assert 'user' in context.expand
     assert 'group' in context.expand
 
-def test_context_expand_as_string(orb):
+def test_context_expand_as_string(mock_db):
+    import orb
+
     context = orb.Context(expand='user,group')
     assert type(context.expand) == list
     assert 'user' in context.expand
     assert 'group' in context.expand
 
-def test_context_order_as_string(orb):
+def test_context_order_as_string(mock_db):
+    import orb
+
     context = orb.Context(order='+id,-username')
     assert type(context.order) == list
     assert ('id', 'asc') in context.order
     assert ('username', 'desc') in context.order
 
-def test_context_order_as_set(orb):
+def test_context_order_as_set(mock_db):
+    import orb
+
     context = orb.Context(order={('id', 'asc'), ('username', 'desc')})
     assert type(context.order) == list
     assert ('id', 'asc') in context.order
     assert ('username', 'desc') in context.order
 
-def test_context_paging(orb):
+def test_context_paging(mock_db):
+    import orb
+
     context = orb.Context(page=1, pageSize=10)
     assert context.start == 0
     assert context.limit == 10
@@ -212,7 +255,9 @@ def test_context_paging(orb):
     assert context.start == 20
     assert context.limit == 10
 
-def test_context_scope_merging(orb):
+def test_context_scope_merging(mock_db):
+    import orb
+
     with orb.Context(scope={'a': 10}) as a:
         with orb.Context(scope={'b': 20}) as b:
             assert a.scope.get('a') == 10
@@ -224,7 +269,9 @@ def test_context_scope_merging(orb):
             assert a.scope.get('a') == 10
             assert c.scope.get('a') == 20
 
-def test_context_namespacing(orb):
+def test_context_namespacing(mock_db):
+    import orb
+
     context = orb.Context(namespace='test')
     assert context.namespace == 'test'
 

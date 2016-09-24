@@ -1,6 +1,4 @@
 language: python
 python:
   - "2.7"
-env:
-  - IGNORE_POSTGRES=1 IGNORE_MYSQL=1
 script: "python setup.py test"

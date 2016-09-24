@@ -5,22 +5,7 @@ from projex.enum import enum
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
 
-
-def pytest_runtest_makereport(item, call):
-    if "incremental" in item.keywords:
-        if call.excinfo is not None:
-            parent = item.parent
-            parent._previousfailed = item
-
-
-def pytest_runtest_setup(item):
-    previousfailed = getattr(item.parent, "_previousfailed", None)
-    if previousfailed is not None:
-        pytest.xfail("previous test failed (%s)" %previousfailed.name)
-
-# --------------
-
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def orb():
     import orb
     from projex import security
@@ -30,14 +15,25 @@ def orb():
 
     return orb
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
+def mock_db():
+    import orb
+    import orb.testing
+
+    # creating the database
+    db = orb.Database(orb.testing.MockConnection(), 'testing')
+    db.activate()
+
+    return db
+
+@pytest.fixture()
 def EmptyUser(orb):
     class EmptyUser(orb.Table):
         pass
 
     return EmptyUser
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def TestAllColumns(orb):
     class TestReference(orb.Table):
         id = orb.IdColumn()
@@ -90,7 +86,7 @@ def TestAllColumns(orb):
 
     return TestAllColumns
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def namespace_models(orb):
     class TestDefault(orb.Table):
         id = orb.IdColumn()
@@ -114,7 +110,7 @@ def namespace_models(orb):
 
     return {'TestDefault': TestDefault, 'TestExplicit': TestExplicit}
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def testing_schema(orb):
     class Group(orb.Table):
         __resource__ = True
@@ -193,38 +189,38 @@ def testing_schema(orb):
 
     return locals()
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def Comment(testing_schema):
     return testing_schema['Comment']
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def Attachment(testing_schema):
     return testing_schema['Attachment']
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def User(testing_schema):
     return testing_schema['User']
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def Employee(testing_schema):
     return testing_schema['Employee']
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def GroupUser(testing_schema):
     return testing_schema['GroupUser']
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def Group(testing_schema):
     return testing_schema['Group']
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def Document(testing_schema):
     return testing_schema['Document']
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def Role(testing_schema):
     return testing_schema['Role']
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def Employee(testing_schema):
     return testing_schema['Employee']

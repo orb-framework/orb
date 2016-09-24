@@ -1,9 +1,3 @@
-import pytest
-
-from tests.test_marks import requires_pg
-
-
-@requires_pg
 def test_pg_namespace_sync(orb, pg_db, namespace_models):
     conn = pg_db.connection()
 
@@ -16,7 +10,6 @@ def test_pg_namespace_sync(orb, pg_db, namespace_models):
         assert result_default[0]['name'] == 'test'
         assert result_explicit[0]['name'] == 'test'
 
-@requires_pg
 def test_pg_second_namespace_sync(orb, pg_db, namespace_models):
     conn = pg_db.connection()
 
@@ -29,7 +22,6 @@ def test_pg_second_namespace_sync(orb, pg_db, namespace_models):
         assert result_default[0]['name'] == 'test'
         assert result_explicit[0]['name'] == 'test'
 
-@requires_pg
 def test_pg_check_namespace_ids(orb, namespace_models):
     TestDefault = namespace_models['TestDefault']
 

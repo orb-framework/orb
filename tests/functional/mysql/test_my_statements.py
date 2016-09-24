@@ -1,12 +1,3 @@
-import pytest
-from tests.test_marks import requires_mysql
-
-
-# ----
-# test SQL statement generation
-
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_statement_add_column(User, my_sql):
     st = my_sql.statement('ADD COLUMN')
     assert st is not None
@@ -14,8 +5,6 @@ def test_my_statement_add_column(User, my_sql):
     statement, data = st(User.schema().column('username'))
     assert statement == 'ADD COLUMN `username` varchar(255) UNIQUE'
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_statement_create_table(User, my_sql):
     st = my_sql.statement('CREATE')
     assert st is not None
@@ -23,8 +12,6 @@ def test_my_statement_create_table(User, my_sql):
     statement, data = st(User)
     assert 'CREATE TABLE IF NOT EXISTS `orb_testing`.`users`' in statement
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_statement_create_table_in_namespace(User, my_sql):
     import orb
     with orb.Context(namespace='custom'):
@@ -34,8 +21,6 @@ def test_my_statement_create_table_in_namespace(User, my_sql):
         statement, data = st(User)
         assert 'CREATE TABLE IF NOT EXISTS `custom`.`users`' in statement
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_statement_insert_records(orb, User, my_sql):
     st = my_sql.statement('INSERT')
     assert st is not None
@@ -45,8 +30,6 @@ def test_my_statement_insert_records(orb, User, my_sql):
     statement, data = st([user_a, user_b])
     assert 'INSERT INTO `orb_testing`.`users`' in statement
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_statement_insert_records_in_namespace(orb, User, my_sql):
     user_a = User(username='bob')
     user_b = User(username='sally')
@@ -58,8 +41,6 @@ def test_my_statement_insert_records_in_namespace(orb, User, my_sql):
         statement, data = st([user_a, user_b])
         assert 'INSERT INTO `custom`.`users`' in statement
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_statement_alter(orb, GroupUser, my_sql):
     add = [orb.StringColumn(name='test_add')]
     remove = [orb.StringColumn(name='test_remove')]
@@ -73,8 +54,6 @@ def test_my_statement_alter(orb, GroupUser, my_sql):
     statement, data = st(GroupUser, add)
     assert 'ALTER' in statement
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_statement_alter_invalid(orb, my_sql):
     st = my_sql.statement('ALTER')
     assert st is not None
@@ -82,8 +61,6 @@ def test_my_statement_alter_invalid(orb, my_sql):
     with pytest.raises(orb.errors.OrbError):
         statement, data = st(orb.View)
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_statement_create_index(orb, GroupUser, my_sql):
     index = orb.Index(name='byGroupAndUser', columns=[orb.ReferenceColumn(name='group'), orb.ReferenceColumn('user')])
     index.setSchema(GroupUser.schema())
@@ -96,11 +73,6 @@ def test_my_statement_create_index(orb, GroupUser, my_sql):
     statement, data = st(index, checkFirst=True)
     assert 'DO $$' in statement
 
-# ----
-# test SQL statement execution
-
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_create_table(User, my_sql, my_db):
     st = my_sql.statement('CREATE')
     sql, data = st(User)
@@ -108,8 +80,6 @@ def test_my_create_table(User, my_sql, my_db):
     conn.execute(sql)
     assert True
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_insert_bob(orb, User, my_sql, my_db):
     st = my_sql.statement('INSERT')
     user_a = User({
@@ -126,8 +96,6 @@ def test_my_insert_bob(orb, User, my_sql, my_db):
         pass
     assert True
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_insert_sally(orb, User, my_sql, my_db):
     st = my_sql.statement('INSERT')
     user_a = User({
@@ -145,8 +113,6 @@ def test_my_insert_sally(orb, User, my_sql, my_db):
         pass
     assert True
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_select_all(orb, User, my_sql, my_db):
     st = my_sql.statement('SELECT')
     sql, data = st(User, orb.Context())
@@ -154,8 +120,6 @@ def test_my_select_all(orb, User, my_sql, my_db):
     records, count = conn.execute(sql, data)
     assert len(records) == count
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_select_one(orb, User, my_sql, my_db):
     st = my_sql.statement('SELECT')
     sql, data = st(User, orb.Context(limit=1))
@@ -163,8 +127,6 @@ def test_my_select_one(orb, User, my_sql, my_db):
     records, count = conn.execute(sql, data)
     assert count == 1
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_select_bob(orb, User, my_sql, my_db):
     st = my_sql.statement('SELECT')
     sql, data = st(User, orb.Context(where=orb.Query('username') == 'bob'))
@@ -172,8 +134,6 @@ def test_my_select_bob(orb, User, my_sql, my_db):
     records, count = conn.execute(sql, data)
     assert count == 1 and records[0]['username'] == 'bob'
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_select_count(orb, User, my_sql, my_db):
     select_st = my_sql.statement('SELECT')
     select_sql, data = select_st(User, orb.Context())
@@ -187,8 +147,6 @@ def test_my_select_count(orb, User, my_sql, my_db):
 
     assert results[0]['count'] == count
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_select_bob_or_sally(orb, my_sql, my_db, User):
     st = my_sql.statement('SELECT')
     q = orb.Query('username') == 'bob'
@@ -199,8 +157,6 @@ def test_my_select_bob_or_sally(orb, my_sql, my_db, User):
     records, count = conn.execute(sql, data)
     assert count == 2 and records[0]['username'] in ('bob', 'sally') and records[1]['username'] in ('bob', 'sally')
 
-@pytest.mark.run(order=2)
-@requires_mysql
 def test_my_select_bob_and_sally(orb, my_sql, my_db, User):
     st = my_sql.statement('SELECT')
     q = orb.Query('username') == 'bob'

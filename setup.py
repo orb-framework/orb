@@ -96,9 +96,10 @@ if __name__ == '__main__':
         VERSION = '0.0.0'
 
     # parse the requirements file
-    _install_requires, _pypi_urls = read_requirements_file('requirements.txt')
-    INSTALL_REQUIRES.extend(_install_requires)
-    DEPENDENCY_LINKS.extend(_pypi_urls)
+    if os.path.isfile('requirements.txt'):
+        _install_requires, _pypi_urls = read_requirements_file('requirements.txt')
+        INSTALL_REQUIRES.extend(_install_requires)
+        DEPENDENCY_LINKS.extend(_pypi_urls)
 
     if os.path.isfile('tests/requirements.txt'):
         _tests_require, _pypi_urls = read_requirements_file('tests/requirements.txt')
@@ -124,6 +125,7 @@ if __name__ == '__main__':
         install_requires=INSTALL_REQUIRES,
         packages=find_packages(),
         tests_require=TESTS_REQUIRE,
+        test_suite='tests',
         long_description=LONG_DESCRIPTION,
         cmdclass={
             'tag': tag,
