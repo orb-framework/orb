@@ -1,0 +1,6 @@
+projex>=2015.0.12
+inflection
+pycrypto
+pyparsing
+pyyaml
+pytz
