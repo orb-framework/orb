@@ -54,7 +54,6 @@ from .core.connection_types import *
 
 from .core.modelmixin import ModelMixin
 
-from .testing import *
 
 # define the global system
 system = System()
