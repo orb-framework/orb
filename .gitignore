@@ -56,3 +56,6 @@ orb_testing
 intro.db
 .eggs
 tests/.cache
+.cache
+.tox
+bak
