@@ -166,7 +166,7 @@ class Index(object):
             msg = 'Missing {0} from {1}.{2} index'.format(err[0].name(),
                                                           record.schema().name(),
                                                           self.name())
-            raise errors.InvalidIndexArguments(self, msg=msg)
+            raise errors.InvalidIndexArguments(self.schema(), msg=msg)
 
         # # ensure a unique record is preserved
         # if self.unique():

@@ -142,7 +142,7 @@ class Collector(object):
             if schema is not None:
                 return schema.model()
             else:
-                raise orb.errors.ModelNotFound(self.__model)
+                raise orb.errors.ModelNotFound(schema=self.__model)
         else:
             return self.__model
 

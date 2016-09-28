@@ -66,7 +66,7 @@ class ReverseLookup(Collector):
         if schema is not None:
             return schema.model()
         else:
-            raise orb.errors.ModelNotFound(self.__reference)
+            raise orb.errors.ModelNotFound(schema=self.__reference)
 
     def setRemoveAction(self, action):
         """
@@ -85,5 +85,5 @@ class ReverseLookup(Collector):
         try:
             return schema.column(self.__target)
         except AttributeError:
-            raise orb.errors.ModelNotFound(self.__reference)
+            raise orb.errors.ModelNotFound(schema=self.__reference)
 

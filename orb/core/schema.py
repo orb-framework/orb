@@ -164,7 +164,7 @@ class Schema(object):
         if recurse and self.inherits():
             schema = orb.system.schema(self.inherits())
             if not schema:
-                raise orb.errors.ModelNotFound(self.inherits())
+                raise orb.errors.ModelNotFound(schema=self.inherits())
             else:
                 iflags = (flags & ~orb.Collector.Flags.Virtual) if flags else ~orb.Collector.Flags.Virtual
                 output.update(schema.collectors(recurse=recurse, flags=iflags))
@@ -246,7 +246,7 @@ class Schema(object):
                 if inherits:
                     schema = orb.system.schema(inherits)
                     if not schema:
-                        raise orb.errors.ModelNotFound(inherits)
+                        raise orb.errors.ModelNotFound(schema=inherits)
                     else:
                         # lookup ancestor columns (don't care about virtual columns)
                         iflags = (flags & ~orb.Column.Flags.Virtual) if flags else ~orb.Column.Flags.Virtual
@@ -316,7 +316,7 @@ class Schema(object):
         if recurse and self.inherits():
             schema = orb.system.schema(self.inherits())
             if not schema:
-                raise orb.errors.ModelNotFound(self.inherits())
+                raise orb.errors.ModelNotFound(schema=self.inherits())
             else:
                 output.update(schema.indexes(recurse=recurse))
         return output
@@ -339,7 +339,7 @@ class Schema(object):
         while inherits:
             ischema = orb.system.schema(inherits)
             if not ischema:
-                raise orb.errors.ModelNotFound(inherits)
+                raise orb.errors.ModelNotFound(schema=inherits)
 
             yield ischema
             inherits = ischema.inherits()

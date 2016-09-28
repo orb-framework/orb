@@ -262,7 +262,7 @@ class CREATE(PSQLStatement):
         if inherits:
             inherits_model = orb.system.model(inherits)
             if not inherits_model:
-                raise orb.errors.ModelNotFound(inherits)
+                raise orb.errors.ModelNotFound(schema=inherits)
 
             inherits = '\nINHERITS ("{0}")\n'.format(inherits_model.schema().dbname())
 

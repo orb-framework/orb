@@ -293,7 +293,7 @@ class Model(object):
                 event = orb.events.LoadEvent(record=self, data=data)
                 self._load(event)
             else:
-                raise errors.RecordNotFound(self, record_id)
+                raise errors.RecordNotFound(schema=self.schema(), column=record_id)
 
         # after loading everything else, update the values for this model
         update_values = {k: v for k, v in values.items() if self.schema().column(k)}
@@ -1019,7 +1019,7 @@ class Model(object):
             if schema_name and schema_name != schema.name():
                 schema = orb.system.schema(schema_name)
                 if not schema:
-                    raise orb.errors.ModelNotFound(schema_name)
+                    raise orb.errors.ModelNotFound(schema=schema_name)
                 else:
                     model = schema.model()
 
@@ -1171,7 +1171,8 @@ class Model(object):
                 try:
                     record = morph_cls(values[id_col], context=context)
                 except KeyError:
-                    raise orb.errors.RecordNotFound(morph_cls, values.get(id_col))
+                    raise orb.errors.RecordNotFound(schema=morph_cls.schema(),
+                                                    column=values.get(id_col))
 
         if record is None:
             event = orb.events.LoadEvent(record=record, data=values)
@@ -1184,7 +1185,8 @@ class Model(object):
         data = self.fetch(record_id, inflated=False, context=self.__context)
 
         if not data:
-            raise errors.RecordNotFound(self, record_id)
+            raise errors.RecordNotFound(schema=self.schema(),
+                                        column=record_id)
 
         event = orb.events.LoadEvent(record=self, data=data)
         self._load(event)

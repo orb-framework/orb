@@ -219,31 +219,45 @@ class InvalidReference(ValidationError):
 class InvalidIndexArguments(ValidationError):
     """ Raised when an index is being called with invalid arguments """
     def __init__(self, index, msg):
-        super(InvalidIndexArguments, self).__init__(msg, context=index.schema().name())
+        super(InvalidIndexArguments, self).__init__(msg, context=index.name())
         self.index = index
 
 
 # Q
-#------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
-class QueryFailed(OrbError):
-    def __init__(self, sql, options, err):
-        msg = u'Query was:\n\n"%s"\n\nArgs: %s\n\nError: %s'
-        msg %= (sql, options, err)
+
+class QueryError(DatabaseError):
+    """ Base class for all query related errors """
+    pass
+
+
+class QueryFailed(QueryError):
+    """ Raised when a query is failing in the backend """
+    def __init__(self, query, data, error):
+        msg = u'\n\n'.join((
+            u'Query was:',
+            query,
+            u'Data: {0}'.format(data),
+            u'Error: {0}'.format(error)
+        ))
         super(QueryFailed, self).__init__(msg)
 
 
-class QueryInvalid(OrbError):
-    def __init__(self, msg):
-        super(QueryInvalid, self).__init__(msg)
+class QueryInvalid(QueryError):
+    """ Raised when rendering a query cannot be completed """
+    pass
 
 
-class QueryIsNull(OrbError):
+class QueryIsNull(QueryError):
+    """ Raised when a query will result in no values to be retrieved from a backend """
     def __init__(self):
-        super(QueryIsNull, self).__init__(u'This query will result in no items')
+        msg = u'This query will result in no items'
+        super(QueryIsNull, self).__init__(msg)
 
 
-class QueryTimeout(DatabaseError):
+class QueryTimeout(QueryError):
+    """ Raised when a query is taking too long to complete """
     def __init__(self, query=None, msecs=None, msg=None):
         msg = msg or u'The server cancelled the query because it was taking too long'
 
@@ -253,36 +267,18 @@ class QueryTimeout(DatabaseError):
         super(QueryTimeout, self).__init__(msg)
 
 
-# P
-#------------------------------------------------------------------------------
-
-class PrimaryKeyNotDefined(OrbError):
-    def __init__(self, record):
-        super(OrbError, self).__init__(u'No primary key defined for {0}'.format(record))
-
-
 # R
-#------------------------------------------------------------------------------
-
-class RecordNotFound(OrbError):
-    def __init__(self, model, pk):
-        msg = u'Could not find record {0}({1})'.format(model.schema().name(), pk)
-        super(RecordNotFound, self).__init__(msg)
+# -----------------------------------------------------------------------------
 
 
-class ReferenceNotFound(OrbError):
-    def __init__(self, column):
-        try:
-            text = column.name()
-        except AttributeError:
-            text = column
-
-        msg = u'{0} is a foreign key with no reference table'
-        super(ReferenceNotFound, self).__init__(msg.format(text))
+class RecordNotFound(SchemaError):
+    """ Raised when a record is loaded from the database by id, but not found """
+    DEFAULT_MESSAGE = u'Could not find record {schema}({column})'
 
 
 # S
 # -----------------------------------------------------------------------------
+
 
 class SearchEngineNotFound(OrbError):
     """ Raised by the model when attempting to search for records """
@@ -290,34 +286,31 @@ class SearchEngineNotFound(OrbError):
         msg = u'Missing search engine: {0}'.format(name)
         super(SearchEngineNotFound, self).__init__(msg)
 
-# T
-#------------------------------------------------------------------------------
 
-class ModelNotFound(OrbError):
-    def __init__(self, table):
-        super(ModelNotFound, self).__init__(u'Could not find `{0}` table'.format(table))
+# T
+# -----------------------------------------------------------------------------
+
+
+class ModelNotFound(SchemaError):
+    """ Raised when looking for a model but none can be found """
+    DEFAULT_MESSAGE = u'Could not find {schema} model'
 
 
 # V
 #------------------------------------------------------------------------------
 
-class ValueNotFound(OrbError):
-    def __init__(self, record, column):
-        super(ValueNotFound, self).__init__(u'{0} has no value for {1}'.format(record, column))
 
 class ValueOutOfRange(ValidationError):
-    def __init__(self, column, value, minimum, maximum):
-        msg = u'{0} for {1} is out of range.  Value must be '.format(value, column)
+    """ Raised when a value is not within a given minimum / maximum bound """
+    def __init__(self, column, value, minimum=None, maximum=None):
+        msg = u'{0} for {1} is out of range.'.format(value, column)
 
         if minimum is not None and maximum is not None:
-            msg += u'between {0} and {1}'.format(minimum, maximum)
+            msg += u'  Value must be between {0} and {1}'.format(minimum, maximum)
         elif minimum is not None:
-            msg += u'greater than {0}'
+            msg += u'  Value must be greater than {0}'.format(minimum)
         elif maximum is not None:
-            msg += u'less than {0}'.format(maximum)
+            msg += u'  Value must be less than {0}'.format(maximum)
 
         super(ValueOutOfRange, self).__init__(msg)
 
-class ViewNotFound(OrbError):
-    def __init__(self, table, view):
-        super(ViewNotFound, self).__init__(u'{0} has no view {1}'.format(table, view))

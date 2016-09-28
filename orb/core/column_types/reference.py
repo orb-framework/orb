@@ -105,7 +105,7 @@ class ReferenceColumn(Column):
         if isinstance(db_value, dict):
             cls = self.referenceModel()
             if not cls:
-                raise orb.errors.ModelNotFound(self.reference())
+                raise orb.errors.ModelNotFound(schema=self.reference())
             else:
                 load_event = orb.events.LoadEvent(data=db_value)
 
@@ -151,7 +151,7 @@ class ReferenceColumn(Column):
         """
         model = orb.system.model(self.__reference)
         if not model:
-            raise orb.errors.ModelNotFound(self.__reference)
+            raise orb.errors.ModelNotFound(schema=self.__reference)
         return model
 
     def restore(self, value, context=None):

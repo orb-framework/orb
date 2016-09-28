@@ -15,7 +15,7 @@ def test_database_error():
 
     err = orb.errors.DatabaseError()
     assert isinstance(err, orb.errors.OrbError)
-    assert err.message == u'Unknown database error occurred.'
+    assert err.message == u'Unknown database error occurred'
 
     msg = u'I can put a custom message'
     err = orb.errors.DatabaseError(msg)
@@ -90,10 +90,10 @@ def test_column_read_only_error():
     assert err.message == u'username of User is a read-only column'
 
     column = orb.Column(name='username')
-    err = orb.errors.ColumnReadOnly(column=column)
+    err = orb.errors.ColumnReadOnly(schema='User', column=column)
     assert isinstance(err, orb.errors.OrbError)
     assert isinstance(err, orb.errors.SchemaError)
-    assert err.message == u'username is a read-only column'
+    assert err.message == u'username of User is a read-only column'
 
 
 def test_column_validation_error():
@@ -123,7 +123,7 @@ def test_connection_lost_error():
     err = orb.errors.ConnectionLost()
     assert isinstance(err, orb.errors.OrbError)
     assert isinstance(err, orb.errors.DatabaseError)
-    assert err.message == u'Connection was lost to the database.  Please retry again soon.'
+    assert err.message == u'Connection was lost to the database.  Please retry again soon'
 
 
 def test_database_not_found_error():
@@ -132,7 +132,7 @@ def test_database_not_found_error():
     err = orb.errors.DatabaseNotFound()
     assert isinstance(err, orb.errors.OrbError)
     assert isinstance(err, orb.errors.DatabaseError)
-    assert err.message == u'No database was found.'
+    assert err.message == u'No database was found'
 
 
 def test_duplicate_column_found_error():
@@ -221,3 +221,108 @@ def test_invalid_index_arguments_error():
     assert err.message == 'missing name'
     assert err.context == index.name()
     assert err.index == index
+
+
+def test_query_error():
+    import orb
+
+    err = orb.errors.QueryError(u'Failed to load')
+    assert isinstance(err, orb.errors.OrbError)
+    assert isinstance(err, orb.errors.DatabaseError)
+    assert err.message == u'Failed to load'
+
+
+def test_query_failed_error():
+    import orb
+
+    err = orb.errors.QueryFailed(
+        'SELECT * FROM users',
+        {},
+        'No table named users'
+    )
+    assert isinstance(err, orb.errors.OrbError)
+    assert isinstance(err, orb.errors.DatabaseError)
+    assert isinstance(err, orb.errors.QueryError)
+    assert err.message == u'Query was:\n\n' \
+                          u'SELECT * FROM users\n\n' \
+                          u'Data: {}\n\n' \
+                          u'Error: No table named users'
+
+
+def test_query_is_invalid_error():
+    import orb
+
+    err = orb.errors.QueryInvalid(u'invalid query')
+    assert isinstance(err, orb.errors.OrbError)
+    assert isinstance(err, orb.errors.DatabaseError)
+    assert isinstance(err, orb.errors.QueryError)
+    assert err.message == u'invalid query'
+
+
+def test_query_is_null_error():
+    import orb
+
+    err = orb.errors.QueryIsNull()
+    assert isinstance(err, orb.errors.OrbError)
+    assert isinstance(err, orb.errors.DatabaseError)
+    assert isinstance(err, orb.errors.QueryError)
+    assert err.message == u'This query will result in no items'
+
+
+def test_query_timeout_error():
+    import orb
+
+    err = orb.errors.QueryTimeout(
+        query=u'SELECT * FROM users',
+        msecs=1000
+    )
+    assert isinstance(err, orb.errors.OrbError)
+    assert isinstance(err, orb.errors.DatabaseError)
+    assert isinstance(err, orb.errors.QueryError)
+    assert err.message == u'The server cancelled the query because it was taking too long'
+    assert err.query == u'SELECT * FROM users'
+    assert err.msecs == 1000
+
+
+def test_record_not_found_error():
+    import orb
+
+    err = orb.errors.RecordNotFound(schema='User', column='1')
+    assert isinstance(err, orb.errors.OrbError)
+    assert isinstance(err, orb.errors.SchemaError)
+    assert err.message == u'Could not find record User(1)'
+
+
+def test_search_engine_not_found_error():
+    import orb
+
+    err = orb.errors.SearchEngineNotFound('elastic')
+    assert isinstance(err, orb.errors.OrbError)
+    assert err.message == u'Missing search engine: elastic'
+
+
+def test_model_not_found_error():
+    import orb
+
+    err = orb.errors.ModelNotFound(schema='User')
+    assert isinstance(err, orb.errors.OrbError)
+    assert isinstance(err, orb.errors.SchemaError)
+    assert err.message == u'Could not find User model'
+
+
+def test_value_out_of_range_error():
+    import orb
+
+    err = orb.errors.ValueOutOfRange('count', 0)
+    assert isinstance(err, orb.errors.OrbError)
+    assert isinstance(err, orb.errors.ValidationError)
+    assert err.message == u'0 for count is out of range.'
+
+    err = orb.errors.ValueOutOfRange('count', 0, minimum=1)
+    assert err.message == u'0 for count is out of range.  Value must be greater than 1'
+
+    err = orb.errors.ValueOutOfRange('count', 2, maximum=1)
+    assert err.message == u'2 for count is out of range.  Value must be less than 1'
+
+    err = orb.errors.ValueOutOfRange('count', 5, minimum=1, maximum=3)
+    assert err.message == u'5 for count is out of range.  Value must be between 1 and 3'

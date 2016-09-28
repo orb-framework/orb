@@ -41,7 +41,7 @@ class CREATE(SQLiteStatement):
         if inherits:
             inherits_model = orb.system.model(inherits)
             if not inherits_model:
-                raise orb.errors.ModelNotFound(inherits)
+                raise orb.errors.ModelNotFound(schema=inherits)
 
             cmd_body.append('__base_id INTEGER')
 
