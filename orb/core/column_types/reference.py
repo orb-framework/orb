@@ -189,7 +189,7 @@ class ReferenceColumn(Column):
 
             if expected_schema != received_schema:
                 raise orb.errors.InvalidReference(self.name(),
-                                                  expected=expected_schema,
+                                                  expects=expected_schema,
                                                   received=received_schema)
 
         return super(ReferenceColumn, self).validate(value)

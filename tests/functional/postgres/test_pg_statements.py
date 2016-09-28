@@ -1,3 +1,5 @@
+import pytest
+
 def test_pg_statement_add_column(User, pg_sql):
     st = pg_sql.statement('ADD COLUMN')
     assert st is not None
