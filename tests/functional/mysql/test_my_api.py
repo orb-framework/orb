@@ -1,14 +1,10 @@
 import pytest
 
-from tests.test_marks import requires_mysql
 
-
-@requires_mysql
 def test_my_api_select_bob(orb, my_sql, my_db, User):
     record = User.select(where=orb.Query('username') == 'bob').first()
     assert record is not None and record.get('username') == 'bob'
 
-@requires_mysql
 def test_my_api_save_bill(orb, my_db, User):
     user = User({
         'username': 'bill',
@@ -21,7 +17,6 @@ def test_my_api_save_bill(orb, my_db, User):
     assert user.get('user_type_id') == 1
     assert user.get('user_type.code') == 'basic'
 
-@requires_mysql
 def test_my_api_fetch_bill(orb, my_db, User):
     user = User.byUsername('bill')
     assert user is not None
@@ -31,7 +26,6 @@ def test_my_api_fetch_bill(orb, my_db, User):
     user = User.fetch(id)
     assert user is not None
 
-@requires_mysql
 def test_my_api_delete_bill(orb, my_db, User):
     user = User.byUsername('bill')
     assert user and user.isRecord()
@@ -42,7 +36,6 @@ def test_my_api_delete_bill(orb, my_db, User):
     user_again = User.byUsername('bill')
     assert user_again is None
 
-@requires_mysql
 def test_my_api_update_bob(orb, my_sql, my_db, User):
     record = User.select(where=orb.Query('username') == 'bob').first()
 
@@ -70,7 +63,6 @@ def test_my_api_update_bob(orb, my_sql, my_db, User):
     assert record_bob is not None
     assert record_bob.id() == record.id() and record_bob.id() == record_tim.id()
 
-@requires_mysql
 def test_my_api_create_admins(orb, User, GroupUser, Group):
     user = User.byUsername('bob')
     assert user is not None and user.get('username') == 'bob'
@@ -81,7 +73,6 @@ def test_my_api_create_admins(orb, User, GroupUser, Group):
     group_user = GroupUser.ensureExists({'group': group, 'user': user})
     assert group_user.isRecord() == True
 
-@requires_mysql
 def test_my_api_get_user_groups(orb, User):
     user = User.byUsername('bob')
     assert user is not None
@@ -89,7 +80,6 @@ def test_my_api_get_user_groups(orb, User):
     groups = user.get('groups')
     assert len(groups) == 1
 
-@requires_mysql
 def test_my_api_get_group_users(orb, Group):
     grp = Group.select(where=orb.Query('name') == 'admins').first()
     assert grp is not None and grp.get('name') == 'admins'
@@ -98,7 +88,6 @@ def test_my_api_get_group_users(orb, Group):
     assert len(users) == 1
     assert users[0].get('username') == 'bob'
 
-@requires_mysql
 def test_my_api_get_group_users_reverse(orb, User, Group):
     bob = User.byUsername('bob')
     assert len(bob.get('userGroups')) == 1
@@ -106,7 +95,6 @@ def test_my_api_get_group_users_reverse(orb, User, Group):
     admins = Group.byName('admins')
     assert len(admins.get('groupUsers')) == 1
 
-@requires_mysql
 def test_my_api_get_group_users_by_unique_index(orb, GroupUser, User, Group):
     u = User.byUsername('bob')
     g = Group.byName('admins')
@@ -114,14 +102,12 @@ def test_my_api_get_group_users_by_unique_index(orb, GroupUser, User, Group):
     admin = GroupUser.byUserAndGroup(u, g)
     assert admin is not None
 
-@requires_mysql
 def test_my_api_get_group_users_by_index(orb, GroupUser, User):
     u = User.byUsername('bob')
     users = GroupUser.byUser(u)
     assert len(users) == 1
     assert users[0].user() == u
 
-@requires_mysql
 def test_my_api_select_with_join(orb, Group, User, GroupUser):
     q  = orb.Query('id') == orb.Query(GroupUser, 'user')
     q &= orb.Query(GroupUser, 'group') == orb.Query(Group, 'id')
@@ -132,7 +118,6 @@ def test_my_api_select_with_join(orb, Group, User, GroupUser):
     assert len(records) == 1
     assert records[0].get('username') == 'bob'
 
-@requires_mysql
 def test_my_api_select_standard_with_shortcut(orb, GroupUser):
     q = orb.Query('group.name') == 'admins'
     records = GroupUser.select(where=q)
@@ -140,7 +125,6 @@ def test_my_api_select_standard_with_shortcut(orb, GroupUser):
     assert len(records) == 1
     assert records[0].get('user.username') == 'bob'
 
-@requires_mysql
 def test_my_api_select_reverse_with_shortcut(orb, User):
     q = orb.Query('userGroups.group.name') == 'admins'
     records = User.select(where=q)
@@ -148,7 +132,6 @@ def test_my_api_select_reverse_with_shortcut(orb, User):
     assert len(records) == 1
     assert records[0].get('username') == 'bob'
 
-@requires_mysql
 def test_my_api_select_pipe_with_shortcut(orb, User):
     q = orb.Query('groups.name') == 'admins'
     records = User.select(where=q)
@@ -156,12 +139,10 @@ def test_my_api_select_pipe_with_shortcut(orb, User):
     assert len(records) == 1
     assert records[0].get('username') == 'bob'
 
-@requires_mysql
 def test_my_api_expand(orb, GroupUser):
     group_user = GroupUser.select(expand='user').first()
     assert group_user is not None
 
-@requires_mysql
 def test_my_api_expand_pipe(orb, User):
     groups = User.byUsername('bob', expand='groups').get('groups')
     assert len(groups) == 1
@@ -169,7 +150,6 @@ def test_my_api_expand_pipe(orb, User):
     for group in groups:
         assert group.id() is not None
 
-@requires_mysql
 def test_my_api_expand_lookup(orb, User):
     userGroups = User.byUsername('bob', expand='userGroups').get('userGroups')
     assert len(userGroups) == 1
@@ -177,13 +157,11 @@ def test_my_api_expand_lookup(orb, User):
     for userGroup in userGroups:
         assert userGroup.get('user_id') is not None
 
-@requires_mysql
 def test_my_api_expand_json(orb, GroupUser):
     group_user = GroupUser.select(expand='user').first()
     jdata = group_user.__json__()
     assert jdata['user_id'] == jdata['user']['id']
 
-@requires_mysql
 def test_my_api_expand_complex_json(orb, User):
     user = User.byUsername('bob', expand='groups,userGroups,userGroups.group')
     jdata = user.__json__()
@@ -192,7 +170,6 @@ def test_my_api_expand_complex_json(orb, User):
     assert jdata['userGroups'][0]['user_id'] == jdata['id']
     assert jdata['userGroups'][0]['group']['name'] == 'admins'
 
-@requires_mysql
 def test_my_api_collection_insert(orb, Group):
     records = orb.Collection((Group({'name': 'Test A'}), Group({'name': 'Test B'})))
     records.save()
@@ -206,43 +183,36 @@ def test_my_api_collection_insert(orb, Group):
     assert records[0].id() == test_a.id()
     assert records[1].id() == test_b.id()
 
-@requires_mysql
 def test_my_api_collection_delete(orb, Group):
     records = Group.select(where=orb.Query('name').in_(('Test A', 'Test B')))
 
     assert len(records) == 2
     assert records.delete() == 2
 
-@requires_mysql
 def test_my_api_collection_delete_empty(orb, User):
     users = User.select(where=orb.Query('username') == 'missing')
     assert users.delete() == 0
 
-@requires_mysql
 def test_my_api_collection_has_record(orb, User):
     users = User.all()
     assert users.has(User.byUsername('bob'))
 
-@requires_mysql
 def test_my_api_collection_iter(orb, User):
     records = User.select()
     for record in records:
         assert record.isRecord()
 
-@requires_mysql
 def test_my_api_collection_invalid_index(orb, User):
     records = User.select()
     with pytest.raises(IndexError):
         records[50]
 
-@requires_mysql
 def test_my_api_collection_ids(orb, User):
     records = User.select().records(order='+id')
     ids = User.select().ids(order='+id')
     for i, record in enumerate(records):
         assert record.id() == ids[i]
 
-@requires_mysql
 def test_my_api_collection_index(orb, User):
     users = User.select()
     urecords = users.records()
@@ -255,7 +225,6 @@ def test_my_api_collection_index(orb, User):
     with pytest.raises(ValueError):
         assert User.select().index(User())
 
-@requires_mysql
 def test_my_api_collection_loaded(orb, User):
     users = orb.Collection(model=User)
     assert not users.isLoaded()
@@ -264,7 +233,6 @@ def test_my_api_collection_loaded(orb, User):
     null_users = orb.Collection()
     assert null_users.isNull()
 
-@requires_mysql
 def test_my_api_collection_empty(orb, User):
     users = orb.Collection()
     assert users.isEmpty()
@@ -272,33 +240,28 @@ def test_my_api_collection_empty(orb, User):
     users = User.select(where=orb.Query('username') == 'billy')
     assert users.isEmpty()
 
-@requires_mysql
 def test_my_api_collection_itertool(orb, User):
     for user in User.select(inflated=False):
         assert user['id'] is not None
 
-@requires_mysql
 def test_my_api_select_columns(orb, User):
     data = User.select(columns='username', returning='values').records()
     assert type(data) == list
     assert 'bob' in data
     assert 'sally' in data
 
-@requires_mysql
 def test_my_api_select_colunms_json(orb, User):
     data = User.select(columns='username', returning='values').__json__()
     assert type(data) == list
     assert 'bob' in data
     assert 'sally' in data
 
-@requires_mysql
 def test_my_api_select_multiple_columns(orb, User):
     data = list(User.select(columns=['id', 'username'], returning='values'))
     assert type(data) == list
     assert type(data[0]) == tuple
     assert (1, 'bob') in data
 
-@requires_mysql
 def test_my_api_save_multi_i18n(orb, Document):
     doc = Document()
 
@@ -311,7 +274,6 @@ def test_my_api_save_multi_i18n(orb, Document):
         doc.set('title', 'Rapido')
         doc.save()
 
-@requires_mysql
 def test_my_api_load_multi_i18n(orb, Document):
     with orb.Context(locale='en_US'):
         doc_en = Document.select().last()
@@ -323,7 +285,6 @@ def test_my_api_load_multi_i18n(orb, Document):
     assert doc_sp.get('title') == 'Rapido'
     assert doc_en.id() == doc_sp.id()
 
-@requires_mysql
 def test_my_api_load_multi_i18n_with_search(orb, Document):
     with orb.Context(locale='en_US'):
         docs_en = Document.select(where=orb.Query('title') == 'Fast')
@@ -336,7 +297,6 @@ def test_my_api_load_multi_i18n_with_search(orb, Document):
     assert docs_sp[0].get('title') == 'Rapido'
     assert len(set(docs_sp.values('id')).difference(docs_en.values('id'))) == 0
 
-@requires_mysql
 def test_my_api_invalid_reference(orb, Employee, User):
     user = User()
     employee = Employee()
@@ -344,7 +304,6 @@ def test_my_api_invalid_reference(orb, Employee, User):
         employee.set('role', user)
         employee.validate(columns=['role'])
 
-@requires_mysql
 def test_my_api_save_employee(orb, Employee, Role):
     # TODO: support inserting inherited records
     pass
@@ -361,18 +320,15 @@ def test_my_api_save_employee(orb, Employee, Role):
     # assert sam.get('username') == 'samantha'
     # assert sam.get('role') == role
 
-@requires_mysql
 def test_my_api_save_hash_id(orb, Comment):
     comment = Comment({'text': 'Testing'})
     comment.save()
     assert isinstance(comment.id(), unicode)
 
-@requires_mysql
 def test_my_api_restore_hash_id(orb, Comment):
     comment = Comment.select().last()
     assert isinstance(comment.id(), unicode)
 
-@requires_mysql
 def test_my_api_reference_hash_id(orb, Comment, Attachment):
     comment = Comment.select().last()
     attachment = Attachment({'filename': '/path/to/somewhere', 'comment': comment})
@@ -380,7 +336,6 @@ def test_my_api_reference_hash_id(orb, Comment, Attachment):
 
     assert isinstance(attachment.get('comment_id'), unicode)
 
-@requires_mysql
 def test_my_expand_virtual(orb, GroupUser, User):
     gu = GroupUser.select().first().get('user')
     u = User.select(where=orb.Query('id') == gu, expand='my_groups.users,groups.users').first()

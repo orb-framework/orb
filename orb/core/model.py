@@ -293,7 +293,7 @@ class Model(object):
                 event = orb.events.LoadEvent(record=self, data=data)
                 self._load(event)
             else:
-                raise errors.RecordNotFound(self, record_id)
+                raise errors.RecordNotFound(schema=self.schema(), column=record_id)
 
         # after loading everything else, update the values for this model
         update_values = {k: v for k, v in values.items() if self.schema().column(k)}
@@ -419,7 +419,7 @@ class Model(object):
     def collect(self, name, useMethod=False, **context):
         collector = self.schema().collector(name)
         if not collector:
-            raise orb.errors.ColumnNotFound(self.schema().name(), name)
+            raise orb.errors.ColumnNotFound(schema=self.schema(), column=name)
         else:
             return collector(self, useMethod=useMethod, **context)
 
@@ -562,7 +562,7 @@ class Model(object):
                             self.__cache[collector][sub_context] = records
                             return records
                     else:
-                        raise errors.ColumnNotFound(self.schema().name(), column)
+                        raise errors.ColumnNotFound(schema=self.schema(), column=column)
 
             # don't inflate if the requested value is a field
             if sub_context.inflated is None and isinstance(col, orb.ReferenceColumn):
@@ -768,10 +768,10 @@ class Model(object):
 
                     return records
             else:
-                raise errors.ColumnNotFound(self.schema().name(), column)
+                raise errors.ColumnNotFound(schema=self.schema(), column=column)
 
         elif col.testFlag(col.Flags.ReadOnly):
-            raise errors.ColumnReadOnly(column)
+            raise errors.ColumnReadOnly(schema=self.schema(), column=column)
 
         context = self.context(**context)
         if useMethod:
@@ -1019,7 +1019,7 @@ class Model(object):
             if schema_name and schema_name != schema.name():
                 schema = orb.system.schema(schema_name)
                 if not schema:
-                    raise orb.errors.ModelNotFound(schema_name)
+                    raise orb.errors.ModelNotFound(schema=schema_name)
                 else:
                     model = schema.model()
 
@@ -1063,7 +1063,7 @@ class Model(object):
         for key, value in values.items():
             column = cls.schema().column(key)
             if not column:
-                raise orb.errors.ColumnNotFound(cls.schema().name(), key)
+                raise orb.errors.ColumnNotFound(schema=cls.schema(), column=key)
             elif column.testFlag(column.Flags.Virtual):
                 continue
 
@@ -1171,7 +1171,8 @@ class Model(object):
                 try:
                     record = morph_cls(values[id_col], context=context)
                 except KeyError:
-                    raise orb.errors.RecordNotFound(morph_cls, values.get(id_col))
+                    raise orb.errors.RecordNotFound(schema=morph_cls.schema(),
+                                                    column=values.get(id_col))
 
         if record is None:
             event = orb.events.LoadEvent(record=record, data=values)
@@ -1184,7 +1185,8 @@ class Model(object):
         data = self.fetch(record_id, inflated=False, context=self.__context)
 
         if not data:
-            raise errors.RecordNotFound(self, record_id)
+            raise errors.RecordNotFound(schema=self.schema(),
+                                        column=record_id)
 
         event = orb.events.LoadEvent(record=self, data=data)
         self._load(event)
@@ -1215,7 +1217,7 @@ class Model(object):
         if isinstance(cls.__search_engine__, (str, unicode)):
             engine = SearchEngine.byName(cls.__search_engine__)
             if not engine:
-                raise orb.errors.InvalidSearch('Could not find {0} search engine'.format(cls.__search_engine__))
+                raise orb.errors.SearchEngineNotFound(cls.__search_engine__)
         else:
             engine = cls.__search_engine__
         return engine.search(cls, terms, **context)

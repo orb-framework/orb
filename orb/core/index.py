@@ -63,7 +63,7 @@ class Index(object):
             if isinstance(value, orb.Model) and not value.isRecord():
                 return None if self.testFlag(self.Flags.Unique) else orb.Collection()
             elif not column:
-                raise errors.ColumnNotFound(schema.name(), col)
+                raise errors.ColumnNotFound(schema=schema, column=col)
 
             query &= orb.Query(col) == value
 
@@ -166,7 +166,7 @@ class Index(object):
             msg = 'Missing {0} from {1}.{2} index'.format(err[0].name(),
                                                           record.schema().name(),
                                                           self.name())
-            raise errors.IndexValidationError(self, msg=msg)
+            raise errors.InvalidIndexArguments(self.schema(), msg=msg)
 
         # # ensure a unique record is preserved
         # if self.unique():

@@ -67,7 +67,7 @@ class Pipe(Collector):
         try:
             return schema.column(self.__from)
         except AttributeError:
-            raise orb.errors.ModelNotFound(self.__through)
+            raise orb.errors.ModelNotFound(schema=self.__through)
 
     def fromModel(self):
         col = self.fromColumn()
@@ -84,7 +84,7 @@ class Pipe(Collector):
         try:
             return schema.column(self.__to)
         except AttributeError:
-            raise orb.errors.ModelNotFound(self.__through)
+            raise orb.errors.ModelNotFound(schema=self.__through)
 
     def toModel(self):
         col = self.toColumn()
@@ -98,4 +98,4 @@ class Pipe(Collector):
         try:
             return schema.model()
         except AttributeError:
-            raise orb.errors.ModelNotFound(self.__through)
+            raise orb.errors.ModelNotFound(schema=self.__through)

@@ -1,23 +1,22 @@
 """
-ORB stands for Object Relation Builder and is a powerful yet simple to use \
-database class generator.
+Database ORM and API generation system.
 """
 
 # define authorship information
-__authors__ = ['Eric Hulser']
-__author__ = ','.join(__authors__)
-__credits__ = []
+__authors__ = [
+    ('Eric Hulser', 'eric.hulser@gmail.com')
+]
+
+__author__ = ','.join((x[0] for x in __authors__))
+__email__ = ','.join((x[1] for x in __authors__))
 __copyright__ = 'Copyright (c) 2011-2016'
 __license__ = 'MIT'
 
-# maintenance information
-__maintainer__ = 'Eric Hulser'
-__email__ = 'eric.hulser@gmail.com'
 
 # auto-generated version file from releasing
 try:
     from ._version import __major__, __minor__, __revision__, __hash__
-except ImportError:
+except ImportError:  # pragma: no cover
     __major__, __minor__, __revision__, __hash__ = (0, 0, 0, '')
 
 __version_info__ = (__major__, __minor__, __revision__)
@@ -54,7 +53,6 @@ from .core.connection_types import *
 
 from .core.modelmixin import ModelMixin
 
-from .testing import *
 
 # define the global system
 system = System()

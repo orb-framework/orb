@@ -67,7 +67,7 @@ class CREATE(MySQLStatement):
             else:
                 collector = schema.collector(next_part)
                 if not collector:
-                    raise orb.errors.ColumnNotFound(schema.name(), next_part)
+                    raise orb.errors.ColumnNotFound(schema=schema, column=next_part)
 
                 try:
                     record_part = parts.pop(0)
@@ -253,7 +253,7 @@ class CREATE(MySQLStatement):
         if inherits:
             inherits_model = orb.system.model(inherits)
             if not inherits_model:
-                raise orb.errors.ModelNotFound(inherits)
+                raise orb.errors.ModelNotFound(schema=inherits)
 
             id_column = inherits_model.schema().idColumn()
             id_type = id_column.dbType('MySQL').replace('AUTO_INCREMENT', '').strip()

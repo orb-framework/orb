@@ -5,11 +5,14 @@ during development.
 """
 
 import orb
+import logging
 import re
 import pyparsing
 
 from collections import defaultdict
 from projex.addon import AddonManager
+
+log = logging.getLogger(__name__)
 
 
 class Node(list):
@@ -114,8 +117,12 @@ class SearchEngine(AddonManager):
 
             general_q = orb.Query()
             searchable_columns = model.schema().columns(flags=orb.Column.Flags.Searchable).values()
+
+            # if there are no searchable columns, then there will be no search results
+            # so just return an empty collection
             if not searchable_columns:
-                raise orb.errors.InvalidSearch('No searchable columns found for {0}'.format(model.schema().name()))
+                log.warning('{0} has no searchable columns'.format(model.schema().name()))
+                return orb.Collection()
 
             for column in searchable_columns:
                 general_q |= orb.Query(column).asString().matches(pattern, caseSensitive=False)

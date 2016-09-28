@@ -60,7 +60,7 @@ class SELECT(MySQLStatement):
             for col, dir in context.order:
                 column = schema.column(col)
                 if not column:
-                    raise orb.errors.ColumnNotFound(col)
+                    raise orb.errors.ColumnNotFound(schema=schema, column=col)
 
                 field = fields.get(column) or u'`{0}`.`{1}`'.format(schema.dbname(), column.field())
                 if sql_group_by:
@@ -100,7 +100,7 @@ class SELECT(MySQLStatement):
             for col in context.distinct:
                 column = schema.column(col)
                 if not column:
-                    raise orb.errors.ColumnNotFound(col)
+                    raise orb.errors.ColumnNotFound(schema=schema, column=col)
                 else:
                     on_.append(fields.get(col) or u'`{0}`.`{1}`'.format(schema.dbname(), col.field()))
 

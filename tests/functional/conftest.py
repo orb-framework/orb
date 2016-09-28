@@ -5,21 +5,6 @@ from projex.enum import enum
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
 
-
-def pytest_runtest_makereport(item, call):
-    if "incremental" in item.keywords:
-        if call.excinfo is not None:
-            parent = item.parent
-            parent._previousfailed = item
-
-
-def pytest_runtest_setup(item):
-    previousfailed = getattr(item.parent, "_previousfailed", None)
-    if previousfailed is not None:
-        pytest.xfail("previous test failed (%s)" %previousfailed.name)
-
-# --------------
-
 @pytest.fixture(scope='session')
 def orb():
     import orb
@@ -29,6 +14,17 @@ def orb():
     orb.system.security().setKey(key)
 
     return orb
+
+@pytest.fixture(scope='session')
+def mock_db():
+    import orb
+    import orb.testing
+
+    # creating the database
+    db = orb.Database(orb.testing.MockConnection(), 'testing')
+    db.activate()
+
+    return db
 
 @pytest.fixture(scope='session')
 def EmptyUser(orb):

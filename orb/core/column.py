@@ -642,7 +642,7 @@ class Column(AddonManager):
         col_cls = cls.byName(cls_type)
 
         if not col_cls:
-            raise orb.errors.InvalidColumnType(cls_type)
+            raise orb.errors.ColumnTypeNotFound(cls_type)
         else:
             col = col_cls()
             col.loadJSON(jdata)

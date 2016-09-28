@@ -335,16 +335,16 @@ class Context(object):
         # validate values
         if other_context.get('start') is not None and (type(other_context['start']) != int or other_context['start'] < 0):
             msg = 'Start needs to be a positive number, got {0} instead'
-            raise orb.errors.InvalidContextOption(msg.format(other_context.get('start)')))
+            raise orb.errors.ContextError(msg.format(other_context.get('start)')))
         if other_context.get('page') is not None and (type(other_context['page']) != int or other_context['page'] < 1):
             msg = 'Page needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.InvalidContextOption(msg.format(other_context.get('page')))
+            raise orb.errors.ContextError(msg.format(other_context.get('page')))
         if other_context.get('limit') is not None and (type(other_context['limit']) != int or other_context['limit'] < 1):
             msg = 'Limit needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.InvalidContextOption(msg.format(other_context.get('limit')))
+            raise orb.errors.ContextError(msg.format(other_context.get('limit')))
         if other_context.get('pageSize') is not None and (type(other_context['pageSize']) != int or other_context['pageSize'] < 1):
             msg = 'Page size needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.InvalidContextOption(msg.format(other_context.get('pageSize')))
+            raise orb.errors.ContextError(msg.format(other_context.get('pageSize')))
 
         # update the raw values
         self.raw_values.update({k: v for k, v in other_context.items() if k in self.Defaults})

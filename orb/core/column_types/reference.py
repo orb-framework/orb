@@ -105,7 +105,7 @@ class ReferenceColumn(Column):
         if isinstance(db_value, dict):
             cls = self.referenceModel()
             if not cls:
-                raise orb.errors.ModelNotFound(self.reference())
+                raise orb.errors.ModelNotFound(schema=self.reference())
             else:
                 load_event = orb.events.LoadEvent(data=db_value)
 
@@ -151,7 +151,7 @@ class ReferenceColumn(Column):
         """
         model = orb.system.model(self.__reference)
         if not model:
-            raise orb.errors.ModelNotFound(self.__reference)
+            raise orb.errors.ModelNotFound(schema=self.__reference)
         return model
 
     def restore(self, value, context=None):
@@ -173,13 +173,26 @@ class ReferenceColumn(Column):
             return self._restore(value, context)
 
     def validate(self, value):
+        """
+        Re-implements the orb.Column.validate method to verify that the
+        reference model type that is used with this column instance is
+        the type of value being provided.
+
+        :param value: <variant>
+
+        :return: <bool>
+        """
         ref_model = self.referenceModel()
-        if isinstance(value, orb.Model) and value.schema().name() != ref_model.schema().name():
-            raise orb.errors.InvalidReference(self.name(),
-                                              value.schema().name(),
-                                              ref_model.schema().name())
-        else:
-            return super(ReferenceColumn, self).validate(value)
+        if isinstance(value, orb.Model):
+            expected_schema = ref_model.schema().name()
+            received_schema = value.schema().name()
+
+            if expected_schema != received_schema:
+                raise orb.errors.InvalidReference(self.name(),
+                                                  expects=expected_schema,
+                                                  received=received_schema)
+
+        return super(ReferenceColumn, self).validate(value)
 
     def valueFromString(self, value, context=None):
         """

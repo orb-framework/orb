@@ -1219,7 +1219,7 @@ class Query(object):
             if jdata.get('model'):
                 model = orb.schema.model(jdata.get('model'))
                 if not model:
-                    raise orb.errors.ModelNotFound(jdata.get('model'))
+                    raise orb.errors.ModelNotFound(schema=jdata.get('model'))
                 else:
                     column = (model, jdata['column'])
             else:

@@ -40,7 +40,7 @@ class SELECT_EXPAND(PSQLStatement):
                             elif isinstance(collector, orb.ReverseLookup):
                                 yield expand_rev, collector, sub_tree
                     else:
-                        raise orb.errors.ColumnNotFound(schema.name(), name)
+                        raise orb.errors.ColumnNotFound(schema=schema, column=name)
 
     def collectSubTree(self, model, tree, alias=''):
         sql = []
