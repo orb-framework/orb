@@ -42,11 +42,11 @@ class SELECT_EXPAND(PSQLStatement):
                     else:
                         raise orb.errors.ColumnNotFound(schema.name(), name)
 
-    def collectSubTree(self, model, tree, alias=''):
+    def collectSubTree(self, model, tree, alias='', context=None):
         sql = []
         data = {}
         for action, obj, sub_tree in self.generateSubTree(model, tree):
-            sub_sql, sub_data = action(obj, sub_tree, alias=alias)
+            sub_sql, sub_data = action(obj, sub_tree, alias=alias, context=context)
             if sub_sql:
                 sql.append(sub_sql)
                 data.update(sub_data)
@@ -58,7 +58,7 @@ class SELECT_EXPAND(PSQLStatement):
 
 
 class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
-    def __call__(self, column, tree, alias=''):
+    def __call__(self, column, tree, alias='', context=None):
         data = {}
         target = column.referenceModel()
         translation_columns = target.schema().columns(flags=orb.Column.Flags.I18n).values()
@@ -67,7 +67,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
         target_id_field = target.schema().idColumn().field()
 
         # get the base table query
-        target_q = target.baseQuery()
+        target_q = target.baseQuery(context=context)
         if target_q:
             WHERE = self.byName('WHERE')
             filter_sql, filter_data = WHERE(target, target_q, aliases={target: target_alias})
@@ -119,7 +119,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
                                              target_id_field=target_id_field)
 
 
-        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias)
+        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias, context=context)
         data.update(target_expand_data)
 
         # generate the sql options
@@ -156,7 +156,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
 
 
 class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
-    def __call__(self, reversed, tree, alias=''):
+    def __call__(self, reversed, tree, alias='', context=None):
         data = {}
         target = reversed.referenceModel()
         source = reversed.schema().model()
@@ -168,7 +168,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
         target_fields = []
 
         # get the base table query
-        target_q = target.baseQuery()
+        target_q = target.baseQuery(context=context)
         if target_q:
             WHERE = self.byName('WHERE')
             filter_sql, filter_data = WHERE(target, target_q, aliases={target: target_alias})
@@ -204,7 +204,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
 
-        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias)
+        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias, context=context)
         data.update(target_expand_data)
 
         # define the sql options
@@ -246,7 +246,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
 
 
 class SELECT_EXPAND_PIPE(SELECT_EXPAND):
-    def __call__(self, pipe, tree, alias=''):
+    def __call__(self, pipe, tree, alias='', context=None):
         WHERE = self.byName('WHERE')
 
         data = {}
@@ -279,7 +279,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         has_translations = target.schema().hasTranslations()
 
         # include the base table's filter, if one exists
-        target_q = target.baseQuery()
+        target_q = target.baseQuery(context=context)
         if target_q is not None:
             filter_sql, filter_data = WHERE(target, target_q, aliases={target: target_alias})
             if filter_sql:
@@ -303,7 +303,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
 
-        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias)
+        target_expand, target_expand_data = self.collectSubTree(target, tree, alias=target_alias, context=context)
         data.update(target_expand_data)
 
         # define the sql options
