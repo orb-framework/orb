@@ -291,11 +291,11 @@ class Collection(object):
 
                 try:
                     with ReadLocker(self.__cacheLock):
-                        count = self.__preload['count'][context]
+                        count = self.__preload['count'][context] or 0
                 except KeyError:
                     try:
                         with ReadLocker(self.__cacheLock):
-                            raw = self.__preload['records'][context]
+                            raw = self.__preload['records'][context] or []
                             count = len(raw)
                     except KeyError:
                         conn = optimized_context.db.connection()
@@ -447,7 +447,7 @@ class Collection(object):
         except KeyError:
             try:
                 with ReadLocker(self.__cacheLock):
-                    ids = self.__preload['ids'][context]
+                    ids = self.__preload['ids'][context] or []
             except KeyError:
                 ids = self.records(columns=[self.__model.schema().idColumn()],
                                    returning='values',
@@ -567,7 +567,7 @@ class Collection(object):
         except KeyError:
             try:
                 with ReadLocker(self.__cacheLock):
-                    raw = self.__preload['records'][context]
+                    raw = self.__preload['records'][context] or []
             except KeyError:
                 conn = context.db.connection()
                 raw = conn.select(self.__model, context)
@@ -809,7 +809,7 @@ class Collection(object):
             except KeyError:
                 try:
                     with ReadLocker(self.__cacheLock):
-                        raw = self.__preload['records'][context]
+                        raw = self.__preload['records'][context] or []
                 except KeyError:
                     context.columns = columns
                     conn = context.db.connection()
