@@ -1,4 +1,6 @@
 language: python
 python:
   - "2.7"
-script: "python setup.py test"
+script:
+  - "pip install virtualenv"
+  - "python setup.py test"
