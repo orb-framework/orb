@@ -1,7 +1,6 @@
 """ Defines the common errors for the database module. """
 
 from projex.lazymodule import lazy_import
-from projex.text import nativestring as nstr
 
 orb = lazy_import('orb')
 
@@ -16,18 +15,47 @@ class OrbError(StandardError):
 class DatabaseError(OrbError):
     """ Defines the base error class for all database related errors """
 
-    def __init__(self, msg=u'Unknown database error occurred.'):
+    def __init__(self, msg=u'Unknown database error occurred'):
         super(DatabaseError, self).__init__(msg)
 
 
 class DataStoreError(OrbError):
+    """ Raised when storage columns are unable to save or restore data to a backend """
     pass
+
+
+class SchemaError(OrbError):
+    """
+    Defines base error class for all schema related errors
+
+    :usage
+
+        raise orb.errors.SchemaError('This is a test')
+        raise orb.errors.SchemaError('Could not find {column} on {schema}', schema='User', column='username')
+        raise orb.errors.SchemaError('Could not find {column} on {schema}',
+                                     schema=User.schema(),
+                                     column=User.schema().column('username'))
+    """
+    DEFAULT_MESSAGE = ''
+
+    def __init__(self, msg='', schema='', column=''):
+        msg = msg or self.DEFAULT_MESSAGE
+
+        # support receiving an actual schema object
+        if isinstance(schema, orb.Schema):
+            schema = schema.name()
+
+        # support receiving an actual column object
+        if isinstance(column, orb.Column):
+            column = column.name()
+
+        msg = msg.format(schema=schema, column=column)
+        super(SchemaError, self).__init__(msg)
 
 
 class ValidationError(OrbError):
     """
-    Raised when a column is being set with a value that does not pass
-    validation.
+    Raised when a column is being set with a value that does not pass validation.
     """
 
     def __init__(self, msg, context=''):
@@ -35,150 +63,163 @@ class ValidationError(OrbError):
         self.context = context
 
 
-# A
-# ------------------------------------------------------------------------------
-
-class ActionNotAllowed(OrbError):
-    pass
-
-class ArchiveNotFound(OrbError):
-    def __init__(self, table):
-        msg = u'Could not find archives for the {0} table.'.format(table)
-        super(ArchiveNotFound, self).__init__(msg)
-
 # B
 # ------------------------------------------------------------------------------
 
 class BackendNotFound(OrbError):
+    """ Raised when defining a database with a backend connection that does not exist """
     def __init__(self, backend):
-        super(BackendNotFound, self).__init__(u'Could not find {0} backend'.format(backend))
+        msg = u'Could not find {0} backend'.format(backend)
+        super(BackendNotFound, self).__init__(msg)
 
 
 # C
 # ------------------------------------------------------------------------------
 
-class CannotDelete(OrbError):
+
+class CannotDelete(DatabaseError):
+    """ Raised when a backend service fails to delete a record """
     pass
 
-class ColumnIsVirtual(OrbError):
-    def __init__(self, column):
-        super(ColumnIsVirtual, self).__init__(u'Cannot access {0} directly, it is virtual'.format(column))
 
-class ColumnNotFound(OrbError):
-    def __init__(self, table, column):
-        super(ColumnNotFound, self).__init__(u'Did not find {0} column on {1}.'.format(column, table))
+class ColumnNotFound(SchemaError):
+    """
+    Raised by the model when trying to access a column not defined in the schema
+
+    :usage
+
+        raise orb.errors.ColumnNotFound(schema='User', column='username')
+
+    """
+    DEFAULT_MESSAGE = u'Did not find {column} column on {schema}'
 
 
-class ColumnReadOnly(OrbError):
-    def __init__(self, column):
-        try:
-            text = column.name()
-        except AttributeError:
-            text = nstr(column)
+class ColumnReadOnly(SchemaError):
+    """
+    Raised by the model when attempting to modify a column that is read-only
 
-        super(ColumnReadOnly, self).__init__(u'{0} is a read-only column.'.format(text))
+    :usage
+
+        raise orb.errors.ColumnReadOnly(schema='User', column='username')
+        raise orb.errors.ColumnReadOnly(schema=schema, column=schema.column('username'))
+
+    """
+    DEFAULT_MESSAGE = u'{column} of {schema} is a read-only column'
+
+
+class ColumnTypeNotFound(SchemaError):
+    """ Raised when creating a column based on its registered name """
+    def __init__(self, typ):
+        msg = u'{0} is not a valid column type'
+        super(ColumnTypeNotFound, self).__init__(msg.format(typ))
 
 
 class ColumnValidationError(ValidationError):
+    """ Raised during validation of a record by individual columns within it """
     def __init__(self, column, msg):
         super(ColumnValidationError, self).__init__(msg, context=column.name())
 
         self.column = column
 
 
-class ColumnRequired(OrbError):
-    def __init__(self, column):
-        try:
-            text = column.name()
-        except AttributeError:
-            text = nstr(column)
-
-        super(ColumnRequired, self).__init__(u'{0} is a required column.'.format(text))
+class ContextError(ValidationError):
+    """ Raised when providing invalid context information to the Context object """
+    pass
 
 
-class ConnectionFailed(OrbError):
-    def __init__(self):
-        super(ConnectionFailed, self).__init__(u'Failed to connect to database')
+class ConnectionFailed(DatabaseError):
+    """ Raised when attempting to connect to a backend """
+    def __init__(self, msg=u'Failed to connect to database'):
+        super(ConnectionFailed, self).__init__(msg)
 
 
-class ConnectionLost(OrbError):
-    def __init__(self):
-        OrbError.__init__(self, u'Connection was lost to the database.  Please retry again soon.')
+class ConnectionLost(DatabaseError):
+    """
+    Raised when attempting to use an open database connection but it has been
+    severed from the client side.
+    """
+    def __init__(self, msg=u'Connection was lost to the database.  Please retry again soon'):
+        OrbError.__init__(self, msg)
 
 
 # D
 # ------------------------------------------------------------------------------
 
-class DatabaseNotFound(OrbError):
+class DatabaseNotFound(DatabaseError):
+    """ Raised by a connection when attempting to access a database description """
     def __init__(self):
-        super(DatabaseNotFound, self).__init__(u'No database was found.')
+        super(DatabaseNotFound, self).__init__(u'No database was found')
 
 
-class DependencyNotFound(OrbError):
-    def __init__(self, package):
-        msg = u'Required package `{0}` is not installed.'.format(package)
-        super(DependencyNotFound, self).__init__(msg)
+class DuplicateColumnFound(SchemaError):
+    """
+    Raised when there is a duplicate column found within a
+    single hierarchy of a Model.
+
+    :usage
+
+        raise orb.errors.DuplicateColumnFound('User', 'username')
+    """
+    DEFAULT_MESSAGE = u'{column} of {schema} is already defined and cannot be duplicated'
 
 
-class DuplicateColumnFound(OrbError):
-    """ Thrown when there is a duplicate column found within a single \
-        hierarchy of a Table. """
-    def __init__(self, schema, column):
-        msg = u'{0}: {1} is already a column and cannot be duplicated.'
-        super(DuplicateColumnFound, self).__init__(msg.format(schema, column))
-
-
-class DuplicateEntryFound(OrbError):
+class DuplicateEntryFound(DatabaseError):
+    """ Raised when the backend finds a duplicate entry in its system """
     pass
+
 
 class DryRun(OrbError):
+    """ Raised by the backend when a query is not fully executed due to a dry run """
     pass
+
 
 # E
 # ------------------------------------------------------------------------------
 
+
+class EmptyCommand(DatabaseError):
+    """ Raised when an empty command is given for execution to the backend """
+    pass
+
+
 class EncryptionDisabled(OrbError):
     pass
+
 
 # I
 # ------------------------------------------------------------------------------
 
-class IdNotFound(OrbError):
-    def __init__(self, name):
-        super(IdNotFound, self).__init__(u'No id column found for {0}'.format(name))
 
-class Interruption(StandardError):
+class IdNotFound(SchemaError):
+    """ Raised when the model does not have an id column defined """
+    DEFAULT_MESSAGE = u'No id column found for {schema} model'
+
+
+class Interruption(DatabaseError):
+    """ Raised when a backend connection or process is remotely terminated """
     def __init__(self):
-        super(Interruption, self).__init__(u'Database operation was interrupted.')
+        msg = u'Database operation was interrupted'
+        super(Interruption, self).__init__(msg)
 
-class InvalidContextOption(ValidationError):
-    pass
 
 class InvalidReference(ValidationError):
-    def __init__(self, column, value_type, expected_type):
-        msg = u'{0} expects {1} records, not {2}'.format(column, expected_type, value_type)
+    """
+    Raised when validating a reference record being assigned to a column
+
+    :usage
+
+        raise InvalidReference('created_by', expects='User', received='UserRole')
+
+    """
+    def __init__(self, column, expects='', received=''):
+        msg = u'{0} expects {1} records, not {2}'.format(column, expects, received)
         super(InvalidReference, self).__init__(msg)
 
-class InvalidColumnType(OrbError):
-    def __init__(self, typ):
-        msg = u'{0} is not a valid column type.'
-        super(InvalidColumnType, self).__init__(msg.format(typ))
 
-class EmptyCommand(OrbError):
-    pass
-
-class InvalidSearch(OrbError):
-    pass
-
-class InvalidResponse(OrbError):
-    def __init__(self, method, err):
-        msg = u'Invalid response from rest method "{0}": {1}'
-        super(InvalidResponse, self).__init__(msg.format(method, err))
-
-
-class IndexValidationError(ValidationError):
+class InvalidIndexArguments(ValidationError):
+    """ Raised when an index is being called with invalid arguments """
     def __init__(self, index, msg):
-        super(IndexValidationError, self).__init__(msg, context=index.schema().name())
+        super(InvalidIndexArguments, self).__init__(msg, context=index.schema().name())
         self.index = index
 
 
@@ -199,12 +240,12 @@ class QueryInvalid(OrbError):
 
 class QueryIsNull(OrbError):
     def __init__(self):
-        super(QueryIsNull, self).__init__(u'This query will result in no items.')
+        super(QueryIsNull, self).__init__(u'This query will result in no items')
 
 
 class QueryTimeout(DatabaseError):
     def __init__(self, query=None, msecs=None, msg=None):
-        msg = msg or u'The server cancelled the query because it was taking too long.'
+        msg = msg or u'The server cancelled the query because it was taking too long'
 
         self.query = query
         self.msecs = msecs
@@ -217,7 +258,7 @@ class QueryTimeout(DatabaseError):
 
 class PrimaryKeyNotDefined(OrbError):
     def __init__(self, record):
-        super(OrbError, self).__init__(u'No primary key defined for {0}.'.format(record))
+        super(OrbError, self).__init__(u'No primary key defined for {0}'.format(record))
 
 
 # R
@@ -225,7 +266,7 @@ class PrimaryKeyNotDefined(OrbError):
 
 class RecordNotFound(OrbError):
     def __init__(self, model, pk):
-        msg = u'Could not find record {0}({1}).'.format(model.schema().name(), pk)
+        msg = u'Could not find record {0}({1})'.format(model.schema().name(), pk)
         super(RecordNotFound, self).__init__(msg)
 
 
@@ -234,18 +275,27 @@ class ReferenceNotFound(OrbError):
         try:
             text = column.name()
         except AttributeError:
-            text = nstr(column)
+            text = column
 
-        msg = u'{0} is a foreign key with no reference table.'
+        msg = u'{0} is a foreign key with no reference table'
         super(ReferenceNotFound, self).__init__(msg.format(text))
 
+
+# S
+# -----------------------------------------------------------------------------
+
+class SearchEngineNotFound(OrbError):
+    """ Raised by the model when attempting to search for records """
+    def __init__(self, name):
+        msg = u'Missing search engine: {0}'.format(name)
+        super(SearchEngineNotFound, self).__init__(msg)
 
 # T
 #------------------------------------------------------------------------------
 
 class ModelNotFound(OrbError):
     def __init__(self, table):
-        super(ModelNotFound, self).__init__(u'Could not find `{0}` table.'.format(table))
+        super(ModelNotFound, self).__init__(u'Could not find `{0}` table'.format(table))
 
 
 # V
@@ -270,4 +320,4 @@ class ValueOutOfRange(ValidationError):
 
 class ViewNotFound(OrbError):
     def __init__(self, table, view):
-        super(ViewNotFound, self).__init__(u'{0} has no view {1}.'.format(table, view))
+        super(ViewNotFound, self).__init__(u'{0} has no view {1}'.format(table, view))

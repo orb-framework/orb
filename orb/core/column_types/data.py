@@ -2,15 +2,17 @@ import logging
 import os
 import projex.text
 import random
+import yaml
 
-from ..column import Column
 from projex.lazymodule import lazy_import
 from projex import rest
+
+from ..column import Column
 
 log = logging.getLogger(__name__)
 pickle = lazy_import('cPickle')
 orb = lazy_import('orb')
-yaml = lazy_import('yaml')
+
 
 class BinaryColumn(Column):
     TypeMap = {
@@ -159,11 +161,7 @@ class YAMLColumn(Column):
         :return: <variant>
         """
         if db_value is not None:
-            try:
-                return yaml.load(projex.text.nativestring(db_value))
-            except StandardError:
-                log.exception('Failed to restore yaml')
-                raise orb.errors.DataStoreError('Failed to restore yaml.')
+            return yaml.load(projex.text.nativestring(db_value))
         else:
             return db_value
 
@@ -171,8 +169,6 @@ class YAMLColumn(Column):
         if py_value is not None:
             try:
                 return yaml.dump(py_value)
-            except ImportError:
-                raise orb.errors.DependencyNotFound('PyYaml')
             except StandardError:
                 log.exception('Failed to store yaml')
                 raise orb.errors.DataStoreError('Failed to store yaml')

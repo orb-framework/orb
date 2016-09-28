@@ -219,7 +219,7 @@ class Schema(object):
             if last_column is not None:
                 return last_column
             elif raise_:
-                raise orb.errors.ColumnNotFound(self.name(), key)
+                raise orb.errors.ColumnNotFound(schema=self, column=key)
             else:
                 return None
 
@@ -253,7 +253,7 @@ class Schema(object):
                         ancest_columns = schema.columns(recurse=recurse, flags=iflags)
                         dups = set(ancest_columns.keys()).intersection(output.keys())
                         if dups:
-                            raise orb.errors.DuplicateColumnFound(self.name(), ','.join(dups))
+                            raise orb.errors.DuplicateColumnFound(schema=self, column=','.join(dups))
                         else:
                             output.update(ancest_columns)
 

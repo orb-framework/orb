@@ -419,7 +419,7 @@ class Model(object):
     def collect(self, name, useMethod=False, **context):
         collector = self.schema().collector(name)
         if not collector:
-            raise orb.errors.ColumnNotFound(self.schema().name(), name)
+            raise orb.errors.ColumnNotFound(schema=self.schema(), column=name)
         else:
             return collector(self, useMethod=useMethod, **context)
 
@@ -562,7 +562,7 @@ class Model(object):
                             self.__cache[collector][sub_context] = records
                             return records
                     else:
-                        raise errors.ColumnNotFound(self.schema().name(), column)
+                        raise errors.ColumnNotFound(schema=self.schema(), column=column)
 
             # don't inflate if the requested value is a field
             if sub_context.inflated is None and isinstance(col, orb.ReferenceColumn):
@@ -768,10 +768,10 @@ class Model(object):
 
                     return records
             else:
-                raise errors.ColumnNotFound(self.schema().name(), column)
+                raise errors.ColumnNotFound(schema=self.schema(), column=column)
 
         elif col.testFlag(col.Flags.ReadOnly):
-            raise errors.ColumnReadOnly(column)
+            raise errors.ColumnReadOnly(schema=self.schema(), column=column)
 
         context = self.context(**context)
         if useMethod:
@@ -1063,7 +1063,7 @@ class Model(object):
         for key, value in values.items():
             column = cls.schema().column(key)
             if not column:
-                raise orb.errors.ColumnNotFound(cls.schema().name(), key)
+                raise orb.errors.ColumnNotFound(schema=cls.schema(), column=key)
             elif column.testFlag(column.Flags.Virtual):
                 continue
 
@@ -1215,7 +1215,7 @@ class Model(object):
         if isinstance(cls.__search_engine__, (str, unicode)):
             engine = SearchEngine.byName(cls.__search_engine__)
             if not engine:
-                raise orb.errors.InvalidSearch('Could not find {0} search engine'.format(cls.__search_engine__))
+                raise orb.errors.SearchEngineNotFound(cls.__search_engine__)
         else:
             engine = cls.__search_engine__
         return engine.search(cls, terms, **context)

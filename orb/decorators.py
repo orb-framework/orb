@@ -1,3 +1,7 @@
+"""
+Defines decorators that will be used throughout the ORB library.
+"""
+
 import inflection
 
 from projex.lazymodule import lazy_import
@@ -17,7 +21,6 @@ def virtual(cls, **options):
     def wrapped(func):
         param_name = inflection.underscore(func.__name__)
         options.setdefault('name', param_name)
-        is_column = issubclass(cls, orb.Column)
 
         if 'flags' in options:
             if isinstance(options['flags'], set):

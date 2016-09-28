@@ -67,7 +67,7 @@ class CREATE(MySQLStatement):
             else:
                 collector = schema.collector(next_part)
                 if not collector:
-                    raise orb.errors.ColumnNotFound(schema.name(), next_part)
+                    raise orb.errors.ColumnNotFound(schema=schema, column=next_part)
 
                 try:
                     record_part = parts.pop(0)
