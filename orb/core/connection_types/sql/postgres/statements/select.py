@@ -57,7 +57,7 @@ class SELECT(PSQLStatement):
                 # expand a reference
                 if isinstance(column, orb.ReferenceColumn) and column.name() in expand:
                     sub_tree = expand.pop(column.name())
-                    sql, sub_data = EXPAND_COL(column, sub_tree)
+                    sql, sub_data = EXPAND_COL(column, sub_tree, context=context)
                     if sql:
                         sql_columns['standard'].append(sql)
                         data.update(sub_data)
@@ -76,9 +76,9 @@ class SELECT(PSQLStatement):
 
                     sub_tree = expand.pop(collector.name(), None)
                     if isinstance(collector, orb.Pipe):
-                        sql, sub_data = EXPAND_PIPE(collector, sub_tree, alias=schema.dbname())
+                        sql, sub_data = EXPAND_PIPE(collector, sub_tree, alias=schema.dbname(), context=context)
                     elif isinstance(collector, orb.ReverseLookup):
-                        sql, sub_data = EXPAND_REV(collector, sub_tree, alias=schema.dbname())
+                        sql, sub_data = EXPAND_REV(collector, sub_tree, alias=schema.dbname(), context=context)
 
                     if sql:
                         sql_columns['standard'].append(sql)
