@@ -47,13 +47,17 @@ class Column(AddonManager):
     )
 
     def __json__(self):
+        default_value = self.default()
+        if isinstance(default_value, orb.Model):
+            default_value = default_value.id()
+
         output = {
             'type': self.addonName(),
             'name': self.name(),
             'field': self.field(),
             'display': self.display(),
             'flags': {k: True for k in self.Flags.toSet(self.__flags)},
-            'default': self.default()
+            'default': default_value
         }
         return output
 
