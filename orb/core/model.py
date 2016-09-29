@@ -108,7 +108,8 @@ class Model(object):
                     not auth(columns=(column,), context=context)):
                 continue
 
-            elif column.testFlag(column.Flags.Virtual) and not isinstance(self, orb.View):
+            elif ((column.testFlag(column.Flags.Virtual) and not isinstance(self, orb.View)) or
+                   column.gettermethod() is not None):
                 yield column.field(), self.get(column, inflated=False)
 
             else:
