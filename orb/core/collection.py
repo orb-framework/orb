@@ -10,36 +10,25 @@ from collections import defaultdict
 from ..utils.locks import ReadWriteLock
 
 
-class CollectionIterator(object):
+class BatchIterator(object):
+    """
+    Provides a way to iterate through a collection in batches.  This will
+    break loading of collections into segments to avoid loading everything
+    into memory with a single backend call.  This can be useful when iterating
+    over large sets of data.
+
+    This iterator is used via the orb.Collection.iterate method.
+    """
     def __init__(self, collection, batch=1):
-        self.__collection = collection
-        self.__model = collection.model()
-        self.__page = 1
-        self.__index = -1
-        self.__pageSize = batch
-        self.__records = []
+        self.collection = collection
+        self.batch_size = batch
 
     def __iter__(self):
-        return self
-
-    def next(self):
-        self.__index += 1
-
-        # get the next batch of records
-        if len(self.__records) in (0, self.__pageSize) and self.__index == len(self.__records):
-            sub_collection = self.__collection.page(self.__page, pageSize=self.__pageSize, returning='values')
-            self.__records = sub_collection.records()
-            self.__page += 1
-            self.__index = 0
-
-        # stop the iteration when complete
-        if not self.__records or self.__index == len(self.__records):
-            raise StopIteration()
-        else:
-            if self.__collection.context().inflated in (True, None):
-                return self.__model.inflate(self.__records[self.__index], context=self.__collection.context())
-            else:
-                return self.__records[self.__index]
+        page_count = self.collection.pageCount(pageSize=self.batch_size)
+        for page in xrange(page_count):
+            page = self.collection.page(page + 1, pageSize=self.batch_size)
+            for record in page:
+                yield record
 
 
 class Collection(object):
@@ -484,7 +473,16 @@ class Collection(object):
             return self.__cache['records'].get(self.__context) is None and self.__model is None
 
     def iterate(self, batch=100):
-        return CollectionIterator(self, batch)
+        """
+        Returns an iterator that will go through the records
+        in this collection, batching queries from the backend
+        given the batch size.
+
+        :param batch: <int>
+
+        :return: <orb.core.collection.BatchIterator>
+        """
+        return BatchIterator(self, batch=batch)
 
     def last(self, **context):
         if self.isNull():
