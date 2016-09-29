@@ -1,11 +1,13 @@
+import demandimport
 import math
 
+# delay loading the root orb package to avoid circular
+# dependency import statements
+with demandimport.enabled():
+    import orb
+
 from collections import defaultdict
-from projex.lazymodule import lazy_import
-from projex.locks import ReadWriteLock, ReadLocker, WriteLocker
-
-
-orb = lazy_import('orb')
+from ..utils.locks import ReadWriteLock
 
 
 class CollectionIterator(object):
@@ -41,6 +43,68 @@ class CollectionIterator(object):
 
 
 class Collection(object):
+    def __init__(self,
+                 records=None,
+                 model=None,
+                 record=None,
+                 collector=None,
+                 preload=None,
+                 **context):
+        self.__cacheLock = ReadWriteLock()
+        self.__cache = defaultdict(dict)
+        self.__preload = preload or {}
+        self.__context = orb.Context(**context)
+        self.__model = model
+        self.__record = record
+        self.__collector = collector
+
+        if records is not None and len(records) > 0:
+            if self.__model is None:
+                self.__model = type(records[0])
+
+            self.__cache['records'][self.__context] = records
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return self.copy(start=index.start, limit=(index.stop - index.start))
+        else:
+            record = self.at(index)
+            if not record:
+                raise IndexError(index)
+            else:
+                return record
+
+    def __iter__(self):
+        if self.isNull():
+            return
+
+        context = self.context()
+
+        try:
+            with self.__cacheLock.reading():
+                records = self.__cache['records'][context]
+
+        except KeyError:
+            try:
+                with self.__cacheLock.reading():
+                    raw = self.__preload['records'][context]
+
+            except KeyError:
+                conn = context.db.connection()
+                raw = conn.select(self.__model, context)
+
+            cache = []
+            for x in self._process(raw, context):
+                yield x
+                cache.append(x)
+
+            with self.__cacheLock.writing():
+                self.__cache['records'][context] = cache
+
+        else:
+            for r in records:
+                yield r
+
     def __json__(self):
         context = self.context()
         expand = context.expandtree(self.__model)
@@ -80,70 +144,8 @@ class Collection(object):
 
         return output
 
-    def __init__(self,
-                 records=None,
-                 model=None,
-                 record=None,
-                 collector=None,
-                 preload=None,
-                 **context):
-        self.__cacheLock = ReadWriteLock()
-        self.__cache = defaultdict(dict)
-        self.__preload = preload or {}
-        self.__context = orb.Context(**context)
-        self.__model = model
-        self.__record = record
-        self.__collector = collector
-
-        if records is not None and len(records) > 0:
-            if self.__model is None:
-                self.__model = type(records[0])
-
-            self.__cache['records'][self.__context] = records
-
     def __len__(self):
         return self.count()
-
-    def __iter__(self):
-        if self.isNull():
-            return
-
-        context = self.context()
-
-        try:
-            with ReadLocker(self.__cacheLock):
-                records = self.__cache['records'][context]
-
-        except KeyError:
-            try:
-                with ReadLocker(self.__cacheLock):
-                    raw = self.__preload['records'][context]
-
-            except KeyError:
-                conn = context.db.connection()
-                raw = conn.select(self.__model, context)
-
-            cache = []
-            for x in self._process(raw, context):
-                yield x
-                cache.append(x)
-
-            with WriteLocker(self.__cacheLock):
-                self.__cache['records'][context] = cache
-
-        else:
-            for r in records:
-                yield r
-
-    def __getitem__(self, index):
-        if isinstance(index, slice):
-            return self.copy(start=index.start, limit=(index.stop - index.start))
-        else:
-            record = self.at(index)
-            if not record:
-                raise IndexError(index)
-            else:
-                return record
 
     def _process(self, raw, context):
         if context.inflated in (True, None) and context.returning not in ('values', 'data'):
@@ -178,7 +180,7 @@ class Collection(object):
                 self.__collector.to(): record
             }
 
-            with WriteLocker(self.__cacheLock):
+            with self.__cacheLock.writing():
                 self.__cache = defaultdict(dict)
 
             return cls.ensureExists(data, context=self.context())
@@ -187,7 +189,7 @@ class Collection(object):
             record.set(self.__collector.targetColumn(), self.__record)
             record.save()
 
-            with WriteLocker(self.__cacheLock):
+            with self.__cacheLock.writing():
                 self.__cache = defaultdict(dict)
 
             return True
@@ -213,7 +215,7 @@ class Collection(object):
             return None
 
     def clear(self):
-        with WriteLocker(self.__cacheLock):
+        with self.__cacheLock.writing():
             self.__cache = defaultdict(dict)
 
     def create(self, values, **context):
@@ -258,7 +260,7 @@ class Collection(object):
     def copy(self, **context):
         context = self.context(**context)
 
-        with ReadLocker(self.__cacheLock):
+        with self.__cacheLock.reading():
             records = self.__cache['records'].get(context)
 
         other = orb.Collection(
@@ -277,11 +279,11 @@ class Collection(object):
 
         context = self.context(**context)
         try:
-            with ReadLocker(self.__cacheLock):
+            with self.__cacheLock.reading():
                 return self.__cache['count'][context]
         except KeyError:
             try:
-                with ReadLocker(self.__cacheLock):
+                with self.__cacheLock.reading():
                     return len(self.__cache['records'][context])
             except KeyError:
                 optimized_context = context.copy()
@@ -290,18 +292,18 @@ class Collection(object):
                 optimized_context.order = None
 
                 try:
-                    with ReadLocker(self.__cacheLock):
+                    with self.__cacheLock.reading():
                         count = self.__preload['count'][context]
                 except KeyError:
                     try:
-                        with ReadLocker(self.__cacheLock):
+                        with self.__cacheLock.reading():
                             raw = self.__preload['records'][context]
                             count = len(raw)
                     except KeyError:
                         conn = optimized_context.db.connection()
                         count = conn.count(self.__model, optimized_context)
 
-                with WriteLocker(self.__cacheLock):
+                with self.__cacheLock.writing():
                     self.__cache['count'][context] = count
                 return count
 
@@ -367,17 +369,17 @@ class Collection(object):
         context = self.context(**context)
 
         try:
-            with ReadLocker(self.__cacheLock):
+            with self.__cacheLock.reading():
                 return self.__cache['first'][context]
         except KeyError:
             try:
-                with ReadLocker(self.__cacheLock):
+                with self.__cacheLock.reading():
                     return self.__cache['first'][context]
             except IndexError:
                 return None
             except KeyError:
                 try:
-                    with ReadLocker(self.__cacheLock):
+                    with self.__cacheLock.reading():
                         raw = self.__preload['first'][context]
                 except KeyError:
                     context.limit = 1
@@ -387,7 +389,7 @@ class Collection(object):
                 else:
                     record = self._process([raw], context).next()
 
-                with WriteLocker(self.__cacheLock):
+                with self.__cacheLock.writing():
                     self.__cache['first'][context] = record
                 return record
 
@@ -442,18 +444,18 @@ class Collection(object):
 
         context = self.context(**context)
         try:
-            with ReadLocker(self.__cacheLock):
+            with self.__cacheLock.reading():
                 return self.__cache['ids'][context]
         except KeyError:
             try:
-                with ReadLocker(self.__cacheLock):
+                with self.__cacheLock.reading():
                     ids = self.__preload['ids'][context]
             except KeyError:
                 ids = self.records(columns=[self.__model.schema().idColumn()],
                                    returning='values',
                                    context=context)
 
-            with WriteLocker(self.__cacheLock):
+            with self.__cacheLock.writing():
                 self.__cache['ids'][context] = ids
 
             return ids
@@ -464,21 +466,21 @@ class Collection(object):
             return -1
         else:
             try:
-                with ReadLocker(self.__cacheLock):
+                with self.__cacheLock.reading():
                     return self.__cache['records'][context].index(record)
             except KeyError:
                 return self.ids().index(record.id())
 
     def isLoaded(self, **context):
         context = self.context(**context)
-        with ReadLocker(self.__cacheLock):
+        with self.__cacheLock.reading():
             return context in self.__cache['records']
 
     def isEmpty(self, **context):
         return self.count(**context) == 0
 
     def isNull(self):
-        with ReadLocker(self.__cacheLock):
+        with self.__cacheLock.reading():
             return self.__cache['records'].get(self.__context) is None and self.__model is None
 
     def iterate(self, batch=100):
@@ -490,18 +492,18 @@ class Collection(object):
 
         context = self.context(**context)
         try:
-            with ReadLocker(self.__cacheLock):
+            with self.__cacheLock.reading():
                 return self.__cache['last'][context]
         except KeyError:
             try:
-                with ReadLocker(self.__cacheLock):
+                with self.__cacheLock.reading():
                     raw = self.__preload['last'][context]
             except KeyError:
                 record = self.reversed().first(context=context)
             else:
                 record = self._process([raw], context).next()
 
-            with WriteLocker(self.__cacheLock):
+            with self.__cacheLock.writing():
                 self.__cache['last'][context] = record
             return record
 
@@ -550,7 +552,7 @@ class Collection(object):
 
     def preload(self, cache, **context):
         context = self.context(**context)
-        with WriteLocker(self.__cacheLock):
+        with self.__cacheLock.writing():
             for key, value in cache.items():
                 self.__preload.setdefault(key, {})
                 self.__preload[key][context] = value
@@ -562,11 +564,11 @@ class Collection(object):
         context = self.context(**context)
 
         try:
-            with ReadLocker(self.__cacheLock):
+            with self.__cacheLock.reading():
                 return self.__cache['records'][context]
         except KeyError:
             try:
-                with ReadLocker(self.__cacheLock):
+                with self.__cacheLock.reading():
                     raw = self.__preload['records'][context]
             except KeyError:
                 conn = context.db.connection()
@@ -574,7 +576,7 @@ class Collection(object):
 
             records = list(self._process(raw, context))
 
-            with WriteLocker(self.__cacheLock):
+            with self.__cacheLock.writing():
                 self.__cache['records'][context] = records
             return records
 
@@ -584,7 +586,7 @@ class Collection(object):
             return self
         else:
             context = self.context(**context)
-            with ReadLocker(self.__cacheLock):
+            with self.__cacheLock.reading():
                 records = self.__cache['records'].get(context)
 
             other = orb.Collection(
@@ -747,7 +749,7 @@ class Collection(object):
                 raise NotImplementedError
 
             # cache the output records
-            with WriteLocker(self.__cacheLock):
+            with self.__cacheLock.writing():
                 self.__preload.clear()
                 self.__cache = defaultdict(dict)
 
@@ -800,15 +802,15 @@ class Collection(object):
         context = self.context(**orig_context)
 
         try:
-            with ReadLocker(self.__cacheLock):
+            with self.__cacheLock.reading():
                 return self.__cache['values'][(context, columns)]
         except KeyError:
             try:
-                with ReadLocker(self.__cacheLock):
+                with self.__cacheLock.reading():
                     records = self.__cache['records'][context]
             except KeyError:
                 try:
-                    with ReadLocker(self.__cacheLock):
+                    with self.__cacheLock.reading():
                         raw = self.__preload['records'][context]
                 except KeyError:
                     context.columns = columns
@@ -839,7 +841,7 @@ class Collection(object):
                     else:
                         values.append(record_values)
 
-                with WriteLocker(self.__cacheLock):
+                with self.__cacheLock.writing():
                     self.__cache['values'][(context, columns)] = values
                 return values
 

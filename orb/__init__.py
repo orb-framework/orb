@@ -22,37 +22,39 @@ except ImportError:  # pragma: no cover
 __version_info__ = (__major__, __minor__, __revision__)
 __version__ = '{0}.{1}.{2}'.format(*__version_info__)
 
-
+import demandimport
 import logging
 logger = logging.getLogger(__name__)
 
 # import global symbols
-from .decorators import *
-from . import errors
+with demandimport.enabled():
+    from .decorators import *
+    from . import errors
 
-from .core import events
-from .core.column import Column
-from .core.collection import Collection
-from .core.connection import Connection
-from .core.context import Context
-from .core.database import Database
-from .core.index import Index
-from .core.model import Model
-from .core.query import (Query, QueryCompound)
-from .core.collector import Collector
-from .core.pipe import Pipe
-from .core.reverselookup import ReverseLookup
-from .core.schema import Schema
-from .core.security import Security
-from .core.system import System
+    from .core import events
+    from .core.column import Column
+    from .core.collection import Collection
+    from .core.connection import Connection
+    from .core.context import Context
+    from .core.database import Database
+    from .core.index import Index
+    from .core.model import Model
+    from .core.modelmixin import ModelMixin
+    from .core.query import (Query, QueryCompound)
+    from .core.collector import Collector
+    from .core.pipe import Pipe
+    from .core.reverselookup import ReverseLookup
+    from .core.schema import Schema
+    from .core.security import Security
 
-from .core.events import *
-from .core.model_types import *
-from .core.column_types import *
-from .core.connection_types import *
+    from .core.events import *
+    from .core.model_types import *
+    from .core.column_types import *
+    from .core.connection_types import *
 
-from .core.modelmixin import ModelMixin
+
 
 
 # define the global system
+from .core.system import System
 system = System()
