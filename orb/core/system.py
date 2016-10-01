@@ -137,3 +137,29 @@ class System(object):
 
     def setSecurity(self, security):
         self.__security = security
+
+    def unregister(self, obj, force=False):
+        """
+        Registers a particular database.
+
+        :param      obj     | <orb.Database> || <orb.Schema>
+        """
+        if isinstance(obj, orb.Database):
+            scope = self.__databases
+            key = obj.code()
+        elif isinstance(obj, orb.Schema):
+            scope = self.__schemas
+            key = obj.name()
+        else:
+            raise orb.errors.OrbError('Unknown object to register: {0}'.format(obj))
+
+        try:
+            existing = self.__schemas[obj.name()]
+        except KeyError:
+            pass
+        else:
+            if existing != obj and not force:
+                raise orb.errors.DuplicateEntryFound('{0} is already a registered {1}.'.format(key, typ))
+
+        scope.pop(key)
+        return True

@@ -139,7 +139,10 @@ class MetaModel(type):
             # register the class to the system
             setattr(new_model, '_{0}__schema'.format(schema.name()), schema)
             schema.setModel(new_model)
-            orb.system.register(schema)
+
+            # automatically register the model to the system
+            if attrs.get('__register__', True):
+                orb.system.register(schema)
 
             # create class methods for indexes
             for index in indexes.values():
