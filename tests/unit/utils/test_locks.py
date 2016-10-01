@@ -1,68 +1,68 @@
-def test_lock_stack():
-    from orb.utils.locks import LockStack
+def test_lock_switch():
+    from orb.utils.locks import MutexSwitch
     import threading
 
     lock = threading.Lock()
-    stack = LockStack(lock)
+    switch = MutexSwitch(lock)
 
-    assert stack.counter == 0
-    assert stack.lock == lock
-    assert stack.lock.locked() is False
+    assert switch.counter == 0
+    assert switch.lock == lock
+    assert switch.lock.locked() is False
 
-    stack.acquire()
+    switch.acquire()
 
-    assert stack.counter == 1
-    assert stack.lock.locked() is True
+    assert switch.counter == 1
+    assert switch.lock.locked() is True
 
-    stack.acquire()
+    switch.acquire()
 
-    assert stack.counter == 2
-    assert stack.lock.locked() is True
+    assert switch.counter == 2
+    assert switch.lock.locked() is True
 
-    stack.release()
+    switch.release()
 
-    assert stack.counter == 1
-    assert stack.lock.locked() is True
+    assert switch.counter == 1
+    assert switch.lock.locked() is True
 
-    stack.release()
+    switch.release()
 
-    assert stack.counter == 0
-    assert stack.lock.locked() is False
+    assert switch.counter == 0
+    assert switch.lock.locked() is False
 
 
 def test_reading_from_rw_lock():
-    from orb.utils.locks import ReadWriteLock
+    from orb.utils.locks import ReadWriteLock, ReadLocker
 
     lock = ReadWriteLock()
 
-    with lock.reading():
+    with ReadLocker(lock):
         assert lock.no_readers.locked() is False
         assert lock.no_writers.locked() is True
-        assert lock.read_stack.counter == 1
-        assert lock.write_stack.counter == 0
+        assert lock.read_switch.counter == 1
+        assert lock.write_switch.counter == 0
 
-        with lock.reading():
-            assert lock.read_stack.counter == 2
+        with ReadLocker(lock):
+            assert lock.read_switch.counter == 2
 
-        assert lock.read_stack.counter == 1
+        assert lock.read_switch.counter == 1
 
-    assert lock.read_stack.counter == 0
+    assert lock.read_switch.counter == 0
     assert lock.no_readers.locked() is False
     assert lock.no_writers.locked() is False
 
 
 def test_writing_to_rw_lock():
-    from orb.utils.locks import ReadWriteLock
+    from orb.utils.locks import ReadWriteLock, WriteLocker
 
     lock = ReadWriteLock()
 
-    with lock.writing():
+    with WriteLocker(lock):
         assert lock.no_readers.locked() is True
         assert lock.no_writers.locked() is True
-        assert lock.read_stack.counter == 0
-        assert lock.write_stack.counter == 1
+        assert lock.read_switch.counter == 0
+        assert lock.write_switch.counter == 1
 
     assert lock.no_readers.locked() is False
     assert lock.no_writers.locked() is False
-    assert lock.read_stack.counter == 0
-    assert lock.write_stack.counter == 0
+    assert lock.read_switch.counter == 0
+    assert lock.write_switch.counter == 0

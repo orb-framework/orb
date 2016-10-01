@@ -9,14 +9,13 @@ Credit for this code goes to:
 http://code.activestate.com/recipes/577803-reader-writer-lock-with-priority-for-writers
 """
 
-import contextlib
 import logging
 import threading
 
 log = logging.getLogger(__name__)
 
 
-class LockStack(object):
+class MutexSwitch(object):
     def __init__(self, lock):
         self.counter = 0
         self.lock = lock
@@ -53,25 +52,29 @@ class ReadWriteLock(object):
 
     :usage
 
-        from orb.utils.locks import ReadWriteLock
+        from orb.utils.locks import (
+            ReadWriteLock,
+            ReadLocker,
+            WriteLocker
+        )
 
         rw_lock = ReadWriteLock()
         data = {}
 
         def read_data(key):
-            with rw_lock.reading():
+            with ReadLocker(rw_lock):
                 return data.get(key)
 
         def write_data(key, value):
-            with rw_lock.writing():
+            with WriteLocker(rw_lock):
                 data[key] = value
     """
     def __init__(self):
         self.no_readers = threading.Lock()
         self.no_writers = threading.Lock()
         self.readers_queue = threading.Lock()
-        self.read_stack = LockStack(self.no_writers)
-        self.write_stack = LockStack(self.no_readers)
+        self.read_switch = MutexSwitch(self.no_writers)
+        self.write_switch = MutexSwitch(self.no_readers)
 
     def reader_acquire(self):
         """
@@ -80,7 +83,7 @@ class ReadWriteLock(object):
         """
         self.readers_queue.acquire()
         self.no_readers.acquire()
-        self.read_stack.acquire()
+        self.read_switch.acquire()
         self.no_readers.release()
         self.readers_queue.release()
 
@@ -89,32 +92,14 @@ class ReadWriteLock(object):
         Releases the write lock assuming there are no
         other readers accessing data at the same time.
         """
-        self.read_stack.release()
-
-    @contextlib.contextmanager
-    def reading(self):
-        """
-        Provides a context for reading data protected by
-        this lock.
-
-        :usage
-
-            lock = ReadWriteLock()
-            data = {'name': 'sally'}
-
-            with lock.reading():
-                return data['name']
-        """
-        self.reader_acquire()
-        yield self
-        self.reader_release()
+        self.read_switch.release()
 
     def writer_acquire(self):
         """
         Acquires the writing lock by aquiring both the
         readers lock and the writers lock.
         """
-        self.write_stack.acquire()
+        self.write_switch.acquire()
         self.no_writers.acquire()
 
     def writer_release(self):
@@ -122,23 +107,55 @@ class ReadWriteLock(object):
         Releases both the writer and readers locks.
         """
         self.no_writers.release()
-        self.write_stack.release()
+        self.write_switch.release()
 
-    @contextlib.contextmanager
-    def writing(self):
-        """
-        Provides a context for writing data protected by
-        this lock.
 
-        :usage
+class ReadLocker(object):
+    """
+    Context manager used for acquiring a read lock from a ReadWriteLock
+    to access data.
 
-            lock = ReadWriteLock()
-            data = {'name': 'sally'}
+    :usage
 
-            with lock.writing():
-                data['name'] = 'bob'
-        """
-        self.writer_acquire()
-        yield self
-        self.writer_release()
+        from orb.utils.locks import ReadWriteLock, ReadLocker
+
+        lock = ReadWriteLock()
+        data = {'testing': 10}
+
+        with ReadLocker(lock):
+            a = data.get('testing')
+    """
+    def __init__(self, lock):
+        self.lock = lock
+
+    def __enter__(self):
+        self.lock.reader_acquire()
+
+    def __exit__(self, *args):
+        self.lock.reader_release()
+
+
+class WriteLocker(object):
+    """
+    Context manager used for acquiring a write lock from a ReadWriteLock
+    to access data.
+
+    :usage
+
+        from orb.utils.locks import ReadWriteLock, WriteLocker
+
+        lock = ReadWriteLock()
+        data = {'testing': 10}
+
+        with WriteLocker(lock):
+            data['testing'] = 20
+    """
+    def __init__(self, lock):
+        self.lock = lock
+
+    def __enter__(self):
+        self.lock.writer_acquire()
+
+    def __exit__(self, *args):
+        self.lock.writer_release()
 
