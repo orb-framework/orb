@@ -62,7 +62,7 @@ class Model(object):
 
         # don't include the column names
         if context.returning == 'values':
-            schema_fields = {c.field() for c in context.schemaColumns(self.schema())}
+            schema_fields = {c.field() for c in context.schema_columns(self.schema())}
             output = tuple(value for field, value in self if field in schema_fields)
             if len(output) == 1:
                 output = output[0]
@@ -535,12 +535,7 @@ class Model(object):
         # otherwise, lookup a column
         else:
             my_context = self.context()
-
-            for k, v in my_context.raw_values.items():
-                if k not in orb.Context.QueryFields:
-                    context.setdefault(k, v)
-
-            sub_context = orb.Context(**context)
+            sub_context = my_context.sub_context(**context)
 
             # normalize the given column
             if isinstance(column, orb.Column):
@@ -748,12 +743,8 @@ class Model(object):
             collector = self.schema().collector(column)
             if collector:
                 my_context = self.context()
+                sub_context = my_context.sub_context(**context)
 
-                for k, v in my_context.raw_values.items():
-                    if k not in orb.Context.QueryFields:
-                        context.setdefault(k, v)
-
-                sub_context = orb.Context(**context)
                 method = collector.settermethod()
                 if method and useMethod:
                     return method(self, value, context=sub_context)

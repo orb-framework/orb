@@ -6,62 +6,79 @@ will map to one of the classes defined in this module.
 """
 
 import copy
+import demandimport
 import threading
-from collections import defaultdict
-from projex.lazymodule import lazy_import
-from projex.locks import ReadWriteLock, WriteLocker, ReadLocker
 
-orb = lazy_import('orb')
+from collections import defaultdict
+
+from ..utils.locks import (
+    ReadWriteLock,
+    ReadLocker,
+    WriteLocker
+)
+
+with demandimport.enabled():
+    import orb
+
+# query / backend context properties
+QUERY_DEFAULTS = {
+    'columns': None,
+    'database': None,
+    'distinct': False,
+    'expand': None,
+    'limit': None,
+    'order': None,
+    'page': None,
+    'pageSize': None,
+    'namespace': '',
+    'force_namespace': False,
+    'start': None,
+    'where': None
+}
+
+# general context properties
+GENERAL_DEFAULTS = {
+    'dryRun': False,
+    'format': 'json',
+    'force': False,
+    'inflated': None,
+    'locale': None,
+    'returning': 'records',
+    'useBaseQuery': True,
+    'timezone': None
+}
+
+# unhashable context properties
+FIXED_DEFAULTS = {
+    'db': None,
+    'scope': None
+}
+
+# define the context default dictionary
+DEFAULTS = {}
+DEFAULTS.update(QUERY_DEFAULTS)
+DEFAULTS.update(GENERAL_DEFAULTS)
+DEFAULTS.update(FIXED_DEFAULTS)
+
+# define context stack locking
+_context_lock = ReadWriteLock()
+_context_stack = defaultdict(list)
+
 
 class Context(object):
-    """"
-    Defines a unique instance of information that will be bundled when
-    calling different methods within the connections class.
+    def __init__(self, **kw):
+        self.__dict__['raw_values'] = {}
 
-    The Context class will accept a set of keyword arguments to
-    control how the action on the database will be affected.  The options are:
-    """
-    Defaults = {
-        'autoIncrementEnabled': True,
-        'columns': None,
-        'db': None,
-        'database': None,
-        'distinct': False,
-        'dryRun': False,
-        'expand': None,
-        'format': 'json',
-        'force': False,
-        'inflated': None,
-        'limit': None,
-        'locale': None,
-        'namespace': '',
-        'forceNamespace': False,
-        'order': None,
-        'page': None,
-        'pageSize': None,
-        'scope': None,
-        'returning': 'records',
-        'start': None,
-        'timezone': None,
-        'where': None,
-        'useBaseQuery': True
-    }
+        # load inherited context properties
+        tid = threading.currentThread().ident
+        with ReadLocker(_context_lock):
+            default_contexts = _context_stack[tid]
 
-    QueryFields = {
-        'columns',
-        'expand',
-        'limit',
-        'order',
-        'page',
-        'pageSize',
-        'start',
-        'where'
-    }
+        for default_context in default_contexts:
+            self.update(default_context)
 
-    UnhashableOptions = {
-        'db',
-        'scope'
-    }
+        # update the properties for this context
+        self.update(kw)
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -70,86 +87,85 @@ class Context(object):
         return hash(self) != hash(other)
 
     def __hash__(self):
-        keys = sorted(self.Defaults.keys())
+        keys = sorted(DEFAULTS.keys())
 
-        hash_keys = []
+        hash_values = []
         for key in keys:
-            if key in self.__class__.UnhashableOptions:
+            if key in FIXED_DEFAULTS:
                 continue
+            elif key not in self.raw_values:
+                # we need to keep the same spacing between
+                # values in the tuple for the
+                # hashing function to work
+                hash_values.append(None)
+            else:
+                value = self.raw_values[key]
 
-            value = self.raw_values.get(key, self.__class__.Defaults[key])
-            if isinstance(value, (list, set)):
-                value = tuple(value)
+                # cannot hash a list or set, so convert
+                # it to a tuple first
+                if isinstance(value, (list, set)):
+                    value = tuple(value)
 
-            try:
-                hash_value = hash(value)
-            except TypeError:
-                hash_value = unicode(value)
+                try:
+                    hash_value = hash(value)
+                except TypeError:
+                    hash_value = unicode(value)
 
-            hash_keys.append(hash_value)
+                hash_values.append(hash_value)
 
-
-        return hash(tuple(hash_keys))
+        # hash the list of keys
+        return hash(tuple(hash_values))
 
     def __enter__(self):
-        """
-        Creates a scope where this context is default, so all calls made while it is in scope will begin with
-        the default context information.
-
-        :usage      |import orb
-                    |with orb.Context(database=db):
-                    |   user = models.User()
-                    |   group = models.Group()
-
-        :return:  <orb.Context>
-        """
-        self.pushDefaultContext(self)
+        tid = threading.currentThread().ident
+        with WriteLocker(_context_lock):
+            _context_stack[tid].append(self)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.popDefaultContext()
-        if exc_type:
-            raise
-        else:
-            return self
-
-    def __init__(self, **kwds):
-        self.__dict__['raw_values'] = {}
-        self.update(kwds)
+        tid = threading.currentThread().ident
+        with WriteLocker(_context_lock):
+            _context_stack[tid].pop()
 
     def __getattr__(self, key):
-        try:
-            return self.raw_values.get(key, self.Defaults[key])
-        except KeyError:
-            raise AttributeError(key)
+        if key not in DEFAULTS:
+            raise AttributeError
+        else:
+            return self.raw_values.get(key, DEFAULTS[key])
 
     def __setattr__(self, key, value):
-        if not key in self.Defaults:
+        if not key in DEFAULTS:
             raise AttributeError(key)
         else:
             self.raw_values[key] = value
 
     def __iter__(self):
-        for k in self.Defaults:
-            yield k, getattr(self, k)
+        for k in DEFAULTS:
+            try:
+                yield k, getattr(self, k)
+            except orb.errors.DatabaseNotFound:
+                yield k, None
 
     def copy(self):
         """
-        Returns a copy of this database option set.
+        Creates a duplicate of this context and returns it.
 
-        :return     <orb.Context>
+        :return: <orb.Context>
         """
-        properties = {}
-        for key, value in self.raw_values.items():
-            if key in self.UnhashableOptions:
-                properties[key] = value
-            else:
-                properties[key] = copy.copy(value)
-
-        return Context(**properties)
+        props = {
+            k: v if k in FIXED_DEFAULTS else copy.copy(v)
+            for k, v in self.raw_values.items()
+        }
+        return Context(**props)
 
     @property
     def db(self):
+        """
+        Returns a database instance associated with this
+        context.
+
+        :return: <orb.Database>
+        """
         try:
             return self.raw_values['db']
         except KeyError:
@@ -160,6 +176,23 @@ class Context(object):
 
     @property
     def expand(self):
+        """
+        Normalizes the raw expand values that were provided
+        to the context into being a list of string column
+        names.
+
+        :usage
+
+            context = orb.Context(expand='user,group')
+            assert context.expand == ['user', 'group']
+
+            context = orb.Context(expand=['user', 'group'])
+            assert context.expand == ['user', 'group'])
+
+            context = orb.Context(expand={'user': {'username': {}}})
+            assert context.expand == ['user', 'user.username']
+
+        """
         out = self.raw_values.get('expand')
         if isinstance(out, set):
             return list(out)
@@ -179,7 +212,7 @@ class Context(object):
         Goes through the expand options associated with this context and
         returns a trie of data.
 
-        :param model: subclass of <orb.Model> || None
+        :param model: subclass of <orb.Model> or None
 
         :return: <dict>
         """
@@ -207,45 +240,116 @@ class Context(object):
 
     def isNull(self):
         """
-        Returns whether or not this option set has been modified.
+        Returns whether or not this context set has been modified.
 
-        :return     <bool>
+        :return: <bool>
         """
-        check = self.raw_values.copy()
-        scope = check.pop('scope', {})
-        return len(check) == 0 and len(scope) == 0
+        if 'scope' in self.raw_values:
+            return len(self.raw_values) == 1 and len(self.raw_values['scope']) == 0
+        else:
+            return len(self.raw_values) == 0
 
     def items(self):
-        return [(k, getattr(self, k)) for k in self.Defaults]
+        """
+        Returns a list of key value paired tuples for the
+        values represented in this context.
+
+        :return: [(<str> key, <variant> value), ..]
+        """
+        return [(k, v) for k, v in self]
 
     @property
     def locale(self):
+        """
+        Returns the locale for this context, or the
+        locale defined by the default system settings.
+
+        :return: <str>
+        """
         return self.raw_values.get('locale') or orb.system.settings().default_locale
 
     @property
     def order(self):
+        """
+        Normalizes the order property for the context, returning
+        order as a list of tuples containing the column and
+        direction for the order.
+
+        :usage
+
+            context = orb.Context(order=[('name', 'asc')])
+            assert context.order == [('name', 'asc')]
+
+            context = orb.Context(order='+first_name,-last_name')
+            assert context.order == [('first_name', 'asc'), ('last_name', 'desc')]
+
+            context = orb.Context(order={('name', 'asc')})
+            assert context.order == [('name', 'asc')]
+
+        :return: [(<str> column, <str> direction), ..]
+        """
         out = self.raw_values.get('order')
         if isinstance(out, set):
             return list(out)
         elif isinstance(out, (str, unicode)):
-            return [(x.strip('+-'), 'desc' if x.startswith('-') else 'asc') for x in out.split(',') if x]
+            return [(x.strip().strip('+-'), 'desc' if x.strip().startswith('-') else 'asc')
+                    for x in out.split(',') if x]
         else:
             return out
 
-    def schemaColumns(self, schema):
+    def schema_columns(self, schema):
+        """
+        Returns a list of columns for the given schema based on
+        the columns defined in this context.
+
+        :return: [<orb.Column>, ..]
+        """
         return [schema.column(col) for col in self.columns or []]
+
+    def sub_context(self, **context):
+        """
+        Generates a sub-context of this instance with only
+        general context settings, ignoring the query
+        based context parameters.
+
+        :return: <orb.Context>
+        """
+
+        sub_context = {k: v for k, v in self.raw_values.items()
+                       if k not in QUERY_DEFAULTS}
+
+        sub_context.update(context)
+        return orb.Context(**sub_context)
 
     @property
     def limit(self):
+        """
+        Calculates the limit based on the limit or pageSize properties.
+
+        :return: <int> or None
+        """
         return self.raw_values.get('pageSize') or self.raw_values.get('limit')
 
     @property
     def scope(self):
-        out = self.raw_values.get('scope')
-        return out if out is not None else {}
+        """
+        Returns the scope associated with this context.  If the raw scope
+        is not defined then a new dictionary is created.
+
+        :return: <dict>
+        """
+        self.raw_values.setdefault('scope', {})
+        return self.raw_values['scope']
 
     @property
     def start(self):
+        """
+        Calculates the starting index that should be used for data retrieval,
+        which is either deriven from the page information, or the given start
+        index.
+
+        :return: <int> or None
+        """
         if self.raw_values.get('page') is not None:
             return (self.raw_values.get('page') - 1) * (self.limit or 0)
         else:
@@ -253,143 +357,72 @@ class Context(object):
 
     @property
     def timezone(self):
+        """
+        Returns the timezone defined for this context.  If no timezone
+        is directly associated with it, then the default system server timezone
+        will be used.
+
+        :return: <str>
+        """
         return self.raw_values.get('timezone') or orb.system.settings().server_timezone
 
     def update(self, other_context):
         """
         Updates this lookup set with the inputted options.
 
-        :param      other_context | <dict> || <orb.Context>
+        :param      other_context | <dict> or <orb.Context>
         """
-        # convert a context instance into a dictionary
+        # use the raw values of the other context
         if isinstance(other_context, orb.Context):
-            other_context = copy.copy(other_context.raw_values)
+            other_context = other_context.raw_values
+
+        elif not isinstance(other_context, dict):
+            return
+
+        # inherit from another base context
+        if 'context' in other_context:
+            self.update(other_context.pop('context'))
 
         ignore = ('where', 'columns', 'scope')
-        inherit_kwds = {}
-        inherit_scope = {}
-        inherit_columns = []
-        inherit_where = orb.Query()
 
-        # update from the base context
-        base_context = other_context.pop('context', None)
-        if base_context is not None:
-            inherit_kwds = base_context.raw_values
+        # merge the where queries together
+        if 'where' in other_context:
+            other_where = other_context['where']
+            if isinstance(other_where, dict):
+                other_where = orb.Query.fromJSON(other_where)
 
-        # use the default contexts
-        else:
-            for default in self.defaultContexts():
-                if default is not None:
-                    # extract expandable information
-                    for k, v in default.raw_values.items():
-                        if k not in ignore:
-                            inherit_kwds[k] = copy.copy(v)
+            if 'where' in self.raw_values:
+                self.raw_values['where'] &= other_where
+            else:
+                self.raw_values['where'] = other_where
 
-                    # merge where queries
-                    where = default.where
-                    if where is not None:
-                        inherit_where &= where
+        # merge the column definitions together
+        if 'columns' in other_context:
+            other_columns = other_context['columns']
+            if isinstance(other_columns, (str, unicode)):
+                other_columns = other_columns.split(',')
 
-                    # merge column queries
-                    columns = default.columns
-                    if columns is not None:
-                        inherit_columns += list(columns)
+            if 'columns' in self.raw_values:
+                self.raw_values['columns'] = list(self.raw_values['columns']) + other_columns
+            else:
+                self.raw_values['columns'] = list(other_columns)
 
-                    # merge scope
-                    scope = default.scope
-                    if scope:
-                        inherit_scope.update(scope)
+        # merge the scope together
+        if 'scope' in other_context:
+            self.scope.update(other_context['scope'])
 
-        # update the inherited kwds
-        for k, v in inherit_kwds.items():
-            other_context.setdefault(k, v)
-
-        # update the inherited query
-        if inherit_where:
-            other_context.setdefault('where', orb.Query())
-            other_context['where'] &= inherit_where
-
-        # update the inherited columns
-        if inherit_columns:
-            other_context['columns'] = inherit_columns + (other_context.get('columns') or [])
-
-        # update the inherited scope
-        if inherit_scope:
-            new_scope = {}
-            new_scope.update(inherit_scope)
-            new_scope.update(other_context.get('scope') or {})
-            other_context['scope'] = new_scope
-
-        # convert the columns to a list
-        if 'columns' in other_context and isinstance(other_context['columns'], (str, unicode)):
-            other_context['columns'] = other_context['columns'].split(',')
-
-        # convert where to query
-        where = other_context.get('where')
-        if isinstance(where, dict):
-            other_context['where'] = orb.Query.fromJSON(where)
-
-        if isinstance(where, (orb.Query, orb.QueryCompound)):
-            other_context['where'] &= self.where
+        # set the values for the other properties
+        for k, v in other_context.items():
+            if k not in ignore:
+                self.raw_values[k] = v
 
         # validate values
-        if other_context.get('start') is not None and (type(other_context['start']) != int or other_context['start'] < 0):
-            msg = 'Start needs to be a positive number, got {0} instead'
-            raise orb.errors.ContextError(msg.format(other_context.get('start)')))
-        if other_context.get('page') is not None and (type(other_context['page']) != int or other_context['page'] < 1):
-            msg = 'Page needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.ContextError(msg.format(other_context.get('page')))
-        if other_context.get('limit') is not None and (type(other_context['limit']) != int or other_context['limit'] < 1):
-            msg = 'Limit needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.ContextError(msg.format(other_context.get('limit')))
-        if other_context.get('pageSize') is not None and (type(other_context['pageSize']) != int or other_context['pageSize'] < 1):
-            msg = 'Page size needs to be a number equal to or greater than 1, got {0} instead'
-            raise orb.errors.ContextError(msg.format(other_context.get('pageSize')))
+        for field, minimum in (('start', 0), ('page', 1), ('limit', 1), ('pageSize', 1)):
+            value = self.raw_values.get(field)
+            if value is None:
+                continue
 
-        # update the raw values
-        self.raw_values.update({k: v for k, v in other_context.items() if k in self.Defaults})
+            if type(value) != int or self.raw_values[field] < minimum:
+                msg = '{0} needs to be an integer greater than or equal to {1}, got {2}'
+                raise orb.errors.ContextError(msg.format(field, minimum, value))
 
-    @classmethod
-    def defaultContexts(cls):
-        defaults = getattr(cls, '_{0}__defaults'.format(cls.__name__), None)
-        if defaults is None:
-            defaults = defaultdict(list)
-            lock = ReadWriteLock()
-            setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
-            setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
-        else:
-            lock = getattr(cls, '_{0}__defaultsLock'.format(cls.__name__))
-
-        tid = threading.currentThread().ident
-        with ReadLocker(lock):
-            return defaults.get(tid) or []
-
-    @classmethod
-    def popDefaultContext(cls):
-        defaults = getattr(cls, '_{0}__defaults'.format(cls.__name__), None)
-        if defaults is None:
-            defaults = defaultdict(list)
-            lock = ReadWriteLock()
-            setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
-            setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
-        else:
-            lock = getattr(cls, '_{0}__defaultsLock'.format(cls.__name__))
-
-        tid = threading.currentThread().ident
-        with WriteLocker(lock):
-            defaults[tid].pop()
-
-    @classmethod
-    def pushDefaultContext(cls, context):
-        defaults = getattr(cls, '_{0}__defaults'.format(cls.__name__), None)
-        if defaults is None:
-            defaults = defaultdict(list)
-            lock = ReadWriteLock()
-            setattr(cls, '_{0}__defaults'.format(cls.__name__), defaults)
-            setattr(cls, '_{0}__defaultsLock'.format(cls.__name__), lock)
-        else:
-            lock = getattr(cls, '_{0}__defaultsLock'.format(cls.__name__))
-
-        tid = threading.currentThread().ident
-        with WriteLocker(lock):
-            defaults[tid].append(context)

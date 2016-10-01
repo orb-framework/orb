@@ -373,10 +373,12 @@ class Schema(object):
         :return: <str>
         """
         context = orb.Context(**context)
-        if context.forceNamespace:
-            return context.namespace or self.__namespace
+        if context.force_namespace and context.namespace:
+            return context.namespace
+        elif self.__namespace:
+            return self.__namespace
         else:
-            return self.__namespace or context.namespace
+            return context.namespace
 
     def register(self, item):
         """
