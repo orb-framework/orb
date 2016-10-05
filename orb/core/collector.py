@@ -1,3 +1,4 @@
+import inflection
 import projex.text
 
 from projex.enum import enum
@@ -58,8 +59,8 @@ class Collector(object):
 
                 # preload the results
                 if isinstance(collection, orb.Collection):
-                    cache = record.preload(projex.text.underscore(self.name()))
-                    collection.preload(cache, **context)
+                    record_cache = record.preloaded_data(self.alias())
+                    collection.add_preloaded_data(record_cache, **context)
 
                     if self.testFlag(self.Flags.Unique):
                         return collection.first()
@@ -67,6 +68,15 @@ class Collector(object):
                         return collection
                 else:
                     return collection
+
+    def alias(self):
+        return inflection.underscore(self.name())
+
+    def add_record(self, source_record, target_record, **context):
+        raise NotImplementedError
+
+    def create_record(self, source_record, values, **context):
+        raise NotImplementedError
 
     def copy(self):
         out = type(self)(name=self.__name, flags=self.__flags)
@@ -80,6 +90,9 @@ class Collector(object):
 
     def collectExpand(self, query, parts, **context):
         raise NotImplementedError
+
+    def delete_records(self, collection, **context):
+        return False, 0
 
     def queryFilter(self, function=None):
         """
@@ -149,6 +162,9 @@ class Collector(object):
     def name(self):
         return self.__name
 
+    def remove_record(self, source_record, target_record, **context):
+        raise NotImplementedError
+
     def schema(self):
         return self.__schema
 
@@ -177,3 +193,6 @@ class Collector(object):
 
     def testFlag(self, flag):
         return (self.__flags & flag) > 0
+
+    def update_records(self, collection, source_record, record_ids, **context):
+        raise NotImplementedError

@@ -1425,7 +1425,7 @@ class QueryCompound(object):
                 sub_q.setValue(new_records)
 
                 if current_records is not None and current_records.model() == sub_q.model(model):
-                    new_records = new_records.refine(createNew=False, where=sub_q)
+                    new_records = new_records.refine(create_new=False, where=sub_q)
                 else:
                     queries.append(sub_q)
 
@@ -1437,7 +1437,7 @@ class QueryCompound(object):
                     (isinstance(sub_q, orb.Query) and current_records.model() == query.model(model)) or
                     (isinstance(sub_q, orb.QueryCompound) and current_records.model() in sub_q.models(model))
                  )):
-                current_records.refine(createNew=False, where=sub_q)
+                current_records.refine(create_new=False, where=sub_q)
 
             # clear out the chain and move on to the next query set
             else:

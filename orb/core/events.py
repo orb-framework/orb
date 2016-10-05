@@ -94,6 +94,25 @@ class DeleteEvent(RecordEvent):
 
         self.context = context
 
+    @classmethod
+    def process(cls, records, **kw):
+        """
+        Creates an event per record based on
+        the class and keyword arguments.  If
+        the event processes without the default
+        action, then the record will be yielded.
+
+        :param records: <iterable>
+        :param **kw: keywords for event construction
+
+        :return: <generator> (unprevented records)
+        """
+        for record in records:
+            event = cls(**kw)
+            record.onDelete(event)
+            if not event.preventDefault:
+                yield record
+
 class LoadEvent(RecordEvent):
     def __init__(self, data=None, **options):
         super(LoadEvent, self).__init__(**options)

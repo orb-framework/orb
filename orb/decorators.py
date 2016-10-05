@@ -2,11 +2,13 @@
 Defines decorators that will be used throughout the ORB library.
 """
 
+import demandimport
+import functools
 import inflection
+import warnings
 
-from projex.lazymodule import lazy_import
-
-orb = lazy_import('orb')
+with demandimport.enabled():
+    import orb
 
 
 def virtual(cls, **options):
@@ -50,3 +52,19 @@ def virtual(cls, **options):
         func.queryFilter = define_query_filter
         return func
     return wrapped
+
+
+def deprecated(func):
+    '''This is a decorator which can be used to mark functions
+    as deprecated. It will result in a warning being emitted
+    when the function is used.'''
+    @functools.wraps(func)
+    def new_func(*args, **kwargs):
+        warnings.warn_explicit(
+            "Call to deprecated function {}.  {}".format(func.__name__, func.__doc__),
+            category=DeprecationWarning,
+            filename=func.func_code.co_filename,
+            lineno=func.func_code.co_firstlineno + 1
+        )
+        return func(*args, **kwargs)
+    return new_func

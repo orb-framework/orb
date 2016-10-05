@@ -629,8 +629,11 @@ class Model(object):
 
         :return     <bool>
         """
-        if db in (None, self.context().db):
-            col = self.schema().column(self.schema().idColumn())
+        if db is not None:
+            same_db = db == self.context().db
+
+        if db is None or same_db:
+            col = self.schema().idColumn()
             with ReadLocker(self.__dataLock):
                 if col not in self.__loaded or self.__values[col.name()][0] is None:
                     return False
@@ -638,7 +641,15 @@ class Model(object):
         else:
             return None
 
-    def preload(self, name):
+    def preloaded_data(self, name):
+        """
+        Returns raw backend data that has been preloaded for
+        the given data name.
+
+        :param name: <str>
+
+        :return: <dict>
+        """
         return self.__preload.get(name) or {}
 
     def save(self, values=None, after=None, before=None, **context):
@@ -1240,7 +1251,7 @@ class Model(object):
         :return     [ <cls>, .. ] || { <variant> grp: <variant> result, .. }
         """
         rset_type = getattr(cls, 'Collection', orb.Collection)
-        return rset_type(model=cls, **context)
+        return rset_type(**context).bind_model(cls)
 
     @classmethod
     def setBaseQuery(cls, query):

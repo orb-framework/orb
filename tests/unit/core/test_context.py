@@ -540,3 +540,17 @@ def test_context_update_with_null_value():
     a = Context()
     a.update(None)
     assert a.isNull()
+
+
+def test_context_difference_checker():
+    from orb.core.context import Context
+
+    a = Context()
+    b = Context(columns='id')
+    c = Context(columns='id', start=1, limit=100)
+
+    assert a.difference(a) == set()
+    assert a.difference(b) == {'columns'}
+    assert a.difference(c) == {'columns', 'start', 'limit'}
+    assert b.difference(c) == {'start', 'limit'}
+    assert c.difference(b) == {'start', 'limit'}
