@@ -306,6 +306,24 @@ class Context(object):
         else:
             return out
 
+    def reversed(self):
+        """
+        Reverses the ordering of this context and returns a new one.
+
+        :return <orb.Context>
+        """
+        curr_order = self.order
+        if curr_order:
+            new_order = [(col, 'asc' if dir == 'desc' else 'desc')
+                         for col, dir in self.order or []]
+        else:
+            new_order = None
+
+        # generate the new context
+        out_context = self.copy()
+        out_context.order = new_order
+        return out_context
+
     def schema_columns(self, schema):
         """
         Returns a list of columns for the given schema based on

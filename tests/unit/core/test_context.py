@@ -542,3 +542,19 @@ def test_context_difference_checker():
     assert a.difference(c) == {'columns', 'start', 'limit'}
     assert b.difference(c) == {'start', 'limit'}
     assert c.difference(b) == {'start', 'limit'}
+
+
+def test_context_reversing():
+    from orb.core.context import Context
+
+    a = Context(order='+id,-username')
+    assert a.order == [('id', 'asc'), ('username', 'desc')]
+
+    b = a.reversed()
+    assert b.order == [('id', 'desc'), ('username', 'asc')]
+
+    c = Context()
+    assert c.order is None
+
+    d = c.reversed()
+    assert d.order is None

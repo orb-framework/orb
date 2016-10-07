@@ -40,7 +40,7 @@ class BatchIterator(object):
         self.batch_size = batch
 
     def __iter__(self):
-        page_count = self.collection.pageCount(pageSize=self.batch_size)
+        page_count = self.collection.page_count(pageSize=self.batch_size)
         for page_number in xrange(page_count):
             page = self.collection.page(page_number + 1, pageSize=self.batch_size)
             for record in page:
@@ -255,12 +255,18 @@ class Collection(object):
         """
         # generate records off the list of models
         if isinstance(records, (list, set, tuple)):
-            id_col = self.__bound_model.schema().idColumn()
+            if self.__bound_model:
+                id_col = self.__bound_model.schema().idColumn()
+            else:
+                id_col = None
 
             for record in records:
                 # given a dictionary object, determine if we need
                 # to create a new record
                 if isinstance(record, dict):
+                    if not self.__bound_model:
+                        raise orb.errors.ModelNotFound('None')
+
                     record_attributes = record
                     record_id = record_attributes.pop(id_col.name(), None)
 
@@ -277,7 +283,7 @@ class Collection(object):
                     # otherwise, we will lookup the existing record based on the
                     # data provided
                     else:
-                        record = self.__bound_model(record_id, **context)
+                        record = self.__bound_model(record_id, context=context)
                         if record_attributes:
                             record.update(record_attributes)
                             record.save()
@@ -573,7 +579,9 @@ class Collection(object):
             # if the only difference between the two contexts is the slicing of this
             # collection, then we can re-use the cached values
             diff = my_context.difference(sub_context)
-            if my_records and (diff == {'start', 'limit'} or diff == {'page', 'pageSize'}):
+            if my_records and (diff == {'start', 'limit'} or
+                               diff == {'page', 'pageSize'} or
+                               diff == {'page'}):
                 start_index = sub_context.start
                 end_index = start_index + sub_context.limit
                 records = my_records[start_index:end_index]
@@ -741,8 +749,16 @@ class Collection(object):
                         raw = self.__cache['preload_first'][orb_context]
                 except KeyError:
                     schema = self.__bound_model.schema()
-                    order = '+{0}'.format(schema.idColumn().name())
-                    records = self.records(limit=1, order=order, context=orb_context)
+
+                    # ensure we don't modify our context
+                    if not context:
+                        orb_context = orb_context.copy()
+
+                    orb_context.limit = 1
+                    if not orb_context.order:
+                        orb_context.order = [(schema.idColumn().name(), 'asc')]
+
+                    records = self.records(context=orb_context)
                     record = records[0] if records else None
                 else:
                     record = self._process_record(raw, orb_context)
@@ -791,14 +807,19 @@ class Collection(object):
             for value in values:
                 data = output
                 q = orb.Query()
-                for i, column in enumerate(columns[:-1]):
-                    key = value[i]
-                    data.setdefault(key, {})
-                    data = data[key]
 
-                    q &= orb.Query(column) == key
+                if len(columns) == 1:
+                    key = value
+                else:
+                    for i, column in enumerate(columns[:-1]):
+                        key = value[i]
+                        data.setdefault(key, {})
+                        data = data[key]
 
-                key = value[-1]
+                        q &= orb.Query(column) == key
+
+                    key = value[-1]
+
                 q &= orb.Query(columns[-1]) == key
 
                 group_context = context.copy()
@@ -969,7 +990,12 @@ class Collection(object):
                     with ReadLocker(self.__lock):
                         raw_record = self.__cache['preload_last'][orb_context]
                 except KeyError:
-                    record = self.reversed().first(context=orb_context)
+                    if not orb_context.order:
+                        schema = self.__bound_model.schema()
+                        order = [(schema.idColumn().name(), 'desc')]
+                        record = self.ordered(order).first(context=orb_context)
+                    else:
+                        record = self.reversed().first(context=orb_context)
                 else:
                     record = self._process_record(raw_record, orb_context)
 
@@ -1113,10 +1139,9 @@ class Collection(object):
                 with ReadLocker(self.__lock):
                     records = self.__cache['records'][orb_context]
             except KeyError:
-                raise NotImplementedError
+                raise ValueError
             else:
                 records.remove(record)
-                return 1
 
     def reversed(self):
         """
@@ -1125,11 +1150,13 @@ class Collection(object):
 
         :return: <orb.Collection>
         """
-        collection = self.copy()
-        context = collection.context()
-        order = [(col, 'asc' if dir == 'desc' else 'desc') for col, dir in context.order or []] or None
-        collection.refine(order=order)
-        return collection
+        orb_context = self.context()
+        if not self.is_loaded():
+            return self.refine(context=orb_context.reversed())
+        else:
+            with ReadLocker(self.__lock):
+                records = list(reversed(self.__cache['records'][orb_context]))
+            return orb.Collection(records)
 
     def update(self, records, use_method=True, **context):
         """
@@ -1163,7 +1190,7 @@ class Collection(object):
                 record_info = records
 
             if record_info:
-                new_ids, new_records = zip(*self._generate_records_for_update(record_info, orb_context))
+                new_ids, new_records = zip(*list(self._generate_records_for_update(record_info, orb_context)))
             else:
                 new_ids, new_records = ([], [])
 
@@ -1327,7 +1354,7 @@ class Collection(object):
                 if len(columns) == 1:
                     return [record.get(columns[0]) if record else None for record in records]
                 else:
-                    return [(record.get(c) for c in columns) for record in records]
+                    return [tuple(record.get(c) for c in columns) for record in records]
 
     # support deprecated calls (transitioning fully to PEP8)
     @deprecated

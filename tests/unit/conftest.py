@@ -26,10 +26,12 @@ def MockUser():
         last_name = orb.StringColumn()
         group = orb.ReferenceColumn('MockGroup', flags={'AutoExpand'})
 
-    return MockUser
+    orb.system.register(MockUser.schema())
+    yield MockUser
+    orb.system.unregister(MockUser.schema())
 
 @pytest.fixture()
-def MockGroup():
+def MockGroup(request):
     import orb
 
     class MockGroup(orb.Model):
@@ -38,4 +40,6 @@ def MockGroup():
         id = orb.IdColumn()
         name = orb.StringColumn(flags={'Required'})
 
-    return MockGroup
+    orb.system.register(MockGroup.schema())
+    yield MockGroup
+    orb.system.unregister(MockGroup.schema())
