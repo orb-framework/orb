@@ -23,7 +23,7 @@ def decrypt(text, key=None):
     :return     <str>
     """
     if key is None:
-        key = orb.system.settings().security_key
+        key = orb.system.settings.security_key
 
     if not key:
         raise RuntimeError('Invalid decryption key')
@@ -46,7 +46,7 @@ def encrypt(text, key=None):
     :return     <str>
     """
     if key is None:
-        key = orb.system.settings().security_key
+        key = orb.system.settings.security_key
 
     if not key:
         raise RuntimeError('Invalid encryption key')

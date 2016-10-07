@@ -15,14 +15,14 @@ class System(object):
     """
     Class utilized for managing system state within an ORB application.
     """
-    def __init__(self):
+    def __init__(self, **settings):
         # define private properties
         self.__active_database = None
         self.__databases = {}
         self.__schemas = {}
 
         # define public properties
-        self.__settings = Settings()
+        self.settings = Settings(**settings)
 
     def activate(self, db):
         """
@@ -199,14 +199,6 @@ class System(object):
             }
         else:
             return self.__schemas
-
-    def settings(self):
-        """
-        Returns the settings instance associated with this manager.
-        
-        :return     <orb.Settings>
-        """
-        return self.__settings
 
     def unregister(self, obj):
         """

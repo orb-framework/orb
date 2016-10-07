@@ -419,7 +419,7 @@ class Column(AddonManager):
             if not isinstance(value, dict):
                 default_locale = locales[0]
                 if default_locale == 'all':
-                    default_locale = orb.system.settings().default_locale
+                    default_locale = orb.system.settings.default_locale
                 value = {default_locale: value}
 
             if 'all' in locales:
