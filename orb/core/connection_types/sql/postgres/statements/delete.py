@@ -14,7 +14,7 @@ class DELETE(PSQLStatement):
 
             if context.where is not None:
                 WHERE = self.byName('WHERE')
-                where, data = WHERE(model, context.where)
+                where, data = WHERE(model, context.where, context)
             else:
                 where, data = '', {}
 
