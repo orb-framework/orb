@@ -142,7 +142,7 @@ class Model(object):
                             yield column.name(), output
 
                     else:
-                        yield column.field(), value
+                        yield column.field(), column.restore(value, context=context)
 
         # expand any other values which can include custom
         # or virtual columns and collectors

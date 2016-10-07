@@ -6,7 +6,7 @@ orb = lazy_import('orb')
 
 
 class WHERE(PSQLStatement):
-    def __call__(self, model, query, aliases=None, fields=None):
+    def __call__(self, model, query, context, aliases=None, fields=None):
         if query is None or model is None:
             return u'', {}
 
@@ -22,7 +22,7 @@ class WHERE(PSQLStatement):
             sub_query_sql = []
             for sub_query in query:
                 try:
-                    sub_sql, sub_data = self(model, sub_query, aliases, fields)
+                    sub_sql, sub_data = self(model, sub_query, context, aliases, fields)
 
                 # if a sub-query is null, for OR'd queries, we can just ignore that
                 # criteria since it will not affect it, for AND'd criteria we
@@ -53,7 +53,7 @@ class WHERE(PSQLStatement):
                     query_filter = collector.queryFilterMethod()
                     if query_filter:
                         new_query = query_filter(model, query)
-                        return self(model, new_query, aliases=aliases, fields=fields)
+                        return self(model, new_query, context, aliases=aliases, fields=fields)
                     else:
                         raise
                 else:
@@ -158,6 +158,10 @@ class WHERE(PSQLStatement):
                           u')'
 
                     sub_sql = sql.replace('"{0}"'.format(model_name), '"{0}_i18n"'.format(model_name))
+
+                    if context.locale != 'all':
+                        sub_sql += ' AND locale = %(locale)s'
+
                     sql = i18n_sql.format(name=model_name,
                                           namespace=model.schema().namespace() or 'public',
                                           sub_sql=sub_sql,
