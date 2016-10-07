@@ -629,7 +629,6 @@ class Collection(object):
                     return len(self.__cache['records'][orb_context])
 
             except KeyError:
-                print 'getting preload information'
                 try:
                     with ReadLocker(self.__lock):
                         count = self.__cache['preload_count'][orb_context] or 0
