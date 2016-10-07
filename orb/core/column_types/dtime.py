@@ -203,7 +203,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
             # ensure we have some timezone information before converting to UTC time
             if py_value.tzinfo is None:
                 # match the server information
-                tz = pytz.timezone(orb.system.settings().server_timezone)
+                tz = pytz.timezone(orb.system.settings.server_timezone)
                 py_value = tz.localize(py_value)
             return py_value.astimezone(pytz.utc).replace(tzinfo=None)
         else:
@@ -226,7 +226,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 
             if tz is not None:
                 if value.tzinfo is None:
-                    base_tz = pytz.timezone(orb.system.settings().server_timezone)
+                    base_tz = pytz.timezone(orb.system.settings.server_timezone)
 
                     # the machine timezone and preferred timezone match, so create off utc time
                     if base_tz == tz:
@@ -255,7 +255,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
             # ensure we have some timezone information before converting to UTC time
             if value.tzinfo is None:
                 # match the server information
-                tz = pytz.timezone(orb.system.settings().server_timezone)
+                tz = pytz.timezone(orb.system.settings.server_timezone)
                 value = tz.localize(value)
             value = value.astimezone(pytz.utc).replace(tzinfo=None)
         return super(DatetimeWithTimezoneColumn, self).store(value, context=context)

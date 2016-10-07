@@ -116,12 +116,26 @@ class MetaModel(type):
 
             # check to see if a schema is already defined
             schema = attrs.pop('__schema__', None)
+            system = attrs.pop('__system__', None) or orb.system
 
             # otherwise, create a new schema
             if schema is None:
+                if inherits:
+                    inherited_schema = inherits[0].schema()
+
+                    # propagate inheritable schema properties
+                    if inherited_schema:
+                        attrs.setdefault('__group__', inherited_schema.group())
+                        attrs.setdefault('__database__', inherited_schema.database())
+                        attrs.setdefault('__namespace__', inherited_schema.namespace())
+                        attrs.setdefault('__id__', inherited_schema.idColumn().name())
+                else:
+                    inherited_schema = None
+
                 schema = orb.Schema(
                     name,
                     dbname=attrs.pop('__dbname__', ''),
+                    group=attrs.pop('__group__', ''),
                     display=attrs.pop('__display__', ''),
                     database=attrs.pop('__database__', ''),
                     namespace=attrs.pop('__namespace__', ''),
@@ -129,10 +143,8 @@ class MetaModel(type):
                     idColumn = attrs.pop('__id__', 'id')
                 )
 
-                if inherits:
-                    inherited_schema = inherits[0].schema()
-                    if inherited_schema:
-                        schema.setInherits(inherited_schema.name())
+                if inherited_schema:
+                    schema.setInherits(inherited_schema.name())
 
             new_model = super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
 
@@ -142,7 +154,7 @@ class MetaModel(type):
 
             # automatically register the model to the system
             if attrs.get('__register__', True):
-                orb.system.register(schema)
+                system.register(schema)
 
             # create class methods for indexes
             for index in indexes.values():

@@ -7,6 +7,7 @@ import warnings
 
 from projex.lazymodule import lazy_import
 from ..column import Column
+from ...utils import security
 
 
 orb = lazy_import('orb')
@@ -117,7 +118,7 @@ class AbstractStringColumn(Column):
         :return     <variant>
         """
         if isinstance(value, (str, unicode)) and self.testFlag(self.Flags.Encrypted):
-            value = orb.system.security().encrypt(value)
+            value = security.encrypt(value)
 
         return super(AbstractStringColumn, self).store(value, context=context)
 

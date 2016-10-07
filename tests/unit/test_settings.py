@@ -5,9 +5,9 @@ def test_basic_settings():
     settings = Settings()
 
     assert settings.default_locale == 'en_US'
-    assert settings.default_page_size == '40'
-    assert settings.max_cache_timeout == '86400000'  # 24 hours
-    assert settings.max_connections == '10'
+    assert settings.default_page_size == 40
+    assert settings.max_cache_timeout == 86400000  # 24 hours
+    assert settings.max_connections == 10
     assert settings.security_key == ''
     assert settings.server_timezone == 'US/Pacific'
     assert settings.worker_class == 'default'
@@ -31,9 +31,9 @@ def test_environment_based_settings():
 
         # validate the environment based settings
         assert settings.default_locale == 'fr_FR'
-        assert settings.default_page_size == '100'
-        assert settings.max_cache_timeout == '100'
-        assert settings.max_connections == '1'
+        assert settings.default_page_size == 100
+        assert settings.max_cache_timeout == 100
+        assert settings.max_connections == 1
         assert settings.security_key == '12345'
         assert settings.server_timezone == 'US/Eastern'
         assert settings.worker_class == 'gevent'
@@ -64,22 +64,22 @@ def test_initialization_based_settings():
 
         settings = Settings(
             default_locale='en_GB',
-            default_page_size='1',
-            max_cache_timeout='10',
-            max_connections='2',
+            default_page_size=1,
+            max_cache_timeout=10,
+            max_connections=2,
             security_key='54321',
             server_timezone='US/Central',
-            worker_class=''
+            worker_class='test'
         )
 
         # validate the environment based settings
         assert settings.default_locale == 'en_GB'
-        assert settings.default_page_size == '1'
-        assert settings.max_cache_timeout == '10'
-        assert settings.max_connections == '2'
+        assert settings.default_page_size == 1
+        assert settings.max_cache_timeout == 10
+        assert settings.max_connections == 2
         assert settings.security_key == '54321'
         assert settings.server_timezone == 'US/Central'
-        assert settings.worker_class == ''
+        assert settings.worker_class == 'test'
 
     finally:
         del os.environ['ORB_DEFAULT_LOCALE']

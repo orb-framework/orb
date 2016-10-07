@@ -51,6 +51,7 @@ GENERAL_DEFAULTS = {
 # unhashable context properties
 FIXED_DEFAULTS = {
     'db': None,
+    'system': None,
     'scope': None
 }
 
@@ -169,7 +170,7 @@ class Context(object):
         try:
             return self.raw_values['db']
         except KeyError:
-            db = orb.system.database(self.database)
+            db = self.system.database(self.database)
             if not db:
                 raise orb.errors.DatabaseNotFound()
             return db
@@ -275,7 +276,7 @@ class Context(object):
 
         :return: <str>
         """
-        return self.raw_values.get('locale') or orb.system.settings().default_locale
+        return self.raw_values.get('locale') or self.system.settings.default_locale
 
     @property
     def order(self):
@@ -369,6 +370,20 @@ class Context(object):
         return self.raw_values['scope']
 
     @property
+    def system(self):
+        """
+        Returns a global orb System instance associated with this context.
+        If no system is defined for this specific context, the global `orb.system`
+        object will be used.
+
+        :return: <orb.System>
+        """
+        try:
+            return self.raw_values['system']
+        except KeyError:
+            return orb.system
+
+    @property
     def start(self):
         """
         Calculates the starting index that should be used for data retrieval,
@@ -391,7 +406,7 @@ class Context(object):
 
         :return: <str>
         """
-        return self.raw_values.get('timezone') or orb.system.settings().server_timezone
+        return self.raw_values.get('timezone') or self.system.settings.server_timezone
 
     def update(self, other_context):
         """

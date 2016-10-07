@@ -28,14 +28,14 @@ class SQLConnection(orb.Connection):
         super(SQLConnection, self).__init__(database)
 
         # determine the connection pooling type
-        if orb.system.settings().worker_class == 'gevent':
+        if orb.system.settings.worker_class == 'gevent':
             from gevent.queue import Queue
         else:
             from Queue import Queue
 
         # define custom properties
         self.__batchSize = 500
-        self.__maxSize = int(orb.system.settings().max_connections)
+        self.__maxSize = int(orb.system.settings.max_connections)
         self.__poolSize = defaultdict(lambda: 0)
         self.__pool = defaultdict(Queue)
 
@@ -111,7 +111,7 @@ class SQLConnection(orb.Connection):
         try:
             native.rollback()
         except Exception:
-            if orb.system.settings().worker_class == 'gevent':
+            if orb.system.settings.worker_class == 'gevent':
                 import gevent
                 gevent.get_hub().handle_error(native, *sys.exc_info)
             return

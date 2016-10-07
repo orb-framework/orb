@@ -11,7 +11,7 @@ def orb():
     from projex import security
 
     key = security.generateKey('T3st!ng')
-    orb.system.security().setKey(key)
+    orb.system.settings.security_key = key
 
     return orb
 

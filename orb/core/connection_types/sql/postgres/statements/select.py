@@ -30,7 +30,7 @@ class SELECT(PSQLStatement):
 
         data = {
             'locale': context.locale,
-            'default_locale': orb.system.settings().default_locale
+            'default_locale': orb.system.settings.default_locale
         }
         fields = fields or {}
         sql_group_by = set()
