@@ -45,7 +45,6 @@ with demandimport.enabled():
     from .core.pipe import Pipe
     from .core.reverselookup import ReverseLookup
     from .core.schema import Schema
-    from .core.security import Security
 
     from .core.events import *
     from .core.model_types import *

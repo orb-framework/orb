@@ -52,6 +52,7 @@ class Schema(object):
                  dbname='',
                  display='',
                  inherits='',
+                 group='',
                  database='',
                  namespace='',
                  idColumn='id',
@@ -62,6 +63,7 @@ class Schema(object):
 
         default_db_name = inflection.pluralize(inflection.underscore(name))
         self.__name = name
+        self.__group = group
         self.__dbname = dbname or default_db_name
         self.__database = database
         self.__namespace = namespace
@@ -285,6 +287,9 @@ class Schema(object):
         """
         return self.__display or inflection.titleize(self.__name)
 
+    def group(self):
+        return self.__group
+
     def hasColumn(self, column, recurse=True, flags=0):
         """
         Returns whether or not this column exists within the list of columns
@@ -344,16 +349,16 @@ class Schema(object):
             yield ischema
             inherits = ischema.inherits()
 
-    def model(self, autoGenerate=False):
+    def model(self, auto_generate=False):
         """
         Returns the default Table class that is associated with this \
         schema instance.
         
-        :param      autoGenerate | <bool>
+        :param      auto_generate | <bool>
         
         :return     <subclass of Table>
         """
-        if self.__model is None and autoGenerate:
+        if self.__model is None and auto_generate:
             self.__model = orb.system.generateModel(self)
             self.setModel(self.__model)
         return self.__model

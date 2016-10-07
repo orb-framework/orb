@@ -5,7 +5,6 @@ database classes.
 
 import logging
 import projex.rest
-import projex.security
 import projex.text
 
 from collections import defaultdict
