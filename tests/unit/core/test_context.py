@@ -351,7 +351,7 @@ def test_context_derives_locale_from_system_settings():
     import orb
     from orb.core.context import Context
 
-    settings = orb.system.settings()
+    settings = orb.system.settings
     base_locale = settings.default_locale
 
     try:
@@ -434,7 +434,7 @@ def test_custom_timezone_property():
     import orb
     from orb.core.context import Context
 
-    settings = orb.system.settings()
+    settings = orb.system.settings
     base_timezone = settings.server_timezone
 
     context = Context()

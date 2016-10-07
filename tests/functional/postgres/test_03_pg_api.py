@@ -217,10 +217,11 @@ def test_pg_api_collection_index(orb, User):
     users = User.select()
     urecords = users.records()
     assert users.index(urecords[0]) == 0
-    assert users.index(None) == -1
+    with pytest.raises(ValueError):
+        assert users.index(None)
 
     with pytest.raises(ValueError):
-        assert users.index(User()) == -1
+        assert users.index(User())
 
     with pytest.raises(ValueError):
         assert User.select().index(User())

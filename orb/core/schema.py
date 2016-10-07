@@ -287,6 +287,19 @@ class Schema(object):
         """
         return self.__display or inflection.titleize(self.__name)
 
+    def generate_model(self):
+        """
+        Generates a new dynamic model class type based on this schema.
+
+        :return: subclass of <orb.Model>
+        """
+        args = {
+            '__register__': False,
+            '__schema__': self
+        }
+        new_model = type(self.name(), (orb.Table,), args)
+        return new_model
+
     def group(self):
         return self.__group
 
@@ -359,8 +372,7 @@ class Schema(object):
         :return     <subclass of Table>
         """
         if self.__model is None and auto_generate:
-            self.__model = orb.system.generateModel(self)
-            self.setModel(self.__model)
+            self.__model = self.generate_model()
         return self.__model
 
     def name(self):

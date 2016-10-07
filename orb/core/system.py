@@ -32,7 +32,7 @@ class System(object):
         """
         self.__active_database = db
 
-    def add_models_to_scope(self, scope, group=None):
+    def add_models_to_scope(self, scope, group=None, auto_generate=False):
         """
         Adds all of the models within this system to the given scope.  An
         optional keyword can be supplied to filter the models that are
@@ -41,10 +41,8 @@ class System(object):
         :param scope: <dict>
         :param group: <str> or None
         """
-        schemas = self.schemas().values()
-        for schema in schemas:
-            if group is None or schema.group() == group:
-                scope[schema.name()] = schema.model()
+        models = self.models(group=group, auto_generate=auto_generate)
+        scope.update(models)
 
     def database(self, code=None):
         """
@@ -89,9 +87,13 @@ class System(object):
         :return: subclass of <orb.Model> or None
         """
         models = self.models(auto_generate=auto_generate)
-        return models.get(code)
+        model = models.get(code)
+        if model is None:
+            raise orb.errors.ModelNotFound(code)
+        else:
+            return model
 
-    def models(self, base=None, database='', auto_generate=False):
+    def models(self, base=None, group=None, database='', auto_generate=False):
         """
         Returns a collection of model classes found within this system.
 
@@ -104,6 +106,7 @@ class System(object):
         the `auto_generate` keyword.
 
         :param base: subclass of <orb.Model> or None
+        :param group: <str> or None
         :param database: <str>
         :param auto_generate: <bool>
 
@@ -111,16 +114,20 @@ class System(object):
         """
         output = {}
         for schema in self.__schemas.values():
+            # filter based on group association
+            if group is not None and schema.group() != group:
+                continue
+
+            # filter based on database associations
+            if database and schema.database() and database != schema.database():
+                continue
+
             model = schema.model(auto_generate=auto_generate)
             if not model:
                 continue
 
             # filter based on subclassed model types
-            elif base is not None and (model == base or not issubclass(model, base)):
-                continue
-
-            # filter based on database associations
-            elif database and model.schema().database() and model.schema().database() != database:
+            elif base is not None and (not issubclass(model, base) or model is base):
                 continue
 
             else:
@@ -143,7 +150,12 @@ class System(object):
         elif isinstance(obj, orb.Schema):
             return self.register_schema(obj, force=force)
         else:
-            raise orb.errors.OrbError('Unknown object being registered')
+            try:
+                is_model = issubclass(obj, orb.Model)
+            except StandardError:
+                raise orb.errors.OrbError('Unknown object being registered')
+            else:
+                return self.register_schema(obj.schema(), force=force)
 
     def register_database(self, db, force=False):
         """
@@ -166,7 +178,7 @@ class System(object):
         :param schema: <orb.Schema>
         :param force: <bool>
         """
-        if schema.name() in self.__databases and not force:
+        if schema.name() in self.__schemas and not force:
             raise orb.errors.DuplicateEntryFound('{0} is already a registered schema'.format(schema.name()))
         else:
             self.__schemas[schema.name()] = schema
@@ -179,7 +191,10 @@ class System(object):
 
         :return: <orb.Schema> or None
         """
-        return self.__schemas.get(code)
+        try:
+            return self.__schemas[code]
+        except KeyError:
+            raise orb.errors.ModelNotFound(code)
 
     def schemas(self, group=None, database=None):
         """
@@ -211,7 +226,15 @@ class System(object):
         elif isinstance(obj, orb.Schema):
             self.unregister_schema(obj)
         else:
-            raise orb.errors.OrbError('Unknown object to unregister')
+            try:
+                is_model = issubclass(obj, orb.Model)
+            except StandardError:
+                is_model = False
+
+            if not is_model:
+                raise orb.errors.OrbError('Unknown object to unregister')
+            else:
+                self.unregister_schema(obj.schema())
 
     def unregister_database(self, db):
         """
