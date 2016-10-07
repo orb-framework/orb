@@ -62,13 +62,18 @@ class Collection(object):
         self.__bound_source_record = None
 
         # store the records for this collection if provided
-        if records is not None and len(records) > 0:
-            record_type = type(records[0])
-            if self.__bound_model is None and issubclass(record_type, orb.Model):
-                self.__bound_model = record_type
+        if records is not None:
+            # update the bound model if specified
+            if self.__bound_model is None and len(records) > 0:
+                record_type = type(records[0])
+                if issubclass(record_type, orb.Model):
+                    self.__bound_model = record_type
 
             # cache the records by default
             self.__cache['records'][self.__context] = records
+
+    def __bool__(self):  # pragma: no cover
+        return not self.is_empty()
 
     def __json__(self):
         """
@@ -178,10 +183,22 @@ class Collection(object):
         :return: <variant>
         """
         if isinstance(index, slice):
-            return self.copy(start=index.start, limit=(index.stop - index.start))
+            start = index.start or 0
+            stop = index.stop or 0
+
+            # calculate the limit based on the stop index
+            if index.stop <= 0:
+                limit = (self.count() + stop) - start
+            else:
+                limit = index.stop - start
+
+            return self.copy(start=start, limit=limit)
         else:
             records = self.records()
             return records[index]
+
+    def __nonzero__(self):
+        return not self.is_empty()
 
     def _cache_record(self, record, context):
         """
@@ -517,14 +534,6 @@ class Collection(object):
 
         return record
 
-    def collector(self):
-        """
-        Returns the collector that generated this collection, if any.
-
-        :return:  <orb.Collector> || None
-        """
-        return self.__bound_collector
-
     def context(self, **context):
         """
         Creates a new or returns the existing context, based on if
@@ -582,7 +591,7 @@ class Collection(object):
         # transfer over the preload cache for the copy
         for key, context_values in self.__cache.items():
             if key.startswith('preload_'):
-                for context, value in context_values:
+                for context, value in context_values.items():
                     preload_key = key.replace('preload_', '')
                     other.add_preloaded_data({preload_key: value}, context=context)
 
@@ -612,6 +621,7 @@ class Collection(object):
                     return len(self.__cache['records'][orb_context])
 
             except KeyError:
+                print 'getting preload information'
                 try:
                     with ReadLocker(self.__lock):
                         count = self.__cache['preload_count'][orb_context] or 0
@@ -645,18 +655,18 @@ class Collection(object):
 
         :param context: <orb.Context>
         """
-        orb_context = orb.Context(**context)
+        orb_context = self.context(**context)
 
         # delete records from a collector that defines it
         if self.__bound_collector:
             processed, count = self.__bound_collector.delete_records(self, context=orb_context)
         else:
-            processed = False
+            processed = None
             count = 0
 
         # if there is no bound collector, or the collector does
         # not process the deletion event, then delete directly
-        if not processed:
+        if processed is None:
             records = self.records(context=orb_context)
             delete_records = list(orb.events.DeleteEvent.process(records))
             if delete_records:
@@ -731,7 +741,7 @@ class Collection(object):
                         raw = self.__cache['preload_first'][orb_context]
                 except KeyError:
                     schema = self.__bound_model.schema()
-                    order = '-{0}'.format(schema.idColumn().name())
+                    order = '+{0}'.format(schema.idColumn().name())
                     records = self.records(limit=1, order=order, context=orb_context)
                     record = records[0] if records else None
                 else:
@@ -760,8 +770,9 @@ class Collection(object):
         output = {}
 
         # preload all the records and then group them together
-        if preload:
+        if preload or self.is_loaded(**context):
             records = self.records(**context)
+
             for record in records:
                 data = output
                 for column in columns[:-1]:
@@ -775,7 +786,7 @@ class Collection(object):
 
         # create sub-collections grouped by query
         else:
-            values = self.values(*columns, **context)
+            values = self.distinct(*columns, **context)
 
             for value in values:
                 data = output
@@ -794,7 +805,7 @@ class Collection(object):
                 group_context['where'] = q & group_context.get('where')
                 data.setdefault(key, self.refine(**group_context))
 
-            return output
+        return output
 
     def has(self, record, **context):
         """
@@ -866,18 +877,15 @@ class Collection(object):
 
         :return: <int>
         """
-        if not record:
-            return -1
+        orb_context = self.context(**context)
+        try:
+            with ReadLocker(self.__lock):
+                cached_records = self.__cache['records'][orb_context]
+        except KeyError:
+            ids = self.ids()
+            return ids.index(record.id())
         else:
-            orb_context = self.context(**context)
-            try:
-                with ReadLocker(self.__lock):
-                    cached_records = self.__cache['records'][orb_context]
-            except KeyError:
-                ids = self.ids()
-                return ids.index(record.id())
-            else:
-                return cached_records.index(record)
+            return cached_records.index(record)
 
     def is_empty(self, **context):
         """
@@ -915,9 +923,8 @@ class Collection(object):
 
         :return: <bool>
         """
-        orb_context = self.context(**context)
         with ReadLocker(self.__lock):
-            return self.__cache['records'].get(orb_context) is None and self.__bound_model is None
+            return len(self.__cache) == 0 and self.__bound_model is None
 
     def iterate(self, batch=100):
         """
@@ -1124,12 +1131,12 @@ class Collection(object):
         collection.refine(order=order)
         return collection
 
-    def update(self, records, useMethod=True, **context):
+    def update(self, records, use_method=True, **context):
         """
         Updates this collection and assigns the records to the collection.
 
         :param records: [<orb.Model>, ..]
-        :param useMethod: <bool>
+        :param use_method: <bool>
         :param context: <orb.Context> descriptor
 
         :return: [<orb.Model>, ..]
@@ -1137,7 +1144,7 @@ class Collection(object):
         orb_context = self.context(**context).sub_context()
 
         try:
-            setter = self.__bound_collector.settermethod() if useMethod else None
+            setter = self.__bound_collector.settermethod() if use_method else None
         except AttributeError:
             setter = None
 
@@ -1155,7 +1162,10 @@ class Collection(object):
             else:
                 record_info = records
 
-            new_ids, new_records = zip(*self._generate_records_for_update(record_info, orb_context))
+            if record_info:
+                new_ids, new_records = zip(*self._generate_records_for_update(record_info, orb_context))
+            else:
+                new_ids, new_records = ([], [])
 
             # update the root collector information
             if self.__bound_collector:

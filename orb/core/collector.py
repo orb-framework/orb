@@ -48,8 +48,8 @@ class Collector(object):
         self.__query_filter = queryFilter
         self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
 
-    def __call__(self, record, useMethod=True, **context):
-        if self.__getter and useMethod:
+    def __call__(self, record, use_method=True, **context):
+        if self.__getter and use_method:
             return self.__getter(record, **context)
         else:
             if not record.isRecord():
