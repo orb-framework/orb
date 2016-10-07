@@ -155,11 +155,9 @@ class SELECT(PSQLStatement):
         # join in the i18n table
         if sql_columns['i18n']:
             if context.locale == 'all':
-                print 'joining all locales'
                 cmd.append(u'LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id")'.format(schema.namespace() or 'public',
                                                                                                       schema.dbname()))
             else:
-                print 'joining specific locale'
                 sql = u'LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id" AND "i18n"."locale" = %(locale)s)'
                 if data['locale'] != data['default_locale']:
                     sql += u'\nLEFT JOIN "{1}_i18n" AS "i18n_default" ON ("i18n_default"."{1}_id" = "id" AND "i18n_default"."locale" = %(default_locale)s)'
@@ -192,11 +190,9 @@ class SELECT(PSQLStatement):
 
                 if sql_columns['i18n']:
                     if context.locale == 'all':
-                        print 'joining all locales'
                         cmd.append(u'    LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id")'.format(schema.namespace() or 'public',
                                                                                                                   schema.dbname()))
                     else:
-                        print 'joining specific locale'
                         sql = u'LEFT JOIN "{0}"."{1}_i18n" AS "i18n" ON ("i18n"."{1}_id" = "id" AND "i18n"."locale" = %(locale)s)'
                         cmd.append('    ' + sql.format(schema.namespace() or 'public', schema.dbname()))
 
