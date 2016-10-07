@@ -80,11 +80,11 @@ class Context(object):
         # update the properties for this context
         self.update(kw)
 
-    def __eq__(self, other):
-        return hash(self) == hash(other)
-
-    def __ne__(self, other):
-        return hash(self) != hash(other)
+    def __getattr__(self, key):
+        if key not in DEFAULTS:
+            raise AttributeError
+        else:
+            return self.raw_values.get(key, DEFAULTS[key])
 
     def __hash__(self):
         keys = sorted(DEFAULTS.keys())
@@ -116,6 +116,16 @@ class Context(object):
         # hash the list of keys
         return hash(tuple(hash_values))
 
+    def __iter__(self):
+        for k in DEFAULTS:
+            try:
+                yield k, getattr(self, k)
+            except orb.errors.DatabaseNotFound:
+                yield k, None
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
     def __enter__(self):
         tid = threading.currentThread().ident
         with WriteLocker(_context_lock):
@@ -127,24 +137,14 @@ class Context(object):
         with WriteLocker(_context_lock):
             _context_stack[tid].pop()
 
-    def __getattr__(self, key):
-        if key not in DEFAULTS:
-            raise AttributeError
-        else:
-            return self.raw_values.get(key, DEFAULTS[key])
+    def __ne__(self, other):
+        return hash(self) != hash(other)
 
     def __setattr__(self, key, value):
         if not key in DEFAULTS:
             raise AttributeError(key)
         else:
             self.raw_values[key] = value
-
-    def __iter__(self):
-        for k in DEFAULTS:
-            try:
-                yield k, getattr(self, k)
-            except orb.errors.DatabaseNotFound:
-                yield k, None
 
     def copy(self):
         """
@@ -173,6 +173,15 @@ class Context(object):
             if not db:
                 raise orb.errors.DatabaseNotFound()
             return db
+
+    def difference(self, other_context):
+        """
+        Returns a set of the keys for the different values between this
+        context and the other one.
+
+        :return: <set>
+        """
+        return {k for k, v in DEFAULTS.items() if self.raw_values.get(k) != other_context.raw_values.get(k)}
 
     @property
     def expand(self):
@@ -296,6 +305,24 @@ class Context(object):
                     for x in out.split(',') if x]
         else:
             return out
+
+    def reversed(self):
+        """
+        Reverses the ordering of this context and returns a new one.
+
+        :return <orb.Context>
+        """
+        curr_order = self.order
+        if curr_order:
+            new_order = [(col, 'asc' if dir == 'desc' else 'desc')
+                         for col, dir in self.order or []]
+        else:
+            new_order = None
+
+        # generate the new context
+        out_context = self.copy()
+        out_context.order = new_order
+        return out_context
 
     def schema_columns(self, schema):
         """

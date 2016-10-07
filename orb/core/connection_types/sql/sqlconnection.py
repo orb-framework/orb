@@ -465,7 +465,7 @@ class SQLConnection(orb.Connection):
             try:
                 return self.execute(sql, data)[0]
             except orb.errors.EmptyCommand:
-                return [], 0
+                return []
 
     def setBatchSize(self, size):
         """

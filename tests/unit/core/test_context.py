@@ -313,18 +313,12 @@ def test_context_expand_tree():
     assert sorted(tree['group'].keys()) == ['name']
 
 
-def test_context_expand_tree_with_model_defaults():
+def test_context_expand_tree_with_model_defaults(MockUser):
     import orb
     from orb.core.context import Context
 
-    class User(orb.Table):
-        __register__ = False
-
-        id = orb.IdColumn()
-        group = orb.ReferenceColumn('Group', flags={'AutoExpand'})
-
     context = Context()
-    tree = context.expandtree(model=User)
+    tree = context.expandtree(model=MockUser)
 
     assert tree.keys() == ['group']
 
@@ -372,22 +366,16 @@ def test_context_derives_locale_from_system_settings():
     assert b.locale == 'fr_FR'
 
 
-def test_collect_context_columns_from_schema():
+def test_collect_context_columns_from_schema(MockUser):
     import orb
     from orb.core.context import Context
 
-    class User(orb.Table):
-        __register__ = False
-
-        id = orb.IdColumn()
-        username = orb.StringColumn()
-
     context = Context()
-    assert context.schema_columns(User.schema()) == []
+    assert context.schema_columns(MockUser.schema()) == []
 
     context = Context(columns='username')
-    cols = context.schema_columns(User.schema())
-    assert cols[0] == User.schema().column('username')
+    cols = context.schema_columns(MockUser.schema())
+    assert cols[0] == MockUser.schema().column('username')
 
 
 def test_custom_context_order_property():
@@ -540,3 +528,33 @@ def test_context_update_with_null_value():
     a = Context()
     a.update(None)
     assert a.isNull()
+
+
+def test_context_difference_checker():
+    from orb.core.context import Context
+
+    a = Context()
+    b = Context(columns='id')
+    c = Context(columns='id', start=1, limit=100)
+
+    assert a.difference(a) == set()
+    assert a.difference(b) == {'columns'}
+    assert a.difference(c) == {'columns', 'start', 'limit'}
+    assert b.difference(c) == {'start', 'limit'}
+    assert c.difference(b) == {'start', 'limit'}
+
+
+def test_context_reversing():
+    from orb.core.context import Context
+
+    a = Context(order='+id,-username')
+    assert a.order == [('id', 'asc'), ('username', 'desc')]
+
+    b = a.reversed()
+    assert b.order == [('id', 'desc'), ('username', 'asc')]
+
+    c = Context()
+    assert c.order is None
+
+    d = c.reversed()
+    assert d.order is None

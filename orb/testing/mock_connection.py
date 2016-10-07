@@ -106,13 +106,13 @@ class MockConnection(orb.Connection):
         processing of grouping records together by schema and only works
         on the primary key.
 
-        :param      table     | <orb.Collection>
+        :param      table     | <list>
                     context   | <orb.Context>
 
         :return     <int> | number of rows removed
         """
         # validate inputs
-        assert isinstance(records, orb.Collection)
+        assert isinstance(records, list)
         assert isinstance(context, orb.Context)
 
         # return the desired response

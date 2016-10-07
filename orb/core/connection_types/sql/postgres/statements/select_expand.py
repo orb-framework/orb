@@ -70,7 +70,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
         target_q = target.baseQuery(context=context)
         if target_q:
             WHERE = self.byName('WHERE')
-            filter_sql, filter_data = WHERE(target, target_q, aliases={target: target_alias})
+            filter_sql, filter_data = WHERE(target, target_q, context, aliases={target: target_alias})
             if filter_sql:
                 data.update(filter_data)
                 target_base_where = '({0}) AND '.format(filter_sql)
@@ -171,7 +171,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
         target_q = target.baseQuery(context=context)
         if target_q:
             WHERE = self.byName('WHERE')
-            filter_sql, filter_data = WHERE(target, target_q, aliases={target: target_alias})
+            filter_sql, filter_data = WHERE(target, target_q, context, aliases={target: target_alias})
             if filter_sql:
                 data.update(filter_data)
                 target_base_where = '({0}) AND '.format(filter_sql)
@@ -281,7 +281,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         # include the base table's filter, if one exists
         target_q = target.baseQuery(context=context)
         if target_q is not None:
-            filter_sql, filter_data = WHERE(target, target_q, aliases={target: target_alias})
+            filter_sql, filter_data = WHERE(target, target_q, context, aliases={target: target_alias})
             if filter_sql:
                 data.update(filter_data)
                 target_base_where = '({0}) AND '.format(filter_sql)

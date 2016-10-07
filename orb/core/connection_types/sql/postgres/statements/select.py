@@ -165,7 +165,7 @@ class SELECT(PSQLStatement):
 
         # generate sql statements
         try:
-            sql_where, sql_where_data = WHERE(model, where, fields=fields)
+            sql_where, sql_where_data = WHERE(model, where, context, fields=fields)
 
         # null queries should not result in any results
         # examples of this scenario would be query like
