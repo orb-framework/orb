@@ -1,274 +1,359 @@
-""" Defines the meta information for a Table class. """
-
+import demandimport
 import logging
 import inflection
 
 from collections import OrderedDict as odict
-from projex.enum import enum
-from projex.lazymodule import lazy_import
+from ..utils.enum import enum
+
+with demandimport.enabled():
+    import orb
 
 log = logging.getLogger(__name__)
-orb = lazy_import('orb')
-errors = lazy_import('orb.errors')
 
 
 class Schema(object):
-    """ 
-    Contains meta data information about a table as it maps to a database.
-    """
-    Flags = enum('Abstract', 'Static')
+    Flags = enum('Abstract', 'Static', 'Private')
+
+    def __init__(self,
+
+                 # class properties
+                 name='',
+                 display='',
+                 group='',
+                 inherits='',
+                 id_column='id',
+                 flags=0,
+
+                 # database properties
+                 alias='',
+                 dbname='',
+                 namespace='',
+                 database='',
+
+                 # object properties
+                 columns=None,
+                 indexes=None,
+                 collectors=None,
+                 system=None):
+
+        if isinstance(columns, (list, set)):
+            columns = {x.name(): x for x in columns}
+        if isinstance(indexes, (list, set)):
+            indexes = {x.name(): x for x in indexes}
+        if isinstance(collectors, (list, set)):
+            collectors = {x.name(): x for x in collectors}
+
+        # class properties
+        self.__name = name
+        self.__display = display
+        self.__group = group
+        self.__inherits = inherits
+        self.__id_column = id_column
+        self.__flags = Schema.Flags.from_set(flags) if isinstance(flags, set) else flags
+
+        # database properties
+        self.__alias = alias
+        self.__dbname = dbname
+        self.__namespace = namespace
+        self.__database = database
+
+        # object properties
+        self.__cache = {}
+        self.__model = None
+        self.__system = system or orb.system
+        self.__objects = {
+            'columns': columns or {},
+            'indexes': indexes or {},
+            'collectors': collectors or {}
+        }
+
+        # ensure the given objects have the schema assigned
+        if columns:
+            for column in columns.values():
+                column.set_schema(self)
+        if indexes:
+            for index in indexes.values():
+                index.set_schema(self)
+        if collectors:
+            for collector in collectors.values():
+                collector.set_schema(self)
+
+    def __cmp__(self, other):
+        # check to see if this is the same instance
+        if self is other:
+            return 0
+
+        # make sure this instance is a valid one for the other kind
+        elif not isinstance(other, Schema):
+            return -1
+
+        # compare inheritance level
+        else:
+            my_depth = len(list(self.ancestry()))
+            other_depth = len(list(other.ancestry()))
+
+            if my_depth == other_depth:
+                return cmp(self.name(), other.name())
+            else:
+                return cmp(my_depth, other_depth)
 
     def __json__(self):
-        # make sure we're only exposing desired public data
+        """
+        Serializes the schema object as a dictionary to be able to be shared with
+        JSON.
+
+        :return: <dict>
+        """
+        # serialize columns
         columns = []
-        collectors = []
         for col in self.columns().values():
-            if not col.testFlag(col.Flags.Private):
-                if not isinstance(col, orb.ReferenceColumn) or getattr(col.referenceModel(), '__resource__', False):
-                    columns.append(col.__json__())
+            # do not serialize private columns (only available to Python APIs)
+            if col.test_flag(col.Flags.Private):
+                continue
 
+            # do not serialize columns that refer to non-resources
+            elif (isinstance(col, orb.ReferenceColumn) and
+                  col.reference_model().schema().test_flag(Schema.Flags.Private)):
+                continue
+
+            # serialize the column otherwise
+            else:
+                columns.append(col.__json__())
+
+        # serialize collectors
+        collectors = []
         for coll in self.collectors().values():
-            if not coll.testFlag(coll.Flags.Private):
-                if not coll.model() or getattr(coll.model(), '__resource__', False):
-                    collectors.append(coll.__json__())
+            # do not serialize private collectors (only available to Python APIs)
+            if coll.test_flag(coll.Flags.Private):
+                continue
 
-        indexes = [index.__json__() for index in self.indexes().values() if not index.testFlag(index.Flags.Private)]
+            # do not serialize collectors associated to non-resources
+            elif coll.model() and coll.model().schema().test_flag(Schema.Flags.Private):
+                continue
 
+            # serialize the collector otherwise
+            else:
+                collectors.append(coll.__json__())
+
+        # serialize indexes
+        indexes = []
+        for index in self.indexes().values():
+            # do not serialize private indexes (only available to Python APIs)
+            if index.test_flag(index.Flags.Private):
+                continue
+
+            # serialize the index otherwise
+            else:
+                indexes.append(index.__json__())
+
+        # return the schema definition
         output = {
             'model': self.name(),
-            'idColumn': self.idColumn().field(),
-            'dbname': self.dbname(),
+            'id_column': self.id_column().alias(),
+            'dbname': self.alias(),
             'display': self.display(),
             'inherits': self.inherits(),
-            'flags': {k: True for k in self.Flags.toSet(self.__flags)},
+            'flags': {k: True for k in self.Flags.to_set(self.__flags)},
             'columns': {col['field']: col for col in columns},
             'indexes': {index['name']: index for index in indexes},
             'collectors': {coll['name']: coll for coll in collectors}
         }
         return output
 
-    def __init__(self,
-                 name,
-                 dbname='',
-                 display='',
-                 inherits='',
-                 group='',
-                 database='',
-                 namespace='',
-                 idColumn='id',
-                 flags=0,
-                 columns=None,
-                 indexes=None,
-                 collectors=None):
-
-        default_db_name = inflection.pluralize(inflection.underscore(name))
-        self.__name = name
-        self.__group = group
-        self.__dbname = dbname or default_db_name
-        self.__database = database
-        self.__namespace = namespace
-        self.__flags = flags
-        self.__inherits = inherits
-        self.__display = display
-        self.__cache = {}
-        self.__idColumn = idColumn
-
-        self.__model = None
-        self.__columns = columns or {}
-        self.__indexes = indexes or {}
-        self.__collectors = collectors or {}
-
-    def __cmp__(self, other):
-        # check to see if this is the same instance
-        if id(self) == id(other):
-            return 0
-
-        # make sure this instance is a valid one for the other kind
-        if not isinstance(other, Schema):
-            return -1
-
-        # compare inheritance level
-        my_ancestry = self.ancestry()
-        other_ancestry = other.ancestry()
-
-        result = cmp(len(my_ancestry), len(other_ancestry))
-        if not result:
-            return cmp(self.name(), other.name())
-        return result
-
-    def ancestor(self):
+    def _collect(self, key, flags_type, recurse=True, flags=0):
         """
-        Returns the direct ancestor for this schema that it inherits from.
+        Returns a collection of objects that are associated with this schema.
+        Set the `recurse` flag to False to yield only collectors directly associated
+        with this schema vs. collectors from the full hierarchy.  Use the `flags`
+        keyword to filter based on collector property flags.
 
-        :return     <TableSchema> || None
+        :param key: <str>
+        :param flags_type: <enum>
+        :param recurse: <bool>
+        :param flags: <ints>
+
+        :return: {<str> name: <orb.Collector> or <orb.Column> or <orb.Index>, ..}
         """
-        if self.inherits():
-            return orb.system.schema(self.inherits())
-        return None
+        cache_key = (key, recurse, flags)
+        try:
+            return self.__cache[cache_key]
+        except KeyError:
+            schemas = [self]
+
+            # generate the recursive lookup of schemas
+            if recurse:
+                schema = self
+                while schema.inherits():
+                    schema = schema.system().schema(schema.inherits())
+                    schemas.append(schema)
+
+            # update the output dictionary
+            output = odict()
+            for schema in reversed(schemas):
+                output.update(odict(
+                    (obj.name(), obj)
+                    for obj in sorted(schema.__objects[key].values())
+                    if not flags or obj.test_flag(flags)
+                ))
+
+            self.__cache[cache_key] = output
+            return output
+
+    def alias(self):
+        """
+        Returns the alias that will be returned from the backend for this schema.  By default
+        this property will be the same as the raw `dbname`, but can be overridden to separate
+        backend / database naming from the API naming.
+
+        :return: <str>
+        """
+        return self.__alias or self.dbname()
 
     def ancestry(self):
         """
-        Returns the different inherited schemas for this instance.
+        Iterates over the inheritance hierarchy for this schema.  The response from this
+        method will be a generator that yields each inherited level.
 
-        :return     [<TableSchema>, ..]
+        :return: <generator>
         """
-        if not self.inherits():
-            return []
+        schema = self
+        while schema.inherits():
+            schema = schema.system().schema(schema.inherits())
+            yield schema
 
-        schema = orb.system.schema(self.inherits())
-        if not schema:
-            return []
-
-        return schema.ancestry() + [schema]
-
-    def addColumn(self, column):
+    def collector(self, name, recurse=True, flags=0):
         """
-        Adds the inputted column to this table schema.
+        Returns the collector by name for this schema.  If the recurse
+        flag is True, then all inherited collectors will be included
+        in the lookup.
 
-        :param      column  | <orb.Column>
+        :return: <orb.Collector> or None
         """
-        column.setSchema(self)
-        self.__columns[column.name()] = column
-
-    def addIndex(self, index):
-        """
-        Adds the inputted index to this table schema.
-
-        :param      index   | <orb.Index>
-        """
-        index.setSchema(self)
-        self.__indexes[index.name()] = index
-
-    def addCollector(self, collector):
-        """
-        Adds the inputted collector reference to this table schema.
-
-        :param      collector | <orb.Collector>
-        """
-        collector.setSchema(self)
-        self.__collectors[collector.name()] = collector
-
-    def collector(self, name, recurse=True):
-        """
-        Returns the collector that matches the inputted name.
-
-        :return     <orb.Collector> || None
-        """
-        return self.collectors(recurse=recurse).get(name)
+        return self.collectors(recurse=recurse, flags=flags).get(name)
 
     def collectors(self, recurse=True, flags=0):
         """
-        Returns a list of the collectors for this instance.
+        Returns a collection of collectors that are associated with this schema.
+        Set the `recurse` flag to False to yield only collectors directly associated
+        with this schema vs. collectors from the full hierarchy.  Use the `flags`
+        keyword to filter based on collector property flags.
 
-        :return     {<str> name: <orb.Collector>, ..}
+        :param recurse: <bool>
+        :param flags: <orb.Collector.Flags>
+
+        :return: {<str> name: <orb.Collector>, ..}
         """
-        output = {}
-        if recurse and self.inherits():
-            schema = orb.system.schema(self.inherits())
-            if not schema:
-                raise orb.errors.ModelNotFound(schema=self.inherits())
-            else:
-                iflags = (flags & ~orb.Collector.Flags.Virtual) if flags else ~orb.Collector.Flags.Virtual
-                output.update(schema.collectors(recurse=recurse, flags=iflags))
-        output.update({c.name(): c for c in self.__collectors.values() if not flags or c.testFlag(flags)})
-        return output
+        return self._collect('collectors', orb.Collector.Flags, recurse=recurse, flags=flags)
 
     def column(self, key, recurse=True, flags=0, raise_=True):
         """
-        Returns the column instance based on its name.  
-        If error reporting is on, then the ColumnNotFound
-        error will be thrown the key inputted is not a valid
-        column name.
-        
-        :param      key     | <str> || <orb.Column> || <list>
-                    recurse | <bool>
-                    flags   | <int>
+        Returns the column associated with the given key.  This
+        method can be used to normalize column input from strings
+        to other column instances.
 
-        :return     <orb.Column> || None
+        This method also supports column traversal using the dot-noted
+        column names.
+
+        If the `raise_` flag is set to True, then if the column is not found,
+        the method is raise a ColumnNotFound error.
+
+        :usage:
+
+            schema.column('id')
+            schema.column('user.group.name')
+            schema.column(orb.StringColumn(name='username'))
+
+        :param key: <str> or <orb.Column>
+        :param recurse: <bool>
+        :param flags: <int>
+        :param raise_: <bool>
+
+        :return     <orb.Column> or None
         """
+        cache_key = (key, recurse, flags)
+
+        # lookup a specific column
         if isinstance(key, orb.Column):
             return key
-        else:
-            cache_key = (key, recurse, flags)
-            try:
-                last_column = self.__cache[cache_key]
-            except KeyError:
 
-                parts = key.split('.')
-                schema = self
-                last_column = None
-
-                for part in parts:
-                    cols = schema.columns(recurse=recurse, flags=flags)
-                    found = None
-
-                    for column in cols.values():
-                        if part in (column.name(), column.field()):
-                            found = column
-                            break
-
-                    if found is None:
-                        break
-
-                    elif isinstance(found, orb.ReferenceColumn):
-                        schema = found.referenceModel().schema()
-
-                    last_column = found
-
-                self.__cache[cache_key] = last_column
-
-            # return the column response
-            if last_column is not None:
-                return last_column
-            elif raise_:
+        # lookup based on the cache
+        elif cache_key in self.__cache:
+            output = self.__cache[cache_key]
+            if output is None and raise_:
                 raise orb.errors.ColumnNotFound(schema=self, column=key)
             else:
-                return None
+                return output
+
+
+        # lookup a traversal
+        elif '.' in key:
+            parts = key.split('.')
+            schema = self
+
+            for i, part in enumerate(parts):
+                col = schema.column(part, recurse=recurse, flags=flags, raise_=False)
+
+                # if this is the last of the traversal, return the column
+                if i == len(parts) - 1:
+                    self.__cache[cache_key] = col
+                    if raise_ and col is None:
+                        raise orb.errors.ColumnNotFound(schema=schema, column=part)
+                    else:
+                        return col
+
+                # otherwise, if this column is a reference column then
+                # lookup the next part
+                elif isinstance(col, orb.ReferenceColumn):
+                    schema = col.reference_model().schema()
+
+                # otherwise, raise the error that it could not be found
+                elif raise_:
+                    self.__cache[cache_key] = None
+                    raise orb.errors.ColumnNotFound(schema=self, column=key)
+
+                else:
+                    self.__cache[cache_key] = None
+                    return None
+
+        # return the column based on the standard lookup
+        else:
+            cols = self.columns(recurse=recurse, flags=flags)
+            print self.__model, key, cols.keys()
+            try:
+                output = cols[key]
+            except KeyError:
+                for col in cols.values():
+                    if key in (col.name(), col.alias(), col.field()):
+                        output = col
+                        break
+                else:
+                    output = None
+
+            self.__cache[cache_key] = output
+            if output is None and raise_:
+                raise orb.errors.ColumnNotFound(schema=self, column=key)
+            else:
+                return output
 
     def columns(self, recurse=True, flags=0):
         """
         Returns the list of column instances that are defined
         for this table schema instance.
-        
+
         :param      recurse | <bool>
                     flags   | <orb.Column.Flags>
                     kind    | <orb.Column.Kind>
-        
+
         :return     {<str> column name: <orb.Column>, ..}
         """
-        key = (recurse, flags)
-        try:
-            return self.__cache[key]
-        except KeyError:
-
-            output = odict()
-
-            if recurse:
-                inherits = self.inherits()
-                if inherits:
-                    schema = orb.system.schema(inherits)
-                    if not schema:
-                        raise orb.errors.ModelNotFound(schema=inherits)
-                    else:
-                        # lookup ancestor columns (don't care about virtual columns)
-                        iflags = (flags & ~orb.Column.Flags.Virtual) if flags else ~orb.Column.Flags.Virtual
-                        ancest_columns = schema.columns(recurse=recurse, flags=iflags)
-                        dups = set(ancest_columns.keys()).intersection(output.keys())
-                        if dups:
-                            raise orb.errors.DuplicateColumnFound(schema=self, column=','.join(dups))
-                        else:
-                            output.update(ancest_columns)
-
-            output.update(odict(
-                (col.name(), col) for col
-                in sorted(self.__columns.values(), key=lambda x: x.order())
-                if (not flags or col.testFlag(flags))
-            ))
-
-            self.__cache[key] = output
-            return output
+        return self._collect('columns', orb.Column.Flags, recurse=recurse, flags=flags)
 
     def database(self):
+        """
+        Returns the name of the database that this schema is associated with.
+
+        :return: <str>
+        """
         return self.__database
 
     def dbname(self):
@@ -277,15 +362,23 @@ class Schema(object):
 
         :return     <str>
         """
-        return self.__dbname
+        return self.__dbname or inflection.pluralize(inflection.underscore(self.name()))
 
     def display(self):
         """
         Returns the display name for this table.
-        
+
         :return     <str>
         """
         return self.__display or inflection.titleize(self.__name)
+
+    def flags(self):
+        """
+        Returns the flags that are set on this schema object.
+
+        :return: <int>
+        """
+        return self.__flags
 
     def generate_model(self):
         """
@@ -301,75 +394,87 @@ class Schema(object):
         return new_model
 
     def group(self):
+        """
+        Returns the group name association this schema has.
+
+        :return: <str>
+        """
         return self.__group
 
-    def hasColumn(self, column, recurse=True, flags=0):
+    def has_column(self, column, recurse=True, flags=0):
         """
         Returns whether or not this column exists within the list of columns
         for this schema.
-        
-        :return     <bool>
-        """
-        return column in self.columns(recurse=recurse, flags=flags)
 
-    def hasTranslations(self):
+        :param column: <orb.Column> or <str>
+
+        :return: <bool>
+        """
+        if isinstance(column, orb.Column):
+            return column in self.columns(recurse=recurse, flags=flags).values()
+        else:
+            return self.column(column, recurse=recurse, flags=flags, raise_=False) is not None
+
+    def has_translations(self):
+        """
+        Returns whether or not this schema has internationalization columns
+        associated with it.
+
+        :return: <bool>
+        """
         for col in self.columns().values():
-            if col.testFlag(col.Flags.I18n):
+            if col.test_flag(col.Flags.I18n):
                 return True
         return False
 
-    def idColumn(self):
-        return self.column(self.__idColumn)
+    def id_column(self):
+        """
+        Returns the column that is being used as the `id` column for a model.
+        By default, this will be a column with the name `'id'`, but can be
+        specified when the model is created as any name.
 
-    def index(self, name, recurse=True):
+        :return: <orb.Column>
+        """
+        return self.column(self.__id_column)
+
+    def index(self, name, recurse=True, flags=0):
+        """
+        Returns the index based on the given name for this schema.
+
+        :param name: <str>
+        :param recurse: <bool>
+        :param flags: <int>
+
+        :return: <orb.Index> or None
+        """
         return self.indexes(recurse=recurse).get(name)
 
-    def indexes(self, recurse=True):
+    def indexes(self, recurse=True, flags=0):
         """
-        Returns the list of indexes that are associated with this schema.
-        
-        :return     [<orb.Index>, ..]
+        Returns a collection of indexes associated with this schema.
+
+        :return: {<str> name: <orb.Index>, ..}
         """
-        output = self.__indexes.copy()
-        if recurse and self.inherits():
-            schema = orb.system.schema(self.inherits())
-            if not schema:
-                raise orb.errors.ModelNotFound(schema=self.inherits())
-            else:
-                output.update(schema.indexes(recurse=recurse))
-        return output
+        return self._collect('indexes', orb.Index.Flags, recurse=recurse, flags=flags)
 
     def inherits(self):
         """
-        Returns the name of the table schema that this class will inherit from.
-        
-        :return     <str>
+        Returns the schema name that this schema inherits from, if any.
+
+        :return: <str>
         """
         return self.__inherits
 
-    def inheritanceTree(self):
-        """
-        Returns the inheritance tree for this schema, traversing up the hierarchy for the inherited schema instances.
-
-        :return: <generator>
-        """
-        inherits = self.inherits()
-        while inherits:
-            ischema = orb.system.schema(inherits)
-            if not ischema:
-                raise orb.errors.ModelNotFound(schema=inherits)
-
-            yield ischema
-            inherits = ischema.inherits()
-
     def model(self, auto_generate=False):
         """
-        Returns the default Table class that is associated with this \
-        schema instance.
-        
-        :param      auto_generate | <bool>
-        
-        :return     <subclass of Table>
+        Returns the `orb.Model` class object that is the representation of
+        this schema as a Python class.  If the `auto_generate` flag is set to True,
+        then the model will be generated based on the schema properties, if it has
+        not already been set.
+
+        :param auto_generate: <bool>
+
+        :return: subclass of <orb.Model>
         """
         if self.__model is None and auto_generate:
             self.__model = self.generate_model()
@@ -377,15 +482,19 @@ class Schema(object):
 
     def name(self):
         """
-        Returns the name of this schema object.
-        
+        Returns the reference name of this schema object.
+
         :return     <str>
         """
         return self.__name
 
     def namespace(self, **context):
         """
-        Returns the namespace that should be used for this schema, when specified.
+        Returns the namespace that should be used for this schema, when specified.  There
+        are two options when it comes to namespacing within an ORB context - the base
+        `namespace` text will be used if no specific namespace is defined on this schema
+        object, unless the `force_namespace` context option is set to True - in which case
+        the context's namespace will be overridden.
 
         :return: <str>
         """
@@ -397,123 +506,80 @@ class Schema(object):
         else:
             return context.namespace
 
-    def register(self, item):
+    def register(self, obj):
         """
-        Registers a new orb object to this schema.  This could be a column, index, or collector -- including
-        a virtual object defined through the orb.virtual decorator.
+        Registers a new ORB object to this schema.  This could include an `orb.Column`,
+        `orb.Index`, or `orb.Collector` - either as a raw instance, or as a virtual
+        object defined using the `orb.virtual` decorator.
 
-        :param item: <variant>
+        :param obj: <orb.Column> or <orb.Index> or <orb.Collector>
 
         :return:
         """
-        if callable(item) and hasattr(item, '__orb__'):
-            item = item.__orb__
+        # when modifying the structure, clear out the cache
+        self.__cache.clear()
 
-        key = item.name()
+        # look to see if this is a virtual method defining ORB information
+        if callable(obj) and hasattr(obj, '__orb__'):
+            obj = obj.__orb__
+
+        key = obj.name()
         model = self.__model
 
         # create class methods for indexes
-        if isinstance(item, orb.Index):
-            self.__indexes[key] = item
-            item.setSchema(self)
+        if isinstance(obj, orb.Index):
+            self.__objects['indexes'][key] = obj
+            obj.set_schema(self)
 
+            # register the index class method on the model if it has
+            # not been already defined
             if model and not hasattr(model, key):
-                setattr(model, key, classmethod(item))
+                setattr(model, key, classmethod(obj))
 
         # create instance methods for collectors
-        elif isinstance(item, orb.Collector):
-            self.__collectors[key] = item
-            item.setSchema(self)
+        elif isinstance(obj, orb.Collector):
+            self.__objects['collectors'][key] = obj
+            obj.set_schema(self)
 
         # create instance methods for columns
-        elif isinstance(item, orb.Column):
-            self.__columns[key] = item
-            item.setSchema(self)
+        elif isinstance(obj, orb.Column):
+            self.__objects['columns'][key] = obj
+            obj.set_schema(self)
 
-    def setColumns(self, columns):
-        """
-        Sets the columns that this schema uses.
-        
-        :param      columns     | [<orb.Column>, ..]
-        """
-        self.__columns = {}
-        for name, column in columns.items():
-            self.__columns[name] = column
-            column.setSchema(self)
+        # raise an invalid error
+        else:
+            raise RuntimeError('Invalid object reference type: {0}'.format(obj))
 
-    def setDisplay(self, name):
+    def system(self):
         """
-        Sets the display name for this table.
-        
-        :param      name | <str>
-        """
-        self.__display = name
+        Returns the underlying system that this schema is associated to.
 
-    def setModel(self, model):
+        :return: <orb.System>
         """
-        Sets the default Table class that is associated with this \
-        schema instance.
-        
-        :param    model     | <subclass of Table>
+        return self.__system
+
+    def set_model(self, model):
+        """
+        Sets the model class type that is associated with this schema instance.
+
+        :param model: subclass of <orb.Model> or None
         """
         self.__model = model
 
-    def setIndexes(self, indexes):
+    def set_inherits(self, inherits):
         """
-        Sets the list of indexed lookups for this schema to the inputted list.
-        
-        :param      indexes     | [<orb.Index>, ..]
-        """
-        self.__indexes = {}
-        for name, index in indexes.items():
-            self.__indexes[name] = index
-            index.setSchema(self)
+        Sets the inheritance schema for this instance.
 
-    def setInherits(self, name):
+        :param name: <str>
         """
-        Sets the name for the inherited table schema to the inputted name.
-        
-        :param      name    | <str>
-        """
-        self.__inherits = name
+        self.__inherits = inherits
 
-    def setName(self, name):
+    def test_flag(self, flags):
         """
-        Sets the name of this schema object to the inputted name.
-        
-        :param      name    | <str>
-        """
-        self.__name = name
+        Tests to see if this schema has the given flags set.
 
-    def setNamespace(self, namespace):
-        """
-        Sets the namespace for this schema object to the given value.  This is a way to differentiate the same
-        model from different locations within the backend.
+        :param flags: <orb.Schema.Flags>
 
-        :param namespace: <str>
+        :return: <bool>
         """
-        self.__namespace = namespace
-
-    def setCollectors(self, collectors):
-        """
-        Sets the collector methods that will be used for this schema.
-        
-        :param      collectors | [<orb.Collectors>, ..]
-        """
-        self.__collectors = {}
-        for name, collector in collectors.items():
-            self.__collectors[name] = collector
-            collector.setSchema(self)
-
-    def setDbName(self, dbname):
-        """
-        Sets the name that will be used in the actual database.  If the \
-        name supplied is blank, then the default database name will be \
-        used based on the group and name for this schema.
-        
-        :param      dbname  | <str>
-        """
-        self.__dbname = dbname
-
-    def testFlags(self, flags):
         return (self.__flags & flags) != 0

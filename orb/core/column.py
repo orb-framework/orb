@@ -1,15 +1,17 @@
 """ Defines the meta information for a column within a table schema. """
 
+import demandimport
 import logging
 import projex.text
 import inflection
 
 from projex.addon import AddonManager
-from projex.enum import enum
-from projex.lazymodule import lazy_import
+from ..utils.enum import enum
+
+with demandimport.enabled():
+    import orb
 
 log = logging.getLogger(__name__)
-orb = lazy_import('orb')
 
 
 class Column(AddonManager):
@@ -56,7 +58,7 @@ class Column(AddonManager):
             'name': self.name(),
             'field': self.field(),
             'display': self.display(),
-            'flags': {k: True for k in self.Flags.toSet(self.__flags)},
+            'flags': {k: True for k in self.Flags.to_set(self.__flags)},
             'default': default_value
         }
         return output
@@ -64,6 +66,7 @@ class Column(AddonManager):
     def __init__(self,
                  name=None,
                  field=None,
+                 alias=None,
                  display=None,
                  flags=0,
                  default=None,
@@ -74,18 +77,19 @@ class Column(AddonManager):
                  permit=None,
                  getter=None,
                  setter=None,
-                 queryFilter=None,
+                 filter=None,
                  schema=None,
                  order=99999):
         # constructor items
         self.__name = name
         self.__field = field
+        self.__alias = alias
         self.__display = display
-        self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
+        self.__flags = self.Flags.from_set(flags) if isinstance(flags, set) else flags
         self.__default = default
         self.__defaultOrder = defaultOrder
         self.__shortcut = shortcut
-        self.__query_filter = queryFilter
+        self.__filtermethod = filter
         self.__settermethod = setter
         self.__gettermethod = getter
         self.__readPermit = readPermit or permit
@@ -103,6 +107,29 @@ class Column(AddonManager):
         if schema:
             schema.register(self)
 
+    def __eq__(self, other):
+        return self is other
+
+    def __ne__(self, other):
+        return self is not other
+
+    def __cmp__(self, other):
+        if self is other:
+            return 0
+        elif isinstance(other, Column):
+            return cmp(self.order(), other.order())
+        else:
+            return -1
+
+    def alias(self):
+        """
+        Returns the alias to use when extracting data from the backend
+        as raw data.
+
+        :return: <str>
+        """
+        return self.__alias or self.field()
+
     def copy(self):
         """
         Returns a new instance copy of this column.
@@ -118,7 +145,7 @@ class Column(AddonManager):
             defaultOrder=self.__defaultOrder,
             getter=self.__gettermethod,
             setter=self.__settermethod,
-            queryFilter=self.__query_filter,
+            filter=self.__filtermethod,
             shortcut=self.__shortcut,
             readPermit=self.__readPermit,
             writePermit=self.__writePermit,
@@ -138,7 +165,7 @@ class Column(AddonManager):
         :return: <variant>
         """
         # restore translatable column
-        if self.testFlag(self.Flags.I18n):
+        if self.test_flag(self.Flags.I18n):
             if isinstance(db_value, (str, unicode)):
                 if db_value.startswith('{'):
                     try:
@@ -252,7 +279,7 @@ class Column(AddonManager):
         :return     <orb.TableSchema> || None
         """
         for schema in schemas:
-            if schema.hasColumn(self):
+            if schema.has_column(self):
                 return schema
         return self.schema()
 
@@ -286,7 +313,7 @@ class Column(AddonManager):
             schemas = (schemas,)
 
         for schema in schemas:
-            if schema.hasColumn(self):
+            if schema.has_column(self):
                 return True
         return False
 
@@ -326,7 +353,7 @@ class Column(AddonManager):
         :return     [<orb.TableSchema>, ..]
         """
         for schema in schemas:
-            if schema.hasColumn(self):
+            if schema.has_column(self):
                 yield schema
 
     def name(self):
@@ -347,7 +374,7 @@ class Column(AddonManager):
         """
         return self.__order
 
-    def queryFilter(self, function=None):
+    def filter(self, function=None):
         """
         Defines a decorator that can be used to filter
         queries.  It will assume the function being associated
@@ -360,7 +387,7 @@ class Column(AddonManager):
                 objects = orb.ReverseLookup('Object')
 
                 @classmethod
-                @objects.queryFilter()
+                @objects.filter()
                 def objectsFilter(cls, query, **context):
                     return orb.Query()
 
@@ -369,23 +396,23 @@ class Column(AddonManager):
         :return: <wrapper>
         """
         if function is not None:
-            self.__query_filter = function
+            self.__filtermethod = function
             return function
 
         def wrapper(func):
-            self.__query_filter = func
+            self.__filtermethod = func
             return func
 
         return wrapper
 
-    def queryFilterMethod(self):
+    def filtermethod(self):
         """
         Returns the actual query filter method, if any,
         that is associated with this collector.
 
         :return: <callable>
         """
-        return self.__query_filter
+        return self.__filtermethod
 
     def random(self):
         """
@@ -413,13 +440,13 @@ class Column(AddonManager):
         context = context or orb.Context()
 
         # check to see if this column is translatable before restoring
-        if self.testFlag(self.Flags.I18n):
+        if self.test_flag(self.Flags.I18n):
             locales = context.locale.split(',')
 
             if not isinstance(value, dict):
                 default_locale = locales[0]
                 if default_locale == 'all':
-                    default_locale = orb.system.settings.default_locale
+                    default_locale = self.schema().system().settings.default_locale
                 value = {default_locale: value}
 
             if 'all' in locales:
@@ -462,7 +489,7 @@ class Column(AddonManager):
             value = self.valueFromString(value)
 
         # store the internationalized property
-        if self.testFlag(self.Flags.I18n):
+        if self.test_flag(self.Flags.I18n):
             if not isinstance(value, dict):
                 context = context or orb.Context()
                 return {context.locale: value}
@@ -524,7 +551,7 @@ class Column(AddonManager):
         else:
             self.__flags &= ~flag
 
-    def setFlags(self, flags):
+    def set_flags(self, flags):
         """
         Sets the global flags for this column to the inputted flags.
 
@@ -532,7 +559,7 @@ class Column(AddonManager):
         """
         self.__flags = flags
 
-    def setName(self, name):
+    def set_name(self, name):
         """
         Sets the name of this column to the inputted name.
 
@@ -548,7 +575,7 @@ class Column(AddonManager):
         """
         self.__readPermit = permit
 
-    def setSchema(self, schema):
+    def set_schema(self, schema):
         self.__schema = schema
 
     def setOrder(self, order):
@@ -569,7 +596,7 @@ class Column(AddonManager):
         """
         self.__writePermit = permit
 
-    def testFlag(self, flag):
+    def test_flag(self, flag):
         """
         Tests to see if this column has the inputted flag set.
 
@@ -591,7 +618,7 @@ class Column(AddonManager):
         :return     <bool> success
         """
         # check for the required flag
-        if self.testFlag(self.Flags.Required) and not self.testFlag(self.Flags.AutoAssign):
+        if self.test_flag(self.Flags.Required) and not self.test_flag(self.Flags.AutoAssign):
             if self.isNull(value):
                 msg = '{0} is a required column.'.format(self.name())
                 raise orb.errors.ColumnValidationError(self, msg)

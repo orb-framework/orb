@@ -180,7 +180,7 @@ class EnumColumn(LongColumn):
         Returns the enumeration that is associated with this column.  This can
         help for automated validation when dealing with enumeration types.
 
-        :return     <projex.enum.enum> || None
+        :return: <orb.utils.enum.enum> or None
         """
         return self.__enum
 
@@ -190,7 +190,7 @@ class EnumColumn(LongColumn):
         type.  This is an optional parameter but can be useful when dealing
         with validation and some of the automated features of the ORB system.
 
-        :param      cls | <projex.enum.enum> || None
+        :param cls: <orb.utils.enum.enum> or None
         """
         self.__enum = cls
 

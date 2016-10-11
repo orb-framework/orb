@@ -117,7 +117,7 @@ class AbstractStringColumn(Column):
 
         :return     <variant>
         """
-        if isinstance(value, (str, unicode)) and self.testFlag(self.Flags.Encrypted):
+        if isinstance(value, (str, unicode)) and self.test_flag(self.Flags.Encrypted):
             value = security.encrypt(value)
 
         return super(AbstractStringColumn, self).store(value, context=context)

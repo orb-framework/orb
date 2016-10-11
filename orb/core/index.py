@@ -3,7 +3,8 @@
 import logging
 import inflection
 
-from projex.enum import enum
+from ..utils.enum import enum
+
 from projex.lazymodule import lazy_import
 
 
@@ -22,7 +23,8 @@ class Index(object):
     Flags = enum(
         'Unique',
         'Private',
-        'Static'
+        'Static',
+        'Virtual'
     )
 
     def __json__(self):
@@ -30,7 +32,7 @@ class Index(object):
             'name': self.__name,
             'dbname': self.__dbname,
             'columns': self.__columns,
-            'flags': {k: True for k in self.Flags.toSet(self.__flags)},
+            'flags': {k: True for k in self.Flags.to_set(self.__flags)},
             'order': self.__order
         }
         return output
@@ -39,7 +41,7 @@ class Index(object):
         self.__name = self.__name__ = name
         self.__dbname = dbname
         self.__columns = columns or []
-        self.__flags = self.Flags.fromSet(flags) if isinstance(flags, set) else flags
+        self.__flags = self.Flags.from_set(flags) if isinstance(flags, set) else flags
         self.__order = order
         self.__schema = None
 
@@ -60,8 +62,8 @@ class Index(object):
             value = values[i]
             column = schema.column(col)
 
-            if isinstance(value, orb.Model) and not value.isRecord():
-                return None if self.testFlag(self.Flags.Unique) else orb.Collection()
+            if isinstance(value, orb.Model) and not value.is_record():
+                return None if self.test_flag(self.Flags.Unique) else orb.Collection()
             elif not column:
                 raise errors.ColumnNotFound(schema=schema, column=col)
 
@@ -70,7 +72,13 @@ class Index(object):
         context['where'] = query & context.get('where')
 
         records = model.select(**context)
-        return records.first() if self.testFlag(self.Flags.Unique) else records
+        return records.first() if self.test_flag(self.Flags.Unique) else records
+
+    def __cmp__(self, other):
+        if isinstance(other, Index):
+            return cmp(self.name(), other.name())
+        else:
+            return -1
 
     def copy(self):
         other = type(self)(
@@ -134,10 +142,10 @@ class Index(object):
     def setDbName(self, dbname):
         self.__dbname = dbname
 
-    def setFlags(self, flags):
+    def set_flags(self, flags):
         self.__flags = flags
 
-    def setName(self, name):
+    def set_name(self, name):
         """
         Sets the name for this index to this index.
         
@@ -145,7 +153,7 @@ class Index(object):
         """
         self.__name = self.__name__ = name
 
-    def setSchema(self, schema):
+    def set_schema(self, schema):
         self.__schema = schema
 
     def validate(self, record, values):
@@ -178,5 +186,5 @@ class Index(object):
 
         return True
 
-    def testFlag(self, flags):
+    def test_flag(self, flags):
         return (self.__flags & flags) > 0

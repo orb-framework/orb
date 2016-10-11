@@ -22,12 +22,12 @@ class INSERT(SQLiteStatement):
                 i18n = []
                 standard = []
                 for col in schema.columns().values():
-                    if col.testFlag(col.Flags.Virtual):
+                    if col.test_flag(col.Flags.Virtual):
                         continue
 
-                    if col.testFlag(col.Flags.I18n):
+                    if col.test_flag(col.Flags.I18n):
                         i18n.append(col)
-                    elif not col.testFlag(col.Flags.AutoAssign):
+                    elif not col.test_flag(col.Flags.AutoAssign):
                         standard.append(col)
 
                 schema_meta[schema] = {'i18n': i18n, 'standard': standard}
@@ -42,7 +42,7 @@ class INSERT(SQLiteStatement):
 
         cmd = []
         for schema, columns in schema_meta.items():
-            id_column = schema.idColumn()
+            id_column = schema.id_column()
             subcmd = ''
 
             if columns['standard']:

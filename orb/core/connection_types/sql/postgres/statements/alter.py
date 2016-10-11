@@ -29,10 +29,10 @@ class ALTER(PSQLStatement):
         add_standard = []
         for col in add or []:
             # virtual columns do not exist in the database
-            if col.testFlag(col.Flags.Virtual):
+            if col.test_flag(col.Flags.Virtual):
                 continue
 
-            if col.testFlag(col.Flags.I18n):
+            if col.test_flag(col.Flags.I18n):
                 add_i18n.append(col)
             else:
                 add_standard.append(col)
@@ -61,7 +61,7 @@ class ALTER(PSQLStatement):
 
         # add i18n columns
         if add_i18n:
-            id_column = model.schema().idColumn()
+            id_column = model.schema().id_column()
             id_type = id_column.dbType('Postgres')
 
             field_statements = []

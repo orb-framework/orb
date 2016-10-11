@@ -29,12 +29,12 @@ class SELECT_EXPAND(PSQLStatement):
             else:
                 column = schema.column(name, raise_=False)
                 if column:
-                    if not column.testFlag(column.Flags.Virtual) or issubclass(model, orb.View):
+                    if not column.test_flag(column.Flags.Virtual) or issubclass(model, orb.View):
                         yield expand_col, column, sub_tree
                 else:
                     collector = schema.collector(name)
                     if collector:
-                        if not collector.testFlag(collector.Flags.Virtual):
+                        if not collector.test_flag(collector.Flags.Virtual):
                             if isinstance(collector, orb.Pipe):
                                 yield expand_pipe, collector, sub_tree
                             elif isinstance(collector, orb.ReverseLookup):
@@ -60,11 +60,11 @@ class SELECT_EXPAND(PSQLStatement):
 class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
     def __call__(self, column, tree, alias='', context=None):
         data = {}
-        target = column.referenceModel()
+        target = column.reference_model()
         translation_columns = target.schema().columns(flags=orb.Column.Flags.I18n).values()
         target_name = projex.text.underscore(column.name())
         target_alias = '{0}_table'.format(target_name)
-        target_id_field = target.schema().idColumn().field()
+        target_id_field = target.schema().id_column().field()
 
         # get the base table query
         target_q = target.baseQuery(context=context)
@@ -94,7 +94,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
                 for c in translation_columns
             ]
             target_data = ','.join(target_data_options)
-            target_id_field = target.schema().idColumn().field()
+            target_id_field = target.schema().id_column().field()
 
             target_i18n_grouping = u"""
             GROUP BY "{target_alias}"."{target_id_field}"
@@ -158,13 +158,13 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
 class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
     def __call__(self, reversed, tree, alias='', context=None):
         data = {}
-        target = reversed.referenceModel()
+        target = reversed.reference_model()
         source = reversed.schema().model()
 
         target_name = projex.text.underscore(reversed.name())
         target_records_alias = '{0}_records'.format(target_name)
         target_alias = '{0}_table'.format(target_name)
-        has_translations = target.schema().hasTranslations()
+        has_translations = target.schema().has_translations()
         target_fields = []
 
         # get the base table query
@@ -182,7 +182,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
 
         # collect keywords
         if 'ids' in tree:
-            target_fields.append(u'array_agg({0}.{1}) AS ids'.format(target_records_alias, target.schema().idColumn().field()))
+            target_fields.append(u'array_agg({0}.{1}) AS ids'.format(target_records_alias, target.schema().id_column().field()))
         if 'count' in tree:
             target_fields.append(u'count({0}.*) AS count'.format(target_records_alias))
         if 'first' in tree:
@@ -217,13 +217,13 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             'target_fields': u', '.join(target_fields),
             'target_table': target.schema().dbname(),
             'target_namespace': target.schema().namespace() or 'public',
-            'target_id_field': target.schema().idColumn().field(),
+            'target_id_field': target.schema().id_column().field(),
             'target_expand': target_expand,
             'target_records_alias': target_records_alias,
             'source_table': alias or source.schema().dbname(),
             'source_field': reversed.targetColumn().field(),
-            'source_id_field': source.schema().idColumn().field(),
-            'limit_if_unique': 'LIMIT 1' if reversed.testFlag(reversed.Flags.Unique) else ''
+            'source_id_field': source.schema().id_column().field(),
+            'limit_if_unique': 'LIMIT 1' if reversed.test_flag(reversed.Flags.Unique) else ''
         }
 
         # define the sql
@@ -263,7 +263,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
 
         # collect keywords
         if 'ids' in tree:
-            target_fields.append(u'array_agg({0}.{1}) AS ids'.format(target_records_alias, target.schema().idColumn().field()))
+            target_fields.append(u'array_agg({0}.{1}) AS ids'.format(target_records_alias, target.schema().id_column().field()))
         if 'count' in tree:
             target_fields.append(u'count({0}.*) AS count'.format(target_records_alias))
         if 'first' in tree:
@@ -276,7 +276,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         # define the sql options
         target_name = projex.text.underscore(pipe.name())
         target_alias = '{0}_table'.format(target_name)
-        has_translations = target.schema().hasTranslations()
+        has_translations = target.schema().has_translations()
 
         # include the base table's filter, if one exists
         target_q = target.baseQuery(context=context)
@@ -298,7 +298,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             target_i18n = target_i18n.format(target_alias=target_alias,
                                              namespace=target.schema().namespace() or 'public',
                                              table=target.schema().dbname(),
-                                             target_id_field=target.schema().idColumn().field())
+                                             target_id_field=target.schema().id_column().field())
         else:
             target_data = u'"{target_alias}".*'.format(target_alias=target_alias)
             target_i18n = ''
@@ -319,13 +319,13 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
             'target_i18n': target_i18n,
             'through_table': through.schema().dbname(),
             'through_namespace': through.schema().namespace() or 'public',
-            'target_id_field': target.schema().idColumn().field(),
+            'target_id_field': target.schema().id_column().field(),
             'target_field': target_col.field(),
             'target_records_alias': target_records_alias,
             'source_table': alias or source.schema().dbname(),
-            'source_id_field': source.schema().idColumn().field(),
+            'source_id_field': source.schema().id_column().field(),
             'source_field': source_col.field(),
-            'limit_if_unique': 'LIMIT 1' if pipe.testFlag(pipe.Flags.Unique) else ''
+            'limit_if_unique': 'LIMIT 1' if pipe.test_flag(pipe.Flags.Unique) else ''
         }
 
         # define the sql

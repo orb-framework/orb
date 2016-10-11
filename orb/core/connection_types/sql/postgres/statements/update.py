@@ -12,7 +12,7 @@ class UPDATE(PSQLStatement):
         data = {}
 
         for record in records:
-            if record.isRecord():
+            if record.is_record():
                 changes = record.changes()
                 if changes:
                     sub_sql, sub_data = self.generateCommand(record, changes)
@@ -30,10 +30,10 @@ class UPDATE(PSQLStatement):
         i18n_keys = defaultdict(list)
 
         for column in changes:
-            if column.testFlag(column.Flags.Virtual):
+            if column.test_flag(column.Flags.Virtual):
                 continue
 
-            if column.testFlag(column.Flags.I18n):
+            if column.test_flag(column.Flags.I18n):
                 for record_locale, value in record.get(column, locale='all').items():
                     value_key = '{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
                     data[value_key] = column.dbStore('Postgres', value)
@@ -47,7 +47,7 @@ class UPDATE(PSQLStatement):
 
 
         id_key = 'id_' + os.urandom(4).encode('hex')
-        data[id_key] = record.get(record.schema().idColumn())
+        data[id_key] = record.get(record.schema().id_column())
 
         sql = []
         if standard_values:
@@ -59,7 +59,7 @@ class UPDATE(PSQLStatement):
                      namespace=record.schema().namespace() or 'public',
                      id=id_key,
                      values=', '.join(standard_values),
-                     field=record.schema().idColumn().field())
+                     field=record.schema().id_column().field())
             sql.append(standard_sql)
 
         if i18n_fields:

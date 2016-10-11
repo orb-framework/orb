@@ -5,15 +5,15 @@ agnostic queries quickly and easily.
 
 import copy
 import datetime
+import demandimport
 import projex.regex
 import projex.text
 import re
 
-from projex.enum import enum
-from projex.lazymodule import lazy_import
+from ..utils.enum import enum
 
-
-orb = lazy_import('orb')
+with demandimport.enabled():
+    import orb
 
 
 class Query(object):
@@ -180,7 +180,7 @@ class Query(object):
             try:
                 if issubclass(column, orb.Model):
                     self.__model = column
-                    self.__column = column.schema().idColumn().name()
+                    self.__column = column.schema().id_column().name()
             except StandardError:
                 if isinstance(column, orb.Column):
                     self.__model = column.schema().model()
@@ -763,7 +763,7 @@ class Query(object):
         if lookup:
             # utilize query filters to generate
             # a new filter based on this object
-            query_filter = lookup.queryFilterMethod()
+            query_filter = lookup.filtermethod()
             if callable(query_filter) and not ignoreFilter:
                 new_q = query_filter(model, self)
                 if new_q:
@@ -781,14 +781,14 @@ class Query(object):
             return self
         else:
             if isinstance(lookup, orb.Collector):
-                return orb.Query(model).in_(lookup.collectExpand(self, parts))
+                return orb.Query(model).in_(lookup.collect_expand(self, parts))
 
             elif isinstance(lookup, orb.ReferenceColumn):
-                rmodel = lookup.referenceModel()
+                rmodel = lookup.reference_model()
                 sub_q = self.copy()
                 sub_q._Query__column = '.'.join(parts[1:])
                 sub_q._Query__model = rmodel
-                records = rmodel.select(columns=[rmodel.schema().idColumn()], where=sub_q)
+                records = rmodel.select(columns=[rmodel.schema().id_column()], where=sub_q)
                 return orb.Query(model, parts[0]).in_(records)
 
             else:

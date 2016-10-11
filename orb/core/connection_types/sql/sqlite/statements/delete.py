@@ -35,12 +35,12 @@ class DELETE(SQLiteStatement):
             delete_info = defaultdict(list)
             for record in records:
                 schema = record.schema()
-                delete_info[schema].append(record.get(record.schema().idColumn()))
+                delete_info[schema].append(record.get(record.schema().id_column()))
 
             data = {}
             sql = []
             for schema, ids in delete_info.items():
-                sql.append(u'DELETE FROM `{0}` WHERE {1} IN %({0}_ids)s;'.format(schema.dbname(), schema.idColumn().field()))
+                sql.append(u'DELETE FROM `{0}` WHERE {1} IN %({0}_ids)s;'.format(schema.dbname(), schema.id_column().field()))
                 data[schema.dbname() + '_ids'] = tuple(ids)
 
             return u'\n'.join(sql), data

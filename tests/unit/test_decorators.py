@@ -15,7 +15,7 @@ def test_create_virtual_string():
     assert my_method.__orb__.name() == 'my_method'
     assert my_method.__orb__.gettermethod() == my_method
     assert my_method.__orb__.settermethod() is None
-    assert my_method.__orb__.queryFilterMethod() is None
+    assert my_method.__orb__.filtermethod() is None
     assert my_method.__orb__.flags() == (orb.Column.Flags.Virtual | orb.Column.Flags.ReadOnly)
 
 
@@ -71,11 +71,11 @@ def test_create_virtual_string_with_a_query_filter():
     def param():
         pass
 
-    @param.queryFilter()
+    @param.filter()
     def param_filter():
         pass
 
-    assert param.__orb__.queryFilterMethod() == param_filter
+    assert param.__orb__.filtermethod() == param_filter
 
 
 def test_create_virtual_string_with_a_name_override():
@@ -108,7 +108,7 @@ def test_create_virtual_collector():
     def set_properties(values):
         pass
 
-    @properties.queryFilter()
+    @properties.filter()
     def properties_filter(query):
         pass
 
@@ -116,7 +116,7 @@ def test_create_virtual_collector():
     assert isinstance(properties.__orb__, orb.Collector)
     assert properties.__orb__.gettermethod() == properties
     assert properties.__orb__.settermethod() == set_properties
-    assert properties.__orb__.queryFilterMethod() == properties_filter
+    assert properties.__orb__.filtermethod() == properties_filter
 
     with pytest.raises(orb.errors.ModelNotFound):
         properties.__orb__.model()
@@ -135,7 +135,7 @@ def test_create_virtual_reverse_lookup():
     def set_properties(values):
         pass
 
-    @properties.queryFilter()
+    @properties.filter()
     def properties_filter(query):
         pass
 
@@ -144,7 +144,7 @@ def test_create_virtual_reverse_lookup():
     assert isinstance(properties.__orb__, orb.ReverseLookup)
     assert properties.__orb__.gettermethod() == properties
     assert properties.__orb__.settermethod() == set_properties
-    assert properties.__orb__.queryFilterMethod() == properties_filter
+    assert properties.__orb__.filtermethod() == properties_filter
 
     with pytest.raises(orb.errors.ModelNotFound):
         properties.__orb__.model()
@@ -163,7 +163,7 @@ def test_create_virtual_pipe():
     def set_properties(values):
         pass
 
-    @properties.queryFilter()
+    @properties.filter()
     def properties_filter(query):
         pass
 
@@ -172,7 +172,7 @@ def test_create_virtual_pipe():
     assert isinstance(properties.__orb__, orb.Pipe)
     assert properties.__orb__.gettermethod() == properties
     assert properties.__orb__.settermethod() == set_properties
-    assert properties.__orb__.queryFilterMethod() == properties_filter
+    assert properties.__orb__.filtermethod() == properties_filter
 
     with pytest.raises(orb.errors.ModelNotFound):
         properties.__orb__.model()

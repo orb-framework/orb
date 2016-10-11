@@ -185,7 +185,7 @@ class Database(object):
         """
         return self.__port
 
-    def setName(self, name):
+    def set_name(self, name):
         """
         Sets the database name that will be used at the lower level to manage \
         connections to various backends.
@@ -248,7 +248,7 @@ class Database(object):
         """
         self.__host = host
 
-    def setName(self, name):
+    def set_name(self, name):
         """
         Sets the database name for this instance to the given name.
 
@@ -314,10 +314,10 @@ class Database(object):
         all_models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
 
         tables = [model for model in all_models if issubclass(model, orb.Table) and
-                  not model.schema().testFlags(orb.Schema.Flags.Abstract) and
+                  not model.schema().test_flag(orb.Schema.Flags.Abstract) and
                   (not models or model.schema().name() in models)]
         views = [model for model in all_models if issubclass(model, orb.View) and
-                  not model.schema().testFlags(orb.Schema.Flags.Abstract) and
+                  not model.schema().test_flag(orb.Schema.Flags.Abstract) and
                   (not models or model.schema().name() in models)]
 
         # initialize the database
@@ -349,7 +349,7 @@ class Database(object):
                 # collect the missing columns and indexes
                 add = defaultdict(list)
                 for col in model.schema().columns(recurse=False).values():
-                    if col.field() not in (model_info['fields'] or []) and not col.testFlag(col.Flags.Virtual):
+                    if col.field() not in (model_info['fields'] or []) and not col.test_flag(col.Flags.Virtual):
                         add['fields'].append(col)
 
                 for index in model.schema().indexes(recurse=False).values():

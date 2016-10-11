@@ -1,8 +1,9 @@
 """ Defines the common errors for the database module. """
 
-from projex.lazymodule import lazy_import
+import demandimport
 
-orb = lazy_import('orb')
+with demandimport.enabled():
+    import orb
 
 # ------------------------------------------------------------------------------
 

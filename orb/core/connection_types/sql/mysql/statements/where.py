@@ -53,7 +53,7 @@ class WHERE(MySQLStatement):
 
             def convert_value(val):
                 if isinstance(val, orb.Model):
-                    return val.get(val.schema().idColumn(), inflated=False)
+                    return val.get(val.schema().id_column(), inflated=False)
                 elif isinstance(val, (tuple, list, set)):
                     return tuple(convert_value(v) for v in val)
                 else:
@@ -109,7 +109,7 @@ class WHERE(MySQLStatement):
                 sql = u' '.join(opts)
                 data[value_key] = value
 
-                if column.testFlag(column.Flags.I18n) and column not in fields:
+                if column.test_flag(column.Flags.I18n) and column not in fields:
                     model_name = aliases.get(model) or model.schema().dbname()
                     i18n_sql = u'`{name}`.`{field}` IN (' \
                           u'    SELECT `{name}_id`' \
@@ -122,7 +122,7 @@ class WHERE(MySQLStatement):
                     sql = i18n_sql.format(name=model_name,
                                           namespace=model.schema().namespace() or default_namespace,
                                           sub_sql=sub_sql,
-                                          field=model.schema().idColumn().field())
+                                          field=model.schema().id_column().field())
 
         return sql, data
 

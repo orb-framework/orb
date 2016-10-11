@@ -151,22 +151,22 @@ def test_collection_serialization_of_column_data(mock_user_data, MockUser, asser
     from orb.core.collection import Collection
 
     collection = Collection(model=MockUser, returning='data', columns='username')
-    collection.add_preloaded_data({'records': [mock_user_data]})
+    collection._add_preloaded_data({'records': [mock_user_data]})
     data = collection.__json__()
     assert data[0] == {'username': 'jdoe'}
 
     collection = Collection(model=MockUser, returning='values', columns='username')
-    collection.add_preloaded_data({'records': [mock_user_data]})
+    collection._add_preloaded_data({'records': [mock_user_data]})
     data = collection.__json__()
     assert data[0] == 'jdoe'
 
     collection = Collection(model=MockUser, returning='values', columns='username,last_name')
-    collection.add_preloaded_data({'records': [mock_user_data]})
+    collection._add_preloaded_data({'records': [mock_user_data]})
     data = collection.__json__()
     assert data[0] == ('jdoe', 'Doe')
 
     collection = Collection(model=MockUser, returning='data')
-    collection.add_preloaded_data({'records': [mock_user_data]})
+    collection._add_preloaded_data({'records': [mock_user_data]})
     data = collection.__json__()
     assert_dict_equals(mock_user_data, data[0])
 
@@ -175,7 +175,7 @@ def test_collection_returning_data(mock_user_data, MockUser):
     from orb.core.collection import Collection
 
     collection = Collection(model=MockUser, returning='data', columns='username')
-    collection.add_preloaded_data({'records': [mock_user_data]})
+    collection._add_preloaded_data({'records': [mock_user_data]})
     data = collection.records()
     assert data[0] == {'username': 'jdoe'}
 
@@ -304,7 +304,7 @@ def test_preloading_collection_data(mock_user_collection,
                                     MockUser,
                                     assert_dict_equals):
     collection = mock_user_collection(0)
-    collection.add_preloaded_data({'records': [mock_user_data]})
+    collection._add_preloaded_data({'records': [mock_user_data]})
 
     assert len(collection) == 1
     assert isinstance(collection[0], MockUser)
@@ -387,7 +387,7 @@ def test_copy_collection_with_collector_and_record(mock_user_collection,
 def test_copy_collection_with_preloaded_data(mock_user_collection,
                                              mock_user_data):
     collection = mock_user_collection(0)
-    collection.add_preloaded_data({'records': [mock_user_data]})
+    collection._add_preloaded_data({'records': [mock_user_data]})
     coll_copy = collection.copy()
     assert len(coll_copy) == 1
 
@@ -403,7 +403,7 @@ def test_collection_with_preloaded_count():
     from orb.core.collection import Collection
 
     collection = Collection()
-    collection.add_preloaded_data({'count': 3})
+    collection._add_preloaded_data({'count': 3})
 
     assert len(collection) == 3
 
@@ -412,7 +412,7 @@ def test_collection_count_with_preloaded_records(mock_user_data):
     from orb.core.collection import Collection
 
     collection = Collection()
-    collection.add_preloaded_data({'records': [mock_user_data]})
+    collection._add_preloaded_data({'records': [mock_user_data]})
 
     assert len(collection) == 1
 
@@ -499,7 +499,7 @@ def test_retrieve_first_record_from_preloaded_cache(mock_user_data, MockUser):
     from orb.core.collection import Collection
 
     collection = Collection(model=MockUser)
-    collection.add_preloaded_data({'first': mock_user_data})
+    collection._add_preloaded_data({'first': mock_user_data})
 
     record = collection.first()
     assert record is not None
@@ -662,7 +662,7 @@ def test_collection_preloaded_with_preloaded_ids():
     from orb.core.collection import Collection
 
     collection = Collection()
-    collection.add_preloaded_data({'ids': [1]})
+    collection._add_preloaded_data({'ids': [1]})
 
     assert collection.ids() == [1]
 
@@ -737,7 +737,7 @@ def test_retrieve_last_record_from_preloaded_cache(mock_user_data, MockUser):
     from orb.core.collection import Collection
 
     collection = Collection(model=MockUser)
-    collection.add_preloaded_data({'last': mock_user_data})
+    collection._add_preloaded_data({'last': mock_user_data})
     assert collection.last().get('username') == mock_user_data['username']
 
 
@@ -1035,13 +1035,13 @@ def test_update_collection_with_record_creation_from_collector(mock_db, MockUser
             return user
 
         def update_records(self,
-                           collection,
                            source_record,
-                           new_ids,
+                           collection,
+                           collection_ids,
                            **context):
-            assert collection == self.collection
             assert source_record == self.source
-            assert new_ids == (100,)
+            assert collection == self.collection
+            assert collection_ids == (100,)
             self.updated = True
 
     a = MockUser()
@@ -1094,7 +1094,7 @@ def test_expand_reference_values(mock_db, MockUser, MockGroup):
 
     db = mock_db(responses={'select': select_data})
     collection = Collection(model=MockUser, db=db)
-    collection.add_preloaded_data({'id': 1, 'group_id': 1})
+    collection._add_preloaded_data({'id': 1, 'group_id': 1})
 
     groups = collection.values('group')
     assert len(groups) == 1

@@ -21,13 +21,13 @@ class CREATE(SQLiteStatement):
 
         # divide columns between standard and translatable
         for col in model.schema().columns(recurse=False).values():
-            if col.testFlag(col.Flags.Virtual):
+            if col.test_flag(col.Flags.Virtual):
                 continue
 
             if not includeReferences and isinstance(col, orb.ReferenceColumn):
                 continue
 
-            if col.testFlag(col.Flags.I18n):
+            if col.test_flag(col.Flags.I18n):
                 add_i18n.append(col)
             else:
                 add_standard.append(col)
@@ -46,7 +46,7 @@ class CREATE(SQLiteStatement):
             cmd_body.append('__base_id INTEGER')
 
         # get the primary column
-        id_column = model.schema().idColumn()
+        id_column = model.schema().id_column()
         if id_column and not inherits:
             pcol = '`{0}`'.format(id_column.field())
             cmd_body.append('CONSTRAINT `{0}_pkey` PRIMARY KEY ({1})'.format(model.schema().dbname(), pcol))
@@ -60,7 +60,7 @@ class CREATE(SQLiteStatement):
 
         # create the i18n model
         if add_i18n:
-            id_column = model.schema().idColumn()
+            id_column = model.schema().id_column()
             id_type = id_column.dbType('SQLite')
 
             i18n_body = ',\n\t'.join([ADD_COLUMN(col)[0].replace('ADD COLUMN ', '') for col in add_i18n])

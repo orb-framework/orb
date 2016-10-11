@@ -60,19 +60,19 @@ class SELECT(PSQLStatement):
 
         # process columns to select
         for column in sorted(columns, self.cmpcol):
-            if column.testFlag(column.Flags.Virtual) and not issubclass(model, orb.View):
+            if column.test_flag(column.Flags.Virtual) and not issubclass(model, orb.View):
                 continue
 
-            elif column.testFlag(column.Flags.I18n):
+            elif column.test_flag(column.Flags.I18n):
                 if context.locale == 'all':
                     sql = u'hstore_agg(hstore("i18n"."locale", "i18n"."{0}")) AS "{0}"'
-                elif data['locale'] == data['default_locale'] or column.testFlag(column.Flags.I18n_NoDefault):
+                elif data['locale'] == data['default_locale'] or column.test_flag(column.Flags.I18n_NoDefault):
                     sql = u'(array_agg("i18n"."{0}"))[1] AS "{0}"'
                 else:
                     sql = u'(coalesce((array_agg("i18n"."{0}"))[1], (array_agg("i18n_default"."{0}"))[1])) AS "{0}"'
 
                 sql_columns['i18n'].append(sql.format(column.field()))
-                sql_group_by.add(u'"{0}"."{1}"'.format(schema.dbname(), schema.idColumn().field()))
+                sql_group_by.add(u'"{0}"."{1}"'.format(schema.dbname(), schema.id_column().field()))
                 fields[column] = u'"i18n"."{0}"'.format(column.field())
 
             else:
@@ -93,7 +93,7 @@ class SELECT(PSQLStatement):
         if expand and not context.columns:
             for collector in schema.collectors().values():
                 if collector.name() in expand:
-                    if collector.testFlag(collector.Flags.Virtual):
+                    if collector.test_flag(collector.Flags.Virtual):
                         continue
 
                     sub_tree = expand.pop(collector.name(), None)
@@ -184,8 +184,8 @@ class SELECT(PSQLStatement):
                 else:
                     distinct = ''
 
-                cmd.append(u'WHERE "{0}"."{1}" IN ('.format(schema.dbname(), schema.idColumn().field()))
-                cmd.append(u'    SELECT DISTINCT {0} "{1}"."{2}"'.format(distinct, schema.dbname(), schema.idColumn().field()))
+                cmd.append(u'WHERE "{0}"."{1}" IN ('.format(schema.dbname(), schema.id_column().field()))
+                cmd.append(u'    SELECT DISTINCT {0} "{1}"."{2}"'.format(distinct, schema.dbname(), schema.id_column().field()))
                 cmd.append(u'    FROM "{0}"."{1}"\n'.format(schema.namespace() or 'public', schema.dbname()))
 
                 if sql_columns['i18n']:
