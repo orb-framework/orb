@@ -99,6 +99,14 @@ class Database(object):
         """
         return self.__connection
 
+    def connection_type(self):
+        """
+        Returns the plugin type that this connection is.
+
+        :return: <str>
+        """
+        return self.__connection.get_plugin_name()
+
     def cleanup(self):
         """
         Cleans up the database.  This should be called after large amounts

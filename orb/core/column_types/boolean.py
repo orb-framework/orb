@@ -15,7 +15,7 @@ class BooleanColumn(Column):
         'MySQL': 'BOOLEAN'
     }
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -23,7 +23,7 @@ class BooleanColumn(Column):
         """
         return bool(random.randint(0, 1))
 
-    def valueFromString(self, value, extra=None, db=None):
+    def value_from_string(self, value, extra=None, db=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -33,6 +33,3 @@ class BooleanColumn(Column):
         """
         return projex.text.nativestring(value).lower() == 'true'
 
-
-# register column addon
-Column.registerAddon('Boolean', BooleanColumn)

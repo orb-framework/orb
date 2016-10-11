@@ -10,12 +10,12 @@ class IdColumn(Column):
         super(IdColumn, self).__init__(**kwds)
 
         # common to all ID columns
-        self.setFlag(self.Flags.Required)
-        self.setFlag(self.Flags.Unique)
+        self.set_flag(self.Flags.Required)
+        self.set_flag(self.Flags.Unique)
 
         # common to all default IDs
         if type != 'hash':
-            self.setFlag(self.Flags.AutoAssign)
+            self.set_flag(self.Flags.AutoAssign)
 
         # set default properties
         self.__type = type

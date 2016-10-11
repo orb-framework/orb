@@ -13,12 +13,10 @@ from ...utils import security
 orb = lazy_import('orb')
 
 class AbstractStringColumn(Column):
-    MathMap = Column.MathMap.copy()
-    MathMap['Default']['Add'] = '||'
+    # MathMap = Column.MathMap.copy()
+    # MathMap['Default']['Add'] = '||'
 
     def __init__(self, cleaned=False, escaped=False, **kwds):
-        kwds.setdefault('defaultOrder', 'desc')
-
         super(AbstractStringColumn, self).__init__(**kwds)
 
         self.__cleaned = cleaned
@@ -87,7 +85,7 @@ class AbstractStringColumn(Column):
         """
         return self.__escaped
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -186,7 +184,7 @@ class TextColumn(AbstractStringColumn):
 
 # define custom string class types
 class ColorColumn(StringColumn):
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -198,7 +196,7 @@ class ColorColumn(StringColumn):
 
 
 class DirectoryColumn(StringColumn):
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -214,7 +212,7 @@ class EmailColumn(StringColumn):
         # define custom properties
         self.__pattern = pattern
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -287,9 +285,9 @@ class PasswordColumn(StringColumn):
         super(PasswordColumn, self).__init__(**kwds)
 
         # setup default options
-        self.setFlag(self.Flags.Required)
-        self.setFlag(self.Flags.Encrypted)
-        self.setFlag(self.Flags.Private)
+        self.set_flag(self.Flags.Required)
+        self.set_flag(self.Flags.Encrypted)
+        self.set_flag(self.Flags.Private)
 
         # define custom properties
         self.__minlength = minlength
@@ -301,7 +299,7 @@ class PasswordColumn(StringColumn):
         self.__invalidCharacters = invalidCharacters
         self.__invalidCharacterRule = invalidCharacterRule
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -368,8 +366,8 @@ class TokenColumn(StringColumn):
         super(TokenColumn, self).__init__(**kwds)
 
         # set standard properties
-        self.setFlag(self.Flags.Unique)
-        self.setFlag(self.Flags.Required)
+        self.set_flag(self.Flags.Unique)
+        self.set_flag(self.Flags.Required)
 
         # set custom properties
         self.__bits = bits
@@ -409,7 +407,7 @@ class TokenColumn(StringColumn):
                 if model.select(where=orb.Query(self) == token).count() == 0:
                     return token
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -442,16 +440,3 @@ class XmlColumn(TextColumn):
         """
         return py_value
 
-
-# register string column types
-Column.registerAddon('String', StringColumn)
-Column.registerAddon('Text', TextColumn)
-
-Column.registerAddon('Color', ColorColumn)
-Column.registerAddon('Directory', DirectoryColumn)
-Column.registerAddon('Email', EmailColumn)
-Column.registerAddon('Filepath', FilepathColumn)
-Column.registerAddon('Html', HtmlColumn)
-Column.registerAddon('Password', PasswordColumn)
-Column.registerAddon('Url', UrlColumn)
-Column.registerAddon('Xml', XmlColumn)
