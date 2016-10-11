@@ -78,7 +78,7 @@ def test_pg_statement_create_index(orb, GroupUser, pg_sql):
             orb.ReferenceColumn(name='user')
         ]
     )
-    index.setSchema(GroupUser.schema())
+    index.set_schema(GroupUser.schema())
     st = pg_sql.statement('CREATE INDEX')
     assert st is not None
 

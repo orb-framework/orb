@@ -63,7 +63,7 @@ def test_my_statement_alter_invalid(orb, my_sql):
 
 def test_my_statement_create_index(orb, GroupUser, my_sql):
     index = orb.Index(name='byGroupAndUser', columns=[orb.ReferenceColumn(name='group'), orb.ReferenceColumn('user')])
-    index.setSchema(GroupUser.schema())
+    index.set_schema(GroupUser.schema())
     st = my_sql.statement('CREATE INDEX')
     assert st is not None
 

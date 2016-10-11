@@ -49,7 +49,7 @@ def test_lite_statement_create_index(orb, GroupUser, lite_sql):
             orb.ReferenceColumn(name='user')
         ]
     )
-    index.setSchema(GroupUser.schema())
+    index.set_schema(GroupUser.schema())
     st = lite_sql.statement('CREATE INDEX')
     assert st is not None
 

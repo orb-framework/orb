@@ -9,7 +9,7 @@ class ADD_COLUMN(SQLiteStatement):
         # determine all the flags for this column
         flags = []
         Flags = orb.Column.Flags
-        for key, value in Flags.items():
+        for key, value in Flags:
             # SQLite has an issue with adding NOT NULL constraints during an ADD COLUMN during
             # modification of an existing table
             if value == Flags.Required:

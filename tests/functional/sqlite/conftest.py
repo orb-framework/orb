@@ -5,7 +5,7 @@ def lite_db():
     import orb
 
     db = orb.Database('SQLite')
-    db.setName('orb_testing')
+    db.set_name('orb_testing')
     db.activate()
 
     def fin():
