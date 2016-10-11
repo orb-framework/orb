@@ -68,6 +68,3 @@ def test_enum_fetch_all_values(mock_binary_enum):
     all = mock_binary_enum.all()
     assert all == 7
 
-
-def test_enum_iterate_over_items(mock_binary_enum):
-    assert len(mock_binary_enum.items()) == len(mock_binary_enum)
