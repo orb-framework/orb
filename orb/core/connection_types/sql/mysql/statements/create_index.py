@@ -17,10 +17,10 @@ class CREATE_INDEX(MySQLStatement):
         """
         schema_name = index.schema().dbname()
         index_name = index.dbname()
-        cmd = 'CREATE' if not index.testFlag(index.Flags.Unique) else 'CREATE UNIQUE'
+        cmd = 'CREATE' if not index.test_flag(index.Flags.Unique) else 'CREATE UNIQUE'
 
         cols = ['`{0}`'.format(col.field())
-                if isinstance(col, orb.AbstractStringColumn) and not col.testFlag(col.Flags.CaseSensitive)
+                if isinstance(col, orb.AbstractStringColumn) and not col.test_flag(col.Flags.CaseSensitive)
                 else '`{0}`'.format(col.field())
                 for col in index.columns()]
 

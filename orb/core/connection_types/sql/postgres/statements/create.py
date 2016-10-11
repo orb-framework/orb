@@ -21,10 +21,10 @@ class CREATE(PSQLStatement):
         data = {}
 
         namespace = schema.namespace() or 'public'
-        id_column = schema.idColumn()
-        base_model = id_column.referenceModel()
+        id_column = schema.id_column()
+        base_model = id_column.reference_model()
         base_schema = base_model.schema()
-        base_id = base_schema.idColumn()
+        base_id = base_schema.id_column()
 
         preload = {}
         columns = []
@@ -42,10 +42,10 @@ class CREATE(PSQLStatement):
                 if not isinstance(column, orb.ReferenceColumn):
                     return '"{0}"."{1}"'.format(alias, column.field())
                 else:
-                    ref_model = column.referenceModel()
+                    ref_model = column.reference_model()
                     alias = alias or ref_model.schema().dbname()
                     join_alias = alias + '_' + projex.text.underscore(column.name())
-                    target = '"{0}"."{1}"'.format(join_alias, ref_model.schema().idColumn().field())
+                    target = '"{0}"."{1}"'.format(join_alias, ref_model.schema().id_column().field())
                     source = '"{0}"."{1}"'.format(alias, column.field())
                     join = {
                         'namespace': ref_model.schema().namespace() or 'public',
@@ -76,7 +76,7 @@ class CREATE(PSQLStatement):
 
                 if isinstance(collector, orb.Pipe):
                     join_schema = collector.toModel().schema()
-                    join_id = join_schema.idColumn()
+                    join_id = join_schema.id_column()
 
                     pipe_schema = collector.throughModel().schema()
                     source_col = collector.fromColumn()
@@ -120,7 +120,7 @@ class CREATE(PSQLStatement):
                                                           join_schema.dbname())
                 else:
                     join_schema = collector.targetModel()
-                    join_id = join_schema.idColumn()
+                    join_id = join_schema.id_column()
                     join_field = '"{0}"'.format(join_id.field())
                     column_name = projex.text.underscore(collector.name())
                     order = join_schema.defaultOrder() or [(join_id.field(), 'asc')]
@@ -177,22 +177,22 @@ class CREATE(PSQLStatement):
         curr_schema = base_model.schema()
         curr_field = '"{0}"."{1}"'.format(base_model.schema().dbname(), base_id.field())
 
-        columns.append('{0} AS "{1}"'.format(curr_field, schema.idColumn().field()))
+        columns.append('{0} AS "{1}"'.format(curr_field, schema.id_column().field()))
         group_by.append(curr_field)
 
         for column in schema.columns().values():
-            if column == schema.idColumn():
+            if column == schema.id_column():
                 continue
             else:
                 parts = column.shortcut().split('.')
-                if not (len(parts) > 1 and parts[0] == schema.idColumn().name()):
+                if not (len(parts) > 1 and parts[0] == schema.id_column().name()):
                     raise orb.errors.QueryInvalid('All view columns must originate from the id')
 
                 field_name = populate(curr_schema, curr_field, parts[1:], curr_schema.dbname())
                 columns.append('{0} AS "{1}"'.format(field_name, column.field()))
 
         kwds = {
-            'materialized': 'MATERIALIZED' if schema.testFlags(schema.Flags.Static) else '',
+            'materialized': 'MATERIALIZED' if schema.test_flag(schema.Flags.Static) else '',
             'view': schema.dbname(),
             'base_table': base_schema.dbname(),
             'preload': ','.join(['{0} AS {1}'.format(k, v) for k, v in preload.items()]),
@@ -227,10 +227,10 @@ class CREATE(PSQLStatement):
                 continue
 
             # virtual flags do not exist in the database
-            elif col.testFlag(col.Flags.Virtual):
+            elif col.test_flag(col.Flags.Virtual):
                 continue
 
-            if col.testFlag(col.Flags.I18n):
+            if col.test_flag(col.Flags.I18n):
                 add_i18n.append(col)
             else:
                 add_standard.append(col)
@@ -249,7 +249,7 @@ class CREATE(PSQLStatement):
 
         # get the primary column
         pcol = ''
-        id_column = model.schema().idColumn()
+        id_column = model.schema().id_column()
         if id_column:
             pcol = '"{0}"'.format(id_column.field())
             cmd_body.append('CONSTRAINT "{0}_pkey" PRIMARY KEY ({1})'.format(model.schema().dbname(), pcol))
@@ -277,7 +277,7 @@ class CREATE(PSQLStatement):
 
         # create the i18n model
         if add_i18n:
-            id_column = model.schema().idColumn()
+            id_column = model.schema().id_column()
             id_type = id_column.dbType('Postgres')
 
             field_statements = []

@@ -34,13 +34,13 @@ class SELECT(SQLiteStatement):
 
         # process columns to select
         for column in sorted(columns, self.cmpcol):
-            if column.testFlag(column.Flags.Virtual) and not issubclass(model, orb.View):
+            if column.test_flag(column.Flags.Virtual) and not issubclass(model, orb.View):
                 continue
 
-            if column.testFlag(column.Flags.I18n):
+            if column.test_flag(column.Flags.I18n):
                 if context.locale == 'all':
                     sql = u'hstore_agg(hstore(`i18n`.`locale`, `i18n`.`{0}`)) AS `{0}`'
-                elif data['locale'] == data['default_locale'] or column.testFlag(column.Flags.I18n_NoDefault):
+                elif data['locale'] == data['default_locale'] or column.test_flag(column.Flags.I18n_NoDefault):
                     sql = u'(array_agg(`i18n`.`{0}`))[1] AS `{0}`'
                 else:
                     sql = u'(coalesce((array_agg(`i18n`.`{0}`))[1], (array_agg(`i18n_default`.`{0}`))[1])) AS `{0}`'

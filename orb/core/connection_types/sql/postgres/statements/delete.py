@@ -21,7 +21,7 @@ class DELETE(PSQLStatement):
             sql_options = {
                 'namespace': model.schema().namespace() or 'public',
                 'table': model.schema().dbname(),
-                'id_col': model.schema().idColumn().field(),
+                'id_col': model.schema().id_column().field(),
                 'where': 'WHERE {0}'.format(where) if where else ''
             }
             sql = (
@@ -48,7 +48,7 @@ class DELETE(PSQLStatement):
             delete_info = defaultdict(list)
             for record in records:
                 schema = record.schema()
-                delete_info[schema].append(record.get(record.schema().idColumn()))
+                delete_info[schema].append(record.get(record.schema().id_column()))
 
             data = {}
             sql = []
@@ -56,7 +56,7 @@ class DELETE(PSQLStatement):
                 schema_sql = u'DELETE FROM "{0}"."{1}" WHERE {2} IN %({1}_ids)s RETURNING *;'
                 schema_sql = schema_sql.format(schema.namespace() or 'public',
                                                schema.dbname(),
-                                               schema.idColumn().field())
+                                               schema.id_column().field())
                 if schema.columns(flags=orb.Column.Flags.I18n):
                     i18n_sql = u'DELETE FROM "{0}"."{1}_i18n" WHERE "{1}_id" IN %({1}_ids)s;'
                     i18n_sql = i18n_sql.format(schema.namespace() or 'public',

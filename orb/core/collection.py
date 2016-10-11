@@ -200,6 +200,18 @@ class Collection(object):
     def __nonzero__(self):
         return not self.is_empty()
 
+    def _add_preloaded_data(self, cache, **context):
+        """
+        Adds preloaded data to this collection.  This will provide
+        raw backend data to the collection for a particular context
+
+        :param cache: {<str> key: <variant> value, ..}
+        """
+        orb_context = self.context(**context)
+        with WriteLocker(self.__lock):
+            for key, value in cache.items():
+                self.__cache['preload_' + key][orb_context] = value
+
     def _cache_record(self, record, context):
         """
         Caches the given record within a context for this collection.
@@ -256,7 +268,7 @@ class Collection(object):
         # generate records off the list of models
         if isinstance(records, (list, set, tuple)):
             if self.__bound_model:
-                id_col = self.__bound_model.schema().idColumn()
+                id_col = self.__bound_model.schema().id_column()
             else:
                 id_col = None
 
@@ -428,18 +440,6 @@ class Collection(object):
             self._cache_record(record, orb_context)
             return True
 
-    def add_preloaded_data(self, cache, **context):
-        """
-        Adds preloaded data to this collection.  This will provide
-        raw backend data to the collection for a particular context
-
-        :param cache: {<str> key: <variant> value, ..}
-        """
-        orb_context = self.context(**context)
-        with WriteLocker(self.__lock):
-            for key, value in cache.items():
-                self.__cache['preload_' + key][orb_context] = value
-
     def at(self, index, **context):
         """
         Returns the record at the given index.  The first time this method is called on an
@@ -601,7 +601,7 @@ class Collection(object):
             if key.startswith('preload_'):
                 for context, value in context_values.items():
                     preload_key = key.replace('preload_', '')
-                    other.add_preloaded_data({preload_key: value}, context=context)
+                    other._add_preloaded_data({preload_key: value}, context=context)
 
         return other
 
@@ -644,7 +644,7 @@ class Collection(object):
                         # create an optimized query lookup based
                         # off this context
                         optimized_context = orb_context.copy()
-                        optimized_context.columns = [self.__bound_model.schema().idColumn()]
+                        optimized_context.columns = [self.__bound_model.schema().id_column()]
                         optimized_context.expand = None
                         optimized_context.order = None
 
@@ -666,7 +666,10 @@ class Collection(object):
 
         # delete records from a collector that defines it
         if self.__bound_collector:
-            processed, count = self.__bound_collector.delete_records(self, context=orb_context)
+            try:
+                processed, count = self.__bound_collector.delete_records(self, context=orb_context)
+            except NotImplementedError:
+                procssed, count = None, count
         else:
             processed = None
             count = 0
@@ -755,7 +758,7 @@ class Collection(object):
 
                     orb_context.limit = 1
                     if not orb_context.order:
-                        orb_context.order = [(schema.idColumn().name(), 'asc')]
+                        orb_context.order = [(schema.id_column().name(), 'asc')]
 
                     records = self.records(context=orb_context)
                     record = records[0] if records else None
@@ -877,7 +880,7 @@ class Collection(object):
 
             # finally query the backend for the id content
             except KeyError:
-                id_column = self.__bound_model.schema().idColumn()
+                id_column = self.__bound_model.schema().id_column()
                 ids = self.values(id_column, context=orb_context)
 
             # cache the results
@@ -991,7 +994,7 @@ class Collection(object):
                 except KeyError:
                     if not orb_context.order:
                         schema = self.__bound_model.schema()
-                        order = [(schema.idColumn().name(), 'desc')]
+                        order = [(schema.id_column().name(), 'desc')]
                         record = self.ordered(order).first(context=orb_context)
                     else:
                         record = self.reversed().first(context=orb_context)
@@ -1195,8 +1198,8 @@ class Collection(object):
 
             # update the root collector information
             if self.__bound_collector:
-                self.__bound_collector.update_records(self,
-                                                      self.__bound_source_record,
+                self.__bound_collector.update_records(self.__bound_source_record,
+                                                      self,
                                                       new_ids,
                                                       context=orb_context)
                 self.clear_cache()
@@ -1230,7 +1233,7 @@ class Collection(object):
         for record in iter:
             event = orb.events.SaveEvent(
                 context=orb_context,
-                newRecord=not record.isRecord(),
+                newRecord=not record.is_record(),
             )
             record.onPreSave(event)
             if not event.preventDefault:

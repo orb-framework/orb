@@ -1,11 +1,13 @@
+import demandimport
 import logging
 import projex.text
 
-from projex.lazymodule import lazy_import
-from projex.enum import enum
 from ..column import Column
+from ...utils.enum import enum
 
-orb = lazy_import('orb')
+with demandimport.enabled():
+    import orb
+
 log = logging.getLogger(__name__)
 
 
@@ -51,7 +53,7 @@ class ReferenceColumn(Column):
             return value.id()
 
         elif context.inflated and value is not None:
-            model = self.referenceModel()
+            model = self.reference_model()
 
             if not isinstance(value, orb.Model):
                 return model.fetch(value, context=context)
@@ -68,10 +70,10 @@ class ReferenceColumn(Column):
         return out
 
     def dbType(self, connectionType):
-        model = self.referenceModel()
+        model = self.reference_model()
         namespace = model.schema().namespace()
         dbname = model.schema().dbname()
-        id_column = model.schema().idColumn()
+        id_column = model.schema().id_column()
 
         if connectionType == 'Postgres':
             typ = id_column.dbType(connectionType)
@@ -103,7 +105,7 @@ class ReferenceColumn(Column):
                 raise orb.errors.OrbError('Invalid reference found.')
 
         if isinstance(db_value, dict):
-            cls = self.referenceModel()
+            cls = self.reference_model()
             if not cls:
                 raise orb.errors.ModelNotFound(schema=self.reference())
             else:
@@ -138,18 +140,18 @@ class ReferenceColumn(Column):
 
         :return: <variant>
         """
-        return self.referenceModel().schema().idColumn().random()
+        return self.reference_model().schema().id_column().random()
 
     def reference(self):
         return self.__reference
 
-    def referenceModel(self):
+    def reference_model(self):
         """
         Returns the model that this column references.
 
         :return     <Table> || None
         """
-        model = orb.system.model(self.__reference)
+        model = self.schema().system().model(self.__reference)
         if not model:
             raise orb.errors.ModelNotFound(schema=self.__reference)
         return model
@@ -167,7 +169,7 @@ class ReferenceColumn(Column):
         value = super(ReferenceColumn, self).restore(value, context=context)
 
         # check to make sure that we're processing the right values
-        if self.testFlag(self.Flags.I18n) and context.locale == 'all':
+        if self.test_flag(self.Flags.I18n) and context.locale == 'all':
             return {locale: self._restore(val, context) for locale, val in value.items()}
         else:
             return self._restore(value, context)
@@ -182,7 +184,7 @@ class ReferenceColumn(Column):
 
         :return: <bool>
         """
-        ref_model = self.referenceModel()
+        ref_model = self.reference_model()
         if isinstance(value, orb.Model):
             expected_schema = ref_model.schema().name()
             received_schema = value.schema().name()
@@ -204,7 +206,7 @@ class ReferenceColumn(Column):
 
         :return: <orb.Model> || None
         """
-        model = self.referenceModel()
+        model = self.reference_model()
         return model(value, context=context)
 
 # register the column addon

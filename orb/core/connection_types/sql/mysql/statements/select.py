@@ -34,19 +34,19 @@ class SELECT(MySQLStatement):
 
         # process columns to select
         for column in sorted(columns, self.cmpcol):
-            if column.testFlag(column.Flags.Virtual):
+            if column.test_flag(column.Flags.Virtual):
                 continue
 
-            if column.testFlag(column.Flags.I18n):
+            if column.test_flag(column.Flags.I18n):
                 if context.locale == 'all':
                     sql = u'hstore_agg(hstore(`i18n`.`locale`, `i18n`.`{0}`)) AS `{0}`'
-                elif data['locale'] == data['default_locale'] or column.testFlag(column.Flags.I18n_NoDefault):
+                elif data['locale'] == data['default_locale'] or column.test_flag(column.Flags.I18n_NoDefault):
                     sql = u'group_concat(`i18n`.`{0}`) AS `{0}`'
                 else:
                     sql = u'(coalesce(group_concat(`i18n`.`{0}`), group_concat(`i18n_default`.`{0}`))) AS `{0}`'
 
                 sql_columns['i18n'].append(sql.format(column.field()))
-                sql_group_by.add(u'`{0}`.`{1}`'.format(schema.dbname(), schema.idColumn().field()))
+                sql_group_by.add(u'`{0}`.`{1}`'.format(schema.dbname(), schema.id_column().field()))
                 fields[column] = u'`i18n`.`{0}`'.format(column.field())
             else:
                 # select the base record
@@ -75,10 +75,10 @@ class SELECT(MySQLStatement):
             inherited_sources = []
             curr_schema = schema
 
-            for ischema in schema.inheritanceTree():
+            for ischema in schema.ancestry():
                 isql = 'LEFT JOIN `{0}`.`{1}` ON `{1}`.`{2}` = `{3}`.`{2}`'.format(ischema.namespace() or context.db.name(),
                                                                                    ischema.dbname(),
-                                                                                   ischema.idColumn().field(),
+                                                                                   ischema.id_column().field(),
                                                                                    curr_schema.dbname())
                 inherited_sources.append(isql)
                 curr_schema = ischema

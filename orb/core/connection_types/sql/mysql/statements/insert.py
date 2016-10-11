@@ -17,16 +17,16 @@ class INSERT(MySQLStatement):
         schema_records = defaultdict(lambda: defaultdict(list))
         for i, record in enumerate(records):
             schema = record.schema()
-            id_column = schema.idColumn()
+            id_column = schema.id_column()
 
             # define the
             if not schema in schema_meta:
                 i18n = []
                 standard = []
                 for col in schema.columns().values():
-                    if col.testFlag(col.Flags.Virtual):
+                    if col.test_flag(col.Flags.Virtual):
                         continue
-                    if col.testFlag(col.Flags.I18n):
+                    if col.test_flag(col.Flags.I18n):
                         i18n.append(col)
                     else:
                         standard.append(col)
@@ -40,7 +40,7 @@ class INSERT(MySQLStatement):
                 record_values = {}
                 for col in columns:
                     value = col.dbStore('MySQL', record.get(col))
-                    if col == id_column and not id_column.testFlag(id_column.Flags.AutoAssign) and record.id() is None:
+                    if col == id_column and not id_column.test_flag(id_column.Flags.AutoAssign) and record.id() is None:
                         record.set(col, value)
                     record_values['{0}_{1}'.format(col.field(), i)] = value
 
@@ -58,7 +58,7 @@ class INSERT(MySQLStatement):
 
         cmd = []
         for schema, columns in schema_meta.items():
-            id_column = schema.idColumn()
+            id_column = schema.id_column()
             subcmd = ''
             if columns['standard']:
                 cols = ', '.join(['`{0}`'.format(col.field()) for col in columns['standard']])
@@ -102,7 +102,7 @@ class INSERT(MySQLStatement):
 
             cmd.append(subcmd)
 
-            if schema.idColumn().testFlag(orb.Column.Flags.AutoAssign):
+            if schema.id_column().test_flag(orb.Column.Flags.AutoAssign):
                 cmd.append('SELECT * FROM `{1}`.`{2}` WHERE `{0}` >= LAST_INSERT_ID();'.format(
                     id_column.field(),
                     id_column.schema().namespace() or default_namespace,

@@ -22,9 +22,9 @@ class INSERT(PSQLStatement):
                 i18n = []
                 standard = []
                 for col in schema.columns().values():
-                    if col.testFlag(col.Flags.Virtual):
+                    if col.test_flag(col.Flags.Virtual):
                         continue
-                    if col.testFlag(col.Flags.I18n):
+                    if col.test_flag(col.Flags.I18n):
                         i18n.append(col)
                     else:
                         standard.append(col)
@@ -54,7 +54,7 @@ class INSERT(PSQLStatement):
 
         cmd = []
         for schema, columns in schema_meta.items():
-            id_column = schema.idColumn()
+            id_column = schema.id_column()
             subcmd = ''
             if columns['standard']:
                 cols = ', '.join(['"{0}"'.format(col.field()) for col in columns['standard']])

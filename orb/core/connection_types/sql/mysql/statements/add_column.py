@@ -9,7 +9,7 @@ class ADD_COLUMN(MySQLStatement):
         # determine all the flags for this column
         flags = []
         Flags = orb.Column.Flags
-        for key, value in Flags.items():
+        for key, value in Flags:
             if column.flags() & value:
                 flag_sql = MySQLStatement.byName('Flag::{0}'.format(key))
                 if flag_sql:

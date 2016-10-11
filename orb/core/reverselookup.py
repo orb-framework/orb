@@ -32,13 +32,13 @@ class ReverseLookup(Collector):
 
     def create_record(self, source_record, values, **context):
         values.setdefault(self.targetColumn().name(), source_record)
-        return self.referenceModel().create(values, **context)
+        return self.reference_model().create(values, **context)
 
     def collect(self, record, **context):
-        if not record.isRecord():
+        if not record.is_record():
             return orb.Collection()
         else:
-            model = self.referenceModel()
+            model = self.reference_model()
 
             # create the pipe query
             q  = orb.Query(model, self.__target) == record
@@ -47,8 +47,8 @@ class ReverseLookup(Collector):
             records = model.select(**context)
             return records.bind_collector(self).bind_source_record(record)
 
-    def collectExpand(self, query, parts, **context):
-        rmodel = self.referenceModel()
+    def collect_expand(self, query, parts, **context):
+        rmodel = self.reference_model()
         sub_q = query.copy()
         sub_q._Query__column = '.'.join(parts[1:])
         sub_q._Query__model = rmodel
@@ -71,7 +71,7 @@ class ReverseLookup(Collector):
         """
         return self.__removeAction
 
-    def referenceModel(self):
+    def reference_model(self):
         schema = orb.system.schema(self.__reference)
         if schema is not None:
             return schema.model()
@@ -102,13 +102,13 @@ class ReverseLookup(Collector):
         except AttributeError:
             raise orb.errors.ModelNotFound(schema=self.__reference)
 
-    def update_records(self, collection, source_record, record_ids, **context):
+    def update_records(self, source_record, collection, collection_ids, **context):
         orb_context = orb.Context(**context)
         target_column = self.targetColumn()
         target_model = target_column.schema().model()
 
         q = orb.Query(target_column) == source_record
-        q &= orb.Query(target_model).notIn(record_ids)
+        q &= orb.Query(target_model).notIn(collection_ids)
 
         # determine the reverse lookups to remove from this collection
         remove_records = target_model.select(where=q, context=orb_context)
@@ -123,8 +123,8 @@ class ReverseLookup(Collector):
                 record.save()
 
         # determine the new records to add to this collection
-        if record_ids:
-            q = orb.Query(target_model).in_(record_ids)
+        if collection_ids:
+            q = orb.Query(target_model).in_(collection_ids)
             q &= (orb.Query(target_column) != source_record) | (orb.Query(target_column) == None)
 
             add = target_model.select(where=q, context=orb_context)

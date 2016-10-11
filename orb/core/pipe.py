@@ -12,7 +12,7 @@ class Pipe(Collector):
         output['through'] = self.through()
         output['from'] = self.fromColumn().field()
         output['to'] = self.toColumn().field()
-        output['model'] = self.toColumn().referenceModel().schema().name()
+        output['model'] = self.toColumn().reference_model().schema().name()
         return output
 
     def __init__(self, through_path='', through='', from_='', to='', **options):
@@ -53,7 +53,7 @@ class Pipe(Collector):
         return target_record
 
     def collect(self, record, **context):
-        if not record.isRecord():
+        if not record.is_record():
             return orb.Collection()
         else:
             target = self.toModel()
@@ -69,14 +69,14 @@ class Pipe(Collector):
             records = target.select(**context)
             return records.bind_collector(self).bind_source_record(record)
 
-    def collectExpand(self, query, parts, **context):
+    def collect_expand(self, query, parts, **context):
         through = self.throughModel()
         toModel = self.toModel()
 
         sub_q = query.copy()
         sub_q._Query__column = '.'.join(parts[1:])
         sub_q._Query__model = toModel
-        to_records = toModel.select(columns=[toModel.schema().idColumn()], where=sub_q)
+        to_records = toModel.select(columns=[toModel.schema().id_column()], where=sub_q)
         pipe_q = orb.Query(through, self.to()).in_(to_records)
         return through.select(columns=[self.from_()], where=pipe_q)
 
@@ -122,7 +122,7 @@ class Pipe(Collector):
 
     def fromModel(self):
         col = self.fromColumn()
-        return col.referenceModel() if col else None
+        return col.reference_model() if col else None
 
     def model(self):
         return self.toModel()
@@ -157,7 +157,7 @@ class Pipe(Collector):
 
     def toModel(self):
         col = self.toColumn()
-        return col.referenceModel() if col else None
+        return col.reference_model() if col else None
 
     def through(self):
         return self.__through
@@ -169,12 +169,12 @@ class Pipe(Collector):
         except AttributeError:
             raise orb.errors.ModelNotFound(schema=self.__through)
 
-    def update_records(self, collection, source_record, record_ids, **context):
+    def update_records(self, source_record, collection, collection_ids, **context):
         orb_context = orb.Context(**context)
 
         through = self.throughModel()
         curr_ids = set(collection.ids())
-        new_ids = set(record_ids)
+        new_ids = set(collection_ids)
 
         # calculate the id shift
         remove_ids = curr_ids - new_ids

@@ -50,7 +50,7 @@ class WHERE(PSQLStatement):
 
                 # determine if the collector has a filter
                 if collector:
-                    query_filter = collector.queryFilterMethod()
+                    query_filter = collector.filtermethod()
                     if query_filter:
                         new_query = query_filter(model, query)
                         return self(model, new_query, context, aliases=aliases, fields=fields)
@@ -80,7 +80,7 @@ class WHERE(PSQLStatement):
 
             def convert_value(val):
                 if isinstance(val, orb.Model):
-                    return val.get(val.schema().idColumn(), inflated=False)
+                    return val.get(val.schema().id_column(), inflated=False)
                 elif isinstance(val, (tuple, list, set)):
                     return tuple(convert_value(v) for v in val)
                 else:
@@ -112,7 +112,7 @@ class WHERE(PSQLStatement):
                 SELECT = self.byName('SELECT')
                 context = value.context()
                 if not context.columns:
-                    context.columns = [value.model().schema().idColumn()]
+                    context.columns = [value.model().schema().id_column()]
                     context.distinct = True
 
                 sub_sql, sub_data = SELECT(value.model(), context, fields=fields)
@@ -149,7 +149,7 @@ class WHERE(PSQLStatement):
                 sql = u' '.join(opts)
                 data[value_key] = value
 
-                if column.testFlag(column.Flags.I18n) and column not in fields:
+                if column.test_flag(column.Flags.I18n) and column not in fields:
                     model_name = aliases.get(model) or model.schema().dbname()
                     i18n_sql = u'"{name}"."{field}" IN (' \
                           u'    SELECT "{name}_id"' \
@@ -165,7 +165,7 @@ class WHERE(PSQLStatement):
                     sql = i18n_sql.format(name=model_name,
                                           namespace=model.schema().namespace() or 'public',
                                           sub_sql=sub_sql,
-                                          field=model.schema().idColumn().field())
+                                          field=model.schema().id_column().field())
 
         return sql, data
 

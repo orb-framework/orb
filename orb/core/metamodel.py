@@ -54,19 +54,19 @@ class MetaModel(type):
             def store_property(key, value):
                 if isinstance(value, orb.Column):
                     col = value
-                    col.setName(key)
+                    col.set_name(key)
                     columns[key] = col
                     return True
 
                 elif isinstance(value, orb.Index):
                     index = value
-                    index.setName(key)
+                    index.set_name(key)
                     indexes[key] = index
                     return True
 
                 elif isinstance(value, orb.Collector):
                     collector = value
-                    collector.setName(key)
+                    collector.set_name(key)
                     collectors[key] = collector
                     return True
 
@@ -82,7 +82,7 @@ class MetaModel(type):
                 if hasattr(value, '__orb__'):
                     # update the static flag when needed
                     if is_static:
-                        value.__orb__.setFlags(value.__orb__.flags() | value.__orb__.Flags.Static)
+                        value.__orb__.set_flags(value.__orb__.flags() | value.__orb__.Flags.Static)
 
                     # store the virtual object
                     if isinstance(value.__orb__, orb.Column):
@@ -128,7 +128,7 @@ class MetaModel(type):
                         attrs.setdefault('__group__', inherited_schema.group())
                         attrs.setdefault('__database__', inherited_schema.database())
                         attrs.setdefault('__namespace__', inherited_schema.namespace())
-                        attrs.setdefault('__id__', inherited_schema.idColumn().name())
+                        attrs.setdefault('__id__', inherited_schema.id_column().name())
                 else:
                     inherited_schema = None
 
@@ -140,17 +140,18 @@ class MetaModel(type):
                     database=attrs.pop('__database__', ''),
                     namespace=attrs.pop('__namespace__', ''),
                     flags=attrs.pop('__flags__', 0),
-                    idColumn = attrs.pop('__id__', 'id')
+                    id_column = attrs.pop('__id__', 'id'),
+                    system=system
                 )
 
                 if inherited_schema:
-                    schema.setInherits(inherited_schema.name())
+                    schema.set_inherits(inherited_schema.name())
 
             new_model = super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
 
             # register the class to the system
             setattr(new_model, '_{0}__schema'.format(schema.name()), schema)
-            schema.setModel(new_model)
+            schema.set_model(new_model)
 
             # automatically register the model to the system
             if attrs.get('__register__', True):

@@ -7,7 +7,7 @@ def pg_db(request):
     import orb
 
     db = orb.Database('Postgres')
-    db.setName('orb_testing')
+    db.set_name('orb_testing')
     db.setHost('localhost')
     db.setUsername(getpass.getuser())
     db.setPassword('')

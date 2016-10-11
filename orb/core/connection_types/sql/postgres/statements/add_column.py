@@ -9,7 +9,7 @@ class ADD_COLUMN(PSQLStatement):
         # determine all the flags for this column
         flags = []
         Flags = orb.Column.Flags
-        for key, value in Flags.items():
+        for key, value in Flags:
             if column.flags() & value:
                 flag_sql = PSQLStatement.byName('Flag::{0}'.format(key))
                 if flag_sql:

@@ -11,6 +11,7 @@ from collections import defaultdict
 from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
 from projex.lazymodule import lazy_import
 from projex import funcutil
+from ..decorators import deprecated
 
 from .metamodel import MetaModel
 from .search import SearchEngine
@@ -80,7 +81,7 @@ class Model(object):
 
         :return     <iter>
         """
-        if self.isRecord() and self.__delayed:
+        if self.is_record() and self.__delayed:
             self.__delayed = False
             self.read()
 
@@ -89,7 +90,7 @@ class Model(object):
 
         # hide private columns
         def _allowed(columns=None, context=None):
-            return not columns[0].testFlag(columns[0].Flags.Private)
+            return not columns[0].test_flag(columns[0].Flags.Private)
 
         auth = self.__auth__ if callable(self.__auth__) else _allowed
         expand_tree = context.expandtree(self.__class__)
@@ -103,11 +104,11 @@ class Model(object):
         # extract the data values for this model
         for column in columns:
             if (not column or
-                    column.testFlag(column.Flags.RequiresExpand) or
+                    column.test_flag(column.Flags.RequiresExpand) or
                     not auth(columns=(column,), context=context)):
                 continue
 
-            elif ((column.testFlag(column.Flags.Virtual) and not isinstance(self, orb.View)) or
+            elif ((column.test_flag(column.Flags.Virtual) and not isinstance(self, orb.View)) or
                    column.gettermethod() is not None):
                 yield column.field(), self.get(column, inflated=False)
 
@@ -117,7 +118,7 @@ class Model(object):
                 except KeyError:
                     pass
                 else:
-                    if column.testFlag(orb.Column.Flags.I18n) and type(value) == dict:
+                    if column.test_flag(orb.Column.Flags.I18n) and type(value) == dict:
                         value = value.get(context.locale)
 
                     # for references, yield both the raw value for the field
@@ -207,7 +208,7 @@ class Model(object):
 
         :return     <int>
         """
-        if not self.isRecord():
+        if not self.is_record():
             return super(Model, self).__hash__()
         else:
             return hash((self.__class__, self.id()))
@@ -287,7 +288,7 @@ class Model(object):
             if not self.__delayed:
                 data = self.fetch(record_id, inflated=False, context=self.__context)
             else:
-                data = {self.schema().idColumn().name(): record_id}
+                data = {self.schema().id_column().name(): record_id}
 
             if data:
                 event = orb.events.LoadEvent(record=self, data=data)
@@ -299,6 +300,10 @@ class Model(object):
         update_values = {k: v for k, v in values.items() if self.schema().column(k)}
         if update_values:
             self.update(update_values)
+
+    def _add_preloaded_data(self, cache):
+        for key, value in cache.items():
+            self.__preload[key] = value
 
     def _load(self, event):
         """
@@ -390,7 +395,7 @@ class Model(object):
         :return     { <orb.Column>: ( <variant> old, <variant> new), .. }
         """
         output = {}
-        is_record = self.isRecord()
+        is_record = self.is_record()
         schema = self.schema()
         columns = [schema.column(c) for c in columns] if columns else \
                    schema.columns(recurse=recurse, flags=flags).values()
@@ -399,7 +404,7 @@ class Model(object):
         with ReadLocker(self.__dataLock):
             for col in columns:
                 old, curr = self.__values.get(col.name(), (None, None))
-                if col.testFlag(col.Flags.ReadOnly):
+                if col.test_flag(col.Flags.ReadOnly):
                     continue
                 elif not is_record:
                     old = None
@@ -449,7 +454,7 @@ class Model(object):
 
         :return     <int>
         """
-        if not self.isRecord():
+        if not self.is_record():
             return 0
 
         event = orb.events.DeleteEvent(record=self, context=context)
@@ -472,7 +477,7 @@ class Model(object):
 
         # clear out the old values
         if count == 1:
-            col = self.schema().column(self.schema().idColumn())
+            col = self.schema().column(self.schema().id_column())
             with WriteLocker(self.__dataLock):
                 self.__values[col.name()] = (None, None)
 
@@ -574,7 +579,7 @@ class Model(object):
 
             else:
                 # ensure content is actually loaded
-                if self.isRecord() and self.__delayed:
+                if self.is_record() and self.__delayed:
                     self.__delayed = False
                     self.read()
 
@@ -591,7 +596,7 @@ class Model(object):
                 return out_value
 
     def id(self, **context):
-        column = self.schema().idColumn()
+        column = self.schema().id_column()
         use_method = column.name() != 'id'
         return self.get(column, use_method=use_method, **context)
 
@@ -599,11 +604,11 @@ class Model(object):
         columns = self.schema().columns().values()
         with WriteLocker(self.__dataLock):
             for column in columns:
-                if column.name() not in self.__values and not column.testFlag(column.Flags.Virtual):
+                if column.name() not in self.__values and not column.test_flag(column.Flags.Virtual):
                     value = column.default()
-                    if column.testFlag(column.Flags.I18n):
+                    if column.test_flag(column.Flags.I18n):
                         value = {self.__context.locale: value}
-                    elif column.testFlag(column.Flags.Polymorphic):
+                    elif column.test_flag(column.Flags.Polymorphic):
                         value = type(self).__name__
 
                     self.__values[column.name()] = (value, value)
@@ -619,9 +624,9 @@ class Model(object):
 
         :return     <bool>
         """
-        return not self.isRecord() or len(self.changes()) > 0
+        return not self.is_record() or len(self.changes()) > 0
 
-    def isRecord(self, db=None):
+    def is_record(self, db=None):
         """
         Returns whether or not this database table record exists
         in the database.
@@ -632,13 +637,28 @@ class Model(object):
             same_db = db == self.context().db
 
         if db is None or same_db:
-            col = self.schema().idColumn()
+            col = self.schema().id_column()
             with ReadLocker(self.__dataLock):
-                if col not in self.__loaded or self.__values[col.name()][0] is None:
-                    return False
-                return True
+                return (col in self.__loaded) and (self.__values[col.name()][0] is not None)
         else:
             return None
+
+    def mark_loaded(self, *columns):
+        """
+        Marks the given columns as representing valid loaded data
+        from the database.
+        """
+        schema = self.schema()
+
+        columns = {schema.column(col) for col in columns}
+        column_names = {col.name() for col in columns}
+
+        with WriteLocker(self.__dataLock):
+            for key, (old_value, new_value) in self.__values.items():
+                if key in column_names:
+                    self.__values[key] = (new_value, new_value)
+
+            self.__loaded.update(columns)
 
     def preloaded_data(self, name):
         """
@@ -698,7 +718,7 @@ class Model(object):
 
         # create the commit options
         context = self.context(**context)
-        new_record = not self.isRecord()
+        new_record = not self.is_record()
 
         # create the pre-commit event
         changes = self.changes(columns=context.columns)
@@ -714,7 +734,7 @@ class Model(object):
             return False
 
         conn = context.db.connection()
-        if not self.isRecord():
+        if not self.is_record():
             records, _ = conn.insert([self], context)
             if records:
                 event = orb.events.LoadEvent(record=self, data=records[0])
@@ -772,7 +792,7 @@ class Model(object):
             else:
                 raise errors.ColumnNotFound(schema=self.schema(), column=column)
 
-        elif col.testFlag(col.Flags.ReadOnly):
+        elif col.test_flag(col.Flags.ReadOnly):
             raise errors.ColumnReadOnly(schema=self.schema(), column=column)
 
         context = self.context(**context)
@@ -785,7 +805,7 @@ class Model(object):
                 else:
                     return method(self, value)
 
-        if self.isRecord() and self.__delayed:
+        if self.is_record() and self.__delayed:
             self.__delayed = False
             self.read()
 
@@ -794,7 +814,7 @@ class Model(object):
             value = col.store(value, context)
 
             # update the context based on the locale value
-            if col.testFlag(col.Flags.I18n) and isinstance(curr, dict) and isinstance(value, dict):
+            if col.test_flag(col.Flags.I18n) and isinstance(curr, dict) and isinstance(value, dict):
                 new_value = curr.copy()
                 new_value.update(value)
                 value = new_value
@@ -809,7 +829,7 @@ class Model(object):
 
         # broadcast the change event
         if change:
-            if col.testFlag(col.Flags.I18n) and context.locale != 'all':
+            if col.test_flag(col.Flags.I18n) and context.locale != 'all':
                 old_value = curr.get(context.locale) if isinstance(curr, dict) else curr
                 new_value = value.get(context.locale) if isinstance(value, dict) else value
             else:
@@ -840,7 +860,7 @@ class Model(object):
             return False
 
     def setId(self, value, **context):
-        return self.set(self.schema().idColumn(), value, use_method=False, **context)
+        return self.set(self.schema().id_column(), value, use_method=False, **context)
 
     def update(self, values, **context):
         """
@@ -1066,12 +1086,12 @@ class Model(object):
             column = cls.schema().column(key)
             if not column:
                 raise orb.errors.ColumnNotFound(schema=cls.schema(), column=key)
-            elif column.testFlag(column.Flags.Virtual):
+            elif column.test_flag(column.Flags.Virtual):
                 continue
 
             if (isinstance(column, orb.AbstractStringColumn) and
-                not column.testFlag(column.Flags.CaseSensitive) and
-                not column.testFlag(column.Flags.I18n) and
+                not column.test_flag(column.Flags.CaseSensitive) and
+                not column.test_flag(column.Flags.I18n) and
                 isinstance(value, (str, unicode))):
                 q &= orb.Query(key).lower() == value.lower()
             else:
@@ -1168,7 +1188,7 @@ class Model(object):
         if column and column.field() in values:
             morph_cls_name = values.get(column.name(), values.get(column.field()))
             morph_cls = orb.system.model(morph_cls_name)
-            id_col = schema.idColumn().name()
+            id_col = schema.id_column().name()
             if morph_cls and morph_cls != cls:
                 try:
                     record = morph_cls(values[id_col], context=context)
@@ -1261,3 +1281,8 @@ class Model(object):
         :param      query | <orb.Query> || None
         """
         setattr(cls, '_%s__baseQuery' % cls.__name__, query)
+
+    @deprecated
+    def isRecord(self, db=None):
+        """ Deprecated for PEP8 standards.  Use `is_record` instead. """
+        return self.is_record(db=db)
