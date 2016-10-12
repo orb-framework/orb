@@ -32,14 +32,14 @@ class AbstractDatetimeColumn(Column):
         """
         return self.__defaultFormat
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
         :return: <variant>
         """
         utc_now = datetime.datetime.utcnow()
-        return self.valueFromString(utc_now.strftime(self.defaultFormat()))
+        return self.value_from_string(utc_now.strftime(self.defaultFormat()))
 
     def dbRestore(self, db_value, context=None):
         """
@@ -53,7 +53,7 @@ class AbstractDatetimeColumn(Column):
         if db_value is None:
             return None
         elif isinstance(db_value, (str, unicode)):
-            return self.valueFromString(db_value, context=context)
+            return self.value_from_string(db_value, context=context)
         else:
             return super(AbstractDatetimeColumn, self).dbRestore(db_value, context=context)
 
@@ -69,7 +69,7 @@ class AbstractDatetimeColumn(Column):
         """
         if py_value is None:
             return None
-        return self.valueToString(py_value, context=context)
+        return self.value_to_string(py_value, context=context)
 
     def setDefaultFormat(self, form):
         """
@@ -104,7 +104,7 @@ class DateColumn(AbstractDatetimeColumn):
         """
         return db_value
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -121,7 +121,7 @@ class DateColumn(AbstractDatetimeColumn):
                                  time_struct.tm_month,
                                  time_struct.tm_day)
 
-    def valueToString(self, value, context=None):
+    def value_to_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -145,7 +145,7 @@ class DatetimeColumn(AbstractDatetimeColumn):
 
         super(DatetimeColumn, self).__init__(**kwds)
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -165,7 +165,7 @@ class DatetimeColumn(AbstractDatetimeColumn):
                                      time_struct.tm_minute,
                                      time_struct.tm_sec)
 
-    def valueToString(self, value, context=None):
+    def value_to_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -260,7 +260,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
             value = value.astimezone(pytz.utc).replace(tzinfo=None)
         return super(DatetimeWithTimezoneColumn, self).store(value, context=context)
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -278,7 +278,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
                                      time_struct.tm_minute,
                                      time_struct.tm_sec)
 
-    def valueToString(self, value, context=None):
+    def value_to_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -297,7 +297,7 @@ class IntervalColumn(AbstractDatetimeColumn):
         'MySQL': 'TEXT'
     }
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -306,7 +306,7 @@ class IntervalColumn(AbstractDatetimeColumn):
         """
         return datetime.timedelta(seconds=float(value))
 
-    def valueToString(self, value, context=None):
+    def value_to_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -346,7 +346,7 @@ class TimeColumn(AbstractDatetimeColumn):
         else:
             return super(TimeColumn, self).dbRestore(db_value, context=context)
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -363,7 +363,7 @@ class TimeColumn(AbstractDatetimeColumn):
                                  time_struct.tm_min,
                                  time_struct.tm_sec)
 
-    def valueToString(self, value, context=None):
+    def value_to_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -408,7 +408,7 @@ class TimestampColumn(AbstractDatetimeColumn):
         else:
             return super(TimestampColumn, self).dbStore(typ, py_value)
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -436,7 +436,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
 
         super(UTC_DatetimeColumn, self).__init__(**kwds)
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -457,7 +457,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
                                      time_struct.tm_minute,
                                      time_struct.tm_sec)
 
-    def valueToString(self, value, context=None):
+    def value_to_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -502,7 +502,7 @@ class UTC_TimestampColumn(AbstractDatetimeColumn):
         else:
             return super(UTC_TimestampColumn, self).dbStore(typ, py_value)
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -520,12 +520,3 @@ class UTC_TimestampColumn(AbstractDatetimeColumn):
             else:
                 return datetime.datetime.min()
 
-# register class types
-Column.registerAddon('Date', DateColumn)
-Column.registerAddon('Datetime', DatetimeColumn)
-Column.registerAddon('DatetimeWithTimezone', DatetimeWithTimezoneColumn)
-Column.registerAddon('Interval', IntervalColumn)
-Column.registerAddon('Time', TimeColumn)
-Column.registerAddon('Timestamp', TimestampColumn)
-Column.registerAddon('UTC Datetime', UTC_DatetimeColumn)
-Column.registerAddon('UTC Timestamp', UTC_TimestampColumn)

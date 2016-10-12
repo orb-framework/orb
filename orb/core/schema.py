@@ -362,7 +362,7 @@ class Schema(object):
 
         :return     <str>
         """
-        return self.__dbname or inflection.pluralize(inflection.underscore(self.name()))
+        return self.__dbname or inflection.tableize(self.name())
 
     def display(self):
         """
@@ -582,4 +582,4 @@ class Schema(object):
 
         :return: <bool>
         """
-        return (self.__flags & flags) != 0
+        return self.Flags.test_flag(self.__flags, flags)

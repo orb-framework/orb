@@ -669,7 +669,7 @@ class Collection(object):
             try:
                 processed, count = self.__bound_collector.delete_records(self, context=orb_context)
             except NotImplementedError:
-                procssed, count = None, count
+                processed, count = None, 0
         else:
             processed = None
             count = 0

@@ -247,3 +247,14 @@ class Connection(AddonManager):
         :return     <bool>
         """
 
+    @classmethod
+    def get_plugin_name(cls):
+        """
+        Returns the plugin name for this column.  By default, this will
+        be the name of the column class, minus the trailing `Column` text.
+        To override a class's plugin name, set the `__plugin_name__` attribute
+        on the class.
+
+        :return: <str>
+        """
+        return getattr(cls, '__plugin_name__', cls.__name__)

@@ -94,3 +94,19 @@ class enum(object):
         """
         return {key for key, value in self.__enum.items() if value & flags}
 
+    def test_flag(self, source_flags, check_flag):
+        """
+        Tests to see if the given flag is used within
+        an enumerated set.
+
+        :param source_flags: <int>
+        :param check_flag: <int> or <str> or <set>
+
+        :return: <bool>
+        """
+        # convert a flag from a string to the enumerated value
+        if isinstance(check_flag, (str, unicode)):
+            check_flag = self(check_flag)
+        elif isinstance(check_flag, set):
+            check_flag = self.from_set(check_flag)
+        return bool(source_flags & check_flag) if check_flag >= 0 else not bool(source_flags & ~check_flag)

@@ -26,7 +26,7 @@ class AbstractNumericColumn(Column):
     def minimum(self):
         return self.__minimum
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -50,7 +50,7 @@ class AbstractNumericColumn(Column):
         else:
             return super(AbstractNumericColumn, self).validate(value)
 
-    def valueFromString(self, value, extra=None, db=None):
+    def value_from_string(self, value, extra=None, db=None):
         """
         Converts the inputted string text to a value that matches the type from
         this column type.
@@ -194,9 +194,3 @@ class EnumColumn(LongColumn):
         """
         self.__enum = cls
 
-
-Column.registerAddon('Enum', EnumColumn)
-Column.registerAddon('Decimal', DecimalColumn)
-Column.registerAddon('Float', FloatColumn)
-Column.registerAddon('Integer', IntegerColumn)
-Column.registerAddon('Long', LongColumn)

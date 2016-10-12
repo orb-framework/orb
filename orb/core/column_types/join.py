@@ -6,8 +6,8 @@ class JoinColumn(Column):
         super(JoinColumn, self).__init__(**kwds)
 
         # set standard properties
-        self.setFlag(Column.Flags.ReadOnly)
-        self.setFlag(Column.Flags.Virtual)
+        self.set_flag(Column.Flags.ReadOnly)
+        self.set_flag(Column.Flags.Virtual)
 
         # define custom properties
         self.__joiner = joiner
@@ -28,6 +28,3 @@ class JoinColumn(Column):
         """
         self.__joiner = joiner
 
-
-# register the column type
-Column.registerAddon('Join', JoinColumn)

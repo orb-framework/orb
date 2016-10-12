@@ -21,7 +21,7 @@ class BinaryColumn(Column):
         'MySQL': 'TEXT'
     }
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -65,7 +65,7 @@ class JSONColumn(Column):
         'MySQL': 'TEXT'
     }
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -107,7 +107,7 @@ class JSONColumn(Column):
 
 
 class QueryColumn(JSONColumn):
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -139,7 +139,7 @@ class YAMLColumn(Column):
         'MySQL': 'TEXT'
     }
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
@@ -175,8 +175,3 @@ class YAMLColumn(Column):
         else:
             return py_value
 
-# register the column type addons
-Column.registerAddon('Binary', BinaryColumn)
-Column.registerAddon('JSON', JSONColumn)
-Column.registerAddon('Query', QueryColumn)
-Column.registerAddon('YAML', YAMLColumn)

@@ -84,7 +84,7 @@ class CREATE(PSQLStatement):
                     join_field = '"{0}"'.format(source_col.field())
 
                     column_name = projex.text.underscore(collector.name())
-                    order = join_schema.defaultOrder() or [(join_id.field(), 'asc')]
+                    order = [(join_id.field(), 'asc')]
                     if invert_dir:
                         order = [(x[0], 'asc' if x[1] == 'desc' else 'desc') for x in order]
 
@@ -123,7 +123,7 @@ class CREATE(PSQLStatement):
                     join_id = join_schema.id_column()
                     join_field = '"{0}"'.format(join_id.field())
                     column_name = projex.text.underscore(collector.name())
-                    order = join_schema.defaultOrder() or [(join_id.field(), 'asc')]
+                    order = [(join_id.field(), 'asc')]
                     if invert_dir:
                         order = [(x[0], 'asc' if x[1] == 'desc' else 'desc') for x in order]
 

@@ -342,7 +342,8 @@ class Model(object):
 
             # extract the value from the database
             else:
-                value = column.dbRestore(value, context=context)
+                engine = column.get_engine()
+                value = engine.database_restore(column, value, context=context)
                 clean[column] = value
 
         # update the local values

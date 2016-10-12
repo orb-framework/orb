@@ -69,6 +69,17 @@ class ReferenceColumn(Column):
         out.__removeAction = self.__removeAction
         return out
 
+    def default_field(self):
+        """
+        Re-implements the `orb.Column.default_field` method to
+        define a custom default that includes the `_id` at the end of
+        the name.
+        """
+        field = super(ReferenceColumn, self).default_field()
+        if not field.endswith('_id'):
+            field += '_id'
+        return field
+
     def dbType(self, connectionType):
         model = self.reference_model()
         namespace = model.schema().namespace()
@@ -134,13 +145,13 @@ class ReferenceColumn(Column):
         self.__reference = jdata.get('reference') or self.__reference
         self.__removeAction = jdata.get('removeAction') or self.__removeAction
 
-    def random(self):
+    def random_value(self):
         """
         Returns a random value that fits this column's parameters.
 
         :return: <variant>
         """
-        return self.reference_model().schema().id_column().random()
+        return self.reference_model().schema().id_column().random_value()
 
     def reference(self):
         return self.__reference
@@ -196,9 +207,9 @@ class ReferenceColumn(Column):
 
         return super(ReferenceColumn, self).validate(value)
 
-    def valueFromString(self, value, context=None):
+    def value_from_string(self, value, context=None):
         """
-        Re-implements the orb.Column.valueFromString method to
+        Re-implements the orb.Column.value_from_string method to
         lookup a reference object based on the given value.
 
         :param value: <str>
@@ -209,5 +220,3 @@ class ReferenceColumn(Column):
         model = self.reference_model()
         return model(value, context=context)
 
-# register the column addon
-Column.registerAddon('Reference', ReferenceColumn)

@@ -12,6 +12,24 @@ def test_basic_collector():
     assert collector.test_flag(Collector.Flags.AutoExpand) is False
 
 
+def test_collector_ordering():
+    from orb.core.collector import Collector
+
+    a = Collector(name='alpha')
+    b = Collector(name='bravo')
+    c = Collector(name='charlie')
+
+    d = [b, c, a]
+    d.sort()
+
+    assert a == a
+    assert a != b
+    assert d == [a, b, c]
+    assert a.__cmp__(a) == 0
+    assert cmp(a, Collector(name='alpha')) == 0
+    assert cmp(a, 10) == -1
+
+
 def test_abstract_collector_methods():
     from orb.core.collector import Collector
 
