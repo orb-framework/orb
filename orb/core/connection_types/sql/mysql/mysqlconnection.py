@@ -30,6 +30,7 @@ class MySQLConnection(SQLConnection):
     Creates a PostgreSQL backend connection type for handling database
     connections to PostgreSQL databases.
     """
+    __plugin_name__ = 'MySQL'
 
     # ----------------------------------------------------------------------
     # PROTECTED METHODS
@@ -141,8 +142,8 @@ class MySQLConnection(SQLConnection):
         except pymysql.Error:
             pass
 
-    def schemaInfo(self, context):
-        info = super(MySQLConnection, self).schemaInfo(context)
+    def schema_info(self, context):
+        info = super(MySQLConnection, self).schema_info(context)
         for v in info.values():
             v['fields'] = v['fields'].split(',')
             v['indexes'] = v['indexes'].split(',')
@@ -162,7 +163,5 @@ class MySQLConnection(SQLConnection):
         return MySQLStatement.byName(code) if code else MySQLStatement
 
 
-# register the postgres backend
-if pymysql:
-    orb.Connection.registerAddon('MySQL', MySQLConnection)
+
 

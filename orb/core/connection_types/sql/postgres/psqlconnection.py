@@ -47,6 +47,7 @@ class PSQLConnection(SQLConnection):
     Creates a PostgreSQL backend connection type for handling database
     connections to PostgreSQL databases.
     """
+    __plugin_name__ = 'Postgres'
 
     # ----------------------------------------------------------------------
     # PROTECTED METHODS
@@ -216,8 +217,4 @@ class PSQLConnection(SQLConnection):
         """
         return PSQLStatement.byName(code) if code else PSQLStatement
 
-
-# register the postgres backend
-if pg:
-    orb.Connection.registerAddon('Postgres', PSQLConnection)
 

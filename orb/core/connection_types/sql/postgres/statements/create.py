@@ -8,15 +8,15 @@ orb = lazy_import('orb')
 
 
 class CREATE(PSQLStatement):
-    def __call__(self, model, owner='', includeReferences=True):
+    def __call__(self, model, owner='', include_references=True):
         if issubclass(model, orb.Table):
-            return self._createTable(model, owner, includeReferences)
+            return self._createTable(model, owner, include_references)
         elif issubclass(model, orb.View):
-            return self._createView(model, owner, includeReferences)
+            return self._createView(model, owner, include_references)
         else:
             raise orb.errors.OrbError('Cannot create model for type: '.format(type(model)))
 
-    def _createView(self, model, owner, includeReferences):
+    def _createView(self, model, owner, include_references):
         schema = model.schema()
         data = {}
 
@@ -214,7 +214,7 @@ class CREATE(PSQLStatement):
         sql = '\n'.join(statements).format(**kwds)
         return sql, data
 
-    def _createTable(self, model, owner, includeReferences):
+    def _createTable(self, model, owner, include_references):
         ADD_COLUMN = self.byName('ADD COLUMN')
 
         data = {}
@@ -223,7 +223,7 @@ class CREATE(PSQLStatement):
 
         # divide columns between standard and translatable
         for col in model.schema().columns(recurse=False).values():
-            if not includeReferences and isinstance(col, orb.ReferenceColumn):
+            if not include_references and isinstance(col, orb.ReferenceColumn):
                 continue
 
             # virtual flags do not exist in the database

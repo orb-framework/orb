@@ -5,15 +5,15 @@ orb = lazy_import('orb')
 
 
 class CREATE(SQLiteStatement):
-    def __call__(self, model, owner='', includeReferences=True):
+    def __call__(self, model, owner='', include_references=True):
         if issubclass(model, orb.Table):
-            return self._createTable(model, owner, includeReferences)
+            return self._createTable(model, owner, include_references)
         elif issubclass(model, orb.View):
-            return self._createView(model, owner, includeReferences)
+            return self._createView(model, owner, include_references)
         else:
             raise orb.errors.OrbError('Cannot create model for type: '.format(type(model)))
 
-    def _createTable(self, model, owner, includeReferences):
+    def _createTable(self, model, owner, include_references):
         ADD_COLUMN = self.byName('ADD COLUMN')
 
         add_i18n = []
@@ -24,7 +24,7 @@ class CREATE(SQLiteStatement):
             if col.test_flag(col.Flags.Virtual):
                 continue
 
-            if not includeReferences and isinstance(col, orb.ReferenceColumn):
+            if not include_references and isinstance(col, orb.ReferenceColumn):
                 continue
 
             if col.test_flag(col.Flags.I18n):

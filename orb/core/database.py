@@ -74,13 +74,17 @@ class Database(object):
         manager.activate(self)
         return True
 
-    def addNamespace(self, namespace, **context):
+    def create_namespace(self, namespace, **context):
         """
         Creates a new namespace within this database.
 
         :param namespace: <str>
+
+        :return: <bool> modified
         """
-        self.connection().addNamespace(namespace, orb.Context(**context))
+        context = orb.Context(**context)
+        conn = self.connection()
+        return conn.create_namespace(namespace, context)
 
     def code(self):
         """
@@ -153,13 +157,13 @@ class Database(object):
         if back:
             back.interrupt(threadId)
 
-    def isConnected(self):
+    def is_connected(self):
         """
         Returns whether or not the database is connected to its server.
         
         :return     <bool>
         """
-        return self.__connection.isConnected()
+        return self.__connection.is_connected()
 
     def timeout(self):
         """
@@ -219,12 +223,12 @@ class Database(object):
         """
         # define custom properties
         if not isinstance(connection, orb.Connection):
-            conn = orb.Connection.byName(connection)
+            conn = orb.Connection.get_plugin(connection)
             if not conn:
                 raise orb.errors.BackendNotFound(connection)
             connection = conn(self)
         else:
-            connection.setDatabase(self)
+            connection.set_database(self)
 
         self.__connection = connection
 
@@ -330,23 +334,23 @@ class Database(object):
 
         # initialize the database
         event = orb.events.SyncEvent(context=context)
-        self.__connection.onSync(event)
+        Connection.synced.send(self.__connection, event=event)
 
         namespaces = set()
-        info = conn.schemaInfo(context)
+        info = conn.schema_info(context)
 
         # create new models
         for model in tables:
             if model.schema().dbname() not in info:
                 namespace = model.schema().namespace()
                 if namespace and namespace not in namespaces:
-                    conn.addNamespace(namespace, context)
+                    conn.create_namespace(namespace, context)
                     namespaces.add(namespace)
 
-                conn.createModel(model, context, includeReferences=False, owner=self.username())
+                conn.create_model(model, context, include_references=False, owner=self.username())
 
         # update after any newly created tables get generated
-        info = conn.schemaInfo(context)
+        info = conn.schema_info(context)
 
         for model in tables:
             try:
@@ -366,7 +370,7 @@ class Database(object):
 
                 # alter the model with the new indexes
                 if add['fields'] or add['indexes']:
-                    conn.alterModel(model, context, add=add, owner=self.username())
+                    conn.alter_model(model, context, add=add, owner=self.username())
 
         for model in tables:
             # call the sync event
@@ -376,7 +380,7 @@ class Database(object):
 
         # sync views last
         for view in views:
-            conn.createModel(view, context)
+            conn.create_model(view, context)
             event = orb.events.SyncEvent(model=view)
             if view.processEvent(event):
                 view.onSync(event)
