@@ -53,8 +53,16 @@ class Collector(object):
         """
         return self.collect(source_record, use_method=use_method, **context)
 
+    def __eq__(self, other):
+        return self is other
+
+    def __ne__(self, other):
+        return self is not other
+
     def __cmp__(self, other):
-        if isinstance(other, Collector):
+        if self is other:
+            return 0
+        elif isinstance(other, Collector):
             return cmp(self.name(), other.name())
         else:
             return -1

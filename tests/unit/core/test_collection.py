@@ -439,6 +439,9 @@ def test_collection_delete_records(mock_db, mock_user_collection):
 
 
 def test_collection_delete_records_from_collector(mock_user_collection):
+    from orb.core.collector import Collector
+    from orb.core.collection import Collection
+
     class MockCollector(object):
         def __init__(self):
             self.deleted = False
@@ -454,6 +457,11 @@ def test_collection_delete_records_from_collector(mock_user_collection):
 
     assert collection.delete() == 3
     assert collector.deleted is True
+
+    # validate that deleting with an abstract collector does not raise an error
+    collection = Collection([])
+    collection.bind_collector(Collector())
+    assert collection.delete() == 0
 
 
 def test_distinct_value_lookup(mock_db, mock_user_collection):

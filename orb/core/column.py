@@ -44,15 +44,15 @@ class Column(object):
                  # class properties
                  name='',
                  shortcut='',
-                 display=None,
+                 display='',
                  flags=0,
                  default=None,
                  schema=None,
                  order=99999,
 
                  # database properties
-                 alias=None,
-                 field=None,
+                 alias='',
+                 field='',
 
                  # permissions
                  permit=None,
@@ -124,7 +124,11 @@ class Column(object):
                     'filtermethod',
                     'read_permit',
                     'write_permit'):
-            yield key, getattr(self, '__{0}'.format(key))
+            value = getattr(self, '_Column__{0}'.format(key))
+            if key.endswith('method'):
+                yield key.replace('method', ''), value
+            else:
+                yield key, value
 
     def __json__(self):
         """
@@ -139,7 +143,7 @@ class Column(object):
         output = {
             'type': self.get_plugin_name(),
             'name': self.name(),
-            'field': self.field(),
+            'field': self.alias(),
             'display': self.display(),
             'flags': {k: True for k in self.Flags.to_set(self.__flags)},
             'default': default_value
@@ -199,9 +203,7 @@ class Column(object):
 
         :return     <str>
         """
-        if not self.__field:
-            self.__field = self.default_field()
-        return self.__field
+        return self.__field or self.default_field()
 
     def flags(self):
         """
@@ -363,7 +365,9 @@ class Column(object):
             if not isinstance(value, dict):
                 default_locale = locales[0]
                 if default_locale == 'all':
-                    default_locale = self.schema().system().settings.default_locale
+                    schema = self.schema()
+                    system = schema.system() if schema else orb.system
+                    default_locale = system.settings.default_locale
                 value = {default_locale: value}
 
             if 'all' in locales:
@@ -383,6 +387,14 @@ class Column(object):
         :return     <TableSchema>
         """
         return self.__schema
+
+    def set_alias(self, alias):
+        """
+        Sets the column alias that is used for this instance.
+
+        :param alias: <str>
+        """
+        self.__alias = alias
 
     def set_default(self, default):
         """
@@ -575,7 +587,7 @@ class Column(object):
         """
         # check for the required flag
         if self.test_flag(self.Flags.Required) and not self.test_flag(self.Flags.AutoAssign):
-            if self.isNull(value):
+            if self.is_null(value):
                 msg = '{0} is a required column.'.format(self.name())
                 raise orb.errors.ColumnValidationError(self, msg)
 
