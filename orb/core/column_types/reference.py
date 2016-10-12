@@ -3,12 +3,88 @@ import logging
 import projex.text
 
 from ..column import Column
+from ..column_engine import ColumnEngine
 from ...utils.enum import enum
 
 with demandimport.enabled():
     import orb
 
 log = logging.getLogger(__name__)
+
+
+class ReferenceColumnEngine(ColumnEngine):
+    def get_column_type(self, column, plugin_name):
+        """
+        Re-implements the get_column_type method from `orb.ColumnEngine`.
+
+        This method will apply additional logic for defining the database type for a
+        reference based on the id column of the model type that is being referenced
+        by the column.
+
+        :param column: <orb.ReferenceColumn>
+        :param plugin_name: <str>
+
+        :return: <str>
+        """
+        # extract the reference model information
+        model = column.reference_model()
+        schema = model.schema()
+
+        # extract the id column and type
+        id_column = schema.id_column()
+        id_engine = id_column.get_engine(plugin_name)
+        id_type = id_engine.get_column_type(id_column, plugin_name)
+
+        # apply cusotm logic
+        if plugin_name == 'Postgres':
+            id_type = id_type if id_type != 'SERIAL' else 'BIGINT'
+        elif plugin_name == 'MySQL':
+            id_type = id_type.replace('AUTO_INCREMENT', '').strip()
+
+        # generate the formatting options
+        opts = {
+            'table': schema.dbname(),
+            'field': id_column.field(),
+            'id_type': id_type
+        }
+
+        base_type = super(ReferenceColumnEngine, self).get_column_type(column, plugin_name)
+        return base_type.format(**opts)
+
+    def get_api_value(self, column, plugin_name, db_value, context=None):
+        """
+        Extracts the db_value provided back from the database.
+
+        :param db_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        if isinstance(db_value, (str, unicode)) and db_value.startswith('{'):
+            try:
+                db_value = projex.text.safe_eval(db_value)
+            except StandardError:
+                log.exception('Invalid reference found')
+                raise orb.errors.OrbError('Invalid reference found.')
+
+        if isinstance(db_value, dict):
+            cls = column.reference_model()
+            if not cls:
+                raise orb.errors.ModelNotFound(schema=column.reference())
+            else:
+                load_event = orb.events.LoadEvent(data=db_value)
+
+                # update the expansion information to not propagate to references
+                if context:
+                    context = context.copy()
+                    expand = context.expandtree(cls)
+                    sub_expand = expand.pop(column.name(), {})
+                    context.expand = context.raw_values['expand'] = sub_expand
+
+                db_value = cls(loadEvent=load_event, context=context)
+
+        return super(ReferenceColumnEngine, self).get_api_value(column, plugin_name, db_value, context=context)
+
 
 
 class ReferenceColumn(Column):
@@ -26,6 +102,12 @@ class ReferenceColumn(Column):
                                             reverse=orb.ReferenceColumn.Reversed(name='commments'))
 
     """
+    __default_engine__ = ReferenceColumnEngine(type_map={
+        'Postgres': u'{id_type} REFERENCES "{table}"."{field}"',
+        'MySQL': u'{id_type} REFERENCES `{table}`.`{field}`',
+        'default': u'{id_type}'
+    })
+
     RemoveAction = enum(
         'DoNothing',    # 1
         'Cascade',      # 2
@@ -79,59 +161,6 @@ class ReferenceColumn(Column):
         if not field.endswith('_id'):
             field += '_id'
         return field
-
-    def dbType(self, connectionType):
-        model = self.reference_model()
-        namespace = model.schema().namespace()
-        dbname = model.schema().dbname()
-        id_column = model.schema().id_column()
-
-        if connectionType == 'Postgres':
-            typ = id_column.dbType(connectionType)
-            if typ == 'SERIAL':
-                typ = 'BIGINT'
-            return '{0} REFERENCES "{1}"."{2}"'.format(typ, namespace or 'public', dbname)
-        elif connectionType == 'SQLite':
-            return id_column.dbType(connectionType)
-        elif connectionType == 'MySQL':
-            typ = id_column.dbType(connectionType).replace('AUTO_INCREMENT', '').strip()
-            return '{0} REFERENCES `{1}`.`{2}`'.format(typ, namespace, dbname)
-        else:
-            return ''
-
-    def dbRestore(self, db_value, context=None):
-        """
-        Extracts the db_value provided back from the database.
-
-        :param db_value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-        if isinstance(db_value, (str, unicode)) and db_value.startswith('{'):
-            try:
-                db_value = projex.text.safe_eval(db_value)
-            except StandardError:
-                log.exception('Invalid reference found')
-                raise orb.errors.OrbError('Invalid reference found.')
-
-        if isinstance(db_value, dict):
-            cls = self.reference_model()
-            if not cls:
-                raise orb.errors.ModelNotFound(schema=self.reference())
-            else:
-                load_event = orb.events.LoadEvent(data=db_value)
-
-                # update the expansion information to not propagate to references
-                if context:
-                    context = context.copy()
-                    expand = context.expandtree(cls)
-                    sub_expand = expand.pop(self.name(), {})
-                    context.expand = context.raw_values['expand'] = sub_expand
-
-                db_value = cls(loadEvent=load_event, context=context)
-
-        return super(ReferenceColumn, self).dbRestore(db_value, context=context)
 
     def loadJSON(self, jdata):
         """

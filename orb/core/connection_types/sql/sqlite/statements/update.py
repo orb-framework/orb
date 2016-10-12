@@ -33,16 +33,18 @@ class UPDATE(SQLiteStatement):
             if column.test_flag(column.Flags.Virtual):
                 continue
 
+            engine = column.get_engine('SQLite')
+
             if column.test_flag(column.Flags.I18n):
                 for record_locale, value in record.get(column, locale='all').items():
                     value_key = '{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
-                    data[value_key] = column.dbStore('SQLite', value)
+                    data[value_key] = engine.get_database_value(column, 'SQLite', value)
                     i18n_values[record_locale].append(u'`{0}` = %({1})s'.format(column.field(), value_key))
                     i18n_fields[record_locale].append(u'`{0}`'.format(column.field()))
                     i18n_keys[record_locale].append(u'%({0})s'.format(value_key))
             else:
                 value_key = '{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
-                data[value_key] = column.dbStore('SQLite', record.get(column))
+                data[value_key] = engine.get_database_value(column, 'SQLite', record.get(column))
                 standard_values.append('`{0}` = %({1})s'.format(column.field(), value_key))
 
 

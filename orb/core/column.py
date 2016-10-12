@@ -622,15 +622,15 @@ class Column(object):
         return self.__write_permit
 
     @classmethod
-    def get_engine(cls, database_type=None):
+    def get_engine(cls, plugin_name=None):
         """
         Returns the engine for this column for the given database type.
 
-        :param database_type: <str> or None
+        :param plugin_name: <str> or None
 
         :return: <orb.ColumnEngine>
         """
-        return cls.__engines__.get(database_type, cls.__default_engine__)
+        return cls.__engines__.get(plugin_name, cls.__default_engine__)
 
     @classmethod
     def get_plugin_name(cls):

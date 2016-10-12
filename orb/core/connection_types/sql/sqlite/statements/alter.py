@@ -51,7 +51,8 @@ class ALTER(SQLiteStatement):
         # add i18n columns
         if add_i18n:
             id_column = model.schema().id_column()
-            id_type = id_column.dbType('SQLite')
+            engine = id_column.get_engine('SQLite')
+            id_type = engine.get_column_type(id_column, 'SQLite')
 
             i18n_options = {
                 'table': model.schema().dbname(),

@@ -15,7 +15,10 @@ class ADD_COLUMN(PSQLStatement):
                 if flag_sql:
                     flags.append(flag_sql)
 
-        sql = u'ADD COLUMN "{0}" {1} {2}'.format(column.field(), column.dbType('Postgres'), ' '.join(flags)).strip()
+        engine = column.get_engine('Postgres')
+        db_type = engine.get_column_type(column, 'Postgres')
+
+        sql = u'ADD COLUMN "{0}" {1} {2}'.format(column.field(), db_type, ' '.join(flags)).strip()
         return sql, {}
 
 

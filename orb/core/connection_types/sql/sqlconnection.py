@@ -39,10 +39,13 @@ class SQLConnection(orb.Connection):
         self.__poolSize = defaultdict(lambda: 0)
         self.__pool = defaultdict(Queue)
 
+        # create connections
+        self.synced.connect(self.on_sync, sender=self)
+
     # ----------------------------------------------------------------------
     #                       EVENTS
     # ----------------------------------------------------------------------
-    def onSync(self, event):
+    def on_sync(self, sender, event=None):
         """
         Initializes the database by defining any additional structures that are required during selection.
         """
@@ -122,16 +125,7 @@ class SQLConnection(orb.Connection):
     #                       PUBLIC METHODS
     #----------------------------------------------------------------------
 
-    def addNamespace(self, namespace, context):
-        CREATE_NAMESPACE = self.statement('CREATE NAMESPACE')
-        if CREATE_NAMESPACE:
-            sql, data = CREATE_NAMESPACE(namespace)
-            if context.dryRun:
-                print sql, data
-            else:
-                self.execute(sql, data)
-
-    def alterModel(self, model, context, add=None, remove=None, owner=''):
+    def alter_model(self, model, context, add=None, remove=None, owner=''):
         add = add or {'fields': [], 'indexes': []}
         remove = remove or {'fields': [], 'indexes': []}
 
@@ -157,6 +151,15 @@ class SQLConnection(orb.Connection):
             print sql, data
         else:
             self.execute(u'\n'.join(sql), data, writeAccess=True)
+
+    def create_namespace(self, namespace, context):
+        CREATE_NAMESPACE = self.statement('CREATE NAMESPACE')
+        if CREATE_NAMESPACE:
+            sql, data = CREATE_NAMESPACE(namespace)
+            if context.dryRun:
+                print sql, data
+            else:
+                self.execute(sql, data)
 
     def close(self):
         """
@@ -213,7 +216,7 @@ class SQLConnection(orb.Connection):
             if not self._closed(conn):
                 return self._commit(conn)
 
-    def createModel(self, model, context, owner='', includeReferences=True):
+    def create_model(self, model, context, owner='', include_references=True):
         """
         Creates a new table in the database based cff the inputted
         schema information.  If the dryRun flag is specified, then
@@ -226,7 +229,7 @@ class SQLConnection(orb.Connection):
         :return     <bool> success
         """
         CREATE = self.statement('CREATE')
-        sql, data = CREATE(model, includeReferences=includeReferences, owner=owner)
+        sql, data = CREATE(model, include_references=include_references, owner=owner)
         if not sql:
             log.error('Failed to create {0}'.format(model.schema().dbname()))
             return False
@@ -364,7 +367,7 @@ class SQLConnection(orb.Connection):
         """
         return self.__batchSize
 
-    def isConnected(self):
+    def is_connected(self):
         """
         Returns whether or not this connection is currently
         active.
@@ -447,7 +450,7 @@ class SQLConnection(orb.Connection):
         with self.native(writeAccess=True) as conn:
             return self._rollback(conn)
 
-    def schemaInfo(self, context):
+    def schema_info(self, context):
         INFO = self.statement('SCHEMA INFO')
         sql, data = INFO(context)
         info, _ = self.execute(sql, data)

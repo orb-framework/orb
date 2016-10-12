@@ -63,7 +63,8 @@ class ALTER(MySQLStatement):
         # add i18n columns
         if add_i18n:
             id_column = model.schema().id_column()
-            id_type = id_column.dbType('MySQL')
+            engine = id_column.get_engine('MySQL')
+            id_type = engine.get_column_type(id_column, 'MySQL')
 
             field_statements = []
 

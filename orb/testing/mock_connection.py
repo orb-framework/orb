@@ -17,25 +17,7 @@ class MockConnection(orb.Connection):
         self.base_connection = base
         self.log = logging.getLogger(__name__)
 
-    def onSync(self, event):
-        assert isinstance(event, orb.events.SyncEvent)
-        return self.next_response('onSync', event)
-
-    def addNamespace(self, namespace, context):
-        """
-        Mocks a response for creating a namespace for a connection.
-
-        :param namespace: <str>
-        :param context: <orb.Context>
-        """
-        # validate inputs
-        assert isinstance(namespace, basestring)
-        assert isinstance(context, orb.Context)
-
-        # return desired response
-        return self.next_response('addNamespace', namespace, context)
-
-    def alterModel(self, model, context, add=None, remove=None, owner=''):
+    def alter_model(self, model, context, add=None, remove=None, owner=''):
         """
         Mocks a response for creating a model for a connection.
 
@@ -52,7 +34,21 @@ class MockConnection(orb.Connection):
         assert (remove is None or type(remove) is list)
 
         # return the desired response
-        return self.next_response('alterModel', model, context, add, remove, owner)
+        return self.next_response('alter_model', model, context, add, remove, owner)
+
+    def create_namespace(self, namespace, context):
+        """
+        Mocks a response for creating a namespace for a connection.
+
+        :param namespace: <str>
+        :param context: <orb.Context>
+        """
+        # validate inputs
+        assert isinstance(namespace, basestring)
+        assert isinstance(context, orb.Context)
+
+        # return desired response
+        return self.next_response('create_namespace', namespace, context)
 
     def close(self):
         """
@@ -80,7 +76,7 @@ class MockConnection(orb.Connection):
         # return the desired response
         return self.next_response('count', model, context)
 
-    def createModel(self, model, context, owner='', includeReferences=True):
+    def create_model(self, model, context, owner='', include_references=True):
         """
         Mock creates a new table in the database based cff the inputted
         table information.
@@ -94,10 +90,10 @@ class MockConnection(orb.Connection):
         assert issubclass(model, orb.Model)
         assert isinstance(context, orb.Context)
         assert isinstance(owner, basestring)
-        assert type(includeReferences) == bool
+        assert type(include_references) == bool
 
         # return the desired response
-        return self.next_response('createModel', model, context, owner, includeReferences)
+        return self.next_response('create_model', model, context, owner, include_references)
 
     def delete(self, records, context):
         """
@@ -154,14 +150,14 @@ class MockConnection(orb.Connection):
         # return the desired response
         return self.next_response('insert', records, context)
 
-    def isConnected(self):
+    def is_connected(self):
         """
         Returns whether or not this connection is currently
         active.
 
         :return     <bool> connected
         """
-        return self.next_response('isConnected')
+        return self.next_response('is_connected')
 
     def interrupt(self, threadId=None):
         """
@@ -225,7 +221,7 @@ class MockConnection(orb.Connection):
         """
         return self.next_response('rollback')
 
-    def schemaInfo(self, context):
+    def schema_info(self, context):
         """
         Returns the schema information from the database.
 
@@ -233,7 +229,7 @@ class MockConnection(orb.Connection):
         """
         assert isinstance(context, orb.Context)
 
-        return self.next_response('schemaInfo', context)
+        return self.next_response('schema_info', context)
 
     def select(self, model, context):
         """

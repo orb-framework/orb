@@ -36,7 +36,9 @@ class INSERT(PSQLStatement):
 
             for key, columns in schema_meta[schema].items():
                 record_values = {
-                    '{0}_{1}'.format(col.field(), i): col.dbStore('Postgres', record.get(col))
+                    '{0}_{1}'.format(col.field(), i): col.get_engine('Postgres').get_database_value(col,
+                                                                                                    'Postgres',
+                                                                                                    record.get(col))
                     for col in columns
                 }
 

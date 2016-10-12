@@ -75,6 +75,8 @@ class SQLiteConnection(SQLConnection):
     Creates a PostgreSQL backend connection type for handling database
     connections to PostgreSQL databases.
     """
+    __plugin_name__ = 'SQLite'
+
     def __init__(self, *args, **kwds):
         super(SQLiteConnection, self).__init__(*args, **kwds)
 
@@ -243,7 +245,7 @@ class SQLiteConnection(SQLConnection):
         super(SQLiteConnection, self).delete(records, context)
         return [], count
 
-    def schemaInfo(self, context):
+    def schema_info(self, context):
         tables_sql = "select name from sqlite_master where type = 'table';"
         tables = [x['name'] for x in self.execute(tables_sql)[0]]
 
@@ -284,9 +286,4 @@ class SQLiteConnection(SQLConnection):
         :return     subclass of <orb.core.backends.sql.SQLStatement>
         """
         return SQLiteStatement.byName(code) if code else SQLiteStatement
-
-
-# register the postgres backend
-if sqlite:
-    orb.Connection.registerAddon('SQLite', SQLiteConnection)
 

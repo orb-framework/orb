@@ -15,7 +15,10 @@ class ADD_COLUMN(MySQLStatement):
                 if flag_sql:
                     flags.append(flag_sql)
 
-        sql = u'ADD COLUMN `{0}` {1} {2}'.format(column.field(), column.dbType('MySQL'), ' '.join(flags)).strip()
+        engine = column.get_engine('MySQL')
+        db_type = engine.get_column_type(column, 'MySQL')
+
+        sql = u'ADD COLUMN `{0}` {1} {2}'.format(column.field(), db_type, ' '.join(flags)).strip()
         return sql, {}
 
 

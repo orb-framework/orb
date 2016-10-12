@@ -3,22 +3,16 @@ Defines the base connection class that will be used for communication
 to the backend databases.
 """
 
-import cPickle
+import blinker
 import logging
-import projex.iters
 
 from abc import ABCMeta, abstractmethod
-from collections import OrderedDict
-from projex.addon import AddonManager
-from projex.lazymodule import lazy_import
 
-orb = lazy_import('orb')
-errors = lazy_import('orb.errors')
 
 log = logging.getLogger(__name__)
 
 
-class Connection(AddonManager):
+class Connection(object):
     __metaclass__ = ABCMeta
     
     """ 
@@ -27,7 +21,28 @@ class Connection(AddonManager):
     subclassed to handle connection to a particular kind of database backend,
     the backends that are included with the orb package can be found in the
     <orb.backends> package.
+
+    Signals
+    ----
+    * synced
+
+    Usage
+    ----
+
+        class MyConnection(Connection):
+            def __init__(self, database):
+                super(MyConnection, self).__init__(database)
+
+                # create event connections
+                Connection.synced.connect(self.on_sync, sender=self)
+
+            def on_sync(self, sender, event=None):
+                print sender, event
     """
+    __plugin_name__ = ''
+
+    # define connection signals
+    synced = blinker.Signal()
 
     def __init__(self, database):
         super(Connection, self).__init__()
@@ -41,20 +56,8 @@ class Connection(AddonManager):
         """
         self.close()
 
-    def onSync(self, event):
-        pass
-
     @abstractmethod
-    def addNamespace(self, namespace, context):
-        """
-        Creates a new namespace into this connection.
-
-        :param namespace: <str>
-        :param context: <orb.Context>
-        """
-
-    @abstractmethod
-    def alterModel(self, model, context, add=None, remove=None, owner=''):
+    def alter_model(self, model, context, add=None, remove=None, owner=''):
         """
         Determines the difference between the inputted table
         and the table in the database, creating new columns
@@ -70,54 +73,73 @@ class Connection(AddonManager):
                     call that can accidentally be run without someone knowing
                     what they are doing and why.
 
-        :param      table    | <orb.TableSchema>
-                    options  | <orb.Context>
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
+        :param add: [<orb.Column> or <orb.Index> or <orb.Collector>, ..] or None
+        :param remove: [<orb.Column> or <orb.Index> or <orb.Collector>, ..] or None
+        :param owner: <str>
 
-        :return     <bool> success
+        :return: <bool> success
         """
+        return False  # pragma: no cover
+
+    @abstractmethod
+    def create_namespace(self, namespace, context):
+        """
+        Creates a new namespace into this connection.
+
+        :param namespace: <str>
+        :param context: <orb.Context>
+
+        :return: <bool> modified
+        """
+        return False  # pragma: no cover
 
     @abstractmethod
     def close(self):
         """
         Closes the connection to the database for this connection.
         
-        :return     <bool> closed
+        :return: <bool> success
         """
+        return False  # pragma: no cover
 
     @abstractmethod
     def commit(self):
         """
         Commits the changes to the current database connection.
         
-        :return     <bool> success
+        :return: <bool> success
         """
+        return False  # pragma: no cover
 
     @abstractmethod
     def count(self, model, context):
         """
         Returns the number of records that exist for this connection for
         a given lookup and options.
+
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
         
-        :sa         distinct, select
-        
-        :param      table_or_join | <orb.Table> || <orb.Join>
-                    lookup        | <orb.LookupOptions>
-                    options       | <orb.Context>
-        
-        :return     <int>
+        :return: <int>
         """
+        return 0  # pragma: no cover
 
     @abstractmethod
-    def createModel(self, model, context, owner='', includeReferences=True):
+    def create_model(self, model, context, owner='', include_references=True):
         """
         Creates a new table in the database based cff the inputted
         table information.
         
-        :param      schema   | <orb.TableSchema>
-                    options  | <orb.Context>
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
+        :param owner: <str>
+        :param include_references: <bool>
         
-        :return     <bool> success
+        :return: <bool> success
         """
+        return False  # pragma: no cover
 
     def database(self):
         """
@@ -136,24 +158,26 @@ class Connection(AddonManager):
         processing of grouping records together by schema and only works
         on the primary key.
 
-        :param      table     | <orb.Collection>
-                    context   | <orb.Context>
+        :param records: <orb.Collection>
+        :param context: <orb.Context>
 
-        :return     <int> | number of rows removed
+        :return: <int> number of rows removed
         """
+        return 0  # pragma: no cover
 
     @abstractmethod
     def execute(self, command, data=None, flags=0):
         """
         Executes the inputted command into the current
         connection cursor.
-        
-        :param      command  | <str>
-                    data     | <dict> || None
-                    flags    | <orb.DatabaseFlags>
-        
-        :return     <variant> returns a native set of information
+
+        :param command: <str>
+        :param data: <dict> or None
+        :param flags: <orb.Database.Flags>
+
+        :return: <variant>
         """
+        return None  # pragma: no cover
 
     @abstractmethod
     def insert(self, records, context):
@@ -161,27 +185,32 @@ class Connection(AddonManager):
         Inserts the database record into the database with the
         given values.
         
-        :param      records     | <orb.Collection>
-                    context     | <orb.Context>
+        :param records: <orb.Collection> or [<orb.Model>, ..]
+        :param context: <orb.Context>
         
-        :return     <bool>
+        :return: <bool> success
         """
+        return False  # pragma: no cover
 
-    def interrupt(self, threadId=None):
+    def interrupt(self, thread_id=None):
         """
         Interrupts/stops the database access through a particular thread.
         
-        :param      threadId | <int> || None
+        :param thread_id: <int> or None
+
+        :return: <bool> success
         """
+        return False   # pragma: no cover
 
     @abstractmethod
-    def isConnected(self):
+    def is_connected(self):
         """
         Returns whether or not this connection is currently
         active.
         
-        :return     <bool> connected
+        :return: <bool>
         """
+        return False  # pragma: no cover
 
     @abstractmethod
     def open(self, force=False):
@@ -190,16 +219,20 @@ class Connection(AddonManager):
         by the inputted database.  If the force parameter is provided, then
         it will re-open a connection regardless if one is open already
 
-        :param      force | <bool>
+        :param force: <bool>
 
-        :return     <bool> success
+        :return: <bool>
         """
+        return False  # pragma: no cover
 
     @abstractmethod
     def rollback(self):
         """
         Rolls back the latest code run on the database.
+
+        :return: <bool> success
         """
+        return False  # pragma: no cover
 
     @abstractmethod
     def select(self, model, context):
@@ -207,19 +240,21 @@ class Connection(AddonManager):
         Selects the records from the database for the inputted table or join
         instance based on the given lookup and options.
                     
-        :param      table_or_join   | <subclass of orb.Table>
-                    lookup          | <orb.LookupOptions>
-                    options         | <orb.Context>
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
         
-        :return     [<variant> result, ..]
+        :return: <variant>
         """
+        return []  # pragma: no cover
 
     def setup(self, context):
         """
         Initializes the database with any additional information that is required.
+
+        :param context: <orb.Context>
         """
 
-    def setDatabase(self, db):
+    def set_database(self, db):
         """
         Assigns the database instance that this connection serves.
 
@@ -228,12 +263,13 @@ class Connection(AddonManager):
         self.__database = db
 
     @abstractmethod
-    def schemaInfo(self, context):
+    def schema_info(self, context):
         """
         Returns the schema information from the database.
 
-        :return     <dict>
+        :return: <dict>
         """
+        return {}  # pragma: no cover
 
     @abstractmethod
     def update(self, records, context):
@@ -241,11 +277,12 @@ class Connection(AddonManager):
         Updates the database record into the database with the
         given values.
         
-        :param      record  | <orb.Table>
-                    options | <orb.Context>
+        :param records: <orb.Collection>
+        :param context: <orb.Context>
         
-        :return     <bool>
+        :return: <bool> changed
         """
+        return False  # pragma: no cover
 
     @classmethod
     def get_plugin_name(cls):
@@ -257,4 +294,23 @@ class Connection(AddonManager):
 
         :return: <str>
         """
-        return getattr(cls, '__plugin_name__', cls.__name__)
+        return cls.__plugin_name__
+
+    @classmethod
+    def get_plugin(cls, plugin_name):
+        """
+        Returns the plugin class defintion that matches the
+        given name.
+
+        :param: <str>
+
+        :return: subclass of <orb.Connection> or None
+        """
+        for subcls in cls.__subclasses__():
+            if subcls.get_plugin_name() == plugin_name:
+                output = subcls
+            else:
+                output = subcls.get_plugin(plugin_name)
+
+            if output is not None:
+                return output

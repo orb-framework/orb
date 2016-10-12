@@ -23,7 +23,7 @@ def pg_db(request):
 @pytest.fixture()
 def pg_sql(pg_db):
     import orb
-    return orb.Connection.byName('Postgres')
+    return orb.Connection.get_plugin('Postgres')
 
 @pytest.fixture(scope='session')
 def pg_all_column_record(orb, TestAllColumns):
