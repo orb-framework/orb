@@ -618,6 +618,24 @@ class Model(object):
         if self.processEvent(event):
             self.onInit(event)
 
+    def markLoaded(self, *columns):
+        """
+        Tells the model to treat the given columns as though they had been loaded from the database.
+
+        :param columns: (<str>, ..)
+        """
+        schema = self.schema()
+
+        columns = {schema.column(col) for col in columns}
+        column_names = {col.name() for col in columns}
+
+        with WriteLocker(self.__dataLock):
+            for key, (old_value, new_value) in self.__values.items():
+                if key in column_names:
+                    self.__values[key] = (new_value, new_value)
+
+            self.__loaded.update(columns)
+
     def isModified(self):
         """
         Returns whether or not any data has been modified for
@@ -634,12 +652,13 @@ class Model(object):
 
         :return     <bool>
         """
-        if db in (None, self.context().db):
-            col = self.schema().column(self.schema().idColumn())
+        if db is not None:
+            same_db = db == self.context().db
+
+        if db is None or same_db:
+            col = self.schema().idColumn()
             with ReadLocker(self.__dataLock):
-                if col not in self.__loaded or self.__values[col.name()][0] is None:
-                    return False
-                return True
+                return (col in self.__loaded) and (self.__values[col.name()][0] is not None)
         else:
             return None
 
