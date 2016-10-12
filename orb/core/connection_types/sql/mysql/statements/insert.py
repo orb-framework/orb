@@ -39,7 +39,9 @@ class INSERT(MySQLStatement):
             for key, columns in schema_meta[schema].items():
                 record_values = {}
                 for col in columns:
-                    value = col.dbStore('MySQL', record.get(col))
+                    engine = col.get_engine('MySQL')
+                    value = engine.get_database_value(col, 'MySQL', record.get(col))
+
                     if col == id_column and not id_column.test_flag(id_column.Flags.AutoAssign) and record.id() is None:
                         record.set(col, value)
                     record_values['{0}_{1}'.format(col.field(), i)] = value

@@ -16,4 +16,4 @@ def lite_db():
 @pytest.fixture()
 def lite_sql(lite_db):
     import orb
-    return orb.Connection.byName('SQLite')
+    return orb.Connection.get_plugin('SQLite')

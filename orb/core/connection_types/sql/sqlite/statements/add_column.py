@@ -21,7 +21,9 @@ class ADD_COLUMN(SQLiteStatement):
                 if flag_sql:
                     flags.append(flag_sql)
 
-        sql = u'ADD COLUMN `{0}` {1} {2}'.format(column.field(), column.dbType('SQLite'), ' '.join(flags)).strip()
+        engine = column.get_engine('SQLite')
+        db_type = engine.get_column_type(column, 'SQLite')
+        sql = u'ADD COLUMN `{0}` {1} {2}'.format(column.field(), db_type, ' '.join(flags)).strip()
         return sql, {}
 
 

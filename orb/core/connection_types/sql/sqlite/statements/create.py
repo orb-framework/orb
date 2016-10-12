@@ -61,7 +61,8 @@ class CREATE(SQLiteStatement):
         # create the i18n model
         if add_i18n:
             id_column = model.schema().id_column()
-            id_type = id_column.dbType('SQLite')
+            engine = id_column.get_engine('SQLite')
+            id_type = engine.get_column_type(id_column, 'SQLite')
 
             i18n_body = ',\n\t'.join([ADD_COLUMN(col)[0].replace('ADD COLUMN ', '') for col in add_i18n])
 

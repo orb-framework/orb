@@ -1,3 +1,4 @@
+import demandimport
 import cgi
 import os
 import projex.text
@@ -5,17 +6,65 @@ import random
 import re
 import warnings
 
-from projex.lazymodule import lazy_import
 from ..column import Column
+from ..column_engine import ColumnEngine
 from ...utils import security
 
+with demandimport.enabled():
+    import orb
 
-orb = lazy_import('orb')
+
+class StringColumnEngine(ColumnEngine):
+    def __init__(self, type_map=None):
+        super(StringColumnEngine, self).__init__(type_map)
+
+        # override the default operator mapping
+        self.assign_operator(orb.Query.Math.Add, '||')
+
+    def get_column_type(self, column, plugin_name):
+        """
+        Re-implements the get_column_type method from `orb.ColumnEngine`.
+
+        String columns have a couple additional attributes that can be used
+        during type definition.
+
+        :param column: <orb.AbstractStringColumn>
+        :param plugin_name: <str>
+
+        :return: <str>
+        """
+        base_type = super(StringColumnEngine, self).get_column_type(column, plugin_name)
+        max_len = column.maxLength() or ''
+        return base_type.format(length=max_len).replace('()', '')
+
+    def get_database_value(self, column, plugin_name, py_value, context=None):
+        """
+        Re-implements the get_database_value method from ColumnEngine.
+
+        This method will take a Python value and prepre it for saving to
+        the database.
+
+        :param column: <orb.Column>
+        :param plugin_name: <str>
+        :param py_value: <variant>
+
+        :return: <variant> database value
+        """
+        if py_value is None:
+            return None
+        else:
+            py_value = projex.text.decoded(py_value)
+
+            if column.cleaned():
+                py_value = column.clean(py_value)
+
+            if column.escaped():
+                py_value = column.escape(py_value)
+
+            return py_value
+
 
 class AbstractStringColumn(Column):
-    # MathMap = Column.MathMap.copy()
-    # MathMap['Default']['Add'] = '||'
-
     def __init__(self, cleaned=False, escaped=False, **kwds):
         super(AbstractStringColumn, self).__init__(**kwds)
 
@@ -44,28 +93,6 @@ class AbstractStringColumn(Column):
         :return:    <bool>
         """
         return self.__cleaned
-
-    def dbStore(self, typ, py_value):
-        """
-        Prepares to store this column for the a particular backend database.
-
-        :param backend: <orb.Database>
-        :param py_value: <variant>
-
-        :return: <variant>
-        """
-        if py_value is not None:
-            py_value = projex.text.decoded(py_value)
-
-            if self.cleaned():
-                py_value = self.clean(py_value)
-
-            if self.escaped():
-                py_value = self.escape(py_value)
-
-            return py_value
-        else:
-            return py_value
 
     def escape(self, value):
         """
@@ -123,11 +150,11 @@ class AbstractStringColumn(Column):
 
 # define base string based class types
 class StringColumn(AbstractStringColumn):
-    TypeMap = {
-        'Postgres': 'CHARACTER VARYING',
-        'SQLite': 'TEXT',
-        'MySQL': 'varchar'
-    }
+    __default_engine__ = StringColumnEngine(type_map={
+        'Postgres': 'CHARACTER VARYING({length})',
+        'MySQL': 'varchar({length})',
+        'SQLite': 'TEXT'
+    })
 
     def __init__(self,
                  maxLength=255,
@@ -136,14 +163,6 @@ class StringColumn(AbstractStringColumn):
 
         # define custom properties
         self.__maxLength = maxLength
-
-    def dbType(self, connectionType):
-        typ = super(StringColumn, self).dbType(connectionType)
-
-        if self.maxLength():
-            return typ + '({0})'.format(self.maxLength())
-        else:
-            return typ
 
     def loadJSON(self, jdata):
         """
@@ -175,11 +194,11 @@ class StringColumn(AbstractStringColumn):
 
 
 class TextColumn(AbstractStringColumn):
-    TypeMap = {
+    __default_engine__ = StringColumnEngine(type_map={
         'Postgres': 'TEXT',
         'SQLite': 'TEXT',
         'MySQL': 'TEXT'
-    }
+    })
 
 
 # define custom string class types

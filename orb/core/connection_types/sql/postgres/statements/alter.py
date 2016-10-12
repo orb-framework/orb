@@ -62,7 +62,8 @@ class ALTER(PSQLStatement):
         # add i18n columns
         if add_i18n:
             id_column = model.schema().id_column()
-            id_type = id_column.dbType('Postgres')
+            engine = id_column.get_engine('Postgres')
+            id_type = engine.get_column_type(id_column, 'Postgres')
 
             field_statements = []
 

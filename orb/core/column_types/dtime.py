@@ -1,9 +1,14 @@
 import datetime
+import demandimport
 import logging
 import time
 
-from projex.lazymodule import lazy_import
 from ..column import Column
+from ..column_engine import ColumnEngine
+
+with demandimport.enabled():
+    import orb
+    import pytz
 
 # optional imports
 try:
@@ -13,24 +18,86 @@ except ImportError:
 
 
 log = logging.getLogger(__name__)
-orb = lazy_import('orb')
-pytz = lazy_import('pytz')
+
+
+class DatetimeColumnEngine(ColumnEngine):
+    def get_api_value(self, column, plugin_name, db_value, context=None):
+        """
+        Re-implements the get_api_value method from ColumnEngine.
+
+        :param column: <orb.Column>
+        :param plugin_name: <str>
+        :param db_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant> python value
+        """
+        if db_value is None:
+            return None
+        try:
+            return column.get_api_value(plugin_name, db_value, context=context)
+        except NotImplementedError:
+            if isinstance(db_value, (str, unicode)):
+                return column.value_from_string(db_value, context=context)
+            else:
+                return super(DatetimeColumnEngine, self).get_api_value(column, plugin_name, db_value, context=context)
+
+    def get_database_value(self, column, plugin_name, py_value, context=None):
+        """
+        Re-impleents the get_database_value method from ColumnEngine.
+
+        :param column: <orb.Column>
+        :param plugin_name: <str>
+        :param py_value: <variant>
+
+        :return: <variant> database value
+        """
+        if py_value is None:
+            return None
+        else:
+            try:
+                return column.get_database_value(plugin_name, py_value, context=context)
+            except NotImplementedError:
+                return column.value_to_string(py_value, context=context)
 
 
 class AbstractDatetimeColumn(Column):
-
-    def __init__(self, defaultFormat='%Y-%m-%d %H:%M:%S', **kwds):
+    def __init__(self, default_format='%Y-%m-%d %H:%M:%S', **kwds):
         super(AbstractDatetimeColumn, self).__init__(**kwds)
 
-        self.__defaultFormat = defaultFormat
+        self.__default_format = default_format
 
-    def defaultFormat(self):
+    def default_format(self):
         """
         Returns the default format for this datetime column.
 
         :return: <str>
         """
-        return self.__defaultFormat
+        return self.__default_format
+
+    def get_api_value(self, plugin_name, db_value, context=None):
+        """
+        Abstract method used by the DatetimeColumnEngine to calculate the api value
+        per datetime object.
+
+        :param plugin_name: <str>
+        :param db_value: <variant>
+
+        :return: <variant>
+        """
+        raise NotImplementedError
+
+    def get_database_value(self, plugin_name, py_value, context=None):
+        """
+        Abstract method used by the DatetimeColumnEngine to calculate the database value
+        per datetime object.
+
+        :param plugin_name: <str>
+        :param py_value: <variant>
+
+        :return: <variant>
+        """
+        raise NotImplementedError
 
     def random_value(self):
         """
@@ -39,70 +106,28 @@ class AbstractDatetimeColumn(Column):
         :return: <variant>
         """
         utc_now = datetime.datetime.utcnow()
-        return self.value_from_string(utc_now.strftime(self.defaultFormat()))
+        return self.value_from_string(utc_now.strftime(self.default_format()))
 
-    def dbRestore(self, db_value, context=None):
-        """
-        Converts a stored database value to Python.
-
-        :param py_value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-        if db_value is None:
-            return None
-        elif isinstance(db_value, (str, unicode)):
-            return self.value_from_string(db_value, context=context)
-        else:
-            return super(AbstractDatetimeColumn, self).dbRestore(db_value, context=context)
-
-    def dbStore(self, typ, py_value, context=None):
-        """
-        Prepares to store this column for the a particular backend database.
-
-        :param backend: <orb.Database>
-        :param py_value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-        if py_value is None:
-            return None
-        return self.value_to_string(py_value, context=context)
-
-    def setDefaultFormat(self, form):
+    def set_default_format(self, form):
         """
         Sets the default string format for rendering this instance.
 
         :param form: <str>
         """
-        self.__defaultFormat = form
+        self.__default_format = form
 
 
 class DateColumn(AbstractDatetimeColumn):
-    TypeMap = {
+    __default_engine__ = DatetimeColumnEngine(type_map={
         'Postgres': 'DATE',
         'SQLite': 'TEXT',
         'MySQL': 'DATE'
-    }
+    })
 
     def __init__(self, **kwds):
-        kwds.setdefault('defaultFormat', '%Y-%m-%d')
+        kwds.setdefault('default_format', '%Y-%m-%d')
 
         super(DateColumn, self).__init__(**kwds)
-
-    def dbRestore(self, db_value, context=None):
-        """
-        Converts a stored database value to Python.
-
-        :param backend: <orb.Database>
-        :param py_value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-        return db_value
 
     def value_from_string(self, value, context=None):
         """
@@ -116,7 +141,7 @@ class DateColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value).date()
         else:
-            time_struct = time.strptime(value, self.defaultFormat())
+            time_struct = time.strptime(value, self.default_format())
             return datetime.date(time_struct.tm_year,
                                  time_struct.tm_month,
                                  time_struct.tm_day)
@@ -130,18 +155,18 @@ class DateColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime(self.defaultFormat())
+        return value.strftime(self.default_format())
 
 
 class DatetimeColumn(AbstractDatetimeColumn):
-    TypeMap = {
+    __default_engine__ = DatetimeColumnEngine(type_map={
         'Postgres': 'TIMESTAMP WITHOUT TIME ZONE',
         'SQLite': 'TEXT',
         'MySQL': 'DATETIME'
-    }
+    })
 
     def __init__(self, **kwds):
-        kwds.setdefault('defaultFormat', '%Y-%m-%d %H:%M:%S')
+        kwds.setdefault('default_format', '%Y-%m-%d %H:%M:%S')
 
         super(DatetimeColumn, self).__init__(**kwds)
 
@@ -157,7 +182,7 @@ class DatetimeColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            time_struct = time.strptime(value, self.defaultFormat())
+            time_struct = time.strptime(value, self.default_format())
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -174,27 +199,27 @@ class DatetimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime(self.defaultFormat())
+        return value.strftime(self.default_format())
 
 
 class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
-    TypeMap = {
+    __default_engine__ = DatetimeColumnEngine(type_map={
         'Postgres': 'TIMESTAMP WITHOUT TIME ZONE',
         'SQLite': 'TEXT',
         'MySQL': 'DATETIME'
-    }
+    })
 
     def __init__(self, **kwds):
-        kwds.setdefault('defaultFormat', '%Y-%m-%d %H:%M:%S')
+        kwds.setdefault('default_format', '%Y-%m-%d %H:%M:%S')
 
         super(DatetimeWithTimezoneColumn, self).__init__(**kwds)
 
 
-    def dbStore(self, typ, py_value):
+    def get_database_value(self, plugin_name, py_value, context=None):
         """
         Prepares to store this column for the a particular backend database.
 
-        :param backend: <orb.Database>
+        :param plugin_name: <str>
         :param py_value: <variant>
 
         :return: <variant>
@@ -207,7 +232,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
                 py_value = tz.localize(py_value)
             return py_value.astimezone(pytz.utc).replace(tzinfo=None)
         else:
-            return super(DatetimeWithTimezoneColumn, self).dbStore(typ, py_value)
+            return super(DatetimeWithTimezoneColumn, self).get_database_value(plugin_name, py_value, context=context)
 
     def restore(self, value, context=None):
         """
@@ -270,7 +295,7 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
         if dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            time_struct = time.strptime(value, self.defaultFormat())
+            time_struct = time.strptime(value, self.default_format())
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -287,15 +312,15 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime(self.defaultFormat())
+        return value.strftime(self.default_format())
 
 
 class IntervalColumn(AbstractDatetimeColumn):
-    TypeMap = {
+    __default_engine__ = DatetimeColumnEngine(type_map={
         'Postgres': 'INTERVAL',
         'SQLite': 'TEXT',
         'MySQL': 'TEXT'
-    }
+    })
 
     def value_from_string(self, value, context=None):
         """
@@ -319,18 +344,18 @@ class IntervalColumn(AbstractDatetimeColumn):
 
 
 class TimeColumn(AbstractDatetimeColumn):
-    TypeMap = {
+    __default_engine__ = DatetimeColumnEngine(type_map={
         'Postgres': 'TIME',
         'SQLite': 'TEXT',
         'MySQL': 'TIME'
-    }
+    })
 
     def __init__(self, **kwds):
-        kwds.setdefault('defaultFormat', '%H:%M:%S')
+        kwds.setdefault('default_format', '%H:%M:%S')
 
         super(TimeColumn, self).__init__(**kwds)
 
-    def dbRestore(self, db_value, context=None):
+    def get_api_value(self, plugin_name, db_value, context=None):
         """
         Converts a stored database value to Python.
 
@@ -344,7 +369,7 @@ class TimeColumn(AbstractDatetimeColumn):
             minutes, seconds = divmod(remain, 60)
             return datetime.time(hours, minutes, seconds)
         else:
-            return super(TimeColumn, self).dbRestore(db_value, context=context)
+            return super(TimeColumn, self).get_api_value(plugin_name, db_value, context=context)
 
     def value_from_string(self, value, context=None):
         """
@@ -358,7 +383,7 @@ class TimeColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value).time()
         else:
-            time_struct = time.strptime(value, self.defaultFormat())
+            time_struct = time.strptime(value, self.default_format())
             return datetime.time(time_struct.tm_hour,
                                  time_struct.tm_min,
                                  time_struct.tm_sec)
@@ -372,41 +397,42 @@ class TimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime(self.defaultFormat())
+        return value.strftime(self.default_format())
 
 
 class TimestampColumn(AbstractDatetimeColumn):
-    TypeMap = {
+    __default_engine__ = DatetimeColumnEngine(type_map={
         'Postgres': 'BIGINT',
         'SQLite': 'INTEGER',
         'MySQL': 'BIGINT'
-    }
+    })
 
-    def dbRestore(self, db_value, context=None):
+    def get_api_value(self, plugin_name, db_value, context=None):
         """
         Restores the value from a table cache for usage.
 
-        :param      value   | <variant>
+        :param db_value: <variant>
                     context | <orb.Context> || None
         """
         if isinstance(db_value, (int, long, float)):
             return datetime.datetime.fromtimestamp(db_value)
         else:
-            return super(TimestampColumn, self).dbRestore(db_value, context=context)
+            return super(TimestampColumn, self).get_api_value(plugin_name, db_value, context=context)
 
-    def dbStore(self, typ, py_value):
+    def get_database_value(self, plugin_name, py_value, context=None):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
 
-        :param      value | <variant>
+        :param plugin_name: <str>
+        :param py_value: <variant>
 
-        :return     <variant>
+        :return: <variant>
         """
         if isinstance(py_value, datetime.datetime):
             return time.mktime(py_value.timetuple())
         else:
-            return super(TimestampColumn, self).dbStore(typ, py_value)
+            return super(TimestampColumn, self).get_database_value(plugin_name, py_value, context=context)
 
     def value_from_string(self, value, context=None):
         """
@@ -425,14 +451,14 @@ class TimestampColumn(AbstractDatetimeColumn):
 
 
 class UTC_DatetimeColumn(AbstractDatetimeColumn):
-    TypeMap = {
+    __default_engine__ = DatetimeColumnEngine(type_map={
         'Postgres': 'TIMESTAMP',
         'SQLite': 'TEXT',
         'MySQL': 'DATETIME'
-    }
+    })
 
     def __init__(self, **kwds):
-        kwds.setdefault('defaultFormat', '%Y-%m-%d %H:%M:%S')
+        kwds.setdefault('default_format', '%Y-%m-%d %H:%M:%S')
 
         super(UTC_DatetimeColumn, self).__init__(**kwds)
 
@@ -449,7 +475,7 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
         elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:
-            time_struct = time.strptime(value, self.defaultFormat())
+            time_struct = time.strptime(value, self.default_format())
             return datetime.datetime(time_struct.tm_year,
                                      time_struct.tm_month,
                                      time_struct.tm_day,
@@ -466,17 +492,17 @@ class UTC_DatetimeColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        return value.strftime(self.defaultFormat())
+        return value.strftime(self.default_format())
 
 
 class UTC_TimestampColumn(AbstractDatetimeColumn):
-    TypeMap = {
+    __default_engine__ = DatetimeColumnEngine(type_map={
         'Postgres': 'BIGINT',
         'SQLite': 'TEXT',
         'MySQL': 'BIGINT'
-    }
+    })
 
-    def dbRestore(self, db_value, context=None):
+    def get_api_value(self, plugin_name, db_value, context=None):
         """
         Restores the value from a table cache for usage.
 
@@ -486,9 +512,9 @@ class UTC_TimestampColumn(AbstractDatetimeColumn):
         if isinstance(db_value, (int, long, float)):
             return datetime.datetime.fromtimestamp(db_value)
         else:
-            return super(UTC_TimestampColumn, self).dbRestore(db_value, context=context)
+            return super(UTC_TimestampColumn, self).get_api_value(plugin_name, db_value, context=context)
 
-    def dbStore(self, typ, py_value):
+    def get_database_value(self, plugin_name, py_value, context=None):
         """
         Converts the value to one that is safe to store on a record within
         the record values dictionary
@@ -500,7 +526,7 @@ class UTC_TimestampColumn(AbstractDatetimeColumn):
         if isinstance(py_value, datetime.datetime):
             return time.mktime(py_value.timetuple())
         else:
-            return super(UTC_TimestampColumn, self).dbStore(typ, py_value)
+            return super(UTC_TimestampColumn, self).get_database_value(plugin_name, py_value, context=context)
 
     def value_from_string(self, value, context=None):
         """

@@ -5,34 +5,58 @@ the backend.
 
 import orb
 
+from collections import defaultdict
 from ..utils.text import safe_eval
+from .query import Query
 
 
 class ColumnEngine(object):
-    MathMap = {
-        'Default': {
-            'Add': u'{field} + {value}',
-            'Subtract': u'{field} - {value}',
-            'Multiply': u'{field} * {value}',
-            'Divide': u'{field} / {value}',
-            'And': u'{field} & {value}',
-            'Or': u'{field} | {value}'
-        }
-    }
-
-    def __init__(self, type_map=None, math_map=None):
+    def __init__(self, type_map=None):
         self.__type_map = type_map or {}
-        self.__math_map = math_map or {}
+        self.__math_operators = defaultdict(dict)
 
-    def database_restore(self, column, db_value, context=None):
+        # populate the default operator definitions
+        self.assign_operators({
+            Query.Math.Add: u'+',
+            Query.Math.Subtract: u'-',
+            Query.Math.Multiply: u'*',
+            Query.Math.Divide: u'/',
+            Query.Math.And: u'&',
+            Query.Math.Or: u'|'
+        })
+
+    def assign_operator(self, op, symbol, plugin_name='default'):
         """
-        Converts a stored database value to Python.
+        Assigns the symbol to the given math operator.  If no specific connection plugin
+        name is specified, then this will override the default operator definition.
 
-        :param typ: <str>
-        :param py_value: <variant>
+        :param op: <orb.Query.Math>
+        :param symbol: <unicode>
+        :param plugin_name: <str>
+        """
+        self.__math_operators[plugin_name][op] = symbol
+
+    def assign_operators(self, operators, plugin_name='default'):
+        """
+        Updates the mapping between the query operators and the symbols for a particular connection
+        plugin.  If no explicit plugin is provided, then the default associations will be updated.
+
+        :param operators: {<Query.Math>: <unicode> symbol, ..}
+        :param plugin_name: <str>
+        """
+        self.__math_operators[plugin_name].update(operators)
+
+    def get_api_value(self, column, plugin_name, db_value, context=None):
+        """
+        Restores data from a backend connection and converts it back
+        to a Python value that is expected by the system.
+
+        :param column: <orb.Column>
+        :param plugin_name: <str>
+        :param db_value: <variant>
         :param context: <orb.Context>
 
-        :return: <variant>
+        :return: <variant> python value
         """
         # restore translatable column
         if (column.test_flag(orb.Column.Flags.I18n) and
@@ -47,23 +71,18 @@ class ColumnEngine(object):
         else:
             return db_value
 
-    def database_math(self, column, typ, field, op, value):
+    def get_column_type(self, column, plugin_name):
         """
-        Performs some database math on the given field.  This will be database specific
-        implementations and should return the resulting database operation.
+        Returns the database object type based on the given connection type.
 
-        :param field: <str>
-        :param op: <orb.Query.Math>
-        :param target: <variant>
-        :param context: <orb.Context> || None
+        :param column: <str>
+        :param plugin_name:  <str>
 
         :return: <str>
         """
-        ops = orb.Query.Math(op)
-        format = self.MathMap.get(typ, {}).get(ops) or self.MathMap.get('Default').get(ops) or '{field}'
-        return format.format(field=field, value=value)
+        return self.__type_map.get(plugin_name, self.__type_map.get('default'))
 
-    def database_store(self, column, typ, py_value):
+    def get_database_value(self, column, plugin_name, py_value, context=None):
         """
         Prepares to store this column for the a particular backend database.
 
@@ -75,7 +94,7 @@ class ColumnEngine(object):
         """
         # convert base types to work in the database
         if isinstance(py_value, (list, tuple, set)):
-            py_value = tuple((self.database_store(x) for x in py_value))
+            py_value = tuple((self.get_database_value(x, context=context) for x in py_value))
         elif isinstance(py_value, orb.Collection):
             py_value = py_value.ids()
         elif isinstance(py_value, orb.Model):
@@ -83,12 +102,20 @@ class ColumnEngine(object):
 
         return py_value
 
-    def database_type(self, column, typ):
+    def get_math_statment(self, column, plugin_name, field, op, value):
         """
-        Returns the database object type based on the given connection type.
+        Generates a mathematical statement for the backend based on the plugin type
+        and operator mappings associated with this engine.
 
-        :param typ:  <str>
+        :param column: <orb.Column>
+        :param plugin_name: <str>
+        :param field: <unicode>
+        :param op: <Query.Math>
+        :param value: <variant>
 
         :return: <str>
         """
-        return self.__type_map.get(typ, self.__database_types.get('default'))
+        explicit = self.__math_operators[plugin_name]
+        implicit = self.__math_operators[plugin_name]
+        db_op = explicit.get(op, implicit[op])
+        return u' '.join(field, db_op, value)

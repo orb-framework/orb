@@ -256,7 +256,8 @@ class CREATE(MySQLStatement):
                 raise orb.errors.ModelNotFound(schema=inherits)
 
             id_column = inherits_model.schema().id_column()
-            id_type = id_column.dbType('MySQL').replace('AUTO_INCREMENT', '').strip()
+            engine = id_column.get_engine('MySQL')
+            id_type = engine.get_column_type(id_column, 'MySQL').replace('AUTO_INCREMENT', '').strip()
             base_id_column = model.schema().id_column()
 
             inherits = '`{0}` {1} REFERENCES `{2}`\n'.format(base_id_column.field(),
@@ -284,7 +285,8 @@ class CREATE(MySQLStatement):
         # create the i18n model
         if add_i18n:
             id_column = model.schema().id_column()
-            id_type = id_column.dbType('MySQL')
+            engine = id_column.get_engine('MySQL')
+            id_type = engine.get_column_type(id_column, 'MySQL')
 
             field_statements = []
 

@@ -64,8 +64,9 @@ class WHERE(PSQLStatement):
             value_key = u'{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
 
             # calculate any math operations to the sql field
+            engine = column.get_engine('Postgres')
             for op, target in query.math():
-                field = column.dbMath('Default', field, op, target)
+                field = engine.get_math_statement(column, 'MySQL', field, op, target)
 
             # get the additional information
             value = query.value()

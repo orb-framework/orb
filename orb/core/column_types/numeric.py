@@ -1,10 +1,26 @@
+import demandimport
 import projex.text
 import random
 
-from projex.lazymodule import lazy_import
 from ..column import Column
+from ..column_engine import ColumnEngine
 
-orb = lazy_import('orb')
+with demandimport.enabled():
+    import orb
+
+
+class DecimalColumnEngine(ColumnEngine):
+    def get_column_type(self, column, plugin_name):
+        """
+        Re-implements the get_column_type method from `orb.ColumnEngine`.
+
+        This method will return the database type based on the given decimal column.
+
+        :param column: <orb.DecimalColumn>
+        """
+        db_type = super(DecimalColumnEngine, self).get_column_type(column, plugin_name)
+        return db_type.format(precision=column.precision(), scale=column.scale())
+
 
 class AbstractNumericColumn(Column):
     def __init__(self, minimum=None, maximum=None, **kwds):
@@ -65,11 +81,11 @@ class AbstractNumericColumn(Column):
 
 
 class DecimalColumn(AbstractNumericColumn):
-    TypeMap = {
-        'Postgres': 'DECIMAL',
-        'SQLite': 'REAL',
-        'MySQL': 'DECIMAL'
-    }
+    __default_engine__ = DecimalColumnEngine(type_map={
+        'Postgres': u'DECIMAL({precision}, {scale})',
+        'SQLite': u'REAL',
+        'MySQL': u'DECIMAL({precision}, {scale})'
+    })
 
     def __init__(self, precision=65, scale=30, **kwds):
         super(DecimalColumn, self).__init__(**kwds)
@@ -77,12 +93,6 @@ class DecimalColumn(AbstractNumericColumn):
         # define custom properties
         self.__precision = precision
         self.__scale = scale
-
-    def dbType(self, connectionType):
-        if connectionType in ('Postgres', 'MySQL'):
-            return 'DECIMAL({0}, {1})'.format(self.precision(), self.scale())
-        else:
-            return super(DecimalColumn, self).dbType(connectionType)
 
     def precision(self):
         """
@@ -120,19 +130,19 @@ class DecimalColumn(AbstractNumericColumn):
 
 
 class FloatColumn(AbstractNumericColumn):
-    TypeMap = {
+    __default_engine__ = ColumnEngine(type_map={
         'Postgres': 'DOUBLE PRECISION',
         'SQLite': 'REAL',
         'MySQL': 'DOUBLE'
-    }
+    })
 
 
 class IntegerColumn(AbstractNumericColumn):
-    TypeMap = {
+    __default_engine__ = ColumnEngine(type_map={
         'Postgres': 'INTEGER',
         'SQLite': 'INTEGER',
         'MySQL': 'INTEGER'
-    }
+    })
 
     def __init__(self, minimum=None, maximum=None, **kwds):
         if minimum is None:
@@ -146,11 +156,11 @@ class IntegerColumn(AbstractNumericColumn):
 
 
 class LongColumn(AbstractNumericColumn):
-    TypeMap = {
+    __default_engine__ = ColumnEngine(type_map={
         'Postgres': 'BIGINT',
         'SQLite': 'INTEGER',
         'MySQL': 'BIGINT'
-    }
+    })
 
     def __init__(self, minimum=None, maximum=None, **kwds):
         if minimum is None:

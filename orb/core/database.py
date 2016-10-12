@@ -334,7 +334,7 @@ class Database(object):
 
         # initialize the database
         event = orb.events.SyncEvent(context=context)
-        Connection.synced.send(self.__connection, event=event)
+        orb.Connection.synced.send(self.__connection, event=event)
 
         namespaces = set()
         info = conn.schema_info(context)
