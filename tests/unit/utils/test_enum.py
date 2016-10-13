@@ -16,6 +16,8 @@ def test_enum_definition(mock_binary_enum):
 def test_enum_get_by_key(mock_binary_enum):
     assert mock_binary_enum['Required'] == 1
     assert mock_binary_enum['Unique'] == 2
+    assert mock_binary_enum('Required') == 1
+    assert mock_binary_enum('Unique') == 2
 
     with pytest.raises(KeyError):
         assert mock_binary_enum['Test']
@@ -25,6 +27,9 @@ def test_enum_get_by_value(mock_binary_enum):
     assert mock_binary_enum[1] == 'Required'
     assert mock_binary_enum[2] == 'Unique'
     assert mock_binary_enum[4] == 'Expanded'
+
+    assert mock_binary_enum(1) == 'Required'
+    assert mock_binary_enum(2) == 'Unique'
 
     with pytest.raises(KeyError):
         assert mock_binary_enum[3]
@@ -68,3 +73,11 @@ def test_enum_fetch_all_values(mock_binary_enum):
     all = mock_binary_enum.all()
     assert all == 7
 
+
+def test_enum_flag_checker(mock_binary_enum):
+    assert mock_binary_enum.test_flag(3, 1) is True
+    assert mock_binary_enum.test_flag(2, 4) is False
+    assert mock_binary_enum.test_flag('Required', 1) is True
+    assert mock_binary_enum.test_flag({'Required', 'Expanded'}, 1) is True
+    assert mock_binary_enum.test_flag(3, 'Required') is True
+    assert mock_binary_enum.test_flag(3, {'Required', 'Expanded'}) is True

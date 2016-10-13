@@ -61,11 +61,13 @@ class ColumnEngine(object):
         # restore translatable column
         if (column.test_flag(orb.Column.Flags.I18n) and
             isinstance(db_value, (str, unicode))):
+            context = context or orb.Context()
             if db_value.startswith('{') and db_value.endswith('}'):
-                try:
-                    return safe_eval(db_value)
-                except StandardError:
+                result = safe_eval(db_value)
+                if not isinstance(result, dict):
                     return {context.locale: db_value}
+                else:
+                    return result
             else:
                 return {context.locale: db_value}
         else:
@@ -94,15 +96,15 @@ class ColumnEngine(object):
         """
         # convert base types to work in the database
         if isinstance(py_value, (list, tuple, set)):
-            py_value = tuple((self.get_database_value(x, context=context) for x in py_value))
+            py_value = tuple((self.get_database_value(column, plugin_name, x, context=context) for x in py_value))
         elif isinstance(py_value, orb.Collection):
-            py_value = py_value.ids()
+            py_value = tuple(py_value.ids())
         elif isinstance(py_value, orb.Model):
             py_value = py_value.id()
 
         return py_value
 
-    def get_math_statment(self, column, plugin_name, field, op, value):
+    def get_math_statement(self, column, plugin_name, field, op, value):
         """
         Generates a mathematical statement for the backend based on the plugin type
         and operator mappings associated with this engine.
@@ -116,6 +118,6 @@ class ColumnEngine(object):
         :return: <str>
         """
         explicit = self.__math_operators[plugin_name]
-        implicit = self.__math_operators[plugin_name]
+        implicit = self.__math_operators['default']
         db_op = explicit.get(op, implicit[op])
-        return u' '.join(field, db_op, value)
+        return u' '.join((field, db_op, value))

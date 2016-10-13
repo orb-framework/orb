@@ -40,12 +40,12 @@ class SQLConnection(orb.Connection):
         self.__pool = defaultdict(Queue)
 
         # create connections
-        self.synced.connect(self.on_sync, sender=self)
+        self.about_to_sync.connect(self.on_pre_sync, sender=self)
 
     # ----------------------------------------------------------------------
     #                       EVENTS
     # ----------------------------------------------------------------------
-    def on_sync(self, sender, event=None):
+    def on_pre_sync(self, sender, event=None):
         """
         Initializes the database by defining any additional structures that are required during selection.
         """
@@ -430,7 +430,7 @@ class SQLConnection(orb.Connection):
 
             # process a pre-connect event
             event = orb.events.ConnectionEvent()
-            db.onPreConnect(event)
+            orb.Database.about_to_connect.send(db, event=event)
 
             self.__poolSize[host] += 1
             try:
@@ -440,7 +440,7 @@ class SQLConnection(orb.Connection):
                 raise
             else:
                 event = orb.events.ConnectionEvent(success=conn is not None, native=conn)
-                db.onPostConnect(event)
+                orb.Database.connected.send(db, event=event)
                 return conn
 
     def rollback(self):

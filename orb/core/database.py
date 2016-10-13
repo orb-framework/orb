@@ -1,82 +1,193 @@
-""" Defines the base database class. """
-
-# ------------------------------------------------------------------------------
-
+import blinker
+import demandimport
 import logging
 
 from collections import defaultdict
-from multiprocessing.util import register_after_fork
-from projex.lazymodule import lazy_import
-from projex.text import nativestring as nstr
+
+with demandimport.enabled():
+    import orb
 
 log = logging.getLogger(__name__)
-orb = lazy_import('orb')
-errors = lazy_import('orb.errors')
 
 
 class Database(object):
-    """ Contains all the database connectivity information. """
+    """
+    Defines a description class for a backend connection.  The `Database`
+    class will maintain the connection requirement information that a backend
+    connection will use to communicate with the raw server.
+    """
+
+    # define database signals
+    about_to_connect = blinker.Signal()
+    connected = blinker.Signal()
+    disconnected = blinker.Signal()
+
     def __init__(self,
-                 connectionType,
+                 connection=None,
                  code='',
                  username='',
                  password='',
                  host=None,
                  port=None,
                  name=None,
-                 writeHost=None,
+                 write_host=None,
                  timeout=20000,
-                 credentials=None):
+                 credentials=None,
+                 system=None):
 
         # define custom properties
         self.__connection = None
         self.__code = code
         self.__name = name
         self.__host = host
-        self.__writeHost = writeHost
+        self.__write_host = write_host
         self.__port = port
         self.__username = username
         self.__password = password
         self.__credentials = credentials
         self.__timeout = timeout  # ms
+        self.__system = None
 
-        # setup the connection type
-        self.setConnection(connectionType)
+        # setup the database connection
+        self.set_connection(connection)
+
+        # auto-register if the system was provided
+        if system:
+            self.set_system(system)
 
     def __del__(self):
         self.disconnect()
 
-    # ---------------------------------------------------------------
-    #                           EVENT METHODS
-    # ---------------------------------------------------------------
-
-    def onPreConnect(self, event):
-        pass
-
-    def onPostConnect(self, event):
-        pass
-
-    def onDisconnect(self, event):
-        pass
-
-    # ---------------------------------------------------------------
-    #                           PUBLIC METHODS
-    # ---------------------------------------------------------------
-
-    def activate(self, manager=None):
+    def _create_tables(self, connection, tables, context):
         """
-        Activates this database within the given orb instance.  This will
-        register the database to orb and then set it as the active one.
-        
-        :param      manager | <orb.Manager>
+        Creates new tables on the backend connection.
+
+        :param connection: <orb.Connection>
+        :param tables: [<orb.Table>, ..]
+        :param context: <orb.Context>
         """
-        manager = manager or orb.system
-        manager.activate(self)
-        return True
+        namespaces = set()
+        info = connection.schema_info(context)
+
+        # create new models
+        for table in tables:
+            schema = table.schema()
+            if schema.dbname() in info:
+                continue
+            else:
+                # ensure the namespace exists
+                namespace = schema.namespace(context=context)
+                if namespace and namespace not in namespaces:
+                    connection.create_namespace(namespace, context)
+                    namespaces.add(namespace)
+
+                # create the new table
+                connection.create_model(table,
+                                        context,
+                                        include_references=False,
+                                        owner=self.username())
+
+    def _create_views(self, connection, views, context):
+        """
+        Creates new views on the backend connection.
+
+        :param connection: <orb.Connection>
+        :param views: [<orb.View>, ..]
+        :param context: <orb.Context>
+        """
+        namespaces = set()
+        for view in views:
+            namespace = view.schema().namespace(context=context)
+            if namespace and namespace not in namespaces:
+                connection.create_namespace(namespace, context)
+                namespaces.add(namespace)
+
+            # create the new view
+            connection.create_model(view, context)
+
+    def _update_tables(self, connection, tables, context):
+        """
+        Updates existing tables based on the backend connection.
+
+        :param connection: <orb.Connection>
+        :param tables: [<orb.Table>, ..]
+        :param context: <orb.Context>
+        """
+        # update after any newly created tables get generated
+        info = connection.schema_info(context)
+
+        virtual_flag = orb.Column.Flags.Virtual
+
+        for table in tables:
+            schema = table.schema()
+            if not schema.dbname() in info:
+                continue
+            else:
+                model_info = info[schema.dbname()]
+
+                db_fields = model_info['fields'] or []
+                db_indexes = model_info['indexes'] or []
+
+                columns = schema.columns(recurse=False, flags=~virtual_flag).values()
+                indexes = schema.indexes(recurse=False, flags=~virtual_flag).values()
+
+                # collect the missing columns and indexes
+                add = {
+                    'fields': [col for col in columns if col.field() not in db_fields],
+                    'indexes': [index for index in indexes if index.dbname() not in db_indexes]
+                }
+
+                # alter the model with the new indexes
+                if add['fields'] or add['indexes']:
+                    connection.alter_model(table, context, add=add, owner=self.username())
+
+    def _sync_models(self, connection, models, context):
+        """
+        Runs the background logic for syncing the database models from the
+        system to the connection.
+
+        :param connection: <orb.Connection>
+        :param models: [subclass of <orb.Model>, ..]
+        :param context: <orb.Context>
+        """
+        abstract_flag = orb.Schema.Flags.Abstract
+
+        # break models into tables and views (tables get created first)
+        tables = []
+        views = []
+        for model in models:
+            if model.schema().test_flag(abstract_flag):
+                continue
+            elif issubclass(model, orb.View):
+                views.append(model)
+            elif issubclass(model, orb.Table):
+                tables.append(model)
+            else:  # pragma: no cover
+                raise RuntimeError('Invalid model type found')
+
+        # sync the different processes
+        self._create_tables(connection, tables, context)
+        self._update_tables(connection, tables, context)
+        self._create_views(connection, views, context)
+
+    def activate(self):
+        """
+        Activates this database by registering it to the system that
+        the database is associated with as the currenct connection.
+
+        :return: <bool>
+        """
+        # check if we already have a system, and if not, register to
+        # the global system instance
+        if self.__system is None:
+            self.set_system(orb.system)
+
+        return self.__system.activate(self)
 
     def create_namespace(self, namespace, **context):
         """
-        Creates a new namespace within this database.
+        Proxy method for the database connection's `create_namespace`
+        method.
 
         :param namespace: <str>
 
@@ -91,17 +202,22 @@ class Database(object):
         Returns the ID code for this database.  Using codes for different database instances will allow
         you to define multiple schema types for more complex systems.
 
-        :return:    <str>
+        :return: <str>
         """
         return self.__code
 
     def connection(self):
         """
         Returns the backend Connection plugin instance for this database.
+        If no connection type has yet been associated with this database, this
+        method will raise a `BackendNotFound` error.
 
-        :return     <orb.Connection> || None
+        :return: <orb.Connection>
         """
-        return self.__connection
+        if self.__connection is None:
+            raise orb.errors.BackendNotFound('No backend defined')
+        else:
+            return self.__connection
 
     def connection_type(self):
         """
@@ -109,7 +225,7 @@ class Database(object):
 
         :return: <str>
         """
-        return self.__connection.get_plugin_name()
+        return self.connection().get_plugin_name()
 
     def cleanup(self):
         """
@@ -117,7 +233,7 @@ class Database(object):
         of modifications, and is specific to the backend as to how necessary
         it is.
         """
-        self.__connection.cleanup()
+        self.connection().cleanup()
 
     def credentials(self):
         """
@@ -125,59 +241,61 @@ class Database(object):
         this will be a combination of the username, password and application
         token.
         
-        :return     <tuple>
+        :return: (<str> client_secret, <str> client_id)
         """
         return self.__credentials or (self.username(), self.password())
 
     def disconnect(self):
         """
-        Disconnects the current database connection from the
-        network.
+        Proxy method for this database connection's close method.
                     
-        :return     <bool>
+        :return: <bool>
         """
-        return self.__connection.close()
+        return self.connection().close()
 
     def host(self):
         """
         Returns the host location assigned to this
         database object.
         
-        :returns    <str>
+        :return: <str>
         """
         return self.__host
 
-    def interrupt(self, threadId=None):
+    def interrupt(self, thread_id=None):
         """
-        Interrupts the thread at the given id.
+        Proxy for this database connection's `interrupt` method.
         
-        :param      threadId | <int> || None
+        :param thread_id: <int> or None
+
+        :return: <bool>
         """
-        back = self.backend()
-        if back:
-            back.interrupt(threadId)
+        return self.connection().interrupt(thread_id)
 
     def is_connected(self):
         """
-        Returns whether or not the database is connected to its server.
+        Proxy for this database connection's `is_connected` method.
         
-        :return     <bool>
+        :return: <bool>
         """
-        return self.__connection.is_connected()
+        return self.connection().is_connected()
 
     def timeout(self):
         """
         Returns the maximum number of milliseconds to allow a query to occur before timing it out.
 
-        :return     <int>
+        :return: <int> milliseconds
         """
         return self.__timeout
 
     def name(self):
         """
-        Returns the database name for this database instance.
+        Returns the database name for this database instance.  This
+        will be what the connection is requried to connect to, and does
+        not need to be the identifier (`code`).  If no name is explicitly
+        set however, the `code` will be used.
         
-        :return     <str>
+        :return: <str>
         """
         return self.__name or self.code()
 
@@ -185,7 +303,7 @@ class Database(object):
         """
         Returns the password used for this database instance.
         
-        :return     <str>
+        :return: <str>
         """
         return self.__password
 
@@ -193,113 +311,136 @@ class Database(object):
         """
         Returns the port number to connect to the host on.
         
-        :return     <int>
+        :return: <int>
         """
         return self.__port
 
-    def set_name(self, name):
-        """
-        Sets the database name that will be used at the lower level to manage \
-        connections to various backends.
-        
-        :param      name | <str>
-        """
-        self.__name = name
-
-    def setCredentials(self, credentials):
-        """
-        Sets the credentials for this database to the inputted argument
-        list.  This is most often used with the REST based backends.
-        
-        :param      credentials | <tuple> || None
-        """
-        self.__credentials = credentials
-
-    def setConnection(self, connection):
+    def set_connection(self, connection):
         """
         Assigns the backend connection for this database instance.
 
-        :param connection: <str> || <orb.Connection>
+        :param connection: <str> or <orb.Connection> or None
         """
-        # define custom properties
-        if not isinstance(connection, orb.Connection):
+        # for a None connection, don't bother doing anything special
+        if connection is None:
+            pass
+
+        # for a non-connection instance, generate the connection
+        # based off the plugin
+        elif not isinstance(connection, orb.Connection):
             conn = orb.Connection.get_plugin(connection)
             if not conn:
                 raise orb.errors.BackendNotFound(connection)
             connection = conn(self)
+
+        # otherwise, associate the database to the connection
         else:
             connection.set_database(self)
 
         self.__connection = connection
 
-    def setDefault(self, state):
+    def set_credentials(self, credentials):
         """
-        Sets whether or not this database is the default database.
-        
-        :param      state | <bool>
-        """
-        self._default = state
+        Sets the credentials for this database to the inputted argument
+        list.  This is most often used with the REST based backends.
 
-    def setTimeout(self, msecs):
+        :param credentials: (<str> client_id, <str> client_secret) or None
         """
-        Sets the maximum number of milliseconds to allow a query to run on
-        the server before canceling it.
+        self.__credentials = credentials
 
-        :param      msecs | <int>
-        """
-        self.__timeout = msecs
-
-    def setHost(self, host):
+    def set_host(self, host):
         """
         Sets the host path location assigned to this
         database object.  By default, this value will be used
         for both reads and writes.  To set a write specific host,
-        use the setWriteHost method.
-        
-        :param      host      <str>
+        use the set_write_host method.  If set to `None`, the
+        backend connection will choose an appropriate default (normally
+        `localhost`)
+
+        :param host: <str> or None
         """
         self.__host = host
 
     def set_name(self, name):
         """
-        Sets the database name for this instance to the given name.
+        Sets the database name that will be used at the lower level to manage \
+        connections to various backends.
 
-        :param      name   <str>
+        :param name: <str>
         """
         self.__name = name
 
-    def setPassword(self, password):
-        """ 
+    def set_password(self, password):
+        """
         Sets the password for the connection for this database.
-        
-        :param      password    <str>
+
+        :param password: <str>
         """
         self.__password = password
 
-    def setPort(self, port):
+    def set_port(self, port):
         """
-        Sets the port number to connect to.  The default value
-        will be 5432.
-        
-        :param      port    <int>
+        Sets the port number to connect to.  If the port is `None`, then
+        the backend connection will choose an appropriate default.
+
+        :param port: <int> or None
         """
         self.__port = port
 
-    def setUsername(self, username):
+    def set_system(self, system):
+        """
+        Sets the system that this database is associated with.
+
+        :param system: <orb.System> or None
+        """
+        # no need for change
+        if system is self.__system:
+            return
+
+        # need to unregister this database from the original system
+        # on a change
+        elif self.__system is not None:
+            self.__system.unregister(self)
+
+        self.__system = system
+
+        # will register this database to the system if changed
+        if system is not None:
+            system.register(self)
+
+    def set_timeout(self, timeout):
+        """
+        Sets the maximum number of milliseconds to allow a query to run on
+        the server before canceling it.
+
+        :param timeout: <int> milliseconds
+        """
+        self.__timeout = timeout
+
+    def set_username(self, username):
         """
         Sets the username used for this database connection.
         
-        :param      username        <str>
+        :param username: <str>
         """
-        self.__username = nstr(username)
+        self.__username = username
 
-    def setWriteHost(self, host):
+    def set_write_host(self, host):
         """
-        Sets the host to use for write operations.
+        Sets the host to use for write operations.  This can be used
+        if you want to explicitly separate where writes go from reads.
 
         :param host: <str>
         """
-        self.__writeHost = host
+        self.__write_host = host
+
+    def system(self):
+        """
+        Returns the system this database is associated with.
+
+        :return: <orb.System>
+        """
+        return self.__system
 
     def sync(self, models=None, **context):
         """
@@ -309,95 +450,60 @@ class Database(object):
         flag is specified, then all the resulting commands will
         just be logged to the current logger and not actually 
         executed on the database.
-        
-        :note       From version 0.6.0 on, this method now accepts a mutable
-                    keyword dictionary of values.  You can supply any member 
-                    value for either the <orb.LookupOptions> or
-                    <orb.Context>, 'options' for
-                    an instance of the <orb.Context>
-        
-        :return     <bool> success
+
+        :param models: [subclass of <orb.Model>, ..] or None
+
+        :return: <bool> success
         """
         context = orb.Context(**context)
+        conn = self.connection()
 
-        # collect the information for this database
-        conn = self.__connection
-        all_models = orb.system.models(orb.Model).values()
-        all_models.sort(cmp=lambda x,y: cmp(x.schema(), y.schema()))
-
-        tables = [model for model in all_models if issubclass(model, orb.Table) and
-                  not model.schema().test_flag(orb.Schema.Flags.Abstract) and
-                  (not models or model.schema().name() in models)]
-        views = [model for model in all_models if issubclass(model, orb.View) and
-                  not model.schema().test_flag(orb.Schema.Flags.Abstract) and
-                  (not models or model.schema().name() in models)]
-
-        # initialize the database
+        # notify that the connection is about to sync
         event = orb.events.SyncEvent(context=context)
-        orb.Connection.synced.send(self.__connection, event=event)
+        conn.about_to_sync.send(conn, event=event)
+        if event.preventDefault:
+            return False
 
-        namespaces = set()
-        info = conn.schema_info(context)
+        # if no models were provided, then plan to sync all models
+        if models is None:
+            models = self.system().models().values()
 
-        # create new models
-        for model in tables:
-            if model.schema().dbname() not in info:
-                namespace = model.schema().namespace()
-                if namespace and namespace not in namespaces:
-                    conn.create_namespace(namespace, context)
-                    namespaces.add(namespace)
+        # order the models based on their heirarchy
+        models.sort(key=lambda x: x.schema())
 
-                conn.create_model(model, context, include_references=False, owner=self.username())
-
-        # update after any newly created tables get generated
-        info = conn.schema_info(context)
-
-        for model in tables:
-            try:
-                model_info = info[model.schema().dbname()]
-            except KeyError:
-                continue
-            else:
-                # collect the missing columns and indexes
-                add = defaultdict(list)
-                for col in model.schema().columns(recurse=False).values():
-                    if col.field() not in (model_info['fields'] or []) and not col.test_flag(col.Flags.Virtual):
-                        add['fields'].append(col)
-
-                for index in model.schema().indexes(recurse=False).values():
-                    if index.dbname() not in (model_info['indexes'] or []):
-                        add['indexes'].append(index)
-
-                # alter the model with the new indexes
-                if add['fields'] or add['indexes']:
-                    conn.alter_model(model, context, add=add, owner=self.username())
-
-        for model in tables:
-            # call the sync event
+        # notify the models before the sync
+        accepted_models = []
+        for model in models:
             event = orb.events.SyncEvent(model=model)
-            if model.processEvent(event):
-                model.onSync(event)
+            model.about_to_sync.send(model, event=event)
+            if not event.preventDefault:
+                accepted_models.append(model)
 
-        # sync views last
-        for view in views:
-            conn.create_model(view, context)
-            event = orb.events.SyncEvent(model=view)
-            if view.processEvent(event):
-                view.onSync(event)
+        # sync the backend models
+        self._sync_models(conn, accepted_models, context)
+
+        # notify the models after the sync
+        for model in accepted_models:
+            event = orb.events.SyncEvent(model=model)
+            model.synced.send(model, event=event)
+
+        # notify that the connection has finished syncing
+        conn.synced.send(conn, event=event)
+        return True
 
     def username(self):
         """
         Returns the username used for the backend of this
         instance.
         
-        :return     <str>
+        :return: <str>
         """
         return self.__username
 
-    def writeHost(self):
+    def write_host(self):
         """
         Returns the host used for write operations.
 
         :return: <str>
         """
-        return self.__writeHost or self.__host
+        return self.__write_host or self.__host

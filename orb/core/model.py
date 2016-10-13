@@ -3,6 +3,7 @@ Defines the main Table class that will be used when developing
 database classes.
 """
 
+import blinker
 import logging
 import projex.rest
 import projex.text
@@ -31,6 +32,10 @@ class Model(object):
     __model__ = False
     __search_engine__ = 'basic'
     __auth__ = None
+
+    # signals
+    about_to_sync = blinker.Signal()
+    synced = blinker.Signal()
 
     def __len__(self):
         return len(self.schema().columns())

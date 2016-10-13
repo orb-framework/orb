@@ -24,6 +24,7 @@ class Connection(object):
 
     Signals
     ----
+    * about_to_sync
     * synced
 
     Usage
@@ -34,14 +35,19 @@ class Connection(object):
                 super(MyConnection, self).__init__(database)
 
                 # create event connections
-                Connection.synced.connect(self.on_sync, sender=self)
+                Connection.about_to_sync.connect(self.on_pre_sync, sender=self)
+                Connection.synced.connect(self.on_post_sync, sender=self)
 
-            def on_sync(self, sender, event=None):
+            def on_pre_sync(self, sender, event=None):
+                print sender, event
+
+            def on_post_sync(self, sender, event=None):
                 print sender, event
     """
     __plugin_name__ = ''
 
     # define connection signals
+    about_to_sync = blinker.Signal()
     synced = blinker.Signal()
 
     def __init__(self, database):
@@ -75,8 +81,8 @@ class Connection(object):
 
         :param model: subclass of <orb.Model>
         :param context: <orb.Context>
-        :param add: [<orb.Column> or <orb.Index> or <orb.Collector>, ..] or None
-        :param remove: [<orb.Column> or <orb.Index> or <orb.Collector>, ..] or None
+        :param add: {'fields': [<orb.Column>, ..], 'indexes': [<orb.Index>, ..]} or None
+        :param remove: {'fields': [<orb.Column>, ..], 'indexes': [<orb.Index>, ..]} or None
         :param owner: <str>
 
         :return: <bool> success
