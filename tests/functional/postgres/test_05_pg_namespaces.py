@@ -2,7 +2,7 @@ def test_pg_namespace_sync(orb, pg_db, namespace_models):
     conn = pg_db.connection()
 
     with orb.Context(namespace='test_namespace_a'):
-        pg_db.sync(models=namespace_models.keys())
+        pg_db.sync(models=namespace_models.values())
 
         result_default = conn.execute('SELECT * FROM test_namespace_a.test_defaults ORDER BY id DESC LIMIT 1')[0]
         result_explicit = conn.execute('SELECT * FROM test_explicit.test_explicits ORDER BY id DESC LIMIT 1')[0]
@@ -14,7 +14,7 @@ def test_pg_second_namespace_sync(orb, pg_db, namespace_models):
     conn = pg_db.connection()
 
     with orb.Context(namespace='test_namespace_b'):
-        pg_db.sync(models=namespace_models.keys())
+        pg_db.sync(models=namespace_models.values())
 
         result_default = conn.execute('SELECT * FROM test_namespace_b.test_defaults ORDER BY id DESC LIMIT 1')[0]
         result_explicit = conn.execute('SELECT * FROM test_explicit.test_explicits ORDER BY id DESC LIMIT 1')[0]

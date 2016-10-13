@@ -165,7 +165,8 @@ class System(object):
         :param db: <orb.Database>
         :param force: <bool>
         """
-        if db.code() in self.__databases and not force:
+        existing = self.__databases.get(db.code())
+        if existing and existing is not db and not force:
             raise orb.errors.DuplicateEntryFound('{0} is already a registered database'.format(db.code()))
         else:
             self.__databases[db.code()] = db
@@ -178,7 +179,8 @@ class System(object):
         :param schema: <orb.Schema>
         :param force: <bool>
         """
-        if schema.name() in self.__schemas and not force:
+        existing = self.__schemas.get(schema.name())
+        if existing and existing is not schema and not force:
             raise orb.errors.DuplicateEntryFound('{0} is already a registered schema'.format(schema.name()))
         else:
             self.__schemas[schema.name()] = schema

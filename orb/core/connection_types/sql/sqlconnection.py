@@ -387,7 +387,7 @@ class SQLConnection(orb.Connection):
 
         :return     <varaint> native connection
         """
-        host = self.database().writeHost() if writeAccess else self.database().host()
+        host = self.database().write_host() if writeAccess else self.database().host()
         conn = self.open(writeAccess=writeAccess)
         try:
             if isolation_level is not None:
@@ -418,7 +418,7 @@ class SQLConnection(orb.Connection):
 
         :return     <variant> || None
         """
-        host = self.database().writeHost() if writeAccess else self.database().host()
+        host = self.database().write_host() if writeAccess else self.database().host()
         pool = self.__pool[host]
 
         if self.__poolSize[host] >= self.__maxSize or pool.qsize():

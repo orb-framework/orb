@@ -2,7 +2,7 @@ def test_my_namespace_sync(orb, my_db, namespace_models):
     conn = my_db.connection()
 
     with orb.Context(namespace='test_namespace_a'):
-        my_db.sync(models=namespace_models.keys())
+        my_db.sync(models=namespace_models.values())
 
         result_default = conn.execute('SELECT * FROM test_namespace_a.test_defaults ORDER BY id DESC LIMIT 1')[0]
         result_explicit = conn.execute('SELECT * FROM test_explicit.test_explicits ORDER BY id DESC LIMIT 1')[0]
@@ -14,7 +14,7 @@ def test_my_second_namespace_sync(orb, my_db, namespace_models):
     conn = my_db.connection()
 
     with orb.Context(namespace='test_namespace_b'):
-        my_db.sync(models=namespace_models.keys())
+        my_db.sync(models=namespace_models.values())
 
         result_default = conn.execute('SELECT * FROM test_namespace_b.test_defaults ORDER BY id DESC LIMIT 1')[0]
         result_explicit = conn.execute('SELECT * FROM test_explicit.test_explicits ORDER BY id DESC LIMIT 1')[0]

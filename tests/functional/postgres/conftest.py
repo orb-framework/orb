@@ -8,13 +8,14 @@ def pg_db(request):
 
     db = orb.Database('Postgres')
     db.set_name('orb_testing')
-    db.setHost('localhost')
-    db.setUsername(getpass.getuser())
-    db.setPassword('')
+    db.set_host('localhost')
+    db.set_username(getpass.getuser())
+    db.set_password('')
     db.activate()
 
     def fin():
         db.disconnect()
+        orb.system.unregister(db)
 
     request.addfinalizer(fin)
 
