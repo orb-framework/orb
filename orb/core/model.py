@@ -764,11 +764,11 @@ class Model(object):
     def set(self, column, value, use_method=True, **context):
         """
         Sets the value for this record at the inputted column
-        name.  If the columnName provided doesn't exist within
+        name.  If the column name provided doesn't exist within
         the schema, then the ColumnNotFound error will be
         raised.
 
-        :param      columnName      | <str>
+        :param      column      | <str>
                     value           | <variant>
 
         :return     <bool> changed

@@ -1,5 +1,6 @@
 import orb
 
+
 class Callback(object):
     """
     Helper class used to listen for an event and then trigger a call
@@ -11,26 +12,18 @@ class Callback(object):
         self.kwds = kwds
 
     def __call__(self, event):
-        self.method(*self.args, **self.kwds)
+        return self.method(*self.args, **self.kwds)
 
 
 class Event(object):
+    """ Base class used for propagating events throughout the system """
     def __init__(self):
         self.preventDefault = False
 
+
+# database events
 # ---------------
 
-class RecordEvent(Event):
-    def __init__(self, record=None):
-        super(RecordEvent, self).__init__()
-
-        self.record=record
-
-class ModelEvent(Event):
-    def __init__(self, model=None):
-        super(ModelEvent, self).__init__()
-
-        self.model = model
 
 class DatabaseEvent(Event):
     def __init__(self, database=None):
@@ -38,7 +31,6 @@ class DatabaseEvent(Event):
 
         self.database = database
 
-# ---------------
 
 class ConnectionEvent(DatabaseEvent):
     def __init__(self, success=True, native=None, **options):
@@ -47,8 +39,35 @@ class ConnectionEvent(DatabaseEvent):
         self.success = success
         self.native = native
 
-class PreConnectionEvent(ConnectionEvent): pass
-class PostConnectionEvent(ConnectionEvent): pass
+
+# model events
+# ---------------
+
+
+class ModelEvent(Event):
+    def __init__(self, model=None):
+        super(ModelEvent, self).__init__()
+
+        self.model = model
+
+
+class SyncEvent(ModelEvent):
+    def __init__(self, context=None, **options):
+        super(SyncEvent, self).__init__(**options)
+
+        self.context = context
+
+
+# record events
+# ---------------
+
+
+class RecordEvent(Event):
+    def __init__(self, record=None):
+        super(RecordEvent, self).__init__()
+
+        self.record = record
+
 
 class ChangeEvent(RecordEvent):
     def __init__(self, column=None, old=None, value=None, **options):
@@ -72,21 +91,6 @@ class ChangeEvent(RecordEvent):
             if not isinstance(self.old, model):
                 return model(self.old)
 
-class InitEvent(RecordEvent):
-    pass
-
-
-class SaveEvent(RecordEvent):
-    def __init__(self, context=None, newRecord=False, changes=None, result=True, **options):
-        super(SaveEvent, self).__init__(**options)
-
-        self.context = context
-        self.newRecord = newRecord
-        self.result = result
-        self.changes = changes
-
-class PreSaveEvent(SaveEvent): pass
-class PostSaveEvent(SaveEvent): pass
 
 class DeleteEvent(RecordEvent):
     def __init__(self, context=None, **options):
@@ -113,6 +117,11 @@ class DeleteEvent(RecordEvent):
             if not event.preventDefault:
                 yield record
 
+
+class InitEvent(RecordEvent):
+    pass
+
+
 class LoadEvent(RecordEvent):
     def __init__(self, data=None, **options):
         super(LoadEvent, self).__init__(**options)
@@ -120,8 +129,20 @@ class LoadEvent(RecordEvent):
         self.data = data
 
 
-class SyncEvent(ModelEvent):
-    def __init__(self, context=None, **options):
-        super(SyncEvent, self).__init__(**options)
+class SaveEvent(RecordEvent):
+    def __init__(self, context=None, newRecord=False, changes=None, result=True, **options):
+        super(SaveEvent, self).__init__(**options)
 
         self.context = context
+        self.newRecord = newRecord
+        self.result = result
+        self.changes = changes
+
+
+class PreSaveEvent(SaveEvent):
+    pass
+
+
+class PostSaveEvent(SaveEvent):
+    pass
+

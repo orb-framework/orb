@@ -21,7 +21,7 @@ class CREATE_INDEX(SQLiteStatement):
 
         cols = ['`{0}`'.format(col.field()) if col.test_flag(col.Flags.CaseSensitive)
                 else '`{0}` COLLATE NOCASE'.format(col.field())
-                for col in index.columns()]
+                for col in index.schema_columns()]
 
         cmd = '{0} INDEX `{1}` ON `{2}` ({3})'.format(cmd, index_name, schema_name, ', '.join(cols))
 

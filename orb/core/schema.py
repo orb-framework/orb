@@ -270,14 +270,17 @@ class Schema(object):
 
         :return     <orb.Column> or None
         """
-        cache_key = (key, recurse, flags)
-
         # lookup a specific column
         if isinstance(key, orb.Column):
-            return key
+            if key.schema() is self:
+                return key
+            else:
+                key = key.name()
+
+        cache_key = (key, recurse, flags)
 
         # lookup based on the cache
-        elif cache_key in self.__cache:
+        if cache_key in self.__cache:
             output = self.__cache[cache_key]
             if output is None and raise_:
                 raise orb.errors.ColumnNotFound(schema=self, column=key)
