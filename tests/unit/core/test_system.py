@@ -54,10 +54,14 @@ def test_create_and_register_database():
     assert system.database('test-db') == db
 
     with pytest.raises(errors.DatabaseNotFound):
-        system.database('test-db2')
+        assert system.database('test-db2')
 
+    # check for duplicate entries
+    db2 = Database(MockConnection(), 'test-db')
+
+    assert system.register(db) is None
     with pytest.raises(errors.DuplicateEntryFound):
-        system.register(db)
+        assert system.register(db2)
 
 
 def test_create_and_register_schema():
@@ -82,8 +86,12 @@ def test_create_and_register_schema():
         assert system.model('Group')
     with pytest.raises(orb.errors.ModelNotFound):
         assert system.schema('Group')
+
+    # check for duplicate entries
+    user2 = orb.Schema(name='User')
+    assert system.register(User) is None
     with pytest.raises(orb.errors.DuplicateEntryFound):
-        assert system.register(User)
+        assert system.register(user2)
 
 
 def test_adding_models_to_scope():

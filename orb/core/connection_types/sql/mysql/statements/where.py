@@ -30,7 +30,7 @@ class WHERE(MySQLStatement):
         else:
             column = query.column(model)
             if not column:
-                raise orb.errors.ColumnNotFound(schema=model.schema(), column=query.columnName())
+                raise orb.errors.ColumnNotFound(schema=model.schema(), column=query.column_name())
 
             # generate the sql field
             field = fields.get(column) or self.generateField(model, column, query, aliases)

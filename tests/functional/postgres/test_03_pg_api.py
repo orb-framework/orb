@@ -373,8 +373,8 @@ def test_read_write_servers(orb, Comment):
     write_host = '127.0.0.1'
 
     # connect to different read/write servers
-    db.setHost(read_host)
-    db.setWriteHost(write_host)
+    db.set_host(read_host)
+    db.set_write_host(write_host)
 
     conn = db.connection()
     orig_open = conn.open

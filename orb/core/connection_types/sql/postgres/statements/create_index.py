@@ -22,7 +22,7 @@ class CREATE_INDEX(PSQLStatement):
         cols = ['lower("{0}"::varchar)'.format(col.field())
                 if isinstance(col, orb.AbstractStringColumn) and not col.test_flag(col.Flags.CaseSensitive)
                 else '"{0}"'.format(col.field())
-                for col in index.columns()]
+                for col in index.schema_columns()]
 
         cmd = '{0} INDEX "{1}" ON "{2}" ({3})'.format(cmd, index_name, schema_name, ', '.join(cols))
 

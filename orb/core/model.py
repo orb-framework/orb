@@ -3,6 +3,7 @@ Defines the main Table class that will be used when developing
 database classes.
 """
 
+import blinker
 import logging
 import projex.rest
 import projex.text
@@ -31,6 +32,10 @@ class Model(object):
     __model__ = False
     __search_engine__ = 'basic'
     __auth__ = None
+
+    # signals
+    about_to_sync = blinker.Signal()
+    synced = blinker.Signal()
 
     def __len__(self):
         return len(self.schema().columns())
@@ -759,11 +764,11 @@ class Model(object):
     def set(self, column, value, use_method=True, **context):
         """
         Sets the value for this record at the inputted column
-        name.  If the columnName provided doesn't exist within
+        name.  If the column name provided doesn't exist within
         the schema, then the ColumnNotFound error will be
         raised.
 
-        :param      columnName      | <str>
+        :param      column      | <str>
                     value           | <variant>
 
         :return     <bool> changed

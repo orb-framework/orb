@@ -23,15 +23,15 @@ class MockConnection(orb.Connection):
 
         :param model: <orb.Model>
         :param context: <orb.Context>
-        :param add: <list> || None
-        :param remove: <list> || None
+        :param add: {'fields': [<orb.Column>, ..], 'indexes': [<orb.Index>, ..]} or None
+        :param remove: {'fields': [<orb.Column>, ..], 'indexes': [<orb.Index>, ..]} or None
         :param owner: <str>
         """
         # validate inputs
         assert issubclass(model, orb.Model)
-        assert isinstance(model, orb.Context)
-        assert (add is None or type(add) is list)
-        assert (remove is None or type(remove) is list)
+        assert isinstance(context, orb.Context)
+        assert (add is None or type(add) is dict)
+        assert (remove is None or type(remove) is dict)
 
         # return the desired response
         return self.next_response('alter_model', model, context, add, remove, owner)

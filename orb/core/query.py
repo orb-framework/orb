@@ -159,10 +159,10 @@ class Query(object):
         :param      *args           <tuple>
                     
                     #. None
-                    #. <str> columnName
+                    #. <str> column name
                     #. <orb.Column>
                     #. <subclass of Table>
-                    #. (<subclass of Table> table,<str> columnName)
+                    #. (<subclass of Table> table,<str> column name)
                     
         :param      **options       <dict> options for the query.
         
@@ -630,7 +630,7 @@ class Query(object):
                 for col in val.columns(model):
                     yield col
 
-    def columnName(self):
+    def column_name(self):
         """
         Returns the column name that this query instance is
         looking up.
@@ -889,7 +889,7 @@ class Query(object):
         
         :return     <bool>
         """
-        return '.' in self.columnName()
+        return '.' in self.column_name()
 
     def inverted(self):
         """
@@ -1372,6 +1372,20 @@ class QueryCompound(object):
                 return QueryCompound(*queries, op=QueryCompound.Op.And)
             else:
                 return QueryCompound(self, other, op=QueryCompound.Op.And)
+
+    def at(self, index):
+        """
+        Returns the query or compound at the given index for this compound.
+        If the index is out of bounds, then a None value will be returned.
+
+        :param index: <int>
+
+        :return: <orb.Query> or <orb.QueryCompound> or None
+        """
+        try:
+            return self.__queries[index]
+        except IndexError:
+            return None
 
     def copy(self):
         """

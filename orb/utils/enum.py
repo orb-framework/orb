@@ -105,8 +105,10 @@ class enum(object):
         :return: <bool>
         """
         # convert a flag from a string to the enumerated value
-        if isinstance(check_flag, (str, unicode)):
+        if not type(check_flag) is int:
             check_flag = self(check_flag)
-        elif isinstance(check_flag, set):
-            check_flag = self.from_set(check_flag)
+
+        if not type(source_flags) is int:
+            source_flags = self(source_flags)
+
         return bool(source_flags & check_flag) if check_flag >= 0 else not bool(source_flags & ~check_flag)
