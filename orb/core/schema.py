@@ -321,7 +321,6 @@ class Schema(object):
         # return the column based on the standard lookup
         else:
             cols = self.columns(recurse=recurse, flags=flags)
-            print self.__model, key, cols.keys()
             try:
                 output = cols[key]
             except KeyError:

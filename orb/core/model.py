@@ -1236,11 +1236,6 @@ class Model(object):
                 break
 
     @classmethod
-    def schema(cls):
-        """  Returns the class object's schema information. """
-        return getattr(cls, '_{0}__schema'.format(cls.__name__), None)
-
-    @classmethod
     def search(cls, terms, **context):
         if isinstance(cls.__search_engine__, (str, unicode)):
             engine = SearchEngine.byName(cls.__search_engine__)
