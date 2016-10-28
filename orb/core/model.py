@@ -265,6 +265,7 @@ class Model(object):
                 values.update(value)
             else:
                 record.append(value)
+        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
 
         # restore the database update values
         if loader is not None:
@@ -272,7 +273,7 @@ class Model(object):
 
         # initialize a new record if no record is provided
         elif not record:
-            self.init()
+            self.init(ignore=update_values.keys())
 
         # otherwise, fetch the record from the database
         else:
@@ -297,7 +298,6 @@ class Model(object):
                 raise errors.RecordNotFound(schema=self.schema(), column=record_id)
 
         # after loading everything else, update the values for this model
-        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
         if update_values:
             self.update(update_values)
 
@@ -601,10 +601,13 @@ class Model(object):
         useMethod = column.name() != 'id'
         return self.get(column, useMethod=useMethod, **context)
 
-    def init(self):
+    def init(self, ignore=None):
         columns = self.schema().columns().values()
+        ignore = [self.schema().column(c) for c in ignore]
         with WriteLocker(self.__dataLock):
             for column in columns:
+                if column in ignore:
+                    pass
                 if column.name() not in self.__values and not column.testFlag(column.Flags.Virtual):
                     value = column.default()
                     if column.testFlag(column.Flags.I18n):
