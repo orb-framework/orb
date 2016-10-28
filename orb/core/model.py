@@ -4,23 +4,24 @@ database classes.
 """
 
 import blinker
+import demandimport
 import logging
-import projex.rest
-import projex.text
 
 from collections import defaultdict
-from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
-from projex.lazymodule import lazy_import
-from projex import funcutil
+
+from ..utils import json2
+from ..utils.text import nativestring
+from ..utils.locks import ReadLocker, ReadWriteLock, WriteLocker
+from ..utils import funcutil
 from ..decorators import deprecated
 
 from .metamodel import MetaModel
 from .search import SearchEngine
 
+with demandimport.enabled():
+    import orb
 
 log = logging.getLogger(__name__)
-orb = lazy_import('orb')
-errors = lazy_import('orb.errors')
 
 
 class Model(object):
@@ -74,7 +75,7 @@ class Model(object):
         else:
             output = dict(self)
 
-        return projex.rest.jsonify(output) if context.format == 'text' else output
+        return json2.dumps(output) if context.format == 'text' else output
 
     def __iter__(self):
         """
@@ -178,11 +179,11 @@ class Model(object):
         :return     <str>
         """
         if not spec:
-            return projex.text.nativestring(self)
+            return nativestring(self)
         elif spec == 'id':
-            return projex.text.nativestring(self.id())
+            return nativestring(self.id())
         elif self.has(spec):
-            return projex.text.nativestring(self.get(spec))
+            return nativestring(self.get(spec))
         else:
             return super(Model, self).__format__(spec)
 
@@ -1282,6 +1283,15 @@ class Model(object):
         :param      query | <orb.Query> || None
         """
         setattr(cls, '_%s__baseQuery' % cls.__name__, query)
+
+    @classmethod
+    def schema(cls):
+        """
+        Returns the schema that is associated with this model, if any is defined.
+
+        :return: <orb.Schema> or None
+        """
+        return getattr(cls, '_{0}__schema'.format(cls.__name__), None)
 
     @deprecated
     def isRecord(self, db=None):

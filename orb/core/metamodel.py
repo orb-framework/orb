@@ -277,3 +277,4 @@ class MetaModel(type):
         :return: <orb.Schema> or None
         """
         return getattr(cls, '_{0}__schema'.format(cls.__name__), None)
+
