@@ -607,8 +607,8 @@ class Model(object):
         with WriteLocker(self.__dataLock):
             for column in columns:
                 if column in ignore:
-                    pass
-                if column.name() not in self.__values and not column.testFlag(column.Flags.Virtual):
+                    continue
+                elif column.name() not in self.__values and not column.testFlag(column.Flags.Virtual):
                     value = column.default()
                     if column.testFlag(column.Flags.I18n):
                         value = {self.__context.locale: value}
