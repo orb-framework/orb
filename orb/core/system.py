@@ -137,3 +137,21 @@ class System(object):
 
     def setSecurity(self, security):
         self.__security = security
+
+    def unregister(self, obj=None):
+        """
+        Unregisters the object from the system.  If None is supplied, then
+        all objects will be unregistered
+
+        :param obj: <str> or <orb.Database> or <orb.Schema> or None
+        """
+        if obj is None:
+            self.__databases.clear()
+            self.__schemas.clear()
+        elif isinstance(obj, orb.Schema):
+            self.__schemas.pop(obj.name(), None)
+        elif isinstance(obj, orb.Database):
+            self.__databases.pop(obj.name(), None)
+        else:
+            self.__schemas.pop(obj, None)
+            self.__databases.pop(obj, None)
