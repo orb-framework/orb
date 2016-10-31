@@ -20,7 +20,7 @@ class CREATE_INDEX(PSQLStatement):
         cmd = 'CREATE' if not index.test_flag(index.Flags.Unique) else 'CREATE UNIQUE'
 
         cols = ['lower("{0}"::varchar)'.format(col.field())
-                if isinstance(col, orb.AbstractStringColumn) and not col.test_flag(col.Flags.CaseSensitive)
+                if isinstance(col, orb.StringColumn) and not col.test_flag(col.Flags.CaseSensitive)
                 else '"{0}"'.format(col.field())
                 for col in index.schema_columns()]
 

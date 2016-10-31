@@ -155,7 +155,7 @@ class Database(object):
         # break models into tables and views (tables get created first)
         tables = []
         views = []
-        for model in models:
+        for model in sorted(models, key=lambda x: x.schema()):
             if model.schema().test_flag(abstract_flag):
                 continue
             elif issubclass(model, orb.View):
@@ -485,7 +485,9 @@ class Database(object):
         # notify the models after the sync
         for model in accepted_models:
             event = orb.events.SyncEvent(model=model)
-            model.synced.send(model, event=event)
+            model.onSync(event)
+            if not event.preventDefault:
+                model.synced.send(model, event=event)
 
         # notify that the connection has finished syncing
         conn.synced.send(conn, event=event)

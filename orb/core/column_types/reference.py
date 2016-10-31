@@ -38,14 +38,17 @@ class ReferenceColumnEngine(ColumnEngine):
         # apply cusotm logic
         if plugin_name == 'Postgres':
             id_type = id_type if id_type != 'SERIAL' else 'BIGINT'
+            namespace = id_column.schema().namespace() or 'public'
         elif plugin_name == 'MySQL':
             id_type = id_type.replace('AUTO_INCREMENT', '').strip()
+            namespace = id_column.schema().namespace() or 'public'
 
         # generate the formatting options
         opts = {
             'table': schema.dbname(),
             'field': id_column.field(),
-            'id_type': id_type
+            'id_type': id_type,
+            'namespace': namespace
         }
 
         base_type = super(ReferenceColumnEngine, self).get_column_type(column, plugin_name)
@@ -103,8 +106,8 @@ class ReferenceColumn(Column):
 
     """
     __default_engine__ = ReferenceColumnEngine(type_map={
-        'Postgres': u'{id_type} REFERENCES "{table}"."{field}"',
-        'MySQL': u'{id_type} REFERENCES `{table}`.`{field}`',
+        'Postgres': u'{id_type} REFERENCES "{namespace}"."{table}"("{field}")',
+        'MySQL': u'{id_type} REFERENCES `{namespace}`.`{table}`(`{field}`)',
         'default': u'{id_type}'
     })
 

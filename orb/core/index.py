@@ -45,7 +45,7 @@ class Index(object):
         if schema:
             schema.register(self)
 
-    def __call__(self, model, *values, **context):
+    def __call__(self, *values, **context):
         """
         Calls the index as a function.  This will generate a query
         for the given model based on the index's columns and the given
@@ -59,23 +59,18 @@ class Index(object):
 
         :return: <orb.Collection> or <orb.Model> or None
         """
-        my_schema = self.schema() or model.schema()
+        schema = self.schema()
+        if schema is None:
+            raise orb.errors.ModelNotFound()
 
-        # ensure the schemas match up
-        if model.schema() is not my_schema:
-            given = model.schema().name()
-            expected = my_schema.name()
-            raise orb.errors.OrbError('{0} is not a {1} type'.format(given, expected))
+        model = schema.model()
+        context['where'] = self.build_query(values, schema=schema) & context.get('where')
 
-        # execute the index lookup logic
-        else:
-            context['where'] = self.build_query(values, schema=my_schema) & context.get('where')
+        if self.__order:
+            context.setdefault('order', self.__order)
 
-            if self.__order:
-                context.setdefault('order', self.__order)
-
-            records = model.select(**context)
-            return records.first() if self.test_flag(self.Flags.Unique) else records
+        records = model.select(**context)
+        return records.first() if self.test_flag(self.Flags.Unique) else records
 
     def __eq__(self, other):
         return self is other

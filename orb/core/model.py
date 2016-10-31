@@ -300,7 +300,7 @@ class Model(object):
                 event = orb.events.LoadEvent(record=self, data=data)
                 self._load(event)
             else:
-                raise errors.RecordNotFound(schema=self.schema(), column=record_id)
+                raise orb.errors.RecordNotFound(schema=self.schema(), column=record_id)
 
         # after loading everything else, update the values for this model
         update_values = {k: v for k, v in values.items() if self.schema().column(k)}
@@ -569,7 +569,7 @@ class Model(object):
                             self.__cache[collector][sub_context] = records
                             return records
                     else:
-                        raise errors.ColumnNotFound(schema=self.schema(), column=column)
+                        raise orb.errors.ColumnNotFound(schema=self.schema(), column=column)
 
             # don't inflate if the requested value is a field
             if sub_context.inflated is None and isinstance(col, orb.ReferenceColumn):
@@ -797,10 +797,10 @@ class Model(object):
 
                     return records
             else:
-                raise errors.ColumnNotFound(schema=self.schema(), column=column)
+                raise orb.errors.ColumnNotFound(schema=self.schema(), column=column)
 
         elif col.test_flag(col.Flags.ReadOnly):
-            raise errors.ColumnReadOnly(schema=self.schema(), column=column)
+            raise orb.errors.ColumnReadOnly(schema=self.schema(), column=column)
 
         context = self.context(**context)
         if use_method:
@@ -962,7 +962,7 @@ class Model(object):
             try:
                 val_key = column if key == 'column' else getattr(column, key)()
             except AttributeError:
-                raise errors.OrbError(
+                raise orb.errors.OrbError(
                     'Invalid key used in data collection.  Must be name, field, or column.'
                 )
             else:
@@ -1096,7 +1096,7 @@ class Model(object):
             elif column.test_flag(column.Flags.Virtual):
                 continue
 
-            if (isinstance(column, orb.AbstractStringColumn) and
+            if (isinstance(column, orb.StringColumn) and
                 not column.test_flag(column.Flags.CaseSensitive) and
                 not column.test_flag(column.Flags.I18n) and
                 isinstance(value, (str, unicode))):
@@ -1214,7 +1214,7 @@ class Model(object):
         data = self.fetch(record_id, inflated=False, context=self.__context)
 
         if not data:
-            raise errors.RecordNotFound(schema=self.schema(),
+            raise orb.errors.RecordNotFound(schema=self.schema(),
                                         column=record_id)
 
         event = orb.events.LoadEvent(record=self, data=data)

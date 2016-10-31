@@ -121,7 +121,8 @@ def process_attrs(store, attrs):
     """
     for key, value in attrs.items():
         if store_schema_object(store, key, value):
-            attrs.pop(key)
+            if not isinstance(attrs[key], orb.Index):
+                attrs.pop(key)
         else:
             store_virtual_schema_object(store, key, value)
 
