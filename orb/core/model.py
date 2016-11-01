@@ -80,6 +80,7 @@ class Model(object):
                 values.update(value)
             else:
                 record.append(value)
+        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
 
         # restore the database update values
         if loader is not None:
@@ -87,7 +88,7 @@ class Model(object):
 
         # initialize a new record if no record is provided
         elif not record:
-            self.init()
+            self.init(ignore=update_values.keys())
 
         # otherwise, fetch the record from the database
         else:
@@ -103,16 +104,15 @@ class Model(object):
             if not self.__delayed:
                 data = self.fetch(record_id, inflated=False, context=self.__context)
             else:
-                data = {self.schema().id_column().name(): record_id}
+                data = {self.schema().idColumn().name(): record_id}
 
             if data:
                 event = orb.events.LoadEvent(record=self, data=data)
                 self._load(event)
             else:
-                raise orb.errors.RecordNotFound(schema=self.schema(), column=record_id)
+                raise errors.RecordNotFound(schema=self.schema(), column=record_id)
 
         # after loading everything else, update the values for this model
-        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
         if update_values:
             self.update(update_values)
 
@@ -612,11 +612,14 @@ class Model(object):
         use_method = column.name() != 'id'
         return self.get(column, use_method=use_method, **context)
 
-    def init(self):
+    def init(self, ignore=None):
         columns = self.schema().columns().values()
+        ignore = [self.schema().column(c) for c in ignore]
         with WriteLocker(self.__dataLock):
             for column in columns:
-                if column.name() not in self.__values and not column.test_flag(column.Flags.Virtual):
+                if column in ignore:
+                    continue
+                elif column.name() not in self.__values and not column.testFlag(column.Flags.Virtual):
                     value = column.default()
                     if column.test_flag(column.Flags.I18n):
                         value = {self.__context.locale: value}
