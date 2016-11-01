@@ -325,6 +325,8 @@ class Collection(object):
 
         :return: <generator>
         """
+        if raw_records is None:
+            return
 
         # if the context is expecting inflated values (full model objects) and the
         # return type is not values (a list of values) or data (a dictionary object)

@@ -110,7 +110,7 @@ class Model(object):
                 event = orb.events.LoadEvent(record=self, data=data)
                 self._load(event)
             else:
-                raise errors.RecordNotFound(schema=self.schema(), column=record_id)
+                raise orb.errors.RecordNotFound(schema=self.schema(), column=record_id)
 
         # after loading everything else, update the values for this model
         if update_values:
@@ -619,7 +619,7 @@ class Model(object):
             for column in columns:
                 if column in ignore:
                     continue
-                elif column.name() not in self.__values and not column.testFlag(column.Flags.Virtual):
+                elif column.name() not in self.__values and not column.test_flag(column.Flags.Virtual):
                     value = column.default()
                     if column.test_flag(column.Flags.I18n):
                         value = {self.__context.locale: value}
