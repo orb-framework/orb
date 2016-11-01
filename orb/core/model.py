@@ -24,6 +24,11 @@ with demandimport.enabled():
 log = logging.getLogger(__name__)
 
 
+class ModelMixin(object):
+    """ Namespace placeholder that will define additional model properties through the meta system """
+    pass
+
+
 class Model(object):
     """
     Defines the base class type that all database records should inherit from.
@@ -37,6 +42,79 @@ class Model(object):
     # signals
     about_to_sync = blinker.Signal()
     synced = blinker.Signal()
+
+    def __init__(self, *info, **context):
+        """
+        Initializes a database record for the table class.  A
+        table model can be initialized in a few ways.  Passing
+        no arguments will create a fresh record that does not
+        exist in the database.  Providing keyword arguments will
+        map to this table's schema column name information,
+        setting default values for the record.  Supplying an
+        argument will be the records unique primary key, and
+        trigger a lookup from the database for the record directly.
+
+        :param      *args       <tuple> primary key
+        :param      **kwds      <dict>  column default values
+        """
+
+        # pop off additional keywords
+        loader = context.pop('loadEvent', None)
+        delayed = context.pop('delay', False)
+
+        context.setdefault('namespace', self.schema().namespace())
+
+        self.__dataLock = ReadWriteLock()
+        self.__values = {}
+        self.__loaded = set()
+        self.__context = orb.Context(**context)
+        self.__cache = defaultdict(dict)
+        self.__preload = {}
+        self.__delayed = delayed
+
+        # extract values to use from the record
+        record = []
+        values = {}
+        for value in info:
+            if isinstance(value, dict):
+                values.update(value)
+            else:
+                record.append(value)
+
+        # restore the database update values
+        if loader is not None:
+            self._load(loader)
+
+        # initialize a new record if no record is provided
+        elif not record:
+            self.init()
+
+        # otherwise, fetch the record from the database
+        else:
+            if len(record) == 1 and isinstance(record[0], Model):
+                record_id = record[0].id()
+                event = orb.events.LoadEvent(record=self, data=dict(record[0]))
+                self._load(event)
+            elif len(record) == 1:
+                record_id = record[0]  # don't use tuples unless multiple ID columns are used
+            else:
+                record_id = tuple(record)
+
+            if not self.__delayed:
+                data = self.fetch(record_id, inflated=False, context=self.__context)
+            else:
+                data = {self.schema().id_column().name(): record_id}
+
+            if data:
+                event = orb.events.LoadEvent(record=self, data=data)
+                self._load(event)
+            else:
+                raise orb.errors.RecordNotFound(schema=self.schema(), column=record_id)
+
+        # after loading everything else, update the values for this model
+        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
+        if update_values:
+            self.update(update_values)
 
     def __len__(self):
         return len(self.schema().columns())
@@ -233,79 +311,6 @@ class Model(object):
             return cmp(my_str, other_str)
         except StandardError:
             return -1
-
-    def __init__(self, *info, **context):
-        """
-        Initializes a database record for the table class.  A
-        table model can be initialized in a few ways.  Passing
-        no arguments will create a fresh record that does not
-        exist in the database.  Providing keyword arguments will
-        map to this table's schema column name information,
-        setting default values for the record.  Supplying an
-        argument will be the records unique primary key, and
-        trigger a lookup from the database for the record directly.
-
-        :param      *args       <tuple> primary key
-        :param      **kwds      <dict>  column default values
-        """
-
-        # pop off additional keywords
-        loader = context.pop('loadEvent', None)
-        delayed = context.pop('delay', False)
-
-        context.setdefault('namespace', self.schema().namespace())
-
-        self.__dataLock = ReadWriteLock()
-        self.__values = {}
-        self.__loaded = set()
-        self.__context = orb.Context(**context)
-        self.__cache = defaultdict(dict)
-        self.__preload = {}
-        self.__delayed = delayed
-
-        # extract values to use from the record
-        record = []
-        values = {}
-        for value in info:
-            if isinstance(value, dict):
-                values.update(value)
-            else:
-                record.append(value)
-
-        # restore the database update values
-        if loader is not None:
-            self._load(loader)
-
-        # initialize a new record if no record is provided
-        elif not record:
-            self.init()
-
-        # otherwise, fetch the record from the database
-        else:
-            if len(record) == 1 and isinstance(record[0], Model):
-                record_id = record[0].id()
-                event = orb.events.LoadEvent(record=self, data=dict(record[0]))
-                self._load(event)
-            elif len(record) == 1:
-                record_id = record[0]  # don't use tuples unless multiple ID columns are used
-            else:
-                record_id = tuple(record)
-
-            if not self.__delayed:
-                data = self.fetch(record_id, inflated=False, context=self.__context)
-            else:
-                data = {self.schema().id_column().name(): record_id}
-
-            if data:
-                event = orb.events.LoadEvent(record=self, data=data)
-                self._load(event)
-            else:
-                raise orb.errors.RecordNotFound(schema=self.schema(), column=record_id)
-
-        # after loading everything else, update the values for this model
-        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
-        if update_values:
-            self.update(update_values)
 
     def _add_preloaded_data(self, cache):
         for key, value in cache.items():
@@ -1293,7 +1298,34 @@ class Model(object):
         """
         return getattr(cls, '_{0}__schema'.format(cls.__name__), None)
 
-    @deprecated
-    def isRecord(self, db=None):
-        """ Deprecated for PEP8 standards.  Use `is_record` instead. """
-        return self.is_record(db=db)
+
+class Table(Model):
+    """ Defines specific database Table model base class """
+    __model__ = False
+
+
+class View(Model):
+    """ Defines specific database View model base class """
+    __model__ = False
+
+    def delete(self, **context):
+        """
+        Re-implements the delete method from `orb.Model`.  Database
+        views are read-only and this will raise a runtime error if
+        called.
+
+        :param context: <orb.Context> descriptor
+        """
+        raise orb.errors.OrbError('View models are read-only.')
+
+    def save(self, **context):
+        """
+        Re-implements the save method from `orb.Model`.  Database
+        views are read-only and this will raise a runtime error if
+        called.
+
+        :param context: <orb.Context> descriptor
+        """
+        raise orb.errors.OrbError('View models are read-only.')
+
+
