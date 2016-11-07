@@ -43,7 +43,10 @@ class Model(object):
     about_to_sync = blinker.Signal()
     synced = blinker.Signal()
 
-    def __init__(self, *info, **context):
+    def __init__(self,
+                 record=None,
+                 delayed=False,
+                 **context):
         """
         Initializes a database record for the table class.  A
         table model can be initialized in a few ways.  Passing
@@ -54,92 +57,103 @@ class Model(object):
         argument will be the records unique primary key, and
         trigger a lookup from the database for the record directly.
 
-        :param      *args       <tuple> primary key
-        :param      **kwds      <dict>  column default values
+        :param record: <variant> id or <dict> values or <orb.Model> instance or None
+        :param delayed: <bool> delays when the lookup for the record occurs
+        :param context: <orb.Context> descriptor
         """
-
-        # pop off additional keywords
-        loader = context.pop('loadEvent', None)
-        delayed = context.pop('delay', False)
-
-        context.setdefault('namespace', self.schema().namespace())
-
-        self.__dataLock = ReadWriteLock()
-        self.__values = {}
-        self.__loaded = set()
-        self.__context = orb.Context(**context)
+        # define custom properties
+        self.__lock = ReadWriteLock()
+        self.__attributes = {}
+        self.__base_attributes = {}
         self.__cache = defaultdict(dict)
+        self.__context = orb.Context(**context)
         self.__preload = {}
         self.__delayed = delayed
 
-        # extract values to use from the record
-        record = []
-        values = {}
-        for value in info:
-            if isinstance(value, dict):
-                values.update(value)
+        # setup context
+        default_namespace = self.schema().namespace()
+        if default_namespace and not (self.__context.namespace or self.__context.force_namespace):
+            self.__context.namespace = default_namespace
+
+        # initialize record from values
+        if type(record) is dict:
+            defaults = dict(self.record_defaults(ignore=record.keys()), context=self.__context)
+            defaults.update(record)
+            self.update(defaults)
+
+        # initialize a record by copying another
+        elif type(record) is type(self):
+            self.update(dict(record))
+
+        # initialize a record by its id
+        elif record is not None:
+            # initialize by casting from a base class
+            if isinstance(record, orb.Model):
+                if not issubclass(type(self), type(record)):
+                    raise orb.errors.RecordNotFound(schema=self.schema(), column=type(record).__name__)
+                else:
+                    record_id = record.id()
+
+            # initialize from id
             else:
-                record.append(value)
-        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
+                record_id = record
 
-        # restore the database update values
-        if loader is not None:
-            self._load(loader)
+            # set the id value for this instance
+            id_column = self.schema().id_column()
+            self.set(id_column, record_id)
 
-        # initialize a new record if no record is provided
-        elif not record:
-            self.init(ignore=update_values.keys())
+            # if this record initialization is not delayed, then read from the
+            # backend immediately
+            if not delayed:
+                self.read()
 
-        # otherwise, fetch the record from the database
+        # initialize defaults for the record
         else:
-            if len(record) == 1 and isinstance(record[0], Model):
-                record_id = record[0].id()
-                event = orb.events.LoadEvent(record=self, data=dict(record[0]))
-                self._load(event)
-            elif len(record) == 1:
-                record_id = record[0]  # don't use tuples unless multiple ID columns are used
-            else:
-                record_id = tuple(record)
-
-            if not self.__delayed:
-                data = self.fetch(record_id, inflated=False, context=self.__context)
-            else:
-                data = {self.schema().idColumn().name(): record_id}
-
-            if data:
-                event = orb.events.LoadEvent(record=self, data=data)
-                self._load(event)
-            else:
-                raise orb.errors.RecordNotFound(schema=self.schema(), column=record_id)
-
-        # after loading everything else, update the values for this model
-        if update_values:
-            self.update(update_values)
+            self.update(dict(self.record_defaults(context=self.__context)))
 
     def __len__(self):
+        """
+        Returns the length of the dictionary that will be returned when
+        doing a dict() on this instance.
+
+        :return: <int>
+        """
         return len(self.schema().columns())
 
     def __getitem__(self, key):
+        """
+        Retrieves the value of the given column from the record.  If there is no
+        valid value found a KeyError is raised.
+
+        :param key: <str>
+
+        :return: <variant>
+        """
         try:
             return self.get(key)
-        except StandardError:
+        except Exception:
             raise KeyError
 
     def __setitem__(self, key, value):
+        """
+        Sets the value of a given column for this record.  If there is no valid
+        column found that matches the key, then a KeyError will be raised.
+
+        :param key: <str>
+        :param value: <variant>
+        """
         try:
             return self.set(key, value)
         except StandardError:
             raise KeyError
 
-    def __json__(self, *args):
+    def __json__(self):
         """
-        Iterates this object for its values.  This will return the field names from the
-        database rather than the API names.  If you want the API names, you should use
-        the recordValues method.
+        Renders this object as a JSON compatible dictionary.  If the context for
+        this record's output is "text" then it will do a dumps on the resulting
+        data, otherwise the dictionary will be returned.
 
-        :sa         recordValues
-
-        :return     <iter>
+        :return: <dict> or <str>
         """
         # additional options
         context = self.context()
@@ -198,7 +212,7 @@ class Model(object):
 
             else:
                 try:
-                    value = self.__values[column.name()][1]
+                    value = self.__attributes[column.name()][1]
                 except KeyError:
                     pass
                 else:
@@ -265,53 +279,6 @@ class Model(object):
         else:
             return super(Model, self).__format__(spec)
 
-    def __eq__(self, other):
-        """
-        Checks to see if the two records are equal to each other
-        by comparing their primary key information.
-
-        :param      other       <variant>
-
-        :return     <bool>
-        """
-        return id(self) == id(other) or (isinstance(other, Model) and hash(self) == hash(other))
-
-    def __ne__(self, other):
-        """
-        Returns whether or not this object is not equal to the other object.
-
-        :param      other | <variant>
-
-        :return     <bool>
-        """
-        return not self.__eq__(other)
-
-    def __hash__(self):
-        """
-        Creates a hash key for this instance based on its primary key info.
-
-        :return     <int>
-        """
-        if not self.is_record():
-            return super(Model, self).__hash__()
-        else:
-            return hash((self.__class__, self.id()))
-
-    def __cmp__(self, other):
-        """
-        Compares one record to another.
-
-        :param      other | <variant>
-
-        :return     -1 || 0 || 1
-        """
-        try:
-            my_str = '{0}({1})'.format(type(self).__name__, self.id())
-            other_str = '{0}({1})'.format(type(self).__name__, other.id())
-            return cmp(my_str, other_str)
-        except StandardError:
-            return -1
-
     def _add_preloaded_data(self, cache):
         for key, value in cache.items():
             self.__preload[key] = value
@@ -358,10 +325,10 @@ class Model(object):
                 clean[column] = value
 
         # update the local values
-        with WriteLocker(self.__dataLock):
+        with WriteLocker(self.__lock):
             for col, val in clean.items():
                 default = val if not isinstance(val, dict) else val.copy()
-                self.__values[col.name()] = (default, val)
+                self.__attributes[col.name()] = (default, val)
                 self.__loaded.add(col)
 
         if self.processEvent(event):
@@ -413,9 +380,9 @@ class Model(object):
                    schema.columns(recurse=recurse, flags=flags).values()
 
         context = self.context(inflated=inflated)
-        with ReadLocker(self.__dataLock):
+        with ReadLocker(self.__lock):
             for col in columns:
-                old, curr = self.__values.get(col.name(), (None, None))
+                old, curr = self.__attributes.get(col.name(), (None, None))
                 if col.test_flag(col.Flags.ReadOnly):
                     continue
                 elif not is_record:
@@ -480,7 +447,7 @@ class Model(object):
             self.__delayed = False
             self.read()
 
-        with WriteLocker(self.__dataLock):
+        with WriteLocker(self.__lock):
             self.__loaded.clear()
 
         context = self.context(**context)
@@ -490,8 +457,8 @@ class Model(object):
         # clear out the old values
         if count == 1:
             col = self.schema().column(self.schema().id_column())
-            with WriteLocker(self.__dataLock):
-                self.__values[col.name()] = (None, None)
+            with WriteLocker(self.__lock):
+                self.__attributes[col.name()] = (None, None)
 
         return count
 
@@ -596,14 +563,14 @@ class Model(object):
                     self.read()
 
                 # grab the current value
-                with ReadLocker(self.__dataLock):
-                    old_value, value = self.__values.get(col.name(), (None, None))
+                with ReadLocker(self.__lock):
+                    old_value, value = self.__attributes.get(col.name(), (None, None))
 
                 # return a reference when desired
                 out_value = col.restore(value, sub_context)
                 if isinstance(out_value, orb.Model) and not isinstance(value, orb.Model):
-                    with WriteLocker(self.__dataLock):
-                        self.__values[col.name()] = (old_value, out_value)
+                    with WriteLocker(self.__lock):
+                        self.__attributes[col.name()] = (old_value, out_value)
 
                 return out_value
 
@@ -615,18 +582,18 @@ class Model(object):
     def init(self, ignore=None):
         columns = self.schema().columns().values()
         ignore = [self.schema().column(c) for c in ignore]
-        with WriteLocker(self.__dataLock):
+        with WriteLocker(self.__lock):
             for column in columns:
                 if column in ignore:
                     continue
-                elif column.name() not in self.__values and not column.test_flag(column.Flags.Virtual):
+                elif column.name() not in self.__attributes and not column.test_flag(column.Flags.Virtual):
                     value = column.default()
                     if column.test_flag(column.Flags.I18n):
                         value = {self.__context.locale: value}
                     elif column.test_flag(column.Flags.Polymorphic):
                         value = type(self).__name__
 
-                    self.__values[column.name()] = (value, value)
+                    self.__attributes[column.name()] = (value, value)
 
         event = orb.events.InitEvent(record=self)
         if self.processEvent(event):
@@ -653,8 +620,8 @@ class Model(object):
 
         if db is None or same_db:
             col = self.schema().id_column()
-            with ReadLocker(self.__dataLock):
-                return (col in self.__loaded) and (self.__values[col.name()][0] is not None)
+            with ReadLocker(self.__lock):
+                return (col in self.__loaded) and (self.__attributes[col.name()][0] is not None)
         else:
             return None
 
@@ -668,10 +635,10 @@ class Model(object):
         columns = {schema.column(col) for col in columns}
         column_names = {col.name() for col in columns}
 
-        with WriteLocker(self.__dataLock):
-            for key, (old_value, new_value) in self.__values.items():
+        with WriteLocker(self.__lock):
+            for key, (old_value, new_value) in self.__attributes.items():
                 if key in column_names:
-                    self.__values[key] = (new_value, new_value)
+                    self.__attributes[key] = (new_value, new_value)
 
             self.__loaded.update(columns)
 
@@ -759,10 +726,10 @@ class Model(object):
 
         # mark all the data as committed
         cols = [self.schema().column(c).name() for c in context.columns or []]
-        with WriteLocker(self.__dataLock):
-            for col_name, (_, value) in self.__values.items():
+        with WriteLocker(self.__lock):
+            for col_name, (_, value) in self.__attributes.items():
                 if not cols or col_name in cols:
-                    self.__values[col_name] = (value, value)
+                    self.__attributes[col_name] = (value, value)
 
         # create post-commit event
         event = orb.events.PostSaveEvent(record=self, context=context, newRecord=new_record, changes=changes)
@@ -824,8 +791,8 @@ class Model(object):
             self.__delayed = False
             self.read()
 
-        with WriteLocker(self.__dataLock):
-            orig, curr = self.__values.get(col.name(), (None, None))
+        with WriteLocker(self.__lock):
+            orig, curr = self.__attributes.get(col.name(), (None, None))
             value = col.store(value, context)
 
             # update the context based on the locale value
@@ -840,7 +807,7 @@ class Model(object):
                 change = True
 
             if change:
-                self.__values[col.name()] = (orig, value)
+                self.__attributes[col.name()] = (orig, value)
 
         # broadcast the change event
         if change:
@@ -855,9 +822,9 @@ class Model(object):
             if self.processEvent(event):
                 self.onChange(event)
             if event.preventDefault:
-                with WriteLocker(self.__dataLock):
-                    orig, _ = self.__values.get(col.name(), (None, None))
-                    self.__values[col.name()] = (orig, curr)
+                with WriteLocker(self.__lock):
+                    orig, _ = self.__attributes.get(col.name(), (None, None))
+                    self.__attributes[col.name()] = (orig, curr)
                 return False
             else:
                 return change
@@ -1227,6 +1194,34 @@ class Model(object):
 
         event = orb.events.LoadEvent(record=self, data=data)
         self._load(event)
+
+    @classmethod
+    def record_defaults(cls, ignore=None, ignore_flags=None, context=None):
+        """
+        Returns the default values for a record of this class type.  You can provide
+        a list of strings or columns to ignore when generating the dictionary, as well
+        as a flag definition of columns to exclude.  If flags is None, then Virtual and
+        ReadOnly columns will not be included.
+
+        :param ignore: None or [<str> column, ..]
+        :param ignore_flags: None or <orb.Column.Flags>
+
+        :return: <generator>
+        """
+        context = context or orb.Context()
+        ignore_flags = ignore_flags or (orb.Column.Flags.Virtual | orb.Column.Flags.ReadOnly)
+        schema = cls.schema()
+        ignore_columns = {schema.column(c) for c in ignore or []}
+        for column in schema.columns(flags=~ignore_flags).values():
+            if column in ignore_columns:
+                continue
+            elif column.test_flag(column.Flags.I18n):
+                yield column.name(), {context.locale: column.default()}
+            elif column.test_flag(column.Flags.Polymorphic):
+                yield column.name(), cls.__name__
+            else:
+                yield column.name(), column.default()
+
 
     @classmethod
     def removeCallback(cls, eventType, func, record=None):

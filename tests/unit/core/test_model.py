@@ -52,6 +52,29 @@ def test_model_constructor_with_i18n_defaults():
     assert record.get('name', locale='en_US') is None
 
 
+def test_model_constructor_with_loader():
+    import orb
+
+    class BasicModel(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+
+    event = orb.LoadEvent({'id': 1, 'name': 'Testing'})
+    record = BasicModel(loadEvent=event)
+    assert record.is_record()
+    assert record.get('id') == 1
+    assert record.get('name') == "Testing"
+
+
+def test_model_constructor_with_multiple_column_id():
+    import orb
+
+    class BasicModel(orb.Table):
+        __register__ = False
+
+
 def test_model_polymorphism():
     import orb
 
