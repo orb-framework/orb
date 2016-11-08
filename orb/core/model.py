@@ -9,6 +9,7 @@ import logging
 
 from collections import defaultdict
 
+from .access_control import AuthorizationPolicy
 from ..utils import json2
 from ..utils.text import nativestring
 from ..utils.locks import ReadLocker, ReadWriteLock, WriteLocker
@@ -37,7 +38,7 @@ class Model(object):
     __metaclass__ = MetaModel
     __model__ = False
     __search_engine__ = 'basic'
-    __auth__ = None
+    __auth__ = AuthorizationPolicy()
 
     # signals
     about_to_sync = blinker.Signal()
@@ -68,7 +69,7 @@ class Model(object):
         self.__cache = defaultdict(dict)
         self.__context = orb.Context(**context)
         self.__preload = {}
-        self.__delayed = delayed
+        self.__loaded = False
 
         # setup context
         default_namespace = self.schema().namespace()
@@ -144,7 +145,7 @@ class Model(object):
         """
         try:
             return self.set(key, value)
-        except StandardError:
+        except Exception:
             raise KeyError
 
     def __json__(self):
@@ -179,105 +180,111 @@ class Model(object):
 
         :return     <iter>
         """
-        if self.is_record() and self.__delayed:
-            self.__delayed = False
-            self.read()
-
-        # additional options
-        context = self.context()
-
-        # hide private columns
-        def _allowed(columns=None, context=None):
-            return not columns[0].test_flag(columns[0].Flags.Private)
-
-        auth = self.__auth__ if callable(self.__auth__) else _allowed
-        expand_tree = context.expandtree(self.__class__)
         schema = self.schema()
+        context = self.context()
+        expand_tree = context.expandtree(type(self))
 
+        # ensure the data is loaded
+        self.read(refresh=False)
+
+        # iterate columns
         if context.columns:
             columns = [schema.column(x) for x in context.columns]
         else:
             columns = schema.columns(flags=~orb.Column.Flags.RequiresExpand).values()
 
-        # extract the data values for this model
         for column in columns:
-            if (not column or
-                    column.test_flag(column.Flags.RequiresExpand) or
-                    not auth(columns=(column,), context=context)):
-                continue
+            self.iter_column(column, tree=expand_tree, context=context)
 
-            elif ((column.test_flag(column.Flags.Virtual) and not isinstance(self, orb.View)) or
-                   column.gettermethod() is not None):
-                yield column.field(), self.get(column, inflated=False)
-
-            else:
-                try:
-                    value = self.__attributes[column.name()][1]
-                except KeyError:
-                    pass
-                else:
-                    if column.test_flag(orb.Column.Flags.I18n) and type(value) == dict:
-                        value = value.get(context.locale)
-
-                    # for references, yield both the raw value for the field
-                    # and the expanded value if desired
-                    if isinstance(column, orb.ReferenceColumn):
-                        if isinstance(value, orb.Model):
-                            yield column.field(), value.id()
-                        else:
-                            yield column.field(), value
-
-                        try:
-                            subtree = expand_tree.pop(column.name())
-                        except KeyError:
-                            pass
-                        else:
-                            reference = self.get(column,
-                                                 expand=subtree,
-                                                 returning=context.returning,
-                                                 scope=context.scope)
-                            output = reference.__json__() if reference is not None else None
-                            yield column.name(), output
-
-                    else:
-                        yield column.field(), column.restore(value, context=context)
-
-        # expand any other values which can include custom
-        # or virtual columns and collectors
+        # iterate expanded objects
         if expand_tree:
-            for key, subtree in expand_tree.items():
-                try:
-                    value = self.get(
-                        key,
-                        expand=subtree,
-                        returning=context.returning,
-                        scope=context.scope
-                    )
-                except orb.errors.ColumnNotFound:
-                    continue
-                else:
-                    if hasattr(value, '__json__'):
-                        yield key, value.__json__()
-                    else:
-                        yield key, value
+            for attribute, value in self.iter_expanded(expand_tree, context=context):
+                yield attribute, value
 
-    def __format__(self, spec):
+    def iter_column(self, column, tree=None, context=None):
         """
-        Formats this record based on the inputted format_spec.  If no spec
-        is supplied, this is the same as calling str(record).
+        Iterates over the values from this model for a given column.  If the
+        column is a reference column, and it's name is included in the expanded
+        tree, then this method will yield both it's raw reference value, and
+        it's expanded value.
 
-        :param      spec | <str>
+        :param column: <orb.Column>
+        :param tree: <dict>
+        :param context: <orb.Context>
 
-        :return     <str>
+        :return: <generator>
         """
-        if not spec:
-            return nativestring(self)
-        elif spec == 'id':
-            return nativestring(self.id())
-        elif self.has(spec):
-            return nativestring(self.get(spec))
+        tree = tree or {}
+        # ignore tree columns
+        if column.test_flag(column.Flags.RequiresExpand):
+            return
+
+        # ignore permission denied columns
+        elif not self.__auth__.can_read_column(column, context=context):
+            return
+
+        # fetch raw data for virtual columns not associated with views
+        elif column.test_flag(column.Flags.Virtual) and not isinstance(self, orb.View):
+            yield column.alias(), self.get(column, context=context)
+
+        # fetch custom data for the column
+        elif column.gettermethod() is not None:
+            yield column.alias(), self.get(column, context=context)
+
+        # fetch raw data for the column
         else:
-            return super(Model, self).__format__(spec)
+            try:
+                value = self.__attributes[column.name()]
+            except KeyError:
+                pass
+            else:
+                # normalize the value from the cache
+                if column.test_flag(orb.Column.Flags.I18n) and type(value) == dict:
+                    value = value.get(context.locale)
+
+                # yield basic column value
+                if not isinstance(column, orb.ReferenceColumn):
+                    yield column.alias(), value
+
+                # yield reference column
+                else:
+                    # yield the basic id by default
+                    yield column.alias(), value if not isinstance(value, orb.Model) else value.id()
+
+                    # yield tree value (if requested)
+                    try:
+                        subtree = tree.pop(column.name())
+                    except KeyError:
+                        pass
+                    else:
+                        reference = self.get(column,
+                                             expand=subtree,
+                                             returning=context.returning,
+                                             scope=context.scope)
+                        yield column.name(), dict(reference) if isinstance(reference, orb.Model) else reference
+
+    def iter_expanded(self, tree, context=None):
+        """
+        Iterates over the expansion tree yielding results
+        for the schema object.
+
+        :param tree: <dict>
+        :param context: <orb.Context>
+
+        :return: <generator>
+        """
+        for attribute, subtree in tree.items():
+            try:
+                value = self.get(
+                    attribute,
+                    expand=subtree,
+                    returning=context.returning,
+                    scope=context.scope
+                )
+            except orb.errors.ColumnNotFound:
+                continue
+            else:
+                yield attribute, dict(value) if isinstance(value, orb.Model) else value
 
     def _add_preloaded_data(self, cache):
         for key, value in cache.items():
@@ -443,9 +450,7 @@ class Model(object):
         if event.preventDefault:
             return 0
 
-        if self.__delayed:
-            self.__delayed = False
-            self.read()
+        self.read(refresh=False)
 
         with WriteLocker(self.__lock):
             self.__loaded.clear()
@@ -557,10 +562,7 @@ class Model(object):
                 return col.gettermethod()(self, context=sub_context)
 
             else:
-                # ensure content is actually loaded
-                if self.is_record() and self.__delayed:
-                    self.__delayed = False
-                    self.read()
+                self.read(refresh=False)
 
                 # grab the current value
                 with ReadLocker(self.__lock):
@@ -787,9 +789,7 @@ class Model(object):
                 else:
                     return method(self, value)
 
-        if self.is_record() and self.__delayed:
-            self.__delayed = False
-            self.read()
+        self.read(refresh=False)
 
         with WriteLocker(self.__lock):
             orig, curr = self.__attributes.get(col.name(), (None, None))
@@ -1184,16 +1184,21 @@ class Model(object):
 
         return record
 
-    def read(self):
-        record_id = self.id()
-        data = self.fetch(record_id, inflated=False, context=self.__context)
+    def read(self, refresh=False):
+        if not self.__loaded or refresh:
+            self.__loaded = True
+            record_id = self.id()
 
-        if not data:
-            raise orb.errors.RecordNotFound(schema=self.schema(),
-                                        column=record_id)
+            if record_id is None:
+                raise orb.errors.RecordNotFound(schema=self.schema(), column=record_id)
 
-        event = orb.events.LoadEvent(record=self, data=data)
-        self._load(event)
+            data = self.fetch(record_id, returning='data', context=self.__context)
+            if not data:
+                raise orb.errors.RecordNotFound(schema=self.schema(),
+                                            column=record_id)
+
+            event = orb.events.LoadEvent(record=self, data=data)
+            self._load(event)
 
     @classmethod
     def record_defaults(cls, ignore=None, ignore_flags=None, context=None):
