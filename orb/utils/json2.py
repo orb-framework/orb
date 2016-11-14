@@ -14,7 +14,7 @@ date_expr = re.compile('^\d{4}-\d{2}-\d{2}$')
 time_expr = re.compile('^\d{2}:\d{2}:\d{2}:?(\d*)$')
 
 
-def dumps(obj, default=None, indent=4, sort_keys=True):
+def dumps(obj, default=None, indent=2, sort_keys=True):
     """
     Dumps the python object to JSON format.  This method will use the
     py2json method to serialize the python content.

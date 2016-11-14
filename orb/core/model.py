@@ -147,8 +147,8 @@ class Model(object):
 
         :return: <bool>
         """
-        if self is not other:
-            return True
+        if self is other:
+            return False  # pragma: no cover
         elif type(self) != type(other):
             return True
         else:
@@ -209,13 +209,15 @@ class Model(object):
         :return: <dict> or <str>
         """
         # additional options
+        schema = self.schema()
         context = self.context()
-
         output = dict(self)
 
         # don't include fields
         if context.returning == 'values':
-            output = tuple(output[column.alias()] for column in context.schema_columns(self.schema())
+            columns = context.schema_columns(self.schema()) or schema.columns().values()
+            output = tuple(output[column.alias()]
+                           for column in columns
                            if column.alias() in output)
 
             # don't return tuple for single column requests
@@ -226,13 +228,9 @@ class Model(object):
 
     def __iter__(self):
         """
-        Iterates this object for its values.  This will return the field names from the
-        database rather than the API names.  If you want the API names, you should use
-        the recordValues method.
+        Iterates this object for its values.
 
-        :sa         recordValues
-
-        :return     <iter>
+        :return     <generator>
         """
         return self.iter_record(returning='data')
 
@@ -382,12 +380,19 @@ class Model(object):
         if getter is not None and use_method:
             return getter(self, context=sub_context)
 
-        # ensure the content has been read for this record from the backend
-        self.read(refresh=False)
-
         # grab the current value
         with ReadLocker(self.__lock):
-            value = self.__attributes.get(column.name())
+            try:
+                value = self.__attributes[column.name()]
+                not_loaded = False
+            except KeyError:
+                not_loaded = True
+
+        # if the value requested has not been loaded, and the model
+        # itself has not been loaded, then load the data and try again
+        if not_loaded and self.read(refresh=False):
+            with ReadLocker(self.__lock):
+                value = self.__attributes.get(column.name())
 
         # restore the value, which could include inflating references
         # if the value changes based on the restoration, then we should store that newly created
@@ -716,9 +721,6 @@ class Model(object):
         context = self.context(**context)
         expand_tree = context.expandtree(type(self))
 
-        # ensure the data is loaded
-        self.read(refresh=False)
-
         # collect the columns that will be iterated over
         columns = context.schema_columns(schema)
         if not columns:
@@ -854,6 +856,8 @@ class Model(object):
         has not previously been loaded.
 
         :param refresh: <bool>
+
+        :return: <bool> loaded
         """
         refresh = refresh or not self.is_loaded()
         schema = self.schema()
@@ -865,6 +869,22 @@ class Model(object):
                 raise orb.errors.RecordNotFound(schema=schema, column=record_id)
             else:
                 self.parse(raw_data)
+                return True
+        else:
+            return False
+
+    def reset(self, columns=None):
+        """
+        Resets this record's values to the last loaded ones.  If no columns are provided, then the currently
+        set attributes will be used as the columns to mark as loaded.
+
+        :param columns: [<str>, ..] or [<orb.Column>, ..] or None
+        """
+        schema = self.schema()
+        column_names = [schema.column(c).name() for c in columns] if columns else self.__base_attributes.keys()
+
+        with WriteLocker(self.__lock):
+            self.__attributes.update({k: v for k, v in self.__base_attributes.items() if k in column_names})
 
     def save(self, values=None, after=None, before=None, **context):
         """
