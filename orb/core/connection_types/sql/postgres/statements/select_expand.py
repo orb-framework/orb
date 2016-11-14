@@ -67,7 +67,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
         target_id_field = target.schema().id_column().field()
 
         # get the base table query
-        target_q = target.baseQuery(context=context)
+        target_q = target.get_base_query(context=context)
         if target_q:
             WHERE = self.byName('WHERE')
             filter_sql, filter_data = WHERE(target, target_q, context, aliases={target: target_alias})
@@ -168,7 +168,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
         target_fields = []
 
         # get the base table query
-        target_q = target.baseQuery(context=context)
+        target_q = target.get_base_query(context=context)
         if target_q:
             WHERE = self.byName('WHERE')
             filter_sql, filter_data = WHERE(target, target_q, context, aliases={target: target_alias})
@@ -279,7 +279,7 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         has_translations = target.schema().has_translations()
 
         # include the base table's filter, if one exists
-        target_q = target.baseQuery(context=context)
+        target_q = target.get_base_query(context=context)
         if target_q is not None:
             filter_sql, filter_data = WHERE(target, target_q, context, aliases={target: target_alias})
             if filter_sql:

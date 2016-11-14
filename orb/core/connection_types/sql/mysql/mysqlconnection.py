@@ -57,9 +57,7 @@ class MySQLConnection(SQLConnection):
             data = {}
 
         with native.cursor() as cursor:
-            log.debug('***********************')
             log.debug(command % data)
-            log.debug('***********************')
 
             try:
                 rowcount = 0
@@ -143,7 +141,7 @@ class MySQLConnection(SQLConnection):
             pass
 
     def schema_info(self, context):
-        info = super(MySQLConnection, self).schema_info(context)
+        info = super(MySQLConnection, self).schema_info(context) or {}
         for v in info.values():
             v['fields'] = v['fields'].split(',')
             v['indexes'] = v['indexes'].split(',')

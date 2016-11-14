@@ -81,7 +81,7 @@ class WHERE(PSQLStatement):
 
             def convert_value(val):
                 if isinstance(val, orb.Model):
-                    return val.get(val.schema().id_column(), inflated=False)
+                    return val.get(val.schema().id_column().field())
                 elif isinstance(val, (tuple, list, set)):
                     return tuple(convert_value(v) for v in val)
                 else:

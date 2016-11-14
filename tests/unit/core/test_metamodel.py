@@ -2,14 +2,17 @@ def test_create_basic_metamodel():
     from orb.core.metamodel import MetaModel
 
     class NotAModel(object):
+        __register__ = False
         __metaclass__ = MetaModel
         __model__ = False
 
     class ExplicitModel(object):
+        __register__ = False
         __metaclass__ = MetaModel
         __model__ = True
 
     class ImplicitModel(object):
+        __register__ = False
         __metaclass__ = MetaModel
 
     assert NotAModel.schema() is None

@@ -52,10 +52,7 @@ class SQLConnection(orb.Connection):
         SETUP = self.statement('SETUP')
         if SETUP:
             sql, data = SETUP(self.database())
-            if event.context.dryRun:
-                print sql % data
-            else:
-                self.execute(sql, data, writeAccess=True)
+            self.execute(sql, data, writeAccess=True)
 
     # ----------------------------------------------------------------------
     #                       PROTECTED METHODS
@@ -147,19 +144,13 @@ class SQLConnection(orb.Connection):
                 sql.append(idx_sql)
                 data.update(idx_data)
 
-        if context.dryRun:
-            print sql, data
-        else:
-            self.execute(u'\n'.join(sql), data, writeAccess=True)
+        self.execute(u'\n'.join(sql), data, writeAccess=True)
 
     def create_namespace(self, namespace, context):
         CREATE_NAMESPACE = self.statement('CREATE NAMESPACE')
         if CREATE_NAMESPACE:
             sql, data = CREATE_NAMESPACE(namespace)
-            if context.dryRun:
-                print sql, data
-            else:
-                self.execute(sql, data)
+            self.execute(sql, data)
 
     def close(self):
         """
@@ -195,16 +186,12 @@ class SQLConnection(orb.Connection):
         except orb.errors.QueryIsNull:
             return 0
         else:
-            if context.dryRun:
-                print sql % data
-                return 0
-            else:
-                try:
-                    rows, _ = self.execute(sql, data)
-                except orb.errors.EmptyCommand:
-                    rows = []
+            try:
+                rows, _ = self.execute(sql, data)
+            except orb.errors.EmptyCommand:
+                rows = []
 
-                return sum([row['count'] for row in rows])
+            return sum([row['count'] for row in rows])
 
     def commit(self):
         """
@@ -219,9 +206,7 @@ class SQLConnection(orb.Connection):
     def create_model(self, model, context, owner='', include_references=True):
         """
         Creates a new table in the database based cff the inputted
-        schema information.  If the dryRun flag is specified, then
-        the SQLConnection will only be logged to the current logger, and not
-        actually executed in the database.
+        schema information.
 
         :param      model    | <orb.Model>
                     context   | <orb.Context>
@@ -234,10 +219,7 @@ class SQLConnection(orb.Connection):
             log.error('Failed to create {0}'.format(model.schema().dbname()))
             return False
         else:
-            if context.dryRun:
-                print sql % data
-            else:
-                self.execute(sql, data, writeAccess=True)
+            self.execute(sql, data, writeAccess=True)
 
             log.info('Created {0}'.format(model.schema().dbname()))
             return True
@@ -254,12 +236,7 @@ class SQLConnection(orb.Connection):
         # include various schema records to remove
         DELETE = self.statement('DELETE')
         sql, data = DELETE(records, context)
-
-        if context.dryRun:
-            print sql % data
-            return 0
-        else:
-            return self.execute(sql, data, writeAccess=True)
+        return self.execute(sql, data, writeAccess=True)
 
     def execute(self,
                 command,
@@ -267,7 +244,6 @@ class SQLConnection(orb.Connection):
                 returning=True,
                 mapper=dict,
                 writeAccess=False,
-                dryRun=False,
                 locale=None):
         """
         Executes the inputted command into the current \
@@ -287,9 +263,6 @@ class SQLConnection(orb.Connection):
 
         if not command:
             raise orb.errors.EmptyCommand()
-        elif dryRun:
-            print command % data
-            raise orb.errors.DryRun()
 
         # define properties for execution
         data = data or {}
@@ -340,9 +313,7 @@ class SQLConnection(orb.Connection):
 
     def insert(self, records, context):
         """
-        Inserts the table instance into the database.  If the
-        dryRun flag is specified, then the command will be
-        logged but not executed.
+        Inserts the table instance into the database.
 
         :param      records  | <orb.Table>
                     lookup   | <orb.LookupOptions>
@@ -352,11 +323,7 @@ class SQLConnection(orb.Connection):
         """
         INSERT = self.statement('INSERT')
         sql, data = INSERT(records)
-        if context.dryRun:
-            print sql, data
-            return [], 0
-        else:
-            return self.execute(sql, data, writeAccess=True)
+        return self.execute(sql, data, writeAccess=True)
 
     def batchSize(self):
         """
@@ -461,14 +428,10 @@ class SQLConnection(orb.Connection):
         sql, data = SELECT(model, context)
         if not sql:
             return []
-        elif context.dryRun:
-            log.info(sql % data)
+        try:
+            return self.execute(sql, data)[0]
+        except orb.errors.EmptyCommand:
             return []
-        else:
-            try:
-                return self.execute(sql, data)[0]
-            except orb.errors.EmptyCommand:
-                return []
 
     def setBatchSize(self, size):
         """
@@ -482,8 +445,7 @@ class SQLConnection(orb.Connection):
     def update(self, records, context):
         """
         Updates the modified data in the database for the
-        inputted record.  If the dryRun flag is specified then
-        the command will be logged but not executed.
+        inputted record.
 
         :param      record   | <orb.Table>
                     lookup   | <orb.LookupOptions>
@@ -493,11 +455,7 @@ class SQLConnection(orb.Connection):
         """
         UPDATE = self.statement('UPDATE')
         sql, data = UPDATE(records)
-        if context.dryRun:
-            print sql, data
-            return [], 0
-        else:
-            return self.execute(sql, data, writeAccess=True)
+        return self.execute(sql, data, writeAccess=True)
 
     @classmethod
     def statement(cls, code=''):

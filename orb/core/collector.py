@@ -151,7 +151,7 @@ class Collector(object):
                 if isinstance(collection, orb.Collection):
                     record_cache = source_record.preloaded_data(self.name())
                     if record_cache:
-                        collection._add_preloaded_data({'records': record_cache}, **context)
+                        collection.preload_data({'records': record_cache}, **context)
 
                     if self.test_flag(self.Flags.Unique):
                         return collection.first()

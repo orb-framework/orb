@@ -61,8 +61,10 @@ def test_model_constructor_with_loader():
         id = orb.IdColumn()
         name = orb.StringColumn()
 
-    event = orb.LoadEvent({'id': 1, 'name': 'Testing'})
-    record = BasicModel(loadEvent=event)
+    record = BasicModel({'id': 1, 'name': 'Testing'})
+    record.mark_loaded()
+
+    assert record.is_loaded()
     assert record.is_record()
     assert record.get('id') == 1
     assert record.get('name') == "Testing"

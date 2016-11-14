@@ -75,7 +75,7 @@ def test_collector_callable_not_implemented(MockUser):
     collector = Collector()
 
     source_record = MockUser({'id': 1})
-    source_record.mark_loaded('id')
+    source_record.mark_loaded()
 
     assert source_record.is_record()
 
@@ -185,8 +185,8 @@ def test_collector_collection_method(mock_db, MockUser):
 
     # create a source record for the collection
     source = MockUser({'id': 1})
-    source.mark_loaded('id')
-    source._add_preloaded_data({'testing': [{'username': 'jdoe'}]})
+    source.mark_loaded()
+    source.preload_data({'testing': [{'username': 'jdoe'}]})
 
     a_records = a(source)
     b_records = b(source)

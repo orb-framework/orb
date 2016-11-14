@@ -67,7 +67,7 @@ class Database(object):
         :param context: <orb.Context>
         """
         namespaces = set()
-        info = connection.schema_info(context)
+        info = connection.schema_info(context) or {}
 
         # create new models
         for table in tables:
@@ -114,7 +114,7 @@ class Database(object):
         :param context: <orb.Context>
         """
         # update after any newly created tables get generated
-        info = connection.schema_info(context)
+        info = connection.schema_info(context) or {}
 
         virtual_flag = orb.Column.Flags.Virtual
 
@@ -446,10 +446,7 @@ class Database(object):
         """
         Syncs the database by calling its schema sync method.  If
         no specific schema has been set for this database, then
-        the global database schema will be used.  If the dryRun
-        flag is specified, then all the resulting commands will
-        just be logged to the current logger and not actually 
-        executed on the database.
+        the global database schema will be used.
 
         :param models: [subclass of <orb.Model>, ..] or None
 
@@ -461,7 +458,7 @@ class Database(object):
         # notify that the connection is about to sync
         event = orb.events.SyncEvent(context=context)
         conn.about_to_sync.send(conn, event=event)
-        if event.preventDefault:
+        if event.prevent_default:
             return False
 
         # if no models were provided, then plan to sync all models
@@ -476,7 +473,7 @@ class Database(object):
         for model in models:
             event = orb.events.SyncEvent(model=model)
             model.about_to_sync.send(model, event=event)
-            if not event.preventDefault:
+            if not event.prevent_default:
                 accepted_models.append(model)
 
         # sync the backend models
@@ -485,9 +482,7 @@ class Database(object):
         # notify the models after the sync
         for model in accepted_models:
             event = orb.events.SyncEvent(model=model)
-            model.onSync(event)
-            if not event.preventDefault:
-                model.synced.send(model, event=event)
+            model.on_sync(event)
 
         # notify that the connection has finished syncing
         conn.synced.send(conn, event=event)

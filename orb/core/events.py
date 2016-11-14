@@ -6,19 +6,43 @@ class Callback(object):
     Helper class used to listen for an event and then trigger a call
     to a waiting method
     """
-    def __init__(self, method, *args, **kwds):
+    def __init__(self, method, sender=None, signal=None, args=None, kwargs=None, single_shot=True):
+        self.signal = signal
         self.method = method
-        self.args = args
-        self.kwds = kwds
+        self.args = args or tuple()
+        self.kwds = kwargs or {}
+        self.single_shot = single_shot
+        self.sender = sender
 
-    def __call__(self, event):
-        return self.method(*self.args, **self.kwds)
+        # enable the callback
+        self.enable()
+
+    def __call__(self, sender, event=None):
+        result = self.method(*self.args, **self.kwds)
+
+        # disconnect the connection from the signal
+        if self.single_shot:
+            self.signal.disconnect(self)
+
+        return result
+
+    def enable(self):
+        """
+        Enables this callback to listen to triggers from the event signal.
+        """
+        self.signal.connect(self, sender=self.sender, weak=False)
+
+    def disable(self):
+        """
+        Disables this callback from the event signal.
+        """
+        self.signal.disconnect(self)
 
 
 class Event(object):
     """ Base class used for propagating events throughout the system """
     def __init__(self):
-        self.preventDefault = False
+        self.prevent_default = False
 
 
 # database events
@@ -70,26 +94,27 @@ class RecordEvent(Event):
 
 
 class ChangeEvent(RecordEvent):
-    def __init__(self, column=None, old=None, value=None, **options):
+    def __init__(self, changes=None, **options):
         super(ChangeEvent, self).__init__(**options)
 
-        self.column = column
-        self.old = old
-        self.value = value
+        # store the changes
+        self.changes = changes
 
     @property
-    def inflated_value(self):
-        if isinstance(self.column, orb.ReferenceColumn):
-            model = self.column.reference_model()
-            if not isinstance(self.value, model):
-                return model(self.value)
+    def inflated_changes(self):
+        output = {}
+        for col, (old_value, new_value) in self.changes.items():
+            if isinstance(col, orb.ReferenceColumn) and not isinstance(old_value, orb.Model):
+                reference_model = col.reference_model()
+                old_value = reference_model(old_value)
 
-    @property
-    def inflated_old_value(self):
-        if isinstance(self.column, orb.ReferenceColumn):
-            model = self.column.reference_model()
-            if not isinstance(self.old, model):
-                return model(self.old)
+            if isinstance(col, orb.ReferenceColumn) and not isinstance(new_value, orb.Model):
+                reference_model = col.reference_model()
+                new_value = reference_model(new_value)
+
+            output[col] = (old_value, new_value)
+
+        return output
 
 
 class DeleteEvent(RecordEvent):
@@ -113,8 +138,8 @@ class DeleteEvent(RecordEvent):
         """
         for record in records:
             event = cls(**kw)
-            record.onDelete(event)
-            if not event.preventDefault:
+            record.on_delete(event)
+            if not event.prevent_default:
                 yield record
 
 
@@ -122,27 +147,17 @@ class InitEvent(RecordEvent):
     pass
 
 
-class LoadEvent(RecordEvent):
-    def __init__(self, data=None, **options):
-        super(LoadEvent, self).__init__(**options)
-
-        self.data = data
-
-
 class SaveEvent(RecordEvent):
-    def __init__(self, context=None, newRecord=False, changes=None, result=True, **options):
+    def __init__(self,
+                 context=None,
+                 new_record=False,
+                 changes=None,
+                 result=True,
+                 **options):
         super(SaveEvent, self).__init__(**options)
 
         self.context = context
-        self.newRecord = newRecord
+        self.new_record = new_record
         self.result = result
         self.changes = changes
-
-
-class PreSaveEvent(SaveEvent):
-    pass
-
-
-class PostSaveEvent(SaveEvent):
-    pass
 

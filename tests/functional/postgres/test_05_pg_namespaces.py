@@ -22,7 +22,7 @@ def test_pg_second_namespace_sync(orb, pg_db, namespace_models):
         assert result_default[0]['name'] == 'test'
         assert result_explicit[0]['name'] == 'test'
 
-def test_pg_check_namespace_ids(orb, namespace_models):
+def test_pg_check_namespace_ids(orb, pg_db, namespace_models):
     TestDefault = namespace_models['TestDefault']
 
     with orb.Context(namespace='test_namespace_a'):

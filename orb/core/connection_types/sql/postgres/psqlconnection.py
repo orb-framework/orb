@@ -88,9 +88,7 @@ class PSQLConnection(SQLConnection):
 
         start = datetime.datetime.now()
 
-        log.debug('***********************')
         log.debug(command % data)
-        log.debug('***********************')
 
         try:
             cursor.execute(command, data)

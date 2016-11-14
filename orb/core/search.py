@@ -10,7 +10,7 @@ import re
 import pyparsing
 
 from collections import defaultdict
-from projex.addon import AddonManager
+from abc import ABCMeta, abstractmethod
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ BASIC_SYNONYMS = {
     ]
 }
 
+
 class SearchThesaurus(object):
     def __init__(self, synonyms=None):
         synonyms = synonyms or BASIC_SYNONYMS
@@ -89,15 +90,30 @@ class SearchThesaurus(object):
     def synonyms(self, word, locale='en_US'):
         return self.__synonyms[locale].get(word, word)
 
+
 # --------------------
 
-class SearchEngine(AddonManager):
+
+class AbstractSearchEngine(object):
+    __metaclass__ = ABCMeta
+
     def __init__(self, parser=None, thesaurus=None):
         self.__parser = parser or BASIC_PARSER
-        self.__thesaurus = thesaurus or BASIC_THESAURUS
+        self.__thesaurus = thesaurus or SearchThesaurus()
 
     def parser(self):
         return self.__parser
+
+    @abstractmethod
+    def search(self, model, terms, **context):
+        return None
+
+
+class BasicSearchEngine(AbstractSearchEngine):
+    def __init__(self, parser=None, thesaurus=None):
+        super(BasicSearchEngine, self).__init__(parser=parser)
+
+        self.__thesaurus = thesaurus or SearchThesaurus()
 
     def search(self, model, terms, **context):
         search_context = context.get('context') or orb.Context(**context)
@@ -146,5 +162,3 @@ class SearchEngine(AddonManager):
         return self.__thesaurus
 
 
-# register the global basic search engine that ORB uses
-SearchEngine.registerAddon('basic', SearchEngine(thesaurus=SearchThesaurus()))

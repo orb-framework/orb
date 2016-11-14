@@ -1,4 +1,5 @@
 def test_callbacks():
+    import blinker
     from orb.core import events
 
     checked = {}
@@ -7,17 +8,26 @@ def test_callbacks():
         return True
 
     # create the callback instance
-    callback = events.Callback(test_callback_method, 10, option=True)
+    signal = blinker.Signal()
+    callback = events.Callback(test_callback_method,
+                               signal=signal,
+                               args=(10,),
+                               kwargs={'option': True})
 
-    assert callback(None) is True
+    signal.send(event=None)
+
     assert checked['callback'] == (10, True)
+    checked.clear()
+
+    signal.send(event=None)
+    assert checked == {}
 
 
 def test_basic_event():
     from orb.core import events
 
     event = events.Event()
-    assert event.preventDefault is False
+    assert event.prevent_default is False
 
 
 def test_database_event():
@@ -28,7 +38,7 @@ def test_database_event():
     assert isinstance(event, events.Event)
     assert isinstance(event, events.DatabaseEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.database == 'orb'
 
 
@@ -43,7 +53,7 @@ def test_connection_event():
     assert isinstance(event, events.DatabaseEvent)
     assert isinstance(event, events.ConnectionEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.database == 'orb'
     assert event.success is False
     assert event.native == 'status'
@@ -57,7 +67,7 @@ def test_model_event():
     assert isinstance(event, events.Event)
     assert isinstance(event, events.ModelEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.model == 'User'
 
 
@@ -70,7 +80,7 @@ def test_sync_event():
     assert isinstance(event, events.ModelEvent)
     assert isinstance(event, events.SyncEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.model == 'User'
     assert event.context == {'returning': 'schema'}
 
@@ -83,27 +93,23 @@ def test_record_event():
     assert isinstance(event, events.Event)
     assert isinstance(event, events.RecordEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.record == {'id': 10}
 
 
 def test_change_event():
     from orb.core import events
 
-    event = events.ChangeEvent(column='username',
-                               old='jdoe',
-                               value='john.doe',
-                               record={'id': 10})
+    event = events.ChangeEvent(changes={'username': ('jdoe', 'john.doe')}, record={'id': 10})
 
     assert isinstance(event, events.Event)
     assert isinstance(event, events.RecordEvent)
     assert isinstance(event, events.ChangeEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.record == {'id': 10}
-    assert event.column == 'username'
-    assert event.old == 'jdoe'
-    assert event.value == 'john.doe'
+    assert event.changes.keys() == ['username']
+    assert event.changes['username'] == ('jdoe', 'john.doe')
 
 
 def test_change_event_inflation():
@@ -118,12 +124,10 @@ def test_change_event_inflation():
         def reference_model(self):
             return CustomModel
 
-    event = events.ChangeEvent(column=CustomColumn(),
-                               old=1,
-                               value=2)
+    col = CustomColumn()
+    event = events.ChangeEvent(changes={col: (1, 2)})
 
-    new_value = event.inflated_value
-    old_value = event.inflated_old_value
+    old_value, new_value = event.inflated_changes[col]
 
     assert isinstance(new_value, CustomModel)
     assert new_value.id == 2
@@ -142,7 +146,7 @@ def test_delete_event():
     assert isinstance(event, events.RecordEvent)
     assert isinstance(event, events.DeleteEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.record == {'id': 1}
     assert event.context == {'returning': 'schema'}
 
@@ -154,8 +158,8 @@ def test_delete_event_processing():
         def __init__(self, prevent):
             self.prevent = prevent
 
-        def onDelete(self, event):
-            event.preventDefault = self.prevent
+        def on_delete(self, event):
+            event.prevent_default = self.prevent
 
     event = events.DeleteEvent()
 
@@ -175,29 +179,15 @@ def test_init_event():
     assert isinstance(event, events.RecordEvent)
     assert isinstance(event, events.InitEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.record == {'id': 10}
-
-
-def test_load_event():
-    from orb.core import events
-
-    event = events.LoadEvent(data={'username': 'jdoe'}, record={'id': 10})
-
-    assert isinstance(event, events.Event)
-    assert isinstance(event, events.RecordEvent)
-    assert isinstance(event, events.LoadEvent)
-
-    assert event.preventDefault is False
-    assert event.record == {'id': 10}
-    assert event.data == {'username': 'jdoe'}
 
 
 def test_save_event():
     from orb.core import events
 
     event = events.SaveEvent(context={'expand': 'user'},
-                             newRecord=True,
+                             new_record=True,
                              changes={'username': ('jdoe', 'john.doe')},
                              result=False,
                              record={'id': 10})
@@ -206,23 +196,10 @@ def test_save_event():
     assert isinstance(event, events.RecordEvent)
     assert isinstance(event, events.SaveEvent)
 
-    assert event.preventDefault is False
+    assert event.prevent_default is False
     assert event.record == {'id': 10}
     assert event.context == {'expand': 'user'}
-    assert event.newRecord is True
+    assert event.new_record is True
     assert event.changes == {'username': ('jdoe', 'john.doe')}
     assert event.result is False
 
-
-def test_pre_and_post_save_events():
-    from orb.core import events
-
-    pre_save_event = events.PreSaveEvent()
-    post_save_event = events.PostSaveEvent()
-
-    for event in (pre_save_event, post_save_event):
-        assert isinstance(event, events.Event)
-        assert isinstance(event, events.RecordEvent)
-        assert isinstance(event, events.SaveEvent)
-
-        assert event.preventDefault is False

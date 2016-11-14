@@ -123,6 +123,8 @@ def process_attrs(store, attrs):
         if store_schema_object(store, key, value):
             if not isinstance(attrs[key], orb.Index):
                 attrs.pop(key)
+            else:
+                attrs[key] = classmethod(attrs[key])
         else:
             store_virtual_schema_object(store, key, value)
 
@@ -260,7 +262,7 @@ class MetaModel(type):
             schema = generate_schema(name, attrs, bases)
 
             # store the schema on the model
-            attrs['_{0}__schema'.format(schema.name())] = schema
+            attrs['__schema__'] = schema
 
             # create the new model
             new_model = super(MetaModel, mcs).__new__(mcs, name, bases, attrs)
@@ -277,5 +279,5 @@ class MetaModel(type):
 
         :return: <orb.Schema> or None
         """
-        return getattr(cls, '_{0}__schema'.format(cls.__name__), None)
+        return getattr(cls, '__schema__', None)
 

@@ -93,9 +93,10 @@ def namespace_models(orb):
         name = orb.StringColumn()
 
         @classmethod
-        def onSync(cls, event):
+        def on_sync(cls, event):
             print 'syncing defaults'
-            cls.ensureExists({'name': 'test'})
+            cls.ensure_exists({'name': 'test'})
+            super(TestDefault, cls).on_sync(event)
 
     class TestExplicit(orb.Table):
         __namespace__ = 'test_explicit'
@@ -104,9 +105,10 @@ def namespace_models(orb):
         name = orb.StringColumn()
 
         @classmethod
-        def onSync(cls, event):
+        def on_sync(cls, event):
             print 'syncing explicit'
-            cls.ensureExists({'name': 'test'})
+            cls.ensure_exists({'name': 'test'})
+            super(TestExplicit, cls).on_sync(event)
 
     return {'TestDefault': TestDefault, 'TestExplicit': TestExplicit}
 
@@ -129,9 +131,11 @@ def testing_schema(orb):
         code = orb.StringColumn(flags={'Required', 'Unique', 'Keyable'})
 
         @classmethod
-        def onSync(cls, event):
+        def on_sync(cls, event):
             for code in ('basic', 'superuser'):
-                UserType.ensureExists({'code': code})
+                UserType.ensure_exists({'code': code})
+
+            super(UserType, cls).on_sync(event)
 
     class User(orb.Table):
         __resouce__ = True

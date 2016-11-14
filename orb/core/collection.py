@@ -1,4 +1,5 @@
 import demandimport
+import logging
 import math
 
 from collections import defaultdict
@@ -7,6 +8,8 @@ from ..utils.locks import ReadWriteLock, ReadLocker, WriteLocker
 
 with demandimport.enabled():
     import orb
+
+log = logging.getLogger(__name__)
 
 
 class BatchIterator(object):
@@ -40,9 +43,9 @@ class BatchIterator(object):
         self.batch_size = batch
 
     def __iter__(self):
-        page_count = self.collection.page_count(pageSize=self.batch_size)
+        page_count = self.collection.page_count(page_size=self.batch_size)
         for page_number in xrange(page_count):
-            page = self.collection.page(page_number + 1, pageSize=self.batch_size)
+            page = self.collection.page(page_number + 1, page_size=self.batch_size)
             for record in page:
                 yield record
 
@@ -200,18 +203,6 @@ class Collection(object):
     def __nonzero__(self):
         return not self.is_empty()
 
-    def _add_preloaded_data(self, cache, **context):
-        """
-        Adds preloaded data to this collection.  This will provide
-        raw backend data to the collection for a particular context
-
-        :param cache: {<str> key: <variant> value, ..}
-        """
-        orb_context = self.context(**context)
-        with WriteLocker(self.__lock):
-            for key, value in cache.items():
-                self.__cache['preload_' + key][orb_context] = value
-
     def _cache_record(self, record, context):
         """
         Caches the given record within a context for this collection.
@@ -256,7 +247,7 @@ class Collection(object):
             conn = context.db.connection()
             return func(conn)
 
-    def _generate_records_for_update(self, records, context):
+    def _create_records(self, records, context):
         """
         Generates a response of ids and records based on the given input.
 
@@ -311,63 +302,6 @@ class Collection(object):
         else:
             raise orb.errors.OrbError('Invalid input for record generation')
 
-    def _process_records(self, raw_records, context):
-        """
-        Processes a list of raw record values and generates a new
-        list of objects based on the context parameters.  This method
-        is optimized for performance over a list of records.  If you
-        need to process an individual record, you should use
-        the `_process_record` method, which is implements the same logic,
-        but is optimized for an individual record.
-
-        :param raw_records: <list>
-        :param context: <orb.Context>
-
-        :return: <generator>
-        """
-        if raw_records is None:
-            return
-
-        # if the context is expecting inflated values (full model objects) and the
-        # return type is not values (a list of values) or data (a dictionary object)
-        # then inflate each record to the bound model for this collection
-        if context.inflated in (True, None) and context.returning not in ('values', 'data'):
-            for raw_record in raw_records or []:
-                yield self.__bound_model.inflate(raw_record, context=context)
-
-        # otherwise, if we have limited the context to a particular set
-        # of columns, then filter down the response for that
-        elif context.columns:
-            schema = self.__bound_model.schema()
-            cols = [schema.column(col) for col in context.columns]
-
-            # for value specific returns, we need to filter
-            # down the data to only having the value - not the column key
-            # requesting a value with a single column will return a list of
-            # values, requesting a value with multiple columns will return
-            # a list of value tuples
-            if context.returning == 'values':
-                if len(cols) == 1:
-                    for raw_record in raw_records or []:
-                        yield raw_record.get(cols[0].field())
-
-                else:
-                    for raw_record in raw_records or []:
-                        yield tuple(raw_record.get(col.field()) for col in cols)
-
-            # otherwise, if the request is asking for data vs. values
-            # then we just need to filter down the response to the
-            # key value pairing for just the requested columns
-            else:
-                for raw_record in raw_records or []:
-                    yield {col.field(): raw_record.get(col.field()) for col in cols}
-
-        # it no columns are specified, then we can simply return the raw records
-        # in the form we received them from the backend
-        else:
-            for raw_record in raw_records:
-                yield raw_record
-
     def _process_record(self, raw_record, context):
         """
         Processes an individual raw record and returns the desired response
@@ -382,8 +316,8 @@ class Collection(object):
         # if the context is expecting inflated values (full model objects) and the
         # return type is not values (a list of values) or data (a dictionary object)
         # then inflate each record to the bound model for this collection
-        if context.inflated in (True, None) and context.returning not in ('values', 'data'):
-            return self.__bound_model.inflate(raw_record, context=context)
+        if context.returning not in ('values', 'data'):
+            return self.__bound_model.restore_record(raw_record, context=context)
 
         # otherwise, if we have limited the context to a particular set
         # of columns, then filter down the response for that
@@ -582,7 +516,7 @@ class Collection(object):
             # collection, then we can re-use the cached values
             diff = my_context.difference(sub_context)
             if my_records and (diff == {'start', 'limit'} or
-                               diff == {'page', 'pageSize'} or
+                               diff == {'page', 'page_size'} or
                                diff == {'page'}):
                 start_index = sub_context.start
                 end_index = start_index + sub_context.limit
@@ -603,7 +537,7 @@ class Collection(object):
             if key.startswith('preload_'):
                 for context, value in context_values.items():
                     preload_key = key.replace('preload_', '')
-                    other._add_preloaded_data({preload_key: value}, context=context)
+                    other.preload_data({preload_key: value}, context=context)
 
         return other
 
@@ -951,15 +885,69 @@ class Collection(object):
         with ReadLocker(self.__lock):
             return len(self.__cache) == 0 and self.__bound_model is None
 
-    def iterate(self, batch=100):
+    def iter_batches(self, size=100):
         """
         Generates a batch iterator across the collection's data.
 
-        :param batch: <int>
+        :param size: <int>
 
         :return: <orb.BatchIterator>
         """
-        return BatchIterator(self, batch)
+        return BatchIterator(self, size)
+
+    def iter_records(self, **context):
+        """
+        Iterates over the records in this collection.
+
+        :param context: <orb.Context> descriptor
+
+        :return: <generator>
+        """
+        if self.is_null():
+            return
+
+        orb_context = self.context(**context)
+
+        try:
+            with ReadLocker(self.__lock):
+                records = self.__cache['records'][orb_context] or []
+        except KeyError:
+            # look to see if we have preloaded records that can be used
+            try:
+                with ReadLocker(self.__lock):
+                    raw_records = self.__cache['preload_records'][orb_context] or []
+
+            # finally, select the results from the backend
+            except KeyError:
+                conn = orb_context.db.connection()
+                raw_records = conn.select(self.__bound_model, orb_context) or []
+
+            for raw_record in raw_records:
+                yield self._process_record(raw_record, orb_context)
+        else:
+            for record in records:
+                yield record
+
+    def iter_values(self, *columns, **context):
+        """
+        Iterates over values from records in this collection.
+
+        :param columns: [<str> or <orb.Column>, ..]
+        :param context: <orb.Context> descriptor
+
+        :return: <generator>
+        """
+        if self.is_null():
+            return
+
+        is_single = len(columns) == 1
+        records_context = context.copy()
+        records_context.pop('returning', None)
+        for record in self.iter_records(**records_context):
+            if is_single:
+                yield record.get(columns[0], **context)
+            else:
+                yield tuple(record.get(c, **context) for c in columns)
 
     def last(self, **context):
         """
@@ -1036,11 +1024,11 @@ class Collection(object):
 
         :return     <orb.RecordSet>
         """
-        size = max(0, self.context(**context).pageSize)
+        size = max(0, self.context(**context).page_size)
         if not size:
             return self.copy()
         else:
-            return self.copy(page=number, pageSize=size)
+            return self.copy(page=number, page_size=size)
 
     def page_count(self, **context):
         """
@@ -1053,17 +1041,29 @@ class Collection(object):
 
         :return: <int>
         """
-        size = max(0, self.context(**context).pageSize)
+        size = max(0, self.context(**context).page_size)
 
         if not size:
             return 1
         else:
             context['page'] = None
-            context['pageSize'] = None
+            context['page_size'] = None
 
             fraction = self.count(**context) / float(size)
             count = int(math.ceil(fraction))
             return max(1, count)
+
+    def preload_data(self, cache, **context):
+        """
+        Adds preloaded data to this collection.  This will provide
+        raw backend data to the collection for a particular context
+
+        :param cache: {<str> key: <variant> value, ..}
+        """
+        orb_context = self.context(**context)
+        with WriteLocker(self.__lock):
+            for key, value in cache.items():
+                self.__cache['preload_' + key][orb_context] = value
 
     def records(self, **context):
         """
@@ -1077,28 +1077,13 @@ class Collection(object):
             return []
 
         orb_context = self.context(**context)
-
-        # first return the records from the cache
         try:
             with ReadLocker(self.__lock):
                 return self.__cache['records'][orb_context]
-
         except KeyError:
-            # second load the records from the preloaded cache
-            try:
-                with ReadLocker(self.__lock):
-                    raw_records = self.__cache['preload_records'][orb_context] or []
-
-            # finally, select the results from the backend
-            except KeyError:
-                conn = orb_context.db.connection()
-                raw_records = conn.select(self.__bound_model, orb_context)
-
-            # create and cache the processed records from the raw results
-            records = list(self._process_records(raw_records, orb_context))
+            records = list(self.iter_records(**context))
             with WriteLocker(self.__lock):
                 self.__cache['records'][orb_context] = records
-
             return records
 
     def refine(self, create_new=True, **context):
@@ -1172,7 +1157,8 @@ class Collection(object):
 
         :return: [<orb.Model>, ..]
         """
-        orb_context = self.context(**context).sub_context()
+        orb_context = self.context(**context)
+        create_context = orb_context.sub_context()
 
         try:
             setter = self.__bound_collector.settermethod() if use_method else None
@@ -1181,7 +1167,7 @@ class Collection(object):
 
         # use the setter method to update this collection
         if setter:
-            return setter(self.__bound_source_record, records, context=orb_context)
+            return setter(self.__bound_source_record, records, context=create_context)
         else:
             if isinstance(records, dict):
                 if 'ids' in records:
@@ -1194,7 +1180,7 @@ class Collection(object):
                 record_info = records
 
             if record_info:
-                new_ids, new_records = zip(*list(self._generate_records_for_update(record_info, orb_context)))
+                new_ids, new_records = zip(*list(self._create_records(record_info, create_context)))
             else:
                 new_ids, new_records = ([], [])
 
@@ -1203,7 +1189,7 @@ class Collection(object):
                 self.__bound_collector.update_records(self.__bound_source_record,
                                                       self,
                                                       new_ids,
-                                                      context=orb_context)
+                                                      context=create_context)
                 self.clear_cache()
 
             # update the record cache
@@ -1235,11 +1221,11 @@ class Collection(object):
         for record in iter:
             event = orb.events.SaveEvent(
                 context=orb_context,
-                newRecord=not record.is_record(),
+                new_record=not record.is_record(),
             )
-            record.onPreSave(event)
-            if not event.preventDefault:
-                if event.newRecord:
+            record.on_pre_save(event)
+            if not event.prevent_default:
+                if event.new_record:
                     create_records.append(record)
                 else:
                     update_records.append(record)
@@ -1255,7 +1241,7 @@ class Collection(object):
 
                 # store the newly generated ids
                 for i, record in enumerate(create_records):
-                    record.update(results[i])
+                    record.parse(results[i])
 
             # update existing records in the backend
             if update_records:
@@ -1265,11 +1251,27 @@ class Collection(object):
             for record in create_records + update_records:
                 event = orb.events.SaveEvent(
                     context=orb_context,
-                    newRecord=record in create_records
+                    new_record=record in create_records
                 )
-                record.onPostSave(event)
+                record.on_post_save(event)
 
             return True
+
+    def search(self, terms, **context):
+        """
+        Performs additional search on this collection, joining
+        any already existing search context with
+        the search results from the model's search engine.
+
+        :param terms: <str>
+        :param context: <orb.Context> descriptor
+
+        :return: <orb.Collection>
+        """
+        model = self.model()
+        engine = model.get_search_engine()
+        orb_context = self.context(**context)
+        return engine.search(model, terms, context=orb_context)
 
     def values(self, *columns, **context):
         """
@@ -1286,79 +1288,20 @@ class Collection(object):
         if self.is_null():
             return []
 
-        orb_context = self.context(**context)
+        # create a copy of the context to cache
+        cache_context_data = context.copy()
+        cache_context_data['columns'] = columns
+        cache_context = self.context(**cache_context_data)
 
         # first lookup the results from the local cache
         try:
             with ReadLocker(self.__lock):
-                return self.__cache['values'][(orb_context, columns)]
-
+                return self.__cache['values'][cache_context]
         except KeyError:
-            # second, lookup the pre-loaded record cache to
-            # do in-memory processing
-            try:
-                with ReadLocker(self.__lock):
-                    records = self.__cache['records'][orb_context]
-
-            except KeyError:
-                query_context = orb_context.copy()
-
-                # otherwise, lookup the pre-loaded raw record values
-                # before finally requesting them from the backend
-                try:
-                    with ReadLocker(self.__lock):
-                        raw_records = self.__cache['preload_records'][orb_context] or []
-
-                except KeyError:
-                    query_context.columns = columns
-                    conn = orb_context.db.connection()
-                    raw_records = conn.select(self.__bound_model, query_context)
-
-                query_context.returning = 'values'
-                values = list(self._process_records(raw_records, query_context))
-
-                # determine if we need to inflate the values
-                if orb_context.inflated in (True, None):
-                    schema = self.__bound_model.schema()
-                    cols = [schema.column(c) for c in columns]
-                    indexes = [i for i in xrange(len(cols))
-                               if isinstance(cols[i], orb.ReferenceColumn) and
-                               (orb_context.inflated is True or cols[i].name() == columns[i])]
-
-                    if indexes:
-                        is_tuple = len(columns) > 1
-                        sub_context = orb_context.sub_context(inflated=True)
-                        cache = defaultdict(dict)
-                        new_values = []
-                        for value in values:
-                            if is_tuple:
-                                new_value = list(value)
-                                for i in indexes:
-                                    col = cols[i]
-                                    try:
-                                        new_value[i] = cache[col][value[i]]
-                                    except KeyError:
-                                        val = col.restore(value[i], context=sub_context)
-                                        cache[col][value[i]] = val
-                                        new_value[i] = val
-                                new_value = tuple(new_value)
-                            else:
-                                new_value = cols[0].restore(value, context=sub_context)
-
-                            new_values.append(new_value)
-                        values = new_values
-
-                # cache the result for future lookup
-                with WriteLocker(self.__lock):
-                    self.__cache['values'][(orb_context, columns)] = values
-                return values
-
-            # finally use the cache since we have it
-            else:
-                if len(columns) == 1:
-                    return [record.get(columns[0]) if record else None for record in records]
-                else:
-                    return [tuple(record.get(c) for c in columns) for record in records]
+            values = list(self.iter_values(*columns, **context))
+            with WriteLocker(self.__lock):
+                self.__cache['values'][cache_context] = values
+            return values
 
     # support deprecated calls (transitioning fully to PEP8)
     @deprecated

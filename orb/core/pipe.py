@@ -31,7 +31,7 @@ class Pipe(Collector):
             self.from_(): source_record,
             self.to(): target_record
         }
-        return through_model.ensureExists(data, **context)
+        return through_model.ensure_exists(data, **context)
 
     def create_record(self, source_record, values, **context):
         target_model = self.toModel()

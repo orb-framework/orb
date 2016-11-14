@@ -137,15 +137,16 @@ def test_database_default_system():
 
     db = Database(code='orb-testing')
 
-    assert orb.system.database() is None
-    assert len(orb.system.databases()) == 0
+    try:
+        assert orb.system.database() is None
+        assert len(orb.system.databases()) == 0
 
-    db.activate()
+        db.activate()
 
-    assert orb.system.database() is db
-    assert len(orb.system.databases()) == 1
-
-    orb.system.unregister(db)
+        assert orb.system.database() is db
+        assert len(orb.system.databases()) == 1
+    finally:
+        orb.system.unregister()
 
 
 def test_database_system_switching():
@@ -238,7 +239,7 @@ def test_database_syncing_blocked_signal(sync_setup):
 
     def about_to_sync(sender, event=None):
         checks['about_to_sync'] = sender
-        event.preventDefault = True
+        event.prevent_default = True
 
     def synced(sender, event=None):
         checks['synced'] = sender

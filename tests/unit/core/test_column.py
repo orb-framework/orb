@@ -163,7 +163,7 @@ def test_column_serialize_to_json(assert_dict_equals):
         pass
 
     user = MockUser({'id': 1})
-    user.mark_loaded('id')
+    user.mark_loaded()
 
     assert user.get('id') == 1
 

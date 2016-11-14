@@ -29,7 +29,7 @@ QUERY_DEFAULTS = {
     'limit': None,
     'order': None,
     'page': None,
-    'pageSize': None,
+    'page_size': None,
     'namespace': '',
     'force_namespace': False,
     'start': None,
@@ -38,13 +38,11 @@ QUERY_DEFAULTS = {
 
 # general context properties
 GENERAL_DEFAULTS = {
-    'dryRun': False,
     'format': 'json',
     'force': False,
-    'inflated': None,
     'locale': None,
     'returning': 'records',
-    'useBaseQuery': True,
+    'use_base_query': True,
     'timezone': None
 }
 
@@ -168,12 +166,13 @@ class Context(object):
         :return: <orb.Database>
         """
         try:
-            return self.raw_values['db']
+            db = self.raw_values['db']
         except KeyError:
             db = self.system.database(self.database)
-            if not db:
-                raise orb.errors.DatabaseNotFound()
-            return db
+
+        if not db:
+            raise orb.errors.DatabaseNotFound()
+        return db
 
     def difference(self, other_context):
         """
@@ -352,11 +351,11 @@ class Context(object):
     @property
     def limit(self):
         """
-        Calculates the limit based on the limit or pageSize properties.
+        Calculates the limit based on the limit or page_size properties.
 
         :return: <int> or None
         """
-        return self.raw_values.get('pageSize') or self.raw_values.get('limit')
+        return self.raw_values.get('page_size') or self.raw_values.get('limit')
 
     @property
     def scope(self):
@@ -459,7 +458,7 @@ class Context(object):
                 self.raw_values[k] = v
 
         # validate values
-        for field, minimum in (('start', 0), ('page', 1), ('limit', 1), ('pageSize', 1)):
+        for field, minimum in (('start', 0), ('page', 1), ('limit', 1), ('page_size', 1)):
             value = self.raw_values.get(field)
             if value is None:
                 continue

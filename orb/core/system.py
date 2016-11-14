@@ -59,7 +59,7 @@ class System(object):
 
         :return: <orb.Database> or None
         """
-        if code is not None:
+        if code:
             try:
                 return self.__databases[code]
             except KeyError:
@@ -217,13 +217,17 @@ class System(object):
         else:
             return self.__schemas
 
-    def unregister(self, obj):
+    def unregister(self, obj=None):
         """
         Unregisters an object from this system.
 
         :param obj: <orb.Database> or <orb.Schema>
         """
-        if isinstance(obj, orb.Database):
+        if obj is None:
+            self.__active_database = None
+            self.__databases.clear()
+            self.__schemas.clear()
+        elif isinstance(obj, orb.Database):
             self.unregister_database(obj)
         elif isinstance(obj, orb.Schema):
             self.unregister_schema(obj)
@@ -245,6 +249,8 @@ class System(object):
         :param db: <orb.Database>
         """
         self.__databases.pop(db.code(), None)
+        if db == self.__active_database:
+            self.__active_database = db
 
     def unregister_schema(self, schema):
         """
@@ -252,7 +258,9 @@ class System(object):
 
         :param schema: <orb.Schema>
         """
+        print(self.__schemas.keys())
         self.__schemas.pop(schema.name(), None)
+        print(self.__schemas.keys())
 
     @deprecated
     def init(self, scope):

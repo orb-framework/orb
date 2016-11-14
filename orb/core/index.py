@@ -45,7 +45,7 @@ class Index(object):
         if schema:
             schema.register(self)
 
-    def __call__(self, *values, **context):
+    def __call__(self, model, *values, **context):
         """
         Calls the index as a function.  This will generate a query
         for the given model based on the index's columns and the given
@@ -59,12 +59,7 @@ class Index(object):
 
         :return: <orb.Collection> or <orb.Model> or None
         """
-        schema = self.schema()
-        if schema is None:
-            raise orb.errors.ModelNotFound()
-
-        model = schema.model()
-        context['where'] = self.build_query(values, schema=schema) & context.get('where')
+        context['where'] = self.build_query(values, schema=model.schema()) & context.get('where')
 
         if self.__order:
             context.setdefault('order', self.__order)
@@ -250,25 +245,23 @@ class Index(object):
         """
         self.__schema = schema
 
-    def validate(self, record, values):
+    def validate(self, values):
         """
         Validates whether or not this index's requirements are satisfied by the inputted record and
         values.  If this index fails validation, an InvalidIndexArguments will be raised.
 
-        :param record: <orb.Model>
         :param values: {<orb.Column>: <variant>, ..}
 
         :return     <bool>
         """
-        r_schema = record.schema()
         columns = self.schema_columns()
         try:
-            _ = [values[r_schema.column(col)] for col in columns]
+            _ = [values[col] for col in columns]
         except orb.errors.ColumnNotFound as err:
             raise orb.errors.InvalidIndexArguments(self.schema(), msg=str(err))
         except KeyError as err:
             msg = 'Missing {0} from {1}.{2} index'.format(err[0].name(),
-                                                          record.schema().name(),
+                                                          self.schema().name(),
                                                           self.name())
             raise orb.errors.InvalidIndexArguments(self.schema(), msg=msg)
         else:
