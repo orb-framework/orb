@@ -211,14 +211,16 @@ class Model(object):
         # additional options
         context = self.context()
 
-        # don't include the column names
+        output = dict(self)
+
+        # don't include fields
         if context.returning == 'values':
-            schema_fields = {c.field() for c in context.schema_columns(self.schema())}
-            output = tuple(value for field, value in self if field in schema_fields)
+            output = tuple(output[column.alias()] for column in context.schema_columns(self.schema())
+                           if column.alias() in output)
+
+            # don't return tuple for single column requests
             if len(output) == 1:
                 output = output[0]
-        else:
-            output = dict(self)
 
         return json2.dumps(output) if context.format == 'text' else output
 
