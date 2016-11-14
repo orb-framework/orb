@@ -113,6 +113,15 @@ def test_schema_ancestry():
     assert c_inherits == [b, a]
 
 
+def test_schema_context():
+    from orb.core.schema import Schema
+
+    a = Schema(name='Fruit', namespace='testing')
+    assert a.context().namespace == 'testing'
+    assert a.context(namespace='blah').namespace == 'testing'
+    assert a.context(namespace='blah', force_namespace=True).namespace == 'blah'
+
+
 def test_schema_ordering():
     from orb.core.system import System
     from orb.core.schema import Schema
@@ -176,6 +185,12 @@ def test_schema_with_inheritance(UserSchema):
         assert not schema.column('role_name')
 
     assert schema.column('role_name', raise_=False) is None
+
+    inherited_col = schema.column('username')
+    my_col = schema.column('role')
+
+    assert schema.column(my_col) == my_col
+    assert schema.column(inherited_col) == inherited_col
 
 
 def test_schema_column_association(UserSchema):

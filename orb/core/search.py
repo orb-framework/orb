@@ -97,9 +97,8 @@ class SearchThesaurus(object):
 class AbstractSearchEngine(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, parser=None, thesaurus=None):
+    def __init__(self, parser=None):
         self.__parser = parser or BASIC_PARSER
-        self.__thesaurus = thesaurus or SearchThesaurus()
 
     def parser(self):
         return self.__parser
@@ -118,7 +117,7 @@ class BasicSearchEngine(AbstractSearchEngine):
     def search(self, model, terms, **context):
         search_context = context.get('context') or orb.Context(**context)
         locale = search_context.locale
-        nodes = self.__parser.parseString(terms)
+        nodes = self.parser().parseString(terms)
 
         # separate into 2 categories general (searchable by any column) and specific (user gave a column)
         general_nodes = [node for node in nodes if not isinstance(node, ComparisonNode)]

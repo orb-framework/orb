@@ -44,7 +44,7 @@ class System(object):
         models = self.models(group=group, auto_generate=auto_generate)
         scope.update(models)
 
-    def database(self, code=None):
+    def database(self, code=''):
         """
         Returns the database whose code matches the given string, or the active database if
         no code is given.
@@ -55,7 +55,7 @@ class System(object):
             orb.system.database()  # returns active database
             orb.system.database('my-database')  # returns the 'my-database' database
 
-        :param code: <str> or None (default)
+        :param code: <str>
 
         :return: <orb.Database> or None
         """
@@ -233,14 +233,11 @@ class System(object):
             self.unregister_schema(obj)
         else:
             try:
-                is_model = issubclass(obj, orb.Model)
+                schema = obj.schema()
             except StandardError:
-                is_model = False
-
-            if not is_model:
                 raise orb.errors.OrbError('Unknown object to unregister')
             else:
-                self.unregister_schema(obj.schema())
+                self.unregister_schema(schema)
 
     def unregister_database(self, db):
         """
@@ -250,7 +247,7 @@ class System(object):
         """
         self.__databases.pop(db.code(), None)
         if db == self.__active_database:
-            self.__active_database = db
+            self.__active_database = None
 
     def unregister_schema(self, schema):
         """
@@ -258,9 +255,7 @@ class System(object):
 
         :param schema: <orb.Schema>
         """
-        print(self.__schemas.keys())
         self.__schemas.pop(schema.name(), None)
-        print(self.__schemas.keys())
 
     @deprecated
     def init(self, scope):

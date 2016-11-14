@@ -1,4 +1,4 @@
-def test_callbacks():
+def test_single_shot_callback():
     import blinker
     from orb.core import events
 
@@ -21,6 +21,32 @@ def test_callbacks():
 
     signal.send(event=None)
     assert checked == {}
+
+
+def test_recurring_callback():
+    import blinker
+    from orb.core import events
+
+    checked = {}
+    def test_callback_method(value, option=False):
+        checked['callback'] = (value, option)
+        return True
+
+    # create the callback instance
+    signal = blinker.Signal()
+    callback = events.Callback(test_callback_method,
+                               signal=signal,
+                               args=(10,),
+                               kwargs={'option': True},
+                               single_shot=False)
+
+    signal.send(event=None)
+
+    assert checked['callback'] == (10, True)
+    checked.clear()
+
+    signal.send(event=None)
+    assert checked['callback'] == (10, True)
 
 
 def test_basic_event():

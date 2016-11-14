@@ -248,10 +248,12 @@ def test_object_unregistration():
         id = orb.IdColumn()
 
     system.register(db)
+    system.activate(db)
 
     assert set(system.models().values()) == {User, Group}
     assert set(system.schemas().values()) == {User.schema(), Group.schema()}
     assert system.databases().values() == [db]
+    assert system.database() == db
 
     system.unregister(User)
     system.unregister(Group.schema())
@@ -260,6 +262,7 @@ def test_object_unregistration():
     assert system.models().values() == []
     assert system.schemas().values() == []
     assert system.databases().values() == []
+    assert system.database() is None
 
     with pytest.raises(orb.errors.OrbError):
         assert system.unregister(10)

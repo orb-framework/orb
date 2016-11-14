@@ -257,8 +257,6 @@ class Index(object):
         columns = self.schema_columns()
         try:
             _ = [values[col] for col in columns]
-        except orb.errors.ColumnNotFound as err:
-            raise orb.errors.InvalidIndexArguments(self.schema(), msg=str(err))
         except KeyError as err:
             msg = 'Missing {0} from {1}.{2} index'.format(err[0].name(),
                                                           self.schema().name(),

@@ -247,7 +247,7 @@ class Schema(object):
 
         # setup the namespace
         default_namespace = self.namespace()
-        if default_namespace and not (orb_context.namespace or orb_context.force_namespace):
+        if default_namespace and not orb_context.force_namespace:
             orb_context.namespace = default_namespace
 
         return orb_context

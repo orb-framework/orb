@@ -22,7 +22,7 @@ class Callback(object):
 
         # disconnect the connection from the signal
         if self.single_shot:
-            self.signal.disconnect(self)
+            self.disable()
 
         return result
 

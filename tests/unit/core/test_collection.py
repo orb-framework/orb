@@ -1153,6 +1153,24 @@ def test_values_from_cache(mock_user_collection):
     assert collection.values('first_name', 'username') == [('John', 'jdoe')] * 3
 
 
+def test_search():
+    import orb
+
+    class TestModel(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        name = orb.StringColumn(flags={'Searchable'})
+
+    records = orb.Collection(model=TestModel)
+    search_records = records.search('testing')
+
+    q = search_records.context().where.__json__()
+    validate_q = orb.Query(TestModel, 'name').asString().matches('(^|.*\s)testing', caseSensitive=False)
+
+    assert q == validate_q.__json__()
+
+
 def test_deprecated_methods(mock_db, mock_user_collection):
     db = mock_db(responses={
         'count': 0
@@ -1164,3 +1182,4 @@ def test_deprecated_methods(mock_db, mock_user_collection):
     assert not collection.isLoaded()
     assert not collection.isNull()
     assert collection.pageCount() == 1
+
