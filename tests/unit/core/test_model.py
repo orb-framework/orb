@@ -480,3 +480,343 @@ def test_model_change_calculation():
     a.set('name', u'testing2')
 
     assert a.changes() == {a.schema().column('name'): ('testing', u'testing2')}
+
+
+def test_model_deletion(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+
+    db = mock_db()
+
+    a = A()
+    assert a.delete() is False
+
+    b = A({'id': 1}, db=db)
+    b.mark_loaded()
+    assert b.delete() is False
+
+    def delete(*args, **kwargs):
+        print(args)
+        print(kwargs)
+        return None, 1
+
+    db = mock_db(responses={'delete': delete})
+    c = A({'id': 1}, db=db)
+    c.mark_loaded()
+    assert c.delete() is True
+
+
+def test_model_delete_event(mock_db):
+    import orb
+
+    checked = {}
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+
+        def on_delete(self, event):
+            checked['deleted'] = True
+            return super(A, self).on_delete(event)
+
+    a = A({'id': 1}, db=mock_db(responses={'delete': (None, 1)}))
+    a.mark_loaded()
+
+    assert a.delete() is True
+    assert checked['deleted'] is True
+
+
+def test_model_delete_event_bound_to_class(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+
+    class B(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+
+    db = mock_db(responses={'delete': (None, 1)})
+
+    a = A({'id': 1}, db=db)
+    a.mark_loaded()
+
+    b = B({'id': 2}, db=db)
+    b.mark_loaded()
+
+    checked = {}
+    def block_deleted(sender, event):
+        assert sender is A
+        event.prevent_default = True
+        checked['deleted'] = True
+
+    orb.Model.deleted.connect(block_deleted, sender=A)
+
+    try:
+        assert a.delete() is False
+        assert b.delete() is True
+        assert checked['deleted'] is True
+    finally:
+        orb.Model.deleted.disconnect(block_deleted)
+
+
+def test_model_delete_event_bound_to_instance(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+
+    db = mock_db(responses={'delete': (None, 1)})
+
+    a = A({'id': 1}, db=db)
+    a.mark_loaded()
+
+    b = A({'id': 1}, db=db)
+    b.mark_loaded()
+
+    checked = {}
+    def block_deleted(sender, event):
+        assert sender is a
+        event.prevent_default = True
+        checked['deleted'] = True
+
+    orb.Model.deleted.connect(block_deleted, sender=a)
+
+    try:
+        assert a.delete() is False
+        assert b.delete() is True
+        assert checked['deleted'] is True
+    finally:
+        orb.Model.deleted.disconnect(block_deleted)
+
+
+def test_model_get_shortcut():
+    import orb
+
+    system = orb.System()
+
+    class A(orb.Table):
+        __system__ = system
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent = orb.ReferenceColumn('A')
+
+    super_parent = A({'id': 1, 'name': 'super_parent'})
+    parent = A({'id': 2, 'name': 'parent', 'parent': super_parent})
+    child = A({'id': 3, 'name': 'child', 'parent': parent})
+
+    assert child.get('parent.name') == 'parent'
+    assert child.get('parent.parent') == super_parent
+    assert child.get('parent.parent.name') == 'super_parent'
+
+
+def test_model_get_attribute():
+    import orb
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        name = orb.StringColumn(default='testing')
+
+    a = A()
+    assert a.get('name') == 'testing'
+
+
+def test_model_get_attribute_returning_based_on_field():
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        parent = orb.ReferenceColumn('A', alias='parent_id', field='fkey_a_parent_id')
+
+    a = A({'id': 1})
+    b = A({'id': 2, 'parent': a})
+
+    assert b.get('parent_id') == 1
+    assert b.get('fkey_a_parent_id') == 1
+    assert b.get('parent') is a
+
+
+def test_model_get_collection():
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+    a = A({'id': 1})
+
+    assert isinstance(a.get('children'), orb.Collection)
+
+
+def test_model_get_invalid_raises_column_error():
+    import orb
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+
+    a = A()
+    with pytest.raises(orb.errors.ColumnNotFound):
+        assert a.get('name') == ''
+
+
+def test_model_get_attribute_shortcut():
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        parent = orb.ReferenceColumn('A')
+        name = orb.StringColumn()
+        parent_name = orb.StringColumn(shortcut='parent.name')
+
+    class V(orb.View):
+        __system__ = A.schema().system()
+        __id__ = 'base'
+
+        base = orb.ReferenceColumn('A')
+        base_name = orb.StringColumn(shortcut='base.name')
+
+
+    parent = A({'id': 1, 'name': 'parent'})
+    child = A({'id': 2, 'name': 'child', 'parent': parent})
+
+    assert child.get('parent.name') == 'parent'
+    assert child.get('parent_name') == 'parent'
+
+    v = V({'base': parent, 'base_name': 'testing'})
+    v.mark_loaded()
+
+    assert v.get('base_name') == 'testing'
+
+
+def test_model_custom_getter_method():
+    import orb
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        name = orb.StringColumn(default='testing')
+
+        @name.getter()
+        def get_name(self, **context):
+            return '[name] ' + self.get('name', use_method=False, **context)
+
+    a = A()
+    assert a.get('name') == '[name] testing'
+    assert a.get('name', use_method=False) == 'testing'
+
+
+def test_model_triggers_read_for_unloaded(mock_db):
+    import orb
+
+    def get_record(*args, **kw):
+        return [{
+            'id': 1,
+            'first_name': 'john',
+            'last_name': 'doe'
+        }]
+
+    db = mock_db(responses={'select': get_record})
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        first_name = orb.StringColumn()
+        last_name = orb.StringColumn()
+
+        @orb.virtual(orb.StringColumn)
+        def display_name(self, **context):
+            return '{0} {1}'.format(self.get('first_name'), self.get('last_name'))
+
+    a = A({'id': 1}, db=db)
+    assert a.get('id') == 1
+    assert not a.is_loaded()
+    assert a.get('first_name') == 'john'
+    assert a.get('display_name') == 'john doe'
+
+
+def test_model_get_attribute_inflates_model(mock_db):
+    import orb
+
+    def get_record(*args, **kw):
+        return [{
+            'id': 1,
+            'name': 'testing'
+        }]
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent = orb.ReferenceColumn('A')
+
+    db = mock_db(responses={'select': get_record})
+
+    a = A({'id': 2, 'parent': 1}, db=db)
+    a.mark_loaded()
+    assert a.get('parent_id') == 1
+    assert a.get('parent.name') == 'testing'
+
+
+def test_model_custom_id_method():
+    import orb
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+
+        @id.getter()
+        def get_id(self, **context):
+            return 1
+
+    a = A()
+    assert a.id() == 1
+
+
+def test_model_from_different_databases_not_equal(mock_db):
+    import orb
+
+    db_a = mock_db()
+    db_b = mock_db()
+
+    class A(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+
+    a = A({'id': 1}, db=db_a)
+    a.mark_loaded()
+
+    b = A({'id': 1}, db=db_b)
+    b.mark_loaded()
+
+    assert a != b
+    assert a.is_record()
+    assert not a.is_record(db=db_b)

@@ -112,7 +112,7 @@ class MockConnection(orb.Connection):
         assert isinstance(context, orb.Context)
 
         # return the desired response
-        return self.next_response('delete', records, context)
+        return self.next_response('delete', records, context, default=(None, 0))
 
     def execute(self, command, data=None, flags=0):
         """

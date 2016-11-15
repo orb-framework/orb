@@ -76,6 +76,7 @@ class Model(object):
         self.__base_attributes = {}
         self.__collections = defaultdict(dict)
         self.__context = self.schema().context(**context)
+        self.__loaded = set()
         self.__preload = {}
 
         # initialize record from values
@@ -130,7 +131,19 @@ class Model(object):
             my_id = self.id()
             other_id = other.id()
 
-            if my_id is None or my_id != other_id:
+            try:
+                my_db = self.context().db
+            except orb.errors.DatabaseNotFound:
+                my_db = None
+
+            try:
+                other_db = other.context().db
+            except orb.errors.DatabaseNotFound:
+                other_db = None
+
+            if my_db != other_db:
+                return False
+            elif my_id is None or my_id != other_id:
                 return False
             elif self.is_modified():
                 return False
@@ -155,7 +168,19 @@ class Model(object):
             my_id = self.id()
             other_id = other.id()
 
-            if my_id is None or my_id != other_id:
+            try:
+                my_db = self.context().db
+            except orb.errors.DatabaseNotFound:
+                my_db = None
+
+            try:
+                other_db = other.context().db
+            except orb.errors.DatabaseNotFound:
+                other_db = None
+
+            if my_db != other_db:
+                return True
+            elif my_id is None or my_id != other_id:
                 return True
             elif self.is_modified():
                 return True
@@ -251,25 +276,6 @@ class Model(object):
         """
         return dict(self.iter_changes(**context))
 
-    def collect(self, name, use_method=False, **context):
-        """
-        Runs the collection logic for the schema's collector by name.  If
-        `use_method` is True, then it will use the functional `gettermethod` associated
-        with the collector, otherwise it will use the base logic.  This is useful if you are
-        calling the base method within the functional one.
-
-        :param name: <str>
-        :param use_method: <bool>
-        :param context: <orb.Context> descriptor
-
-        :return: <orb.Collection>
-        """
-        collector = self.schema().collector(name)
-        if collector is None:
-            raise orb.errors.ColumnNotFound(schema=self.schema(), column=name)
-        else:
-            return collector.collect(self, use_method=use_method, **context)
-
     def context(self, **context):
         """
         Returns the context for this record.  It will join together any custom options with the
@@ -301,10 +307,6 @@ class Model(object):
             return False
 
         # ensure that the data for this record has been loaded
-        self.read(refresh=False)
-
-        log.warning('model={0} id={1} action=delete'.format(self.schema().name(), self.id()))
-
         conn = orb_context.db.connection()
         _, count = conn.delete([self], orb_context)
 
@@ -312,8 +314,9 @@ class Model(object):
         if count:
             with WriteLocker(self.__lock):
                 self.__base_attributes.clear()
+                self.__loaded.clear()
 
-        return count
+        return count > 0
 
     def get(self, key, use_method=True, **context):
         """
@@ -329,17 +332,17 @@ class Model(object):
 
         :return: <variant>
         """
+        # get a column value
+        schema = self.schema()
+        column = schema.column(key, raise_=False)
+        collector = schema.collector(key)
+
         # get a shortcut value
         if isinstance(key, (str, unicode)) and '.' in key:
             return self.get_shortcut(key, use_method=use_method, **context)
 
-        log.info('model={0} id={1} action=get key={2}'.format(self.schema().name(), self.id(), key))
-
-        # get a column value
-        schema = self.schema()
-        column = schema.column(key, raise_=False)
-
-        if column:
+        # get an attribute value
+        elif column is not None:
             # for reference columns, if the field or alias is the key, then return the
             # raw values, otherwise return the record instances
             if isinstance(column, orb.ReferenceColumn):
@@ -347,13 +350,13 @@ class Model(object):
 
             return self.get_attribute(column, use_method=use_method, **context)
 
-        # get a collector value
-        collector = schema.collector(key)
-        if collector:
+        # get a collection value
+        elif collector is not None:
             return self.get_collection(collector, use_method=use_method, **context)
 
         # raise an error if could not find key
-        raise orb.errors.ColumnNotFound(schema=schema, column=key)
+        else:
+            raise orb.errors.ColumnNotFound(schema=schema, column=key)
 
     def get_attribute(self, column, use_method=True, **context):
         """
@@ -382,23 +385,19 @@ class Model(object):
 
         # grab the current value
         with ReadLocker(self.__lock):
-            try:
-                value = self.__attributes[column.name()]
-                not_loaded = False
-            except KeyError:
-                not_loaded = True
+            value = self.__attributes[column.name()]
 
-        # if the value requested has not been loaded, and the model
-        # itself has not been loaded, then load the data and try again
-        if not_loaded and self.read(refresh=False):
+        # read the value from the backend if not defined
+        if value is None and not self.is_loaded(columns=[column]):
+            self.read(refresh=False)
             with ReadLocker(self.__lock):
-                value = self.__attributes.get(column.name())
+                value = self.__attributes[column.name()]
 
         # restore the value, which could include inflating references
         # if the value changes based on the restoration, then we should store that newly created
         # value for next time
         output = column.restore(value, context=sub_context)
-        if isinstance(output, orb.Model) and not isinstance(output, orb.Model):
+        if isinstance(output, orb.Model) and not isinstance(value, orb.Model):
             with WriteLocker(self.__lock):
                 self.__attributes[column.name()] = output
 
@@ -523,12 +522,12 @@ class Model(object):
         # look for particular columns
         with ReadLocker(self.__lock):
             for column in orb_context.schema_columns(self.schema()):
-                if not column.name() in self.__base_attributes:
+                if not column.name() in self.__loaded:
                     return False
 
             # look for any columns
             else:
-                return len(self.__base_attributes) > 0
+                return len(self.__loaded) > 0
 
     def is_modified(self, **context):
         """
@@ -674,7 +673,7 @@ class Model(object):
                     # an error, then it can be assumed that they are different
                     try:
                         different = base_value != current_value
-                    except Exception:
+                    except Exception:  # pragma: no cover
                         different = True
 
                     if different:
@@ -747,6 +746,7 @@ class Model(object):
 
         with WriteLocker(self.__lock):
             self.__base_attributes.update({k: v for k, v in self.__attributes.items() if k in column_names})
+            self.__loaded.update(column_names)
 
     def on_change(self, event):
         """
@@ -755,7 +755,9 @@ class Model(object):
 
         :param event: <orb.ChangeEvent>
         """
-        Model.changed.send(self, event=event)
+        Model.changed.send(type(self), event=event)
+        if not event.prevent_default:
+            Model.changed.send(self, event=event)
 
     def on_delete(self, event):
         """
@@ -764,7 +766,9 @@ class Model(object):
 
         :param event: <orb.DeleteEvent>
         """
-        Model.deleted.send(self, event=event)
+        Model.deleted.send(type(self), event=event)
+        if not event.prevent_default:
+            Model.deleted.send(self, event=event)
 
     def on_pre_save(self, event):
         """
@@ -773,7 +777,9 @@ class Model(object):
 
         :param event: <orb.SaveEvent>
         """
-        Model.about_to_save.send(self, event=event)
+        Model.about_to_save.send(type(self), event=event)
+        if not event.prevent_default:
+            Model.about_to_save.send(self, event=event)
 
     def on_post_save(self, event):
         """
@@ -782,7 +788,9 @@ class Model(object):
 
         :param event: <orb.SaveEvent>
         """
-        Model.saved.send(self, event=event)
+        Model.saved.send(type(self), event=event)
+        if not event.prevent_default:
+            Model.saved.send(self, event=event)
 
     def parse(self, raw_data):
         """
