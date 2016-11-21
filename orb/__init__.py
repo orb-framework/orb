@@ -44,12 +44,11 @@ with demandimport.enabled():
     from .core.pipe import Pipe
     from .core.reverselookup import ReverseLookup
     from .core.schema import Schema
+    from .core.search import (AbstractSearchEngine, BasicSearchEngine)
 
     from .core.events import *
     from .core.column_types import *
     from .core.connection_types import *
-
-
 
 
 # define the global system

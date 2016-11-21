@@ -81,8 +81,9 @@ class Model(object):
 
         # initialize record from values
         if type(record) is dict:
-            defaults = dict(self.__class__.iter_defaults(ignore=record.keys(), context=self.__context))
-            defaults.update(record)
+            self.update(record)
+            ignored = list(self.__attributes.keys()) + record.keys()
+            defaults = dict(self.__class__.iter_defaults(ignore=ignored, context=self.__context))
             self.update(defaults)
 
         # initialize a record by copying another
@@ -584,19 +585,16 @@ class Model(object):
         :return: <generator>
         """
         tree = tree or {}
+        context = context or orb.Context()
 
         for column in columns:
             # ignore tree columns
-            if column.test_flag(column.Flags.RequiresExpand):
+            if column.test_flag(column.Flags.RequiresExpand) and column.name() not in tree:
                 continue
 
             # ignore permission denied columns
             elif not self.__auth__.can_read_column(column, context=context):
                 continue
-
-            # fetch raw data for virtual columns not associated with views
-            elif column.test_flag(column.Flags.Virtual) and not isinstance(self, orb.View):
-                yield column.alias(), self.get(column, context=context)
 
             # fetch custom data for the column
             elif column.gettermethod() is not None:
@@ -604,39 +602,32 @@ class Model(object):
 
             # fetch raw data for the column
             else:
-                try:
-                    value = self.__attributes[column.name()]
-                except KeyError:
-                    pass
+                value = self.__attributes[column.name()]
+
+                # normalize the value from the cache
+                if column.test_flag(orb.Column.Flags.I18n) and type(value) == dict and context.locale != 'all':
+                    value = value.get(context.locale)
+
+                # yield basic column value
+                if not isinstance(column, orb.ReferenceColumn):
+                    yield column.alias(), value
+
+                # yield reference column
                 else:
-                    # normalize the value from the cache
-                    if column.test_flag(orb.Column.Flags.I18n) and type(value) == dict:
-                        value = value.get(context.locale)
+                    # yield the basic id by default
+                    yield column.alias(), value if not isinstance(value, orb.Model) else value.id()
 
-                    # yield basic column value
-                    if not isinstance(column, orb.ReferenceColumn):
-                        yield column.alias(), value
-
-                    # yield reference column
+                    # yield tree value (if requested)
+                    try:
+                        subtree = tree.pop(column.name())
+                    except KeyError:
+                        pass
                     else:
-                        # yield the basic id by default
-                        yield column.alias(), value if not isinstance(value, orb.Model) else value.id()
-
-                        # yield tree value (if requested)
-                        try:
-                            subtree = tree.pop(column.name())
-                        except KeyError:
-                            pass
-                        else:
-                            reference = self.get_attribute(column,
-                                                           expand=subtree,
-                                                           returning=context.returning,
-                                                           scope=context.scope)
-
-                            if isinstance(reference, orb.Model) and context.returning == 'data':
-                                yield column.name(), dict(reference)
-                            else:
-                                yield column.name(), reference
+                        reference = self.get_attribute(column,
+                                                       expand=subtree,
+                                                       returning=context.returning,
+                                                       scope=context.scope)
+                        yield column.name(), reference
 
     def iter_changes(self, **context):
         """
@@ -689,6 +680,8 @@ class Model(object):
 
         :return: <generator>
         """
+        context = context or orb.Context()
+
         for attribute, subtree in tree.items():
             try:
                 value = self.get(
@@ -698,15 +691,9 @@ class Model(object):
                     scope=context.scope
                 )
             except orb.errors.ColumnNotFound:
-                log.warning('Could not find attribute: {0}'.format(attribute))
                 continue
             else:
-                if isinstance(value, orb.Model) and context.returning == 'data':
-                    yield attribute, dict(value)
-                elif isinstance(value, orb.Collection) and context.returning == 'data':
-                    yield attribute, [dict(x) for x in value]
-                else:
-                    yield attribute, value
+                yield attribute, value
 
     def iter_record(self, **context):
         """
@@ -804,16 +791,16 @@ class Model(object):
         base_table_name = schema.dbname()
         for raw_field, raw_value in raw_data.items():
             try:
-                table_name, field = raw_field.split('.')
+                table_name, alias = raw_field.split('.')
             except ValueError:
                 table_name = base_table_name
-                field = raw_field
+                alias = raw_field
 
             # make sure the value we're setting is specific to this model
-            column = schema.column(field, raise_=False)
+            column = schema.column(alias, raise_=False)
 
             if column is None:
-                self.__preload[field] = raw_value
+                self.__preload[alias] = raw_value
 
             # ignore data that is not related to this model
             elif table_name != base_table_name:
@@ -832,6 +819,7 @@ class Model(object):
 
         # update the local values
         with WriteLocker(self.__lock):
+            self.__loaded.update(attributes.keys())
             self.__attributes.update(attributes)
             self.__base_attributes.update({k: v.copy() if type(v) == dict else v
                                            for k, v in attributes.items()})
@@ -853,9 +841,9 @@ class Model(object):
 
         :param name: <str>
 
-        :return: <dict>
+        :return: <variant>
         """
-        return self.__preload.get(name) or {}
+        return self.__preload.get(name)
 
     def read(self, refresh=True):
         """
@@ -992,7 +980,7 @@ class Model(object):
         callback = orb.Callback(self.save,
                                 kwargs=context,
                                 signal=Model.saved,
-                                sender=self,
+                                sender=record,
                                 single_shot=True)
         return callback
 
@@ -1013,7 +1001,7 @@ class Model(object):
         callback = orb.Callback(self.save,
                                 kwargs=context,
                                 signal=Model.about_to_save,
-                                sender=self,
+                                sender=record,
                                 single_shot=True)
         return callback
 
@@ -1060,10 +1048,6 @@ class Model(object):
 
         :return: (<variant> old value, <variant> new value) or None
         """
-        # ensure that this attribute can actually be set
-        if column.test_flag(column.Flags.ReadOnly):
-            raise orb.errors.ColumnReadOnly(schema=self.schema(), column=column)
-
         orb_context = self.context()
         sub_context = orb_context.sub_context(**context)
 
@@ -1084,7 +1068,7 @@ class Model(object):
             # broadcast the change through the system
             try:
                 changed = orig_value != value
-            except TypeError:
+            except TypeError:  # pragma: no cover
                 changed = True
 
             if changed:
@@ -1131,10 +1115,10 @@ class Model(object):
                     base_collection = self.__collections[collector.name()][sub_context]
             except KeyError:
                 with WriteLocker(self.__lock):
-                    self.__collections[collector.name()][sub_context] = collection
-                    base_collection = collection
-            else:
-                base_collection.update(collection, use_method=use_method, context=sub_context)
+                    base_collection = collector.collection(self)
+                    self.__collections[collector.name()][sub_context] = base_collection
+
+            base_collection.update(collection, use_method=use_method, context=sub_context)
 
             # remove any preloaded values from the collector
             # to ensure that there is no conflict later -- setting the collection
@@ -1202,9 +1186,6 @@ class Model(object):
                 collections[collector] = value
                 continue
 
-            # update something custom and unknown
-            unknown[key] = value
-
         # update the attributes in order
         for column in sorted(attributes.keys(), key=lambda x: x.order()):
             changed = self.set_attribute(column,
@@ -1217,16 +1198,6 @@ class Model(object):
         # update the collections
         for collector, value in collections.items():
             self.set_collection(collector, value, **context)
-
-        # update unknown values
-        for key, value in unknown.items():
-            try:
-                changed = self.set(key, value, silent=True, **context)
-            except orb.errors.ColumnNotFound as err:
-                log.warning(str(err))
-            else:
-                if changed is not None:
-                    changes[key] = changed
 
         return len(changes)
 
@@ -1258,20 +1229,18 @@ class Model(object):
                 value = self.__attributes.get(column.name())
 
             # will raise a ValidationError if this check does not pass
-            if not column.validate(value):
-                return False
+            column.validate(value)
 
         # valide the index values
         if validate_indexes:
-            for index in self.schema().indexes().values():
+            for index in schema.indexes().values():
                 with ReadLocker(self.__lock):
                     values = {column: self.__attributes.get(column.name())
                               for column in index.schema_columns(schema)}
 
                 # validates the index against the values for that it uses,
                 # will raise a ValidationError if it does not pass
-                if not index.validate(values):
-                    return False
+                index.validate(values)
 
         return True
 
@@ -1342,6 +1311,7 @@ class Model(object):
         :return: <orb.Model>
         """
         schema = cls.schema()
+        system = schema.system()
         model = cls
 
         # check for creating polymorphic models
@@ -1356,7 +1326,8 @@ class Model(object):
             # create from the proper polymorphic model
             # if not found, a ModelNotFound error will be raised
             if model_name and model_name != schema.name():
-                model = schema.system().model(model_name)
+                model = system.model(model_name)
+                schema = model.schema()
 
         attributes = {}
         collections = {}
@@ -1374,7 +1345,10 @@ class Model(object):
         # afterwards
         record = model(attributes, **context)
         record.save()
-        record.update(collections)
+
+        for key, value in collections.items():
+            record.set_collection(key, value)
+
         return record
 
     @classmethod
@@ -1406,13 +1380,8 @@ class Model(object):
         for key, value in required.items():
             column = schema.column(key)
 
-            # ignore virtual columns since they cannot be queried,
-            # we will set them later if the record is not generated yet
-            if column.test_flag(column.Flags.Virtual):
-                continue
-
             # check for non-case sensitive columns
-            elif isinstance(value, (str, unicode)) and not column.test_flag(column.Flags.CaseSensitive):
+            if isinstance(value, (str, unicode)) and not column.test_flag(column.Flags.CaseSensitive):
                 q &= orb.Query(key).lower() == value.lower()
 
             # check for exact matches
@@ -1429,8 +1398,8 @@ class Model(object):
             values = required.copy()
             values.update(defaults or {})
 
-            record = cls(values, **context)
-            record.save()
+            # create the new record
+            record = cls.create(values, **context)
 
         return record
 
@@ -1515,11 +1484,12 @@ class Model(object):
             schema = cls.schema()
             schema_context = schema.context(**context)
             pcols = schema.columns(flags=orb.Column.Flags.Polymorphic).values()
+            pcol = pcols[0] if pcols else None
 
             # attempt to expand the class to its defined polymorphic type
-            if pcols and pcols.alias() in raw_record:
-                model_name = raw_record[pcols.alias()]
-                model = schema_context.system().model(model_name)
+            if pcol and pcol.alias() in raw_record:
+                model_name = raw_record[pcol.alias()]
+                model = schema_context.system.model(model_name)
                 schema_context = model.schema().context(context=schema_context)
             else:
                 model = cls
@@ -1527,6 +1497,7 @@ class Model(object):
             # create the record instance from the database
             record = model(context=schema_context)
             record.parse(raw_record)
+            record.mark_loaded(model.schema().columns())
             return record
 
     @classmethod

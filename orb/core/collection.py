@@ -78,6 +78,9 @@ class Collection(object):
     def __bool__(self):  # pragma: no cover
         return not self.is_empty()
 
+    def __contains__(self, item):
+        return self.has(item)
+
     def __json__(self):
         """
         Serializes this object to JSON acceptable dictionary values.
@@ -160,7 +163,7 @@ class Collection(object):
             # if ALL the records have finished processing.  if
             # the loop is exited prematurely, the cache should not be stored
             processed_records = []
-            for raw_record in raw_records:
+            for raw_record in raw_records or []:
                 processed_record = self._process_record(raw_record, context)
                 yield processed_record
                 processed_records.append(processed_record)
@@ -1187,10 +1190,9 @@ class Collection(object):
             # update the root collector information
             if self.__bound_collector:
                 self.__bound_collector.update_records(self.__bound_source_record,
-                                                      self,
-                                                      new_ids,
+                                                      new_records,
                                                       context=create_context)
-                self.clear_cache()
+                self.__cache['records'][orb_context] = new_records
 
             # update the record cache
             else:

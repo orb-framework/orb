@@ -113,8 +113,9 @@ class Pipe(Collector):
     def from_(self):
         return self.__from
 
-    def fromColumn(self):
-        schema = orb.system.schema(self.__through)
+    def fromColumn(self, **context):
+        context = orb.Context(**context)
+        schema = context.system.schema(self.__through)
         try:
             return schema.column(self.__from)
         except AttributeError:
@@ -148,8 +149,9 @@ class Pipe(Collector):
     def to(self):
         return self.__to
 
-    def toColumn(self):
-        schema = orb.system.schema(self.__through)
+    def toColumn(self, **context):
+        context = orb.Context(**context)
+        schema = context.system.schema(self.__through)
         try:
             return schema.column(self.__to)
         except AttributeError:
@@ -162,41 +164,42 @@ class Pipe(Collector):
     def through(self):
         return self.__through
 
-    def throughModel(self):
-        schema = orb.system.schema(self.__through)
+    def throughModel(self, **context):
+        context = orb.Context(**context)
+        schema = context.system.schema(self.__through)
         try:
             return schema.model()
         except AttributeError:
             raise orb.errors.ModelNotFound(schema=self.__through)
 
-    def update_records(self, source_record, collection, collection_ids, **context):
+    def update_records(self, source_record, records, **context):
         orb_context = orb.Context(**context)
 
         through = self.throughModel()
-        curr_ids = set(collection.ids())
-        new_ids = set(collection_ids)
-
-        # calculate the id shift
-        remove_ids = curr_ids - new_ids
-        add_ids = new_ids - curr_ids
+        new_ids = [record.id() for record in records]
 
         from_column = self.from_()
         to_column = self.to()
 
-        # remove old records
-        if remove_ids:
-            q = orb.Query(through, from_column) == source_record
-            q &= orb.Query(through, to_column).in_(remove_ids)
-            orb_context.where = q
+        # remove existing records
+        if source_record.is_record():
+            remove_ids = orb.Query(through, from_column) == source_record
+            remove_ids &= orb.Query(through, to_column).notIn(new_ids)
+            orb_context.where = remove_ids
             through.select(context=orb_context).delete()
 
-        # create new records
-        if add_ids:
-            collection = orb.Collection([
-                through({
+            for record in records:
+                through.ensure_exists({
                     from_column: source_record,
-                    to_column: id_
-                }, context=orb_context)
-                for id_ in add_ids
-            ])
-            collection.save()
+                    to_column: record
+                })
+
+        # create new records
+        else:
+            for record in records:
+                through_record = through({
+                    from_column: source_record,
+                    to_column: record
+                })
+                through_record.save_after(source_record)
+

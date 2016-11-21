@@ -46,7 +46,7 @@ class Database(object):
         self.__password = password
         self.__credentials = credentials
         self.__timeout = timeout  # ms
-        self.__system = None
+        self.__system = system
 
         # setup the database connection
         self.set_connection(connection)
