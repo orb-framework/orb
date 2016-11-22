@@ -2,24 +2,22 @@ def _validate_context_dict(data):
     assert data['columns'] is None
     assert data['database'] is None
     assert data['distinct'] is False
-    assert data['dryRun'] is False
     assert data['expand'] is None
     assert data['format'] == 'json'
     assert data['force'] is False
-    assert data['inflated'] is None
     assert data['limit'] is None
     assert data['locale'] == 'en_US'
     assert data['namespace'] == ''
     assert data['force_namespace'] is False
     assert data['order'] is None
     assert data['page'] is None
-    assert data['pageSize'] is None
+    assert data['page_size'] is None
     assert data['scope'] == {}
     assert data['returning'] == 'records'
     assert data['start'] is None
     assert data['timezone'] == 'US/Pacific'
     assert data['where'] is None
-    assert data['useBaseQuery'] is True
+    assert data['use_base_query'] is True
 
 
 def test_create_new_context():
@@ -33,24 +31,22 @@ def test_create_new_context():
     assert context.columns is None
     assert context.database is None
     assert context.distinct is False
-    assert context.dryRun is False
     assert context.expand is None
     assert context.format == 'json'
     assert context.force is False
-    assert context.inflated is None
     assert context.limit is None
     assert context.locale == 'en_US'
     assert context.namespace == ''
     assert context.force_namespace is False
     assert context.order is None
     assert context.page is None
-    assert context.pageSize is None
+    assert context.page_size is None
     assert context.scope == {}
     assert context.returning == 'records'
     assert context.start is None
     assert context.timezone == 'US/Pacific'
     assert context.where is None
-    assert context.useBaseQuery is True
+    assert context.use_base_query is True
 
     # assert database doesn't have it
     with pytest.raises(orb.errors.DatabaseNotFound):
@@ -71,24 +67,22 @@ def test_context_attribute_setting():
     context.columns = ['username']
     context.database = 'orb_testing'
     context.distinct = True
-    context.dryRun = True
     context.expand = 'user,group'
     context.format = 'text'
     context.force = True
-    context.inflated = True
     context.limit = 10
     context.locale = 'fr_FR'
     context.namespace = 'public'
     context.force_namespace = True
     context.order = '-name'
     context.page = 2
-    context.pageSize = 10
+    context.page_size = 10
     context.scope = {'user': 'me'}
     context.returning = 'values'
     context.start = 10
     context.timezone = 'US/Eastern'
     context.where = orb.Query('id') == 5
-    context.useBaseQuery = False
+    context.use_base_query = False
 
     with pytest.raises(AttributeError):
         context.test_attribute = 10
@@ -96,24 +90,22 @@ def test_context_attribute_setting():
     assert context.columns == ['username']
     assert context.database == 'orb_testing'
     assert context.distinct is True
-    assert context.dryRun is True
     assert context.expand == ['user', 'group']
     assert context.format == 'text'
     assert context.force is True
-    assert context.inflated is True
     assert context.limit == 10
     assert context.locale == 'fr_FR'
     assert context.namespace == 'public'
     assert context.force_namespace == True
     assert context.order == [('name', 'desc')]
     assert context.page == 2
-    assert context.pageSize == 10
+    assert context.page_size == 10
     assert context.scope == {'user': 'me'}
     assert context.returning == 'values'
     assert context.start == 10
     assert context.timezone == 'US/Eastern'
     assert context.where.__json__() == (orb.Query('id') == 5).__json__()
-    assert context.useBaseQuery is False
+    assert context.use_base_query is False
 
 
 def test_context_hash_equivalency():
@@ -122,7 +114,7 @@ def test_context_hash_equivalency():
     a = Context()
     b = Context()
 
-    assert hash(a) == hash(tuple(None for x in xrange(20)))
+    assert hash(a) == hash(tuple(None for x in range(18)))
     assert a == b
 
 
@@ -412,11 +404,11 @@ def test_context_limit_custom_property():
 
     context = Context(limit=10)
     assert context.limit == 10
-    assert context.pageSize is None
+    assert context.page_size is None
 
-    context = Context(pageSize=10)
+    context = Context(page_size=10)
     assert context.limit == 10
-    assert context.pageSize == 10
+    assert context.page_size == 10
 
 def test_context_custom_start_property():
     from orb.core.context import Context
@@ -425,7 +417,7 @@ def test_context_custom_start_property():
     assert context.page is None
     assert context.start == 10
 
-    context = Context(page=2, pageSize=100)
+    context = Context(page=2, page_size=100)
     assert context.page == 2
     assert context.start == 100
 
@@ -513,9 +505,9 @@ def test_context_field_validation():
         assert err.message == 'page needs to be an integer greater than or equal to 1, got 0'
 
     try:
-        context = Context(pageSize=0)
+        context = Context(page_size=0)
     except orb.errors.ContextError as err:
-        assert err.message == 'pageSize needs to be an integer greater than or equal to 1, got 0'
+        assert err.message == 'page_size needs to be an integer greater than or equal to 1, got 0'
 
     try:
         context = Context(start=-1)

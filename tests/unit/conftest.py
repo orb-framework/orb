@@ -12,6 +12,7 @@ def mock_db():
 
     return _mock_db
 
+
 @pytest.fixture()
 def MockUser():
     import orb
@@ -30,6 +31,7 @@ def MockUser():
     yield MockUser
     orb.system.unregister(MockUser.schema())
 
+
 @pytest.fixture()
 def MockGroup(request):
     import orb
@@ -43,3 +45,4 @@ def MockGroup(request):
     orb.system.register(MockGroup.schema())
     yield MockGroup
     orb.system.unregister(MockGroup.schema())
+

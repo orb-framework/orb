@@ -40,7 +40,7 @@ class IdColumnEngine(ColumnEngine):
             return self.NumericTypes.get(plugin_name, self.NumericTypes['default'])
         elif column.type() == 'hash':
             base = self.HashTypes.get(plugin_name, self.HashTypes['default'])
-            return base.format(column.bits() * 2)
+            return base.format(bits=column.bits() * 2)
         else:
             raise orb.errors.OrbError('Unknown ID type: {0}'.format(column.type()))
 

@@ -59,23 +59,13 @@ class Index(object):
 
         :return: <orb.Collection> or <orb.Model> or None
         """
-        my_schema = self.schema() or model.schema()
+        context['where'] = self.build_query(values, schema=model.schema()) & context.get('where')
 
-        # ensure the schemas match up
-        if model.schema() is not my_schema:
-            given = model.schema().name()
-            expected = my_schema.name()
-            raise orb.errors.OrbError('{0} is not a {1} type'.format(given, expected))
+        if self.__order:
+            context.setdefault('order', self.__order)
 
-        # execute the index lookup logic
-        else:
-            context['where'] = self.build_query(values, schema=my_schema) & context.get('where')
-
-            if self.__order:
-                context.setdefault('order', self.__order)
-
-            records = model.select(**context)
-            return records.first() if self.test_flag(self.Flags.Unique) else records
+        records = model.select(**context)
+        return records.first() if self.test_flag(self.Flags.Unique) else records
 
     def __eq__(self, other):
         return self is other
@@ -255,25 +245,21 @@ class Index(object):
         """
         self.__schema = schema
 
-    def validate(self, record, values):
+    def validate(self, values):
         """
         Validates whether or not this index's requirements are satisfied by the inputted record and
         values.  If this index fails validation, an InvalidIndexArguments will be raised.
 
-        :param record: <orb.Model>
         :param values: {<orb.Column>: <variant>, ..}
 
         :return     <bool>
         """
-        r_schema = record.schema()
         columns = self.schema_columns()
         try:
-            _ = [values[r_schema.column(col)] for col in columns]
-        except orb.errors.ColumnNotFound as err:
-            raise orb.errors.InvalidIndexArguments(self.schema(), msg=str(err))
+            _ = [values[col] for col in columns]
         except KeyError as err:
             msg = 'Missing {0} from {1}.{2} index'.format(err[0].name(),
-                                                          record.schema().name(),
+                                                          self.schema().name(),
                                                           self.name())
             raise orb.errors.InvalidIndexArguments(self.schema(), msg=msg)
         else:

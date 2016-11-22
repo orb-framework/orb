@@ -74,7 +74,7 @@ class MockConnection(orb.Connection):
         assert isinstance(context, orb.Context)
 
         # return the desired response
-        return self.next_response('count', model, context)
+        return self.next_response('count', model, context, default=0)
 
     def create_model(self, model, context, owner='', include_references=True):
         """
@@ -112,7 +112,7 @@ class MockConnection(orb.Connection):
         assert isinstance(context, orb.Context)
 
         # return the desired response
-        return self.next_response('delete', records, context)
+        return self.next_response('delete', records, context, default=(None, 0))
 
     def execute(self, command, data=None, flags=0):
         """
@@ -148,7 +148,7 @@ class MockConnection(orb.Connection):
         assert isinstance(context, orb.Context)
 
         # return the desired response
-        return self.next_response('insert', records, context)
+        return self.next_response('insert', records, context, default=([], 0))
 
     def is_connected(self):
         """
@@ -168,7 +168,7 @@ class MockConnection(orb.Connection):
         assert (threadId is None or type(threadId) == int)
         return self.next_response('interrupt', threadId)
 
-    def next_response(self, method, *args):
+    def next_response(self, method, *args, **kw):
         """
         Returns the next response for a particular method call.  This
         can be used to drive the connection response information.
@@ -182,7 +182,7 @@ class MockConnection(orb.Connection):
             self.counter['all'] += 1
             self.counter[method] += 1
 
-        resp = self.responses.get(method)
+        resp = self.responses.get(method) or kw.get('default')
 
         # pass along the query to the base connection when desired
         if self.base_connection is not None:
@@ -245,7 +245,7 @@ class MockConnection(orb.Connection):
         assert issubclass(model, orb.Model)
         assert isinstance(context, orb.Context)
 
-        return self.next_response('select', model, context)
+        return self.next_response('select', model, context, default=[])
 
 
     def setup(self, context):
@@ -268,4 +268,4 @@ class MockConnection(orb.Connection):
         assert isinstance(records, (orb.Collection, list))
         assert isinstance(context, orb.Context)
 
-        return self.next_response('update', records, context)
+        return self.next_response('update', records, context, default=([], 0))

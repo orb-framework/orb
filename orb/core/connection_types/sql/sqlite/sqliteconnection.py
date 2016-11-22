@@ -153,10 +153,8 @@ class SQLiteConnection(SQLConnection):
                     args.append(value)
 
 
-            log.debug('***********************')
             log.debug(command)
             log.debug(args)
-            log.debug('***********************')
 
             try:
                 cursor.execute(cmd, tuple(args))

@@ -71,8 +71,9 @@ class ReverseLookup(Collector):
         """
         return self.__removeAction
 
-    def reference_model(self):
-        schema = orb.system.schema(self.__reference)
+    def reference_model(self, **context):
+        context = orb.Context(**context)
+        schema = context.system.schema(self.__reference)
         if schema is not None:
             return schema.model()
         else:
@@ -95,39 +96,43 @@ class ReverseLookup(Collector):
         else:
             self.__removeAction = action
 
-    def targetColumn(self):
-        schema = orb.system.schema(self.__reference)
+    def targetColumn(self, **context):
+        context = orb.Context(**context)
+        schema = context.system.schema(self.__reference)
         try:
             return schema.column(self.__target)
         except AttributeError:
             raise orb.errors.ModelNotFound(schema=self.__reference)
 
-    def update_records(self, source_record, collection, collection_ids, **context):
+    def update_records(self, source_record, records, **context):
         orb_context = orb.Context(**context)
         target_column = self.targetColumn()
         target_model = target_column.schema().model()
 
-        q = orb.Query(target_column) == source_record
-        q &= orb.Query(target_model).notIn(collection_ids)
+        # create links to the reverse lookup instance
+        collection_ids = []
+        for record in records:
+            if record.is_record():
+                collection_ids.append(record.get('id'))
 
-        # determine the reverse lookups to remove from this collection
-        remove_records = target_model.select(where=q, context=orb_context)
-
-        # check the remove action to determine how to handle this situation
-        if self.removeAction() == 'delete':
-            remove_records.delete()
-
-        else:
-            for record in remove_records:
-                record.set(target_model, None)
+            record.set(target_column, source_record)
+            if source_record.is_record():
                 record.save()
+            else:
+                record.save_after(source_record)
 
-        # determine the new records to add to this collection
-        if collection_ids:
-            q = orb.Query(target_model).in_(collection_ids)
-            q &= (orb.Query(target_column) != source_record) | (orb.Query(target_column) == None)
+        # delete old links if necessary
+        if source_record.is_record():
+            q = orb.Query(target_column) == source_record
+            q &= orb.Query(target_model).notIn(collection_ids)
 
-            add = target_model.select(where=q, context=orb_context)
-            for record in add:
-                record.set(target_column, source_record)
-                record.save()
+            # determine the records to remove from this collection
+            remove_records = target_model.select(where=q, context=orb_context)
+
+            # check the remove action to determine how to handle this situation
+            if self.removeAction() == 'delete':
+                remove_records.delete()
+            else:
+                for record in remove_records:
+                    record.set(target_column, None)
+                    record.save()

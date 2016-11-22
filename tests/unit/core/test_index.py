@@ -140,7 +140,7 @@ def test_index_flags():
     assert not a.test_flag(Index.Flags.Unique)
 
 
-def test_column_validation(MockUser, MockGroup):
+def test_column_validation(MockUser):
     import orb
     from orb.core.index import Index
 
@@ -150,31 +150,28 @@ def test_column_validation(MockUser, MockGroup):
     )
 
     user = MockUser()
-    group = MockGroup()
 
     values = {
         user.schema().column('username'): 'jdoe',
         user.schema().column('first_name'): 'John'
     }
-    assert a.validate(user, values)
-    with pytest.raises(orb.errors.InvalidIndexArguments):
-        assert a.validate(group, values)
+    assert a.validate(values)
 
     values = {
         'username': 'jdoe',
         'first_name': 'John'
     }
     with pytest.raises(orb.errors.InvalidIndexArguments):
-        assert a.validate(user, values)
+        assert a.validate(values)
 
 
-def test_index_callable(MockUser, MockGroup, mock_db):
+def test_index_callable(MockUser, mock_db):
     import orb
     from orb.core.index import Index
 
     db = mock_db()
 
-    by_username = Index(['username'], order='-id')
+    by_username = Index(['username'], order='-id', schema=MockUser.schema())
     results = by_username(MockUser, 'jdoe')
 
     assert isinstance(results, orb.Collection)
@@ -183,8 +180,5 @@ def test_index_callable(MockUser, MockGroup, mock_db):
         by_username.set_flags(Index.Flags.Unique)
         assert by_username(MockUser, 'jdoe') is None
 
-    by_username.set_schema(MockUser.schema())
-    with pytest.raises(orb.errors.OrbError):
-        assert by_username(MockGroup, 'jdoe')
 
 

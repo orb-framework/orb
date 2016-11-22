@@ -38,20 +38,17 @@ with demandimport.enabled():
     from .core.context import Context
     from .core.database import Database
     from .core.index import Index
-    from .core.model import Model
-    from .core.modelmixin import ModelMixin
+    from .core.model import (Model, ModelMixin, Table, View)
     from .core.query import (Query, QueryCompound)
     from .core.collector import Collector
     from .core.pipe import Pipe
     from .core.reverselookup import ReverseLookup
     from .core.schema import Schema
+    from .core.search import (AbstractSearchEngine, BasicSearchEngine)
 
     from .core.events import *
-    from .core.model_types import *
     from .core.column_types import *
     from .core.connection_types import *
-
-
 
 
 # define the global system

@@ -44,7 +44,7 @@ class System(object):
         models = self.models(group=group, auto_generate=auto_generate)
         scope.update(models)
 
-    def database(self, code=None):
+    def database(self, code=''):
         """
         Returns the database whose code matches the given string, or the active database if
         no code is given.
@@ -55,11 +55,11 @@ class System(object):
             orb.system.database()  # returns active database
             orb.system.database('my-database')  # returns the 'my-database' database
 
-        :param code: <str> or None (default)
+        :param code: <str>
 
         :return: <orb.Database> or None
         """
-        if code is not None:
+        if code:
             try:
                 return self.__databases[code]
             except KeyError:
@@ -217,26 +217,27 @@ class System(object):
         else:
             return self.__schemas
 
-    def unregister(self, obj):
+    def unregister(self, obj=None):
         """
         Unregisters an object from this system.
 
         :param obj: <orb.Database> or <orb.Schema>
         """
-        if isinstance(obj, orb.Database):
+        if obj is None:
+            self.__active_database = None
+            self.__databases.clear()
+            self.__schemas.clear()
+        elif isinstance(obj, orb.Database):
             self.unregister_database(obj)
         elif isinstance(obj, orb.Schema):
             self.unregister_schema(obj)
         else:
             try:
-                is_model = issubclass(obj, orb.Model)
+                schema = obj.schema()
             except StandardError:
-                is_model = False
-
-            if not is_model:
                 raise orb.errors.OrbError('Unknown object to unregister')
             else:
-                self.unregister_schema(obj.schema())
+                self.unregister_schema(schema)
 
     def unregister_database(self, db):
         """
@@ -245,6 +246,8 @@ class System(object):
         :param db: <orb.Database>
         """
         self.__databases.pop(db.code(), None)
+        if db == self.__active_database:
+            self.__active_database = None
 
     def unregister_schema(self, schema):
         """

@@ -5,12 +5,14 @@ import subprocess
 from setuptools import setup, find_packages, Command
 from setuptools.command.test import test as TestCommand
 
-__author__ = 'Eric Hulser'
-__email__ = 'eric.hulser@gmail.com'
-__license__ = 'MIT'
+PACKAGE = 'orb-api'
+AUTHOR = 'Eric Hulser'
+EMAIL = 'eric.hulser@gmail.com'
+LICENSE = 'MIT'
 
 INSTALL_REQUIRES = []
 DEPENDENCY_LINKS = []
+EXTRAS_REQUIRE = {}
 TESTS_REQUIRE = []
 LONG_DESCRIPTION = ''
 
@@ -101,10 +103,19 @@ if __name__ == '__main__':
         INSTALL_REQUIRES.extend(_install_requires)
         DEPENDENCY_LINKS.extend(_pypi_urls)
 
+        # include additional environments
+        for file in os.listdir('.'):
+            if file.startswith('requirements-'):
+                env = file.split('.')[0].split('-')[1]
+                _install_requires, _pypi_urls = read_requirements_file(file)
+                EXTRAS_REQUIRE[env] = _install_requires
+                DEPENDENCY_LINKS.extend(_pypi_urls)
+
     if os.path.isfile('tests/requirements.txt'):
         _tests_require, _pypi_urls = read_requirements_file('tests/requirements.txt')
         TESTS_REQUIRE.extend(_tests_require)
         DEPENDENCY_LINKS.extend(_pypi_urls)
+
 
     # Get the long description from the relevant file
     if os.path.isfile('README.md'):
@@ -112,21 +123,25 @@ if __name__ == '__main__':
             LONG_DESCRIPTION = f.read()
 
     setup(
-        name='orb-api',
+        name=PACKAGE,
         version=VERSION,
-        author=__author__,
-        author_email=__email__,
-        maintainer=__author__,
-        maintainer_email=__email__,
+        author=AUTHOR,
+        author_email=EMAIL,
+        maintainer=AUTHOR,
+        maintainer_email=EMAIL,
         description='Database ORM and API builder.',
-        license=__license__,
+        license=LICENSE,
         keywords='',
         url='https://github.com/orb-framework/orb',
         install_requires=INSTALL_REQUIRES,
+
         packages=find_packages(),
+
         tests_require=TESTS_REQUIRE,
         test_suite='tests',
+
         long_description=LONG_DESCRIPTION,
+        extras_require=EXTRAS_REQUIRE,
         cmdclass={
             'tag': tag,
             'test': Tox

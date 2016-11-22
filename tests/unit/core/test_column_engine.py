@@ -130,7 +130,12 @@ def test_engine_get_database_value():
     class User(orb.Table):
         id = orb.IdColumn()
 
-    coll = Collection([User({'id': 1}), User({'id': 2})])
+    a = User({'id': 1})
+    b = User({'id': 2})
+    a.mark_loaded()
+    b.mark_loaded()
+
+    coll = Collection([a, b])
 
     assert engine.get_database_value(column, '', 10) == 10
     assert engine.get_database_value(column, '', [1,2,3]) == (1,2,3)

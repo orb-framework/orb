@@ -4,236 +4,58 @@ database classes.
 """
 
 import blinker
+import demandimport
 import logging
-import projex.rest
-import projex.text
 
 from collections import defaultdict
-from projex.locks import ReadLocker, ReadWriteLock, WriteLocker
-from projex.lazymodule import lazy_import
-from projex import funcutil
-from ..decorators import deprecated
 
+from .access_control import AuthorizationPolicy
+from ..utils import json2
+from ..utils.locks import ReadLocker, ReadWriteLock, WriteLocker
+
+from .collection import Collection
 from .metamodel import MetaModel
-from .search import SearchEngine
+from .search import BasicSearchEngine
 
+with demandimport.enabled():
+    import orb
 
 log = logging.getLogger(__name__)
-orb = lazy_import('orb')
-errors = lazy_import('orb.errors')
+
+
+class ModelMixin(object):
+    """ Namespace placeholder that will define additional model properties through the meta system """
+    pass
 
 
 class Model(object):
     """
     Defines the base class type that all database records should inherit from.
     """
-    # define the table meta class
+    # define class properties
     __metaclass__ = MetaModel
+    __auth__ = AuthorizationPolicy()
+    __base_query__ = None
+    __collection_type__ = Collection
     __model__ = False
-    __search_engine__ = 'basic'
-    __auth__ = None
+    __search_engine__ = BasicSearchEngine()
+    __schema__ = None
 
     # signals
+    about_to_save = blinker.Signal()
     about_to_sync = blinker.Signal()
+    changed = blinker.Signal()
+    deleted = blinker.Signal()
+    saved = blinker.Signal()
     synced = blinker.Signal()
 
-    def __len__(self):
-        return len(self.schema().columns())
+    # built-ins
+    # --------------------
 
-    def __getitem__(self, key):
-        try:
-            return self.get(key)
-        except StandardError:
-            raise KeyError
-
-    def __setitem__(self, key, value):
-        try:
-            return self.set(key, value)
-        except StandardError:
-            raise KeyError
-
-    def __json__(self, *args):
-        """
-        Iterates this object for its values.  This will return the field names from the
-        database rather than the API names.  If you want the API names, you should use
-        the recordValues method.
-
-        :sa         recordValues
-
-        :return     <iter>
-        """
-        # additional options
-        context = self.context()
-
-        # don't include the column names
-        if context.returning == 'values':
-            schema_fields = {c.field() for c in context.schema_columns(self.schema())}
-            output = tuple(value for field, value in self if field in schema_fields)
-            if len(output) == 1:
-                output = output[0]
-        else:
-            output = dict(self)
-
-        return projex.rest.jsonify(output) if context.format == 'text' else output
-
-    def __iter__(self):
-        """
-        Iterates this object for its values.  This will return the field names from the
-        database rather than the API names.  If you want the API names, you should use
-        the recordValues method.
-
-        :sa         recordValues
-
-        :return     <iter>
-        """
-        if self.is_record() and self.__delayed:
-            self.__delayed = False
-            self.read()
-
-        # additional options
-        context = self.context()
-
-        # hide private columns
-        def _allowed(columns=None, context=None):
-            return not columns[0].test_flag(columns[0].Flags.Private)
-
-        auth = self.__auth__ if callable(self.__auth__) else _allowed
-        expand_tree = context.expandtree(self.__class__)
-        schema = self.schema()
-
-        if context.columns:
-            columns = [schema.column(x) for x in context.columns]
-        else:
-            columns = schema.columns(flags=~orb.Column.Flags.RequiresExpand).values()
-
-        # extract the data values for this model
-        for column in columns:
-            if (not column or
-                    column.test_flag(column.Flags.RequiresExpand) or
-                    not auth(columns=(column,), context=context)):
-                continue
-
-            elif ((column.test_flag(column.Flags.Virtual) and not isinstance(self, orb.View)) or
-                   column.gettermethod() is not None):
-                yield column.field(), self.get(column, inflated=False)
-
-            else:
-                try:
-                    value = self.__values[column.name()][1]
-                except KeyError:
-                    pass
-                else:
-                    if column.test_flag(orb.Column.Flags.I18n) and type(value) == dict:
-                        value = value.get(context.locale)
-
-                    # for references, yield both the raw value for the field
-                    # and the expanded value if desired
-                    if isinstance(column, orb.ReferenceColumn):
-                        if isinstance(value, orb.Model):
-                            yield column.field(), value.id()
-                        else:
-                            yield column.field(), value
-
-                        try:
-                            subtree = expand_tree.pop(column.name())
-                        except KeyError:
-                            pass
-                        else:
-                            reference = self.get(column,
-                                                 expand=subtree,
-                                                 returning=context.returning,
-                                                 scope=context.scope)
-                            output = reference.__json__() if reference is not None else None
-                            yield column.name(), output
-
-                    else:
-                        yield column.field(), column.restore(value, context=context)
-
-        # expand any other values which can include custom
-        # or virtual columns and collectors
-        if expand_tree:
-            for key, subtree in expand_tree.items():
-                try:
-                    value = self.get(
-                        key,
-                        expand=subtree,
-                        returning=context.returning,
-                        scope=context.scope
-                    )
-                except orb.errors.ColumnNotFound:
-                    continue
-                else:
-                    if hasattr(value, '__json__'):
-                        yield key, value.__json__()
-                    else:
-                        yield key, value
-
-    def __format__(self, spec):
-        """
-        Formats this record based on the inputted format_spec.  If no spec
-        is supplied, this is the same as calling str(record).
-
-        :param      spec | <str>
-
-        :return     <str>
-        """
-        if not spec:
-            return projex.text.nativestring(self)
-        elif spec == 'id':
-            return projex.text.nativestring(self.id())
-        elif self.has(spec):
-            return projex.text.nativestring(self.get(spec))
-        else:
-            return super(Model, self).__format__(spec)
-
-    def __eq__(self, other):
-        """
-        Checks to see if the two records are equal to each other
-        by comparing their primary key information.
-
-        :param      other       <variant>
-
-        :return     <bool>
-        """
-        return id(self) == id(other) or (isinstance(other, Model) and hash(self) == hash(other))
-
-    def __ne__(self, other):
-        """
-        Returns whether or not this object is not equal to the other object.
-
-        :param      other | <variant>
-
-        :return     <bool>
-        """
-        return not self.__eq__(other)
-
-    def __hash__(self):
-        """
-        Creates a hash key for this instance based on its primary key info.
-
-        :return     <int>
-        """
-        if not self.is_record():
-            return super(Model, self).__hash__()
-        else:
-            return hash((self.__class__, self.id()))
-
-    def __cmp__(self, other):
-        """
-        Compares one record to another.
-
-        :param      other | <variant>
-
-        :return     -1 || 0 || 1
-        """
-        try:
-            my_str = '{0}({1})'.format(type(self).__name__, self.id())
-            other_str = '{0}({1})'.format(type(self).__name__, other.id())
-            return cmp(my_str, other_str)
-        except StandardError:
-            return -1
-
-    def __init__(self, *info, **context):
+    def __init__(self,
+                 record=None,
+                 delayed=False,
+                 **context):
         """
         Initializes a database record for the table class.  A
         table model can be initialized in a few ways.  Passing
@@ -244,427 +66,773 @@ class Model(object):
         argument will be the records unique primary key, and
         trigger a lookup from the database for the record directly.
 
-        :param      *args       <tuple> primary key
-        :param      **kwds      <dict>  column default values
+        :param record: <variant> id or <dict> values or <orb.Model> instance or None
+        :param delayed: <bool> delays when the lookup for the record occurs
+        :param context: <orb.Context> descriptor
         """
-
-        # pop off additional keywords
-        loader = context.pop('loadEvent', None)
-        delayed = context.pop('delay', False)
-
-        context.setdefault('namespace', self.schema().namespace())
-
-        self.__dataLock = ReadWriteLock()
-        self.__values = {}
+        # define custom properties
+        self.__lock = ReadWriteLock()
+        self.__attributes = {}
+        self.__base_attributes = {}
+        self.__collections = defaultdict(dict)
+        self.__context = self.schema().context(**context)
         self.__loaded = set()
-        self.__context = orb.Context(**context)
-        self.__cache = defaultdict(dict)
         self.__preload = {}
-        self.__delayed = delayed
 
-        # extract values to use from the record
-        record = []
-        values = {}
-        for value in info:
-            if isinstance(value, dict):
-                values.update(value)
+        # initialize record from values
+        if type(record) is dict:
+            self.update(record)
+            ignored = list(self.__attributes.keys()) + record.keys()
+            defaults = dict(self.__class__.iter_defaults(ignore=ignored, context=self.__context))
+            self.update(defaults)
+
+        # initialize a record by copying another
+        elif type(record) is type(self):
+            self.update(dict(record))
+
+        # initialize a record by its id
+        elif record is not None:
+            # initialize by casting from a base class
+            if isinstance(record, orb.Model):
+                if not issubclass(type(self), type(record)):
+                    raise orb.errors.RecordNotFound(schema=self.schema(), column=type(record).__name__)
+                else:
+                    record_id = record.id()
+
+            # initialize from id
             else:
-                record.append(value)
+                record_id = record
 
-        # restore the database update values
-        if loader is not None:
-            self._load(loader)
+            # set the id value for this instance
+            id_column = self.schema().id_column()
+            self.set(id_column, record_id)
 
-        # initialize a new record if no record is provided
-        elif not record:
-            self.init()
+            # if this record initialization is not delayed, then read from the
+            # backend immediately
+            if not delayed:
+                self.read()
 
-        # otherwise, fetch the record from the database
+        # initialize defaults for the record
         else:
-            if len(record) == 1 and isinstance(record[0], Model):
-                record_id = record[0].id()
-                event = orb.events.LoadEvent(record=self, data=dict(record[0]))
-                self._load(event)
-            elif len(record) == 1:
-                record_id = record[0]  # don't use tuples unless multiple ID columns are used
-            else:
-                record_id = tuple(record)
+            self.update(dict(self.__class__.iter_defaults(context=self.__context)))
 
-            if not self.__delayed:
-                data = self.fetch(record_id, inflated=False, context=self.__context)
-            else:
-                data = {self.schema().id_column().name(): record_id}
-
-            if data:
-                event = orb.events.LoadEvent(record=self, data=data)
-                self._load(event)
-            else:
-                raise errors.RecordNotFound(schema=self.schema(), column=record_id)
-
-        # after loading everything else, update the values for this model
-        update_values = {k: v for k, v in values.items() if self.schema().column(k)}
-        if update_values:
-            self.update(update_values)
-
-    def _add_preloaded_data(self, cache):
-        for key, value in cache.items():
-            self.__preload[key] = value
-
-    def _load(self, event):
+    def __eq__(self, other):
         """
-        Processes a load event by setting the properties of this record
-        to the data restored from the database.
+        Checks to see if one model is equal to the other.  This is done by comparing
+        the instance against each other, then comparing to see if each model is of
+        the same type, shares the same id, and has no local changes.
 
-        :param event: <orb.events.LoadEvent>
+        :return: <bool>
         """
-        if not event.data:
-            return
+        if self is other:
+            return True
+        elif type(self) != type(other):
+            return False
+        else:
+            my_id = self.id()
+            other_id = other.id()
 
+            try:
+                my_db = self.context().db
+            except orb.errors.DatabaseNotFound:
+                my_db = None
+
+            try:
+                other_db = other.context().db
+            except orb.errors.DatabaseNotFound:
+                other_db = None
+
+            if my_db != other_db:
+                return False
+            elif my_id is None or my_id != other_id:
+                return False
+            elif self.is_modified():
+                return False
+            elif other.is_modified():
+                return False
+            else:
+                return True
+
+    def __ne__(self, other):
+        """
+        Checks to see if one model is equal to the other.  This is done by comparing
+        the instance against each other, then comparing to see if each model is of
+        the same type, shares the same id, and has no local changes.
+
+        :return: <bool>
+        """
+        if self is other:
+            return False  # pragma: no cover
+        elif type(self) != type(other):
+            return True
+        else:
+            my_id = self.id()
+            other_id = other.id()
+
+            try:
+                my_db = self.context().db
+            except orb.errors.DatabaseNotFound:
+                my_db = None
+
+            try:
+                other_db = other.context().db
+            except orb.errors.DatabaseNotFound:
+                other_db = None
+
+            if my_db != other_db:
+                return True
+            elif my_id is None or my_id != other_id:
+                return True
+            elif self.is_modified():
+                return True
+            elif other.is_modified():
+                return True
+            else:
+                return False
+
+    def __len__(self):
+        """
+        Returns the length of the dictionary that will be returned when
+        doing a dict() on this instance.
+
+        :return: <int>
+        """
+        return len(self.schema().columns())
+
+    def __getitem__(self, key):
+        """
+        Retrieves the value of the given column from the record.  If there is no
+        valid value found a KeyError is raised.
+
+        :param key: <str>
+
+        :return: <variant>
+        """
+        try:
+            return self.get(key)
+        except Exception:
+            raise KeyError
+
+    def __setitem__(self, key, value):
+        """
+        Sets the value of a given column for this record.  If there is no valid
+        column found that matches the key, then a KeyError will be raised.
+
+        :param key: <str>
+        :param value: <variant>
+        """
+        try:
+            return self.set(key, value)
+        except Exception:
+            raise KeyError
+
+    def __json__(self):
+        """
+        Renders this object as a JSON compatible dictionary.  If the context for
+        this record's output is "text" then it will do a dumps on the resulting
+        data, otherwise the dictionary will be returned.
+
+        :return: <dict> or <str>
+        """
+        # additional options
+        schema = self.schema()
         context = self.context()
-        schema = self.schema()
-        dbname = schema.dbname()
-        clean = {}
+        output = dict(self)
 
-        for col, value in event.data.items():
-            try:
-                model_dbname, col_name = col.split('.')
-            except ValueError:
-                col_name = col
-                model_dbname = dbname
+        # don't include fields
+        if context.returning == 'values':
+            columns = context.schema_columns(self.schema()) or schema.columns().values()
+            output = tuple(output[column.alias()]
+                           for column in columns
+                           if column.alias() in output)
 
-            # make sure the value we're setting is specific to this model
-            try:
-                column = schema.column(col_name)
-            except orb.errors.ColumnNotFound:
-                column = None
+            # don't return tuple for single column requests
+            if len(output) == 1:
+                output = output[0]
 
-            if model_dbname != dbname or (column in clean and isinstance(clean[column], Model)):
-                continue
+        return json2.dumps(output) if context.format == 'text' else output
 
-            # look for preloaded reverse lookups and pipes
-            elif not column:
-                self.__preload[col_name] = value
-
-            # extract the value from the database
-            else:
-                engine = column.get_engine()
-                value = engine.get_api_value(column, 'default', value, context=context)
-                clean[column] = value
-
-        # update the local values
-        with WriteLocker(self.__dataLock):
-            for col, val in clean.items():
-                default = val if not isinstance(val, dict) else val.copy()
-                self.__values[col.name()] = (default, val)
-                self.__loaded.add(col)
-
-        if self.processEvent(event):
-            self.onLoad(event)
-
-    # --------------------------------------------------------------------
-    #                       EVENT HANDLERS
-    # --------------------------------------------------------------------
-
-    def onChange(self, event):
-        pass
-
-    def onLoad(self, event):
-        pass
-
-    def onDelete(self, event):
-        pass
-
-    def onInit(self, event):
+    def __iter__(self):
         """
-        Initializes the default values for this record.
+        Iterates this object for its values.
+
+        :return     <generator>
         """
-        pass
+        return self.iter_record(returning='data')
 
-    def onPreSave(self, event):
-        pass
+    # instance methods
+    # --------------------
 
-    def onPostSave(self, event):
-        pass
-
-    @classmethod
-    def onSync(cls, event):
-        pass
-
-    # ---------------------------------------------------------------------
-    #                       PUBLIC METHODS
-    # ---------------------------------------------------------------------
-    def changes(self, columns=None, recurse=True, flags=0, inflated=False):
+    def changes(self, **context):
         """
-        Returns a dictionary of changes that have been made
-        to the data from this record.
+        Collects all the changes that have been made to the data of this record
+        compared to the base attributes.  The default return type for this
+        method will be raw values (`returning='values'`) to avoid unnecessary
+        model inflation.  You can change that to `returning='records'` if you
+        want full record objects out of references.
 
-        :return     { <orb.Column>: ( <variant> old, <variant> new), .. }
+        :param context: <orb.Context> descriptor
+
+        :return: {<orb.Column>: (<variant> old_value, <variant> new_value), ..}
         """
-        output = {}
-        is_record = self.is_record()
-        schema = self.schema()
-        columns = [schema.column(c) for c in columns] if columns else \
-                   schema.columns(recurse=recurse, flags=flags).values()
-
-        context = self.context(inflated=inflated)
-        with ReadLocker(self.__dataLock):
-            for col in columns:
-                old, curr = self.__values.get(col.name(), (None, None))
-                if col.test_flag(col.Flags.ReadOnly):
-                    continue
-                elif not is_record:
-                    old = None
-
-                check_old = col.restore(old, context)
-                check_curr = col.restore(curr, context)
-                try:
-                    different = check_old != check_curr
-                except StandardError:
-                    different = True
-
-                if different:
-                    output[col] = (check_old, check_curr)
-
-        return output
-
-    def collect(self, name, use_method=False, **context):
-        collector = self.schema().collector(name)
-        if not collector:
-            raise orb.errors.ColumnNotFound(schema=self.schema(), column=name)
-        else:
-            return collector(self, use_method=use_method, **context)
+        return dict(self.iter_changes(**context))
 
     def context(self, **context):
         """
-        Returns the lookup options for this record.  This will track the options that were
-        used when looking this record up from the database.
+        Returns the context for this record.  It will join together any custom options with the
+        internal context defined for this record.
 
-        :return     <orb.LookupOptions>
+        :param context: <orb.Context> descriptor
+
+        :return: <orb.Context>
         """
-        output = orb.Context(context=self.__context) if self.__context is not None else orb.Context()
+        output = orb.Context(context=self.__context)
         output.update(context)
         return output
 
     def delete(self, **context):
         """
-        Removes this record from the database.  If the dryRun \
-        flag is specified then the command will be logged and \
-        not executed.
+        Runs the deletion logic for this record from the backend.
 
-        :note       From version 0.6.0 on, this method now accepts a mutable
-                    keyword dictionary of values.  You can supply any member
-                    value for either the <orb.LookupOptions> or
-                    <orb.Context>, as well as the keyword 'lookup' to
-                    an instance of <orb.LookupOptions> and 'options' for
-                    an instance of the <orb.Context>
-
-        :return     <int>
+        :return: <bool> deleted
         """
+        # cannot delete a record that does not exist
         if not self.is_record():
-            return 0
+            return False
 
-        event = orb.events.DeleteEvent(record=self, context=context)
-        if self.processEvent(event):
-            self.onDelete(event)
+        # create the deletion event and process it
+        orb_context = self.context(**context)
+        event = orb.events.DeleteEvent(record=self, context=orb_context)
+        self.on_delete(event)
+        if event.prevent_default:
+            return False
 
-        if event.preventDefault:
-            return 0
-
-        if self.__delayed:
-            self.__delayed = False
-            self.read()
-
-        with WriteLocker(self.__dataLock):
-            self.__loaded.clear()
-
-        context = self.context(**context)
-        conn = context.db.connection()
-        _, count = conn.delete([self], context)
+        # ensure that the data for this record has been loaded
+        conn = orb_context.db.connection()
+        _, count = conn.delete([self], orb_context)
 
         # clear out the old values
-        if count == 1:
-            col = self.schema().column(self.schema().id_column())
-            with WriteLocker(self.__dataLock):
-                self.__values[col.name()] = (None, None)
+        if count:
+            with WriteLocker(self.__lock):
+                self.__base_attributes.clear()
+                self.__loaded.clear()
 
-        return count
+        return count > 0
 
-    def get(self, column, use_method=True, **context):
+    def get(self, key, use_method=True, **context):
         """
-        Returns the value for the column for this record.
+        Returns the value of a column or collector for this record.  If
+        the `use_method` is True, then it will try to use any defined
+        `gettermethod`'s for the column or collector.  Set that to False
+        if you would like to ignore the gettermethod function and use
+        the default logic.
 
-        :param      column      | <orb.Column> || <str>
-                    default     | <variant>
-                    inflated    | <bool>
+        :param column: <str> or <orb.Column>
+        :param use_method: <bool> (default: True)
+        :param context: <orb.Context> descriptor
 
-        :return     <variant>
+        :return: <variant>
         """
+        # get a column value
+        schema = self.schema()
+        column = schema.column(key, raise_=False)
+        collector = schema.collector(key)
 
-        # look for shortcuts (dot-noted path)
-        if isinstance(column, (str, unicode)) and '.' in column:
-            # create the sub context
-            base_context = context.copy()
-            base_context['inflated'] = True
+        # get a shortcut value
+        if isinstance(key, (str, unicode)) and '.' in key:
+            return self.get_shortcut(key, use_method=use_method, **context)
 
-            # generate the expansion to avoid unnecessary lookups
-            parts = column.split('.')
+        # get an attribute value
+        elif column is not None:
+            # for reference columns, if the field or alias is the key, then return the
+            # raw values, otherwise return the record instances
+            if isinstance(column, orb.ReferenceColumn):
+                context.setdefault('returning', 'values' if key in (column.field(), column.alias()) else 'records')
 
-            # include the target if it is a reference
-            if isinstance(self.schema().column(column), orb.ReferenceColumn):
-                expand_path_index = None
+            return self.get_attribute(column, use_method=use_method, **context)
 
-            # otherwise, just get to the end column
+        # get a collection value
+        elif collector is not None:
+            return self.get_collection(collector, use_method=use_method, **context)
+
+        # raise an error if could not find key
+        else:
+            raise orb.errors.ColumnNotFound(schema=schema, column=key)
+
+    def get_attribute(self, column, use_method=True, **context):
+        """
+        Returns the attribute value of the given column for this record.  If the `use_method` flag
+        is set to True, then if the column has a custom `gettermethod` defined, it will use that, otherwise
+        it will retrieve the raw value from this record.
+
+        :param column: <orb.Column>
+        :param use_method: <bool>
+        :param context: <orb.Context> descriptor
+
+        :return: <variant>
+        """
+        orb_context = self.context()
+        sub_context = orb_context.sub_context(**context)
+
+        # expand through a shortcut manually (unless the model is a View type, where the backend
+        # will pre-merge shortcuts)
+        if column.shortcut() and not isinstance(self, orb.View):
+            return self.get_shortcut(column.shortcut(), use_method=use_method, **context)
+
+        # use the getter method if available and the use_method is flagged as True
+        getter = column.gettermethod()
+        if getter is not None and use_method:
+            return getter(self, context=sub_context)
+
+        # grab the current value
+        with ReadLocker(self.__lock):
+            value = self.__attributes[column.name()]
+
+        # read the value from the backend if not defined
+        if value is None and not self.is_loaded(columns=[column]):
+            self.read(refresh=False)
+            with ReadLocker(self.__lock):
+                value = self.__attributes[column.name()]
+
+        # restore the value, which could include inflating references
+        # if the value changes based on the restoration, then we should store that newly created
+        # value for next time
+        output = column.restore(value, context=sub_context)
+        if isinstance(output, orb.Model) and not isinstance(value, orb.Model):
+            with WriteLocker(self.__lock):
+                self.__attributes[column.name()] = output
+
+        return output
+
+    def get_collection(self, collector, use_method=True, **context):
+        """
+        Returns the collection for the given collector for this record.  If the `use_method` flag
+        is set to True, then if the collector has a custom `gettermethod` defined, it will use that, otherwise
+        it will retrieve the raw value from this record.
+
+        :param collector: <orb.Collector>
+        :param use_method: <bool>
+        :param context: <orb.Context> descriptor
+
+        :return: <orb.Collection> or None
+        """
+        orb_context = self.context()
+        sub_context = orb_context.sub_context(**context)
+
+        # return the cached collection
+        try:
+            with ReadLocker(self.__lock):
+                return self.__collections[collector.name()][sub_context]
+
+        # otherwise, lookup the collection and cache it
+        except KeyError:
+            collection = collector.collect(self, use_method=use_method, context=sub_context)
+            with WriteLocker(self.__lock):
+                self.__collections[collector.name()][sub_context] = collection
+            return collection
+
+    def get_shortcut(self, shortcut, use_method=True, **context):
+        """
+        Traverses a shortcut and retreives the value for the end field.
+
+        :param shortcut: <str>
+        :param use_method: <bool>
+        :param context: <orb.Context> descriptor
+
+        :return: <variant>
+        """
+        schema = self.schema()
+
+        # make sure that there is an end column for this shortcut
+        # (if not found, this method will raise the `orb.errors.ColumnNotFound` error)
+        column = schema.column(shortcut)
+        expand_path_index = -1 if isinstance(column, orb.ReferenceColumn) else None
+
+        # create the sub context
+        base_context = context.copy()
+        base_context['returning'] = 'records'
+
+        # generate the expansion to avoid unnecessary lookups
+        parts = shortcut.split('.')
+
+        value = self
+        for i, part in enumerate(parts[:-1]):
+            sub_context = base_context.copy()
+            expand_path = '.'.join(parts[i + 1:expand_path_index])
+
+            # when getting a reference from the backend, include the full expansion
+            # request for this lookup to ensure the minimum number of backend lookups
+            # are executed
+            try:
+                sub_expand = sub_context['expand']
+            except KeyError:
+                sub_context['expand'] = expand_path
             else:
-                expand_path_index = -1
+                # include expansion via comma separated list
+                if isinstance(sub_expand, (str, unicode)):
+                    sub_context['expand'] += ',{0}'.format(expand_path)
 
-            value = self
-            for i, part in enumerate(parts[:-1]):
-                sub_context = base_context.copy()
-                expand_path = '.'.join(parts[i+1:expand_path_index])
+                # include expansion via addition to list of expansion requests
+                elif isinstance(sub_expand, list):
+                    sub_expand.append(expand_path)
 
-                try:
-                    sub_expand = sub_context['expand']
-                except KeyError:
-                    sub_context['expand'] = expand_path
-                else:
-                    if isinstance(sub_expand, basestring):
-                        sub_context['expand'] += ',{0}'.format(expand_path)
-                    elif isinstance(sub_expand, list):
-                        sub_expand.append(expand_path)
-                    elif isinstance(sub_expand, dict):
-                        curr = {}
-                        for x in xrange(len(parts) - 1 + (expand_path_index or 0), i, -1):
-                            curr = {parts[x]: curr}
-                        sub_expand.update(curr)
+                # include expansion as a nested trie of expansion requests
+                elif isinstance(sub_expand, dict):
+                    curr = {}
+                    for x in range(len(parts) - 1 + (expand_path_index or 0), i, -1):
+                        curr = {parts[x]: curr}
+                    sub_expand.update(curr)
 
-                value = value.get(part, use_method=use_method, **sub_context)
-                if value is None:
-                    return None
-
+            # gets the value of the part from the database
+            value = value.get(part, use_method=use_method, **sub_context)
+            if value is None:
+                return None
+        else:
             return value.get(parts[-1], use_method=use_method, **context)
 
-        # otherwise, lookup a column
-        else:
-            my_context = self.context()
-            sub_context = my_context.sub_context(**context)
+    def id(self, use_method=True, **context):
+        """
+        Returns the ID for this record.  This will lookup the schema's `id_column` and return
+        the attribute value for it.
 
-            # normalize the given column
-            if isinstance(column, orb.Column):
-                col = column
-            else:
-                col = self.schema().column(column, raise_=False)
+        :param use_method: <bool>
+        :param context: <orb.Context> descriptor
 
-                if not col:
-                    if isinstance(column, orb.Collector):
-                        collector = column
-                    else:
-                        collector = self.schema().collector(column)
-
-                    if collector:
-                        try:
-                            return self.__cache[collector][sub_context]
-                        except KeyError:
-                            records = collector(self, use_method=use_method, context=sub_context)
-                            self.__cache[collector][sub_context] = records
-                            return records
-                    else:
-                        raise errors.ColumnNotFound(schema=self.schema(), column=column)
-
-            # don't inflate if the requested value is a field
-            if sub_context.inflated is None and isinstance(col, orb.ReferenceColumn):
-                sub_context.inflated = column != col.field()
-
-            # lookup the shortuct value vs. the local one (bypass for views
-            # since they define tables for shortcuts)
-            if col.shortcut() and not isinstance(self, orb.View):
-                return self.get(col.shortcut(), **context)
-
-            # call the getter method fot this record if one exists
-            elif use_method and col.gettermethod():
-                return col.gettermethod()(self, context=sub_context)
-
-            else:
-                # ensure content is actually loaded
-                if self.is_record() and self.__delayed:
-                    self.__delayed = False
-                    self.read()
-
-                # grab the current value
-                with ReadLocker(self.__dataLock):
-                    old_value, value = self.__values.get(col.name(), (None, None))
-
-                # return a reference when desired
-                out_value = col.restore(value, sub_context)
-                if isinstance(out_value, orb.Model) and not isinstance(value, orb.Model):
-                    with WriteLocker(self.__dataLock):
-                        self.__values[col.name()] = (old_value, out_value)
-
-                return out_value
-
-    def id(self, **context):
+        :return: <variant>
+        """
         column = self.schema().id_column()
-        use_method = column.name() != 'id'
-        return self.get(column, use_method=use_method, **context)
+        getter = column.gettermethod()
+        if getter and use_method:
+            return getter(self, **context)
+        else:
+            with ReadLocker(self.__lock):
+                return self.__attributes.get(column.name())
 
-    def init(self):
-        columns = self.schema().columns().values()
-        with WriteLocker(self.__dataLock):
-            for column in columns:
-                if column.name() not in self.__values and not column.test_flag(column.Flags.Virtual):
-                    value = column.default()
-                    if column.test_flag(column.Flags.I18n):
-                        value = {self.__context.locale: value}
-                    elif column.test_flag(column.Flags.Polymorphic):
-                        value = type(self).__name__
+    def is_loaded(self, **context):
+        """
+        Checks to see if the record is loaded.  If you want to check if
+        particular columns are loaded, you can provide the `columns` key
+        to the context.
 
-                    self.__values[column.name()] = (value, value)
+        :param context: <orb.Context> descriptor
 
-        event = orb.events.InitEvent(record=self)
-        if self.processEvent(event):
-            self.onInit(event)
+        :return: <bool>
+        """
+        orb_context = self.context(**context)
 
-    def isModified(self):
+        # look for particular columns
+        with ReadLocker(self.__lock):
+            for column in orb_context.schema_columns(self.schema()):
+                if not column.name() in self.__loaded:
+                    return False
+
+            # look for any columns
+            else:
+                return len(self.__loaded) > 0
+
+    def is_modified(self, **context):
         """
         Returns whether or not any data has been modified for
         this object.
 
         :return     <bool>
         """
-        return not self.is_record() or len(self.changes()) > 0
+        with ReadLocker(self.__lock):
+            return self.__base_attributes != self.__attributes
 
-    def is_record(self, db=None):
+    def is_record(self, **context):
         """
         Returns whether or not this database table record exists
         in the database.
 
         :return     <bool>
         """
-        if db is not None:
-            same_db = db == self.context().db
+        my_context = self.context()
+        other_context = orb.Context(**context)
 
-        if db is None or same_db:
-            col = self.schema().id_column()
-            with ReadLocker(self.__dataLock):
-                return (col in self.__loaded) and (self.__values[col.name()][0] is not None)
+        try:
+            my_db = my_context.db
+        except orb.errors.DatabaseNotFound:
+            my_db = None
+
+        try:
+            other_db = other_context.db
+        except orb.errors.DatabaseNotFound:
+            other_db = None
+
+        # ensure that we're looking in the same context, and that there is a backend
+        # for this context
+        if other_db is None or my_db == other_db:
+            column = self.schema().id_column()
+            with ReadLocker(self.__lock):
+                base_id = self.__base_attributes.get(column.name())
+                curr_id = self.__attributes.get(column.name())
+                return base_id is not None and curr_id == base_id
         else:
-            return None
+            return False
 
-    def mark_loaded(self, *columns):
+    def iter_attributes(self, columns, tree=None, context=None):
         """
-        Marks the given columns as representing valid loaded data
-        from the database.
+        Iterates over the values from this model for a given column.  If the
+        column is a reference column, and it's name is included in the expanded
+        tree, then this method will yield both it's raw reference value, and
+        it's expanded value.
+
+        :param columns: [<orb.Column>, ..]
+        :param tree: <dict>
+        :param context: <orb.Context>
+
+        :return: <generator>
+        """
+        tree = tree or {}
+        context = context or orb.Context()
+
+        for column in columns:
+            # ignore tree columns
+            if column.test_flag(column.Flags.RequiresExpand) and column.name() not in tree:
+                continue
+
+            # ignore permission denied columns
+            elif not self.__auth__.can_read_column(column, context=context):
+                continue
+
+            # fetch custom data for the column
+            elif column.gettermethod() is not None:
+                yield column.alias(), self.get(column, context=context)
+
+            # fetch raw data for the column
+            else:
+                value = self.__attributes[column.name()]
+
+                # normalize the value from the cache
+                if column.test_flag(orb.Column.Flags.I18n) and type(value) == dict and context.locale != 'all':
+                    value = value.get(context.locale)
+
+                # yield basic column value
+                if not isinstance(column, orb.ReferenceColumn):
+                    yield column.alias(), value
+
+                # yield reference column
+                else:
+                    # yield the basic id by default
+                    yield column.alias(), value if not isinstance(value, orb.Model) else value.id()
+
+                    # yield tree value (if requested)
+                    try:
+                        subtree = tree.pop(column.name())
+                    except KeyError:
+                        pass
+                    else:
+                        reference = self.get_attribute(column,
+                                                       expand=subtree,
+                                                       returning=context.returning,
+                                                       scope=context.scope)
+                        yield column.name(), reference
+
+    def iter_changes(self, **context):
+        """
+        Returns an iterator over all of the changes for this record's attributes
+        compared to the base attributes.  The default return type for this
+        method will be raw values (`returning='values'`) to avoid unnecessary
+        model inflation.  You can change that to `returning='records'` if you
+        want full record objects out of references.
+
+        :param context: <orb.Context> descriptor
+
+        :return: <generator>
+        """
+        context.setdefault('returning', 'values')
+
+        orb_context = self.context()
+        sub_context = orb_context.sub_context(**context)
+        schema = self.schema()
+        columns = orb_context.schema_columns(schema) or schema.columns().values()
+
+        with ReadLocker(self.__lock):
+            for col in columns:
+                if col.test_flag(col.Flags.ReadOnly):
+                    continue
+                else:
+                    current_value = self.__attributes.get(col.name())
+                    base_value = self.__base_attributes.get(col.name())
+
+                    current_value = col.restore(current_value, context=sub_context)
+                    base_value = col.restore(base_value, context=sub_context)
+
+                    # can sometimes get offset aware issues, or unicode comparison
+                    # issues.  if you can't compare the two values without hitting
+                    # an error, then it can be assumed that they are different
+                    try:
+                        different = base_value != current_value
+                    except Exception:  # pragma: no cover
+                        different = True
+
+                    if different:
+                        yield col, (base_value, current_value)
+
+    def iter_expand_tree(self, tree, context=None):
+        """
+        Iterates over the expansion tree yielding results
+        for the schema object.
+
+        :param tree: <dict>
+        :param context: <orb.Context>
+
+        :return: <generator>
+        """
+        context = context or orb.Context()
+
+        for attribute, subtree in tree.items():
+            try:
+                value = self.get(
+                    attribute,
+                    expand=subtree,
+                    returning=context.returning,
+                    scope=context.scope
+                )
+            except orb.errors.ColumnNotFound:
+                continue
+            else:
+                yield attribute, value
+
+    def iter_record(self, **context):
+        """
+        Iterates the properties for this record.
+
+        :param context: <orb.Context>
+
+        :return: <generator>
         """
         schema = self.schema()
+        context = self.context(**context)
+        expand_tree = context.expandtree(type(self))
 
-        columns = {schema.column(col) for col in columns}
-        column_names = {col.name() for col in columns}
+        # collect the columns that will be iterated over
+        columns = context.schema_columns(schema)
+        if not columns:
+            columns = schema.columns(flags=~orb.Column.Flags.RequiresExpand).values()
 
-        with WriteLocker(self.__dataLock):
-            for key, (old_value, new_value) in self.__values.items():
-                if key in column_names:
-                    self.__values[key] = (new_value, new_value)
+        # iterate the columns
+        for attribute, value in self.iter_attributes(columns, tree=expand_tree, context=context):
+            yield attribute, value
 
-            self.__loaded.update(columns)
+        # iterate the expansion preferences
+        for attribute, value in self.iter_expand_tree(expand_tree, context=context):
+            yield attribute, value
+
+    def mark_loaded(self, columns=None):
+        """
+        Marks columns as loaded by updating the stored base attributes with
+        the current attributes.  If no columns are provided, then the currently
+        set attributes will be used as the columns to mark as loaded.
+
+        :param columns: [<str>, ..] or [<orb.Column>, ..] or None
+        """
+        schema = self.schema()
+        column_names = [schema.column(c).name() for c in columns] if columns else self.__attributes.keys()
+
+        with WriteLocker(self.__lock):
+            self.__base_attributes.update({k: v for k, v in self.__attributes.items() if k in column_names})
+            self.__loaded.update(column_names)
+
+    def on_change(self, event):
+        """
+        Called before a record's attributes are changed.    The default
+        behavior is to send the `changed` signal to any receivers.
+
+        :param event: <orb.ChangeEvent>
+        """
+        Model.changed.send(type(self), event=event)
+        if not event.prevent_default:
+            Model.changed.send(self, event=event)
+
+    def on_delete(self, event):
+        """
+        Called before a record is deleted from a backend store.  The default
+        behavior is to send the `deleted` signal to any receivers.
+
+        :param event: <orb.DeleteEvent>
+        """
+        Model.deleted.send(type(self), event=event)
+        if not event.prevent_default:
+            Model.deleted.send(self, event=event)
+
+    def on_pre_save(self, event):
+        """
+        Called right before a record is being saved to the backend store.  The
+        default behavior is to send the `about_to_save` signal to any receivers.
+
+        :param event: <orb.SaveEvent>
+        """
+        Model.about_to_save.send(type(self), event=event)
+        if not event.prevent_default:
+            Model.about_to_save.send(self, event=event)
+
+    def on_post_save(self, event):
+        """
+        Called right after a record has successfully saved to the backend store.  The
+        default behavior is to send the `saved` signal to any receivers.
+
+        :param event: <orb.SaveEvent>
+        """
+        Model.saved.send(type(self), event=event)
+        if not event.prevent_default:
+            Model.saved.send(self, event=event)
+
+    def parse(self, raw_data):
+        """
+        Parses raw data from a backend to update this record's attributes.
+
+        :param raw_data: <dict>
+        """
+        attributes = {}
+        orb_context = self.context()
+        schema = self.schema()
+        base_table_name = schema.dbname()
+        for raw_field, raw_value in raw_data.items():
+            try:
+                table_name, alias = raw_field.split('.')
+            except ValueError:
+                table_name = base_table_name
+                alias = raw_field
+
+            # make sure the value we're setting is specific to this model
+            column = schema.column(alias, raise_=False)
+
+            if column is None:
+                self.__preload[alias] = raw_value
+
+            # ignore data that is not related to this model
+            elif table_name != base_table_name:
+                continue
+
+            # ignore data if we already have a model for the information (since that
+            # will contain any fields or related data intrinsically)
+            elif column.name() in attributes and isinstance(attributes[column.name()], orb.Model):
+                continue
+
+            # extract the value from the database
+            else:
+                engine = column.get_engine()
+                value = engine.get_api_value(column, 'default', raw_value, context=orb_context)
+                attributes[column.name()] = value
+
+        # update the local values
+        with WriteLocker(self.__lock):
+            self.__loaded.update(attributes.keys())
+            self.__attributes.update(attributes)
+            self.__base_attributes.update({k: v.copy() if type(v) == dict else v
+                                           for k, v in attributes.items()})
+
+    def preload_data(self, cache):
+        """
+        Preloads information from a cache that will be accessed later.  This is used when adding references
+        or collections from a single query to the model.
+
+        :param cache: {<str> name: <variant> value, ..}
+        """
+        for key, value in cache.items():
+            self.__preload[key] = value
 
     def preloaded_data(self, name):
         """
@@ -673,189 +841,293 @@ class Model(object):
 
         :param name: <str>
 
-        :return: <dict>
+        :return: <variant>
         """
-        return self.__preload.get(name) or {}
+        return self.__preload.get(name)
+
+    def read(self, refresh=True):
+        """
+        Reads data from the backend.  If the `refresh` flag is True then this will actively re-sync this
+        record with it's value from the backend.  If the flag is False, then it will only load data if it
+        has not previously been loaded.
+
+        :param refresh: <bool>
+
+        :return: <bool> loaded
+        """
+        refresh = refresh or not self.is_loaded()
+        schema = self.schema()
+        record_id = self.id()
+
+        if refresh and record_id is not None:
+            raw_data = self.__class__.fetch(record_id, returning='data', context=self.__context)
+            if not raw_data:
+                raise orb.errors.RecordNotFound(schema=schema, column=record_id)
+            else:
+                self.parse(raw_data)
+                return True
+        else:
+            return False
+
+    def reset(self, columns=None):
+        """
+        Resets this record's values to the last loaded ones.  If no columns are provided, then the currently
+        set attributes will be used as the columns to mark as loaded.
+
+        :param columns: [<str>, ..] or [<orb.Column>, ..] or None
+        """
+        schema = self.schema()
+        column_names = [schema.column(c).name() for c in columns] if columns else self.__base_attributes.keys()
+
+        with WriteLocker(self.__lock):
+            self.__attributes.update({k: v for k, v in self.__base_attributes.items() if k in column_names})
 
     def save(self, values=None, after=None, before=None, **context):
         """
-        Commits the current change set information to the database,
-        or inserts this object as a new record into the database.
-        This method will only update the database if the record
-        has any local changes to it, otherwise, no commit will
-        take place.  If the dryRun flag is set, then the SQL
-        will be logged but not executed.
+        Saves the current changes to the backend.  This method will either create
+        a new record if one does not already exist, or update an existing backend
+        record.  This method will only have any effect on the backend if there
+        are changes.  If the `values` keyword is supplied, then the values provided
+        will be updated on this model prior to save, and only the columns within those values
+        will be saved.  You can optionally provide the `columns` context keyword to limit
+        which columns to save.
 
-        :param values: None or dictionary of values to update before save
-        :param after: <orb.Model> || None (optional)
-                      if provided, this save call will be delayed
-                      until after the given record has been saved,
-                      triggering a PostSaveEvent callback
-        :param before: <orb.Model> || None (optional)
-                      if provided, this save call will be delayed
-                      until before the given record is about to be
-                      saved, triggering a PreSaveEvent callback
+        If you provide the `before` keyword, then the call to this save function will be delayed
+        until the `about_to_save` signal is emitted by the `before` record supplied.
 
+        If you provide the `after` keyword, then the call to this save function will be delayed
+        until the `saved` signal is emitted by the `after` record supplied.
 
-        :note       From version 0.6.0 on, this method now accepts a mutable
-                    keyword dictionary of values.  You can supply any member
-                    value for either the <orb.LookupOptions> or
-                    <orb.Context>, 'options' for
-                    an instance of the <orb.Context>
+        :param values: {<str> or <orb.Column> column: <variant> value, ..} or None
+        :param after: <orb.Model> or None
+        :param before: <orb.Model> or None
+        :param context: <orb.Context> descriptor
 
-        :return     <bool> success
+        :return: <bool>
         """
-        # specify that this save call should be performed after the save of
-        # another record, useful for chaining events
+        # shortcut to the save after logic
         if after is not None:
-            callback = orb.events.Callback(self.save, values=values, **context)
-            after.addCallback(orb.events.PostSaveEvent, callback, record=after, once=True)
-            return callback
+            return self.save_after(after, values=values, **context) is not None
 
-        # specify that this save call should be performed before the save
-        # of another record, useful for chaining events
+        # shortcut to the save before logic
         elif before is not None:
-            callback = orb.events.Callback(self.save, values=values, **context)
-            after.addCallback(orb.events.PreSaveEvent, callback, record=after, once=True)
-            return callback
+            return self.save_before(before, values=values, **context) is not None
 
-        if values is not None:
-            self.update(values, **context)
-
-        # create the commit options
-        context = self.context(**context)
-        new_record = not self.is_record()
-
-        # create the pre-commit event
-        changes = self.changes(columns=context.columns)
-        event = orb.events.PreSaveEvent(record=self, context=context, newRecord=new_record, changes=changes)
-        if self.processEvent(event):
-            self.onPreSave(event)
-
-        if event.preventDefault:
-            return event.result
-
-        # check to see if we have any modifications to store
-        if not (self.isModified() and self.validate()):
-            return False
-
-        conn = context.db.connection()
-        if not self.is_record():
-            records, _ = conn.insert([self], context)
-            if records:
-                event = orb.events.LoadEvent(record=self, data=records[0])
-                self._load(event)
+        # execute the save function
         else:
-            conn.update([self], context)
+            # update the model with any value specific changes pre-save,
+            # setting up the columns to be used during save
+            if values is not None:
+                self.update(values, **context)
+                context.setdefault('columns', values.keys())
 
-        # mark all the data as committed
-        cols = [self.schema().column(c).name() for c in context.columns or []]
-        with WriteLocker(self.__dataLock):
-            for col_name, (_, value) in self.__values.items():
-                if not cols or col_name in cols:
-                    self.__values[col_name] = (value, value)
+            # generate the context options
+            orb_context = self.context(**context)
+            new_record = not self.is_record(**context)
 
-        # create post-commit event
-        event = orb.events.PostSaveEvent(record=self, context=context, newRecord=new_record, changes=changes)
-        if self.processEvent(event):
-            self.onPostSave(event)
-        return True
+            change_context = context.copy()
+            change_context['returning'] = 'values'
+            changes = self.changes(**change_context)
 
-    def set(self, column, value, use_method=True, **context):
-        """
-        Sets the value for this record at the inputted column
-        name.  If the column name provided doesn't exist within
-        the schema, then the ColumnNotFound error will be
-        raised.
+            # generate the pre-save event, which can be
+            # used to actually create changes so we should
+            # run this even if there are no active changes
+            # on the record yet
+            event = orb.events.SaveEvent(record=self,
+                                         context=orb_context,
+                                         new_record=new_record,
+                                         changes=changes)
 
-        :param      column      | <str>
-                    value           | <variant>
-
-        :return     <bool> changed
-        """
-        col = self.schema().column(column, raise_=False)
-
-        if col is None:
-            # allow setting of collections as well
-            collector = self.schema().collector(column)
-            if collector:
-                my_context = self.context()
-                sub_context = my_context.sub_context(**context)
-
-                method = collector.settermethod()
-                if method and use_method:
-                    return method(self, value, context=sub_context)
-                else:
-                    records = self.get(collector.name(), context=sub_context)
-                    records.update(value,
-                                   use_method=use_method,
-                                   context=sub_context)
-
-                    # remove any preloaded values from the collector
-                    self.__preload.pop(collector.name(), None)
-
-                    return records
-            else:
-                raise errors.ColumnNotFound(schema=self.schema(), column=column)
-
-        elif col.test_flag(col.Flags.ReadOnly):
-            raise errors.ColumnReadOnly(schema=self.schema(), column=column)
-
-        context = self.context(**context)
-        if use_method:
-            method = col.settermethod()
-            if method:
-                keywords = list(funcutil.extract_keywords(method))
-                if 'locale' in keywords:
-                    return method(self, value, locale=context.locale)
-                else:
-                    return method(self, value)
-
-        if self.is_record() and self.__delayed:
-            self.__delayed = False
-            self.read()
-
-        with WriteLocker(self.__dataLock):
-            orig, curr = self.__values.get(col.name(), (None, None))
-            value = col.store(value, context)
-
-            # update the context based on the locale value
-            if col.test_flag(col.Flags.I18n) and isinstance(curr, dict) and isinstance(value, dict):
-                new_value = curr.copy()
-                new_value.update(value)
-                value = new_value
-
-            try:
-                change = curr != value
-            except TypeError:
-                change = True
-
-            if change:
-                self.__values[col.name()] = (orig, value)
-
-        # broadcast the change event
-        if change:
-            if col.test_flag(col.Flags.I18n) and context.locale != 'all':
-                old_value = curr.get(context.locale) if isinstance(curr, dict) else curr
-                new_value = value.get(context.locale) if isinstance(value, dict) else value
-            else:
-                old_value = curr
-                new_value = value
-
-            event = orb.events.ChangeEvent(record=self, column=col, old=old_value, value=new_value)
-            if self.processEvent(event):
-                self.onChange(event)
-            if event.preventDefault:
-                with WriteLocker(self.__dataLock):
-                    orig, _ = self.__values.get(col.name(), (None, None))
-                    self.__values[col.name()] = (orig, curr)
+            self.on_pre_save(event)
+            if event.prevent_default:
                 return False
-            else:
-                return change
-        else:
-            return False
 
-    def setContext(self, context):
+            # at this point validate that we have changes, and that
+            # those changes are ok
+            if not (self.is_modified(**context) and self.validate()):
+                return False
+
+            # execute the backend save
+            conn = orb_context.db.connection()
+            if new_record:
+                raw_records, _ = conn.insert([self], orb_context)
+                try:
+                    raw_record = raw_records[0]
+                except IndexError:
+                    return False
+                else:
+                    self.parse(raw_record)
+            else:
+                conn.update([self], orb_context)
+
+            # notify about the post save event
+            self.on_post_save(event)
+            return True
+
+    def save_after(self, record, values=None, **context):
+        """
+        Delays the save for this instance until after the given record's `saved` signal has been triggered.
+
+        :sa: save, save_after
+
+        :param record: <orb.Model>
+        :param values: <dict>
+        :param context: <orb.Context> descriptor
+
+        :return: <orb.Callback>
+        """
+        context['values'] = values
+        callback = orb.Callback(self.save,
+                                kwargs=context,
+                                signal=Model.saved,
+                                sender=record,
+                                single_shot=True)
+        return callback
+
+    def save_before(self, record, values=None, **context):
+        """
+        Delays the save for this instance until after the given record's `about_to_save` signal has been
+        triggered.
+
+        :sa: save, save_before
+
+        :param record: <orb.Model>
+        :param values: <dict>
+        :param context: <orb.Context> descriptor
+
+        :return: <orb.Callback>
+        """
+        context['values'] = values
+        callback = orb.Callback(self.save,
+                                kwargs=context,
+                                signal=Model.about_to_save,
+                                sender=record,
+                                single_shot=True)
+        return callback
+
+    def set(self, key, value, use_method=True, silent=False, **context):
+        """
+        Sets the value for the given key for this record.  If the `use_method`
+        flag is set then the settermethod will be used for the schema object,
+        otherwise it will update the raw cache of this record.
+
+        :param key: <str> or <orb.Column> or <orb.Collector>
+        :param value: <variant>
+        :param use_method: <bool> (default: True)
+        :param silent: <bool> (default: False)
+        :param context: <orb.Context> descriptor
+
+        :return: <bool>
+        """
+        schema = self.schema()
+        column = schema.column(key, raise_=False)
+
+        # save a column attribute for this record
+        if column:
+            return self.set_attribute(column, value, use_method=use_method, silent=silent, **context)
+
+        # save a collector's collection for this record
+        collector = schema.collector(key)
+        if collector:
+            return self.set_collection(collector, value, use_method=use_method, **context)
+
+        # raise an error
+        raise orb.errors.ColumnNotFound(schema=schema, column=key)
+
+    def set_attribute(self, column, value, use_method=True, silent=False, **context):
+        """
+        Sets the attribute for this record's column to the given value.  If the `use_method`
+        flag is True, then any custom setter will be called for this column.  If the `silent`
+        flag is set to True then the `on_change` event callback will not be executed.
+
+        :param column: <orb.Column>
+        :param value: <orb.Collection>
+        :param use_method: <bool> (default: True)
+        :param silent: <bool> (default: False)
+        :param context: <orb.Context> descriptor
+
+        :return: (<variant> old value, <variant> new value) or None
+        """
+        orb_context = self.context()
+        sub_context = orb_context.sub_context(**context)
+
+        # use custom setter logic
+        setter = column.settermethod()
+        if use_method and setter:
+            return setter(self, value, context=sub_context)
+        else:
+            value = column.store(value, context=sub_context)
+            with WriteLocker(self.__lock):
+                orig_value = self.__attributes.get(column.name())
+
+                if column.test_flag(column.Flags.I18n) and orig_value is not None:
+                    orig_value.update(value)
+                else:
+                    self.__attributes[column.name()] = value
+
+            # broadcast the change through the system
+            try:
+                changed = orig_value != value
+            except TypeError:  # pragma: no cover
+                changed = True
+
+            if changed:
+                # determine what to emit as the change value for i18n
+                if column.test_flag(column.Flags.I18n) and sub_context.locale != 'all':
+                    orig_value = orig_value.get(sub_context.locale) if orig_value else None
+                    value = value.get(sub_context.locale)
+
+                # create the change event for this attribute
+                if not silent:
+                    changes = {column: (orig_value, value)}
+                    event = orb.events.ChangeEvent(record=self, changes=changes)
+                    self.on_change(event)
+
+                return orig_value, value
+            else:
+                return None
+
+    def set_collection(self, collector, collection, use_method=True, **context):
+        """
+        Sets the collection for this record's collection to the given records.  If the `use_method`
+        flag is True, then any custom setter will be called for this collector.
+
+        :param collector: <orb.Collector>
+        :param collection: <orb.Collection>
+        :param use_method: <bool>
+        :param context: <orb.Context> descriptor
+
+        :return: <variant>
+        """
+        orb_context = self.context()
+        sub_context = orb_context.sub_context(**context)
+
+        method = collector.settermethod()
+
+        # use custom setter calls
+        if method and use_method:
+            return method(self, collection, context=sub_context)
+
+        # update existing collection
+        else:
+            try:
+                with ReadLocker(self.__lock):
+                    base_collection = self.__collections[collector.name()][sub_context]
+            except KeyError:
+                with WriteLocker(self.__lock):
+                    base_collection = collector.collection(self)
+                    self.__collections[collector.name()][sub_context] = base_collection
+
+            base_collection.update(collection, use_method=use_method, context=sub_context)
+
+            # remove any preloaded values from the collector
+            # to ensure that there is no conflict later -- setting the collection
+            # will override any preloaded data
+            self.__preload.pop(collector.name(), None)
+
+            return base_collection
+
+    def set_context(self, context):
         if isinstance(context, dict):
             self.__context = orb.Context(**context)
             return True
@@ -865,280 +1137,271 @@ class Model(object):
         else:
             return False
 
-    def setId(self, value, **context):
-        return self.set(self.schema().id_column(), value, use_method=False, **context)
+    def set_id(self, value, use_method=True, **context):
+        """
+        Shortcut for setting the ID of this record by setting the `id_column` for this
+        record's attribute set.
+
+        :param value: <variant>
+
+        :return: <bool> changed
+        """
+        id_column = self.schema().id_column()
+        setter = id_column.settermethod()
+        if setter and use_method:
+            return setter(self, value, **context)
+        else:
+            with WriteLocker(self.__lock):
+                self.__attributes[id_column.name()] = value
+            return True
 
     def update(self, values, **context):
         """
-        Updates the model with the given dictionary of values.
+        Updates this record with the given values.  This will update columns and
+        collectors values based on the given data set.  At the end, if there were
+        any changes, a ChangeEvent will be fired for this record.
 
         :param values: <dict>
         :param context: <orb.Context>
 
-        :return: <int>
+        :return: <int> number of changes
         """
         schema = self.schema()
-        column_updates = {}
-        other_updates = {}
+
+        # have to organize updates in order to update in the proper sequence
+        attributes = {}
+        collections = {}
+        unknown = {}
+        changes = {}
         for key, value in values.items():
-            try:
-                column_updates[schema.column(key)] = value
-            except orb.errors.ColumnNotFound:
-                other_updates[key] = value
+            # update a column
+            column = schema.column(key, raise_=None)
+            if column is not None:
+                attributes[column] = value
+                continue
 
-        # update the columns in order
-        for col in sorted(column_updates.keys(), key=lambda x: x.order()):
-            self.set(col, column_updates[col], **context)
+            # update a collector
+            collector = schema.collector(key)
+            if collector is not None:
+                collections[collector] = value
+                continue
 
-        # update the other values
-        for key, value in other_updates.items():
-            try:
-                self.set(key, value, **context)
-            except orb.errors.ColumnValidationError:
-                pass
+        # update the attributes in order
+        for column in sorted(attributes.keys(), key=lambda x: x.order()):
+            changed = self.set_attribute(column,
+                                         attributes[column],
+                                         silent=True,
+                                         **context)
+            if changed:
+                changes[column] = changed
 
-        return len(values)
+        # update the collections
+        for collector, value in collections.items():
+            self.set_collection(collector, value, **context)
 
-    def validate(self, columns=None):
+        return len(changes)
+
+    def validate(self, **context):
         """
-        Validates the current record object to make sure it is ok to commit to the database.  If
-        the optional override dictionary is passed in, then it will use the given values vs. the one
-        stored with this record object which can be useful to check to see if the record will be valid before
-        it is committed.
+        Validates the current record object to make sure that the current
+        values that are associated with it are ready to be saved to the
+        backend, and validate the rules for the columns and collectors
+        that the schema defines for this model.  If this method succeeds,
+        it will return True, if it fails a ValidationError is raised.
 
-        :param      overrides | <dict>
+        :param context: <orb.Context>
 
-        :return     <bool>
+        :return: <bool>
         """
         schema = self.schema()
+        orb_context = self.context(**context)
+        columns = orb_context.schema_columns(schema)
         if not columns:
             ignore_flags = orb.Column.Flags.Virtual | orb.Column.Flags.ReadOnly
             columns = schema.columns(flags=~ignore_flags).values()
-            use_indexes = True
+            validate_indexes = True
         else:
-            use_indexes = False
+            validate_indexes = False
 
         # validate the column values
-        values = self.values(key='column', columns=columns)
-        for col, value in values.items():
-            if not col.validate(value):
-                return False
+        for column in columns:
+            with ReadLocker(self.__lock):
+                value = self.__attributes.get(column.name())
+
+            # will raise a ValidationError if this check does not pass
+            column.validate(value)
 
         # valide the index values
-        if use_indexes:
-            for index in self.schema().indexes().values():
-                if not index.validate(self, values):
-                    return False
+        if validate_indexes:
+            for index in schema.indexes().values():
+                with ReadLocker(self.__lock):
+                    values = {column: self.__attributes.get(column.name())
+                              for column in index.schema_columns(schema)}
+
+                # validates the index against the values for that it uses,
+                # will raise a ValidationError if it does not pass
+                index.validate(values)
 
         return True
 
-    def values(self,
-               columns=None,
-               recurse=True,
-               flags=0,
-               mapper=None,
-               key='name',
-               **get_options):
-        """
-        Returns a dictionary grouping the columns and their
-        current values.  If the inflated value is set to True,
-        then you will receive any foreign keys as inflated classes (if you
-        have any values that are already inflated in your class, then you
-        will still get back the class and not the primary key value).  Setting
-        the mapper option will map the value by calling the mapper method.
-
-        :param      useFieldNames | <bool>
-                    inflated | <bool>
-                    mapper | <callable> || None
-
-        :return     { <str> key: <variant>, .. }
-        """
-        output = {}
-        schema = self.schema()
-
-        for column in columns or schema.columns(recurse=recurse, flags=flags).values():
-            column = column if isinstance(column, orb.Column) else schema.column(column)
-            try:
-                val_key = column if key == 'column' else getattr(column, key)()
-            except AttributeError:
-                raise errors.OrbError(
-                    'Invalid key used in data collection.  Must be name, field, or column.'
-                )
-            else:
-                value = self.get(column, **get_options)
-                output[val_key] = mapper(value) if mapper else value
-
-        return output
-
-    #----------------------------------------------------------------------
-    #                           CLASS METHODS
-    #----------------------------------------------------------------------
+    # class methods
+    # --------------------
 
     @classmethod
-    def addCallback(cls, eventType, func, record=None, once=False):
+    def all(cls, **context):
         """
-        Adds a callback method to the class.  When an event of the given type is triggered, any registered
-        callback will be executed.
+        Returns all of the records for this model.  Functionally the same
+        as the `select` method, but will force the context's limit to None.
+        This will not actually fetch the results from the backend, but will
+        generate a collection with the information on how to go collect
+        in the future.
 
-        :param  eventType: <str>
-        :param  func: <callable>
+        :param context: <orb.Context> descriptor
+
+        :return: <orb.Collection>
         """
-        callbacks = cls.callbacks()
-        callbacks.setdefault(eventType, [])
-        callbacks[eventType].append((func, record, once))
+        context['limit'] = None
+        return cls.select(**context)
 
     @classmethod
-    def all(cls, **options):
+    def get_base_query(cls, **context):
         """
-        Returns a record set containing all records for this table class.  This
-        is a convenience method to the <orb.Table>.select method.
+        Generates and returns the base query for this model definition.  By
+        default it will return the `__base_query__` class property, if
+        defined, but can be re-implemented to include additional logic.
 
-        :param      **options | <orb.LookupOptions> & <orb.Context>
-
-        :return     <orb.Collection>
+        :return: <orb.Query> or None
         """
-        return cls.select(**options)
+        return cls.__base_query__
 
     @classmethod
-    def baseQuery(cls, **context):
+    def get_collection_type(cls, **context):
         """
-        Returns the default query value for the inputted class.  The default
-        table query can be used to globally control queries run through a
-        Table's API to always contain a default.  Common cases are when
-        filtering out inactive results or user based results.
+        Returns the collection class type for this model class.  By default
+        the standard <orb.Collection> will be returned, but if you would
+        like to re-define the base collection class for your model, you can
+        either override the `__collection_type__` property or re-implement
+        this method to define context specific collection types.
 
-        :return     <orb.Query> || None
+        :param context: <orb.Context> descriptor
+
+        :return: subclass of <orb.Context>
         """
-        return getattr(cls, '_%s__baseQuery' % cls.__name__, None)
+        return cls.__collection_type__
 
     @classmethod
-    def callbacks(cls, eventType=None):
+    def get_search_engine(cls, **context):
         """
-        Returns a list of callback methods that can be invoked whenever an event is processed.
+        Returns the search engine that is associated with this model.
 
-        :return: {subclass of <Event>: <list>, ..}
+        :return: <orb.SearchEngine>
         """
-        key = '_{0}__callbacks'.format(cls.__name__)
-        try:
-            callbacks = getattr(cls, key)
-        except AttributeError:
-            callbacks = {}
-            setattr(cls, key, callbacks)
-
-        return callbacks.get(eventType, []) if eventType is not None else callbacks
+        return cls.__search_engine__
 
     @classmethod
     def create(cls, values, **context):
         """
-        Shortcut for creating a new record for this table.
+        Creates a new record for this model class type with the given values.
+        This will generate a new model and insert it into the backend,
+        returning the newly generated record.
 
-        :param     values | <dict>
+        :param values: {<str> or <orb.Column> or <orb.Collector> key: <variant> value, ..}
+        :param context: <orb.Context> descriptor
 
-        :return    <orb.Table>
+        :return: <orb.Model>
         """
         schema = cls.schema()
+        system = schema.system()
         model = cls
 
-        # check for creating inherited classes from a sub class
-        polymorphic_columns = schema.columns(flags=orb.Column.Flags.Polymorphic)
-        if polymorphic_columns:
-            polymorphic_column = polymorphic_columns.values()[0]
-            schema_name = values.get(polymorphic_column.name(), schema.name())
-            if schema_name and schema_name != schema.name():
-                schema = orb.system.schema(schema_name)
-                if not schema:
-                    raise orb.errors.ModelNotFound(schema=schema_name)
-                else:
-                    model = schema.model()
+        # check for creating polymorphic models
+        pcols = schema.columns(flags=orb.Column.Flags.Polymorphic).values()
+        if pcols:
+            pcol = pcols[0]
+            model_name = values.get(pcol,
+                                    values.get(pcol.name(),
+                                               values.get(pcol.field(),
+                                                          values.get(pcol.alias()))))
 
-        column_values = {}
-        collector_values = {}
+            # create from the proper polymorphic model
+            # if not found, a ModelNotFound error will be raised
+            if model_name and model_name != schema.name():
+                model = system.model(model_name)
+                schema = model.schema()
+
+        attributes = {}
+        collections = {}
 
         for key, value in values.items():
-            obj = schema.collector(key) or schema.column(key)
-            if isinstance(obj, orb.Collector):
-                collector_values[key] = value
+            collector = schema.collector(key)
+            if collector:
+                collections[collector] = value
             else:
-                column_values[key] = value
+                attributes[schema.column(key)] = value
 
-        # create the new record with column values (values stored on this record)
-        record = model(context=orb.Context(**context))
-        record.update(column_values)
+        # create a new record with the given attributes,
+        # save it, and then update the collections (which
+        # require the record to exist in the backend)
+        # afterwards
+        record = model(attributes, **context)
         record.save()
 
-        # save any collector values after the model is generated (values stored on other records)
-        record.update(collector_values)
+        for key, value in collections.items():
+            record.set_collection(key, value)
 
         return record
 
     @classmethod
-    def ensureExists(cls, values, defaults=None, **context):
+    def ensure_exists(cls, required, defaults=None, **context):
         """
-        Defines a new record for the given class based on the
-        inputted set of keywords.  If a record already exists for
-        the query, the first found record is returned, otherwise
-        a new record is created and returned.
+        Ensures that a record exists for the required values.  This
+        method will first query for an exact match for the required
+        fields, and if found, return the database record.  If not
+        found, a new record will be created with the required values
+        as well as the default values.
 
-        :param      values | <dict>
+        :note: This method will NOT update the backend record with
+               defaults if it already exists.  It will only set
+               default values on a new record.
+
+        :param required: {<str> or <orb.Column> column: <variant> value, ..}
+        :param defaults: {<str> or <orb.Column> column: <variant> value, ..} or None
+        :param context: <orb.Context> descriptor
+
+        :return: <orb.Model>
         """
-        # require at least some arguments to be set
-        if not values:
-            return cls()
+        if not required:
+            raise orb.errors.OrbError('No values provided')
 
         # lookup the record from the database
+        schema = cls.schema()
         q = orb.Query()
 
-        for key, value in values.items():
-            column = cls.schema().column(key)
-            if not column:
-                raise orb.errors.ColumnNotFound(schema=cls.schema(), column=key)
-            elif column.test_flag(column.Flags.Virtual):
-                continue
+        for key, value in required.items():
+            column = schema.column(key)
 
-            if (isinstance(column, orb.AbstractStringColumn) and
-                not column.test_flag(column.Flags.CaseSensitive) and
-                not column.test_flag(column.Flags.I18n) and
-                isinstance(value, (str, unicode))):
+            # check for non-case sensitive columns
+            if isinstance(value, (str, unicode)) and not column.test_flag(column.Flags.CaseSensitive):
                 q &= orb.Query(key).lower() == value.lower()
+
+            # check for exact matches
             else:
                 q &= orb.Query(key) == value
 
-        record = cls.select(where=q).first()
+        # lookup the record from the database
+        sub_context = context.copy()
+        sub_context['where'] = q & context.get('where')
+        record = cls.select(**sub_context).first()
+
+        # if not found, generate a new record with the required values and default values
         if record is None:
-            record = cls(context=orb.Context(**context))
-            record.update(values)
-            record.update(defaults or {})
-            record.save()
+            values = required.copy()
+            values.update(defaults or {})
+
+            # create the new record
+            record = cls.create(values, **context)
 
         return record
-
-    @classmethod
-    def processEvent(cls, event):
-        """
-        Processes the given event by dispatching it to any waiting callbacks.
-
-        :param event: <orb.Event>
-        """
-        callbacks = cls.callbacks(type(event))
-        keep_going = True
-        remove_callbacks = []
-
-        for callback, record, once in callbacks:
-            if record is not None and record != event.record:
-                continue
-
-            callback(event)
-            if once:
-                remove_callbacks.append((callback, record))
-
-            if event.preventDefault:
-                keep_going = False
-                break
-
-        for callback, record in remove_callbacks:
-            cls.removeCallback(type(event), callback, record=record)
-
-        return keep_going
 
     @classmethod
     def fetch(cls, key, **context):
@@ -1149,10 +1412,11 @@ class Model(object):
 
         :param key: <variant>
         :param context: <orb.Context>
-        :return: <orb.Model> || None
+
+        :return: <orb.Model> or None
         """
         # include any keyable columns for lookup
-        if isinstance(key, basestring) and not key.isdigit():
+        if isinstance(key, (str, unicode)) and not key.isdigit():
             keyable_columns = cls.schema().columns(flags=orb.Column.Flags.Keyable)
             if keyable_columns:
                 base_q = orb.Query()
@@ -1167,128 +1431,136 @@ class Model(object):
         return cls.select(**context).first()
 
     @classmethod
-    def inflate(cls, values, **context):
+    def iter_defaults(cls, ignore=None, ignore_flags=None, context=None):
+        """
+        Returns the default values for a record of this class type.  You can provide
+        a list of strings or columns to ignore when generating the dictionary, as well
+        as a flag definition of columns to exclude.  If flags is None, then Virtual and
+        ReadOnly columns will not be included.
+
+        :param ignore: None or [<str> column, ..]
+        :param ignore_flags: None or <orb.Column.Flags>
+
+        :return: <generator>
+        """
+        context = context or orb.Context()
+        ignore_flags = ignore_flags or (orb.Column.Flags.Virtual | orb.Column.Flags.ReadOnly)
+        schema = cls.schema()
+        ignore_columns = {schema.column(c) for c in ignore or []}
+        for column in schema.columns(flags=~ignore_flags).values():
+            if column in ignore_columns:
+                continue
+            elif column.test_flag(column.Flags.I18n):
+                yield column.name(), {context.locale: column.default()}
+            elif column.test_flag(column.Flags.Polymorphic):
+                yield column.name(), cls.__name__
+            else:
+                yield column.name(), column.default()
+
+    @classmethod
+    def on_sync(cls, event):
+        """
+        Called after a model has been synced to a backend store.    The default
+        behavior is to send the `synced` signal to any receivers.
+
+        :param event: <orb.SyncEvent>
+        """
+        Model.synced.send(cls, event=event)
+
+    @classmethod
+    def restore_record(cls, raw_record, **context):
         """
         Returns a new record instance for the given class with the values
         defined from the database.
 
-        :param      cls     | <subclass of orb.Table>
-                    values  | <dict> values
+        :param raw_record: <dict> database record
+        :param context: <orb.Context> descriptor
 
-        :return     <orb.Table>
+        :return: <orb.Model>
         """
-        context = orb.Context(**context)
-
-        # inflate values from the database into the given class type
-        if isinstance(values, Model):
-            record = values
-            values = dict(values)
+        if isinstance(raw_record, orb.Model):
+            return raw_record
         else:
-            record = None
+            schema = cls.schema()
+            schema_context = schema.context(**context)
+            pcols = schema.columns(flags=orb.Column.Flags.Polymorphic).values()
+            pcol = pcols[0] if pcols else None
 
-        schema = cls.schema()
-        polymorphs = schema.columns(flags=orb.Column.Flags.Polymorphic).values()
-        column = polymorphs[0] if polymorphs else None
+            # attempt to expand the class to its defined polymorphic type
+            if pcol and pcol.alias() in raw_record:
+                model_name = raw_record[pcol.alias()]
+                model = schema_context.system.model(model_name)
+                schema_context = model.schema().context(context=schema_context)
+            else:
+                model = cls
 
-        # attempt to expand the class to its defined polymorphic type
-        if column and column.field() in values:
-            morph_cls_name = values.get(column.name(), values.get(column.field()))
-            morph_cls = orb.system.model(morph_cls_name)
-            id_col = schema.id_column().name()
-            if morph_cls and morph_cls != cls:
-                try:
-                    record = morph_cls(values[id_col], context=context)
-                except KeyError:
-                    raise orb.errors.RecordNotFound(schema=morph_cls.schema(),
-                                                    column=values.get(id_col))
-
-        if record is None:
-            event = orb.events.LoadEvent(record=record, data=values)
-            record = cls(loadEvent=event, context=context)
-
-        return record
-
-    def read(self):
-        record_id = self.id()
-        data = self.fetch(record_id, inflated=False, context=self.__context)
-
-        if not data:
-            raise errors.RecordNotFound(schema=self.schema(),
-                                        column=record_id)
-
-        event = orb.events.LoadEvent(record=self, data=data)
-        self._load(event)
-
-    @classmethod
-    def removeCallback(cls, eventType, func, record=None):
-        """
-        Removes a callback from the model's event callbacks.
-
-        :param  eventType: <str>
-        :param  func: <callable>
-        """
-        callbacks = cls.callbacks()
-        callbacks.setdefault(eventType, [])
-        for i in xrange(len(callbacks[eventType])):
-            my_func, my_record, _ = callbacks[eventType][i]
-            if func == my_func and record == my_record:
-                del callbacks[eventType][i]
-                break
+            # create the record instance from the database
+            record = model(context=schema_context)
+            record.parse(raw_record)
+            record.mark_loaded(model.schema().columns())
+            return record
 
     @classmethod
     def schema(cls):
-        """  Returns the class object's schema information. """
-        return getattr(cls, '_{0}__schema'.format(cls.__name__), None)
+        """
+        Returns the schema that is associated with this model, if any is defined.
+
+        :return: <orb.Schema> or None
+        """
+        return cls.__schema__
 
     @classmethod
     def search(cls, terms, **context):
-        if isinstance(cls.__search_engine__, (str, unicode)):
-            engine = SearchEngine.byName(cls.__search_engine__)
-            if not engine:
-                raise orb.errors.SearchEngineNotFound(cls.__search_engine__)
-        else:
-            engine = cls.__search_engine__
-        return engine.search(cls, terms, **context)
+        """
+        Searches through the records in this model for the given query terms.
+
+        :param terms: <str>
+        :param context: <orb.Context> descriptor
+
+        :return: <orb.Collection>
+        """
+        return cls.select(**context).search(terms)
 
     @classmethod
     def select(cls, **context):
         """
-        Selects records for the class based on the inputted \
-        options.  If no db is specified, then the current \
-        global database will be used.  If the inflated flag is specified, then \
-        the results will be inflated to class instances.
+        Selects records from the backend based on the given context.
 
-        If the flag is left as None, then results will be auto-inflated if no
-        columns were supplied.  If columns were supplied, then the results will
-        not be inflated by default.
+        :param context: <orb.Context> descriptor
 
-        If the groupBy flag is specified, then the groupBy columns will be added
-        to the beginning of the ordered search (to ensure proper paging).  See
-        the Table.groupRecords methods for more details.
-
-        :note       From version 0.6.0 on, this method now accepts a mutable
-                    keyword dictionary of values.  You can supply any member
-                    value for either the <orb.LookupOptions> or
-                    <orb.Context>, as well as the keyword 'lookup' to
-                    an instance of <orb.LookupOptions> and 'context' for
-                    an instance of the <orb.Context>
-
-        :return     [ <cls>, .. ] || { <variant> grp: <variant> result, .. }
+        :return: <orb.Collection>
         """
-        rset_type = getattr(cls, 'Collection', orb.Collection)
+        rset_type = cls.get_collection_type(**context)
         return rset_type(**context).bind_model(cls)
 
-    @classmethod
-    def setBaseQuery(cls, query):
-        """
-        Sets the default table query value.  This method can be used to control
-        all queries for a given table by setting global where inclusions.
 
-        :param      query | <orb.Query> || None
-        """
-        setattr(cls, '_%s__baseQuery' % cls.__name__, query)
+class Table(Model):
+    """ Defines specific database Table model base class """
+    __model__ = False
 
-    @deprecated
-    def isRecord(self, db=None):
-        """ Deprecated for PEP8 standards.  Use `is_record` instead. """
-        return self.is_record(db=db)
+
+class View(Model):
+    """ Defines specific database View model base class """
+    __model__ = False
+
+    def delete(self, **context):
+        """
+        Re-implements the delete method from `orb.Model`.  Database
+        views are read-only and this will raise a runtime error if
+        called.
+
+        :param context: <orb.Context> descriptor
+        """
+        raise orb.errors.OrbError('View models are read-only.')
+
+    def save(self, **context):
+        """
+        Re-implements the save method from `orb.Model`.  Database
+        views are read-only and this will raise a runtime error if
+        called.
+
+        :param context: <orb.Context> descriptor
+        """
+        raise orb.errors.OrbError('View models are read-only.')
+
+

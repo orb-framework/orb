@@ -38,14 +38,17 @@ class ReferenceColumnEngine(ColumnEngine):
         # apply cusotm logic
         if plugin_name == 'Postgres':
             id_type = id_type if id_type != 'SERIAL' else 'BIGINT'
+            namespace = id_column.schema().namespace() or 'public'
         elif plugin_name == 'MySQL':
             id_type = id_type.replace('AUTO_INCREMENT', '').strip()
+            namespace = id_column.schema().namespace() or 'public'
 
         # generate the formatting options
         opts = {
             'table': schema.dbname(),
             'field': id_column.field(),
-            'id_type': id_type
+            'id_type': id_type,
+            'namespace': namespace
         }
 
         base_type = super(ReferenceColumnEngine, self).get_column_type(column, plugin_name)
@@ -72,8 +75,6 @@ class ReferenceColumnEngine(ColumnEngine):
             if not cls:
                 raise orb.errors.ModelNotFound(schema=column.reference())
             else:
-                load_event = orb.events.LoadEvent(data=db_value)
-
                 # update the expansion information to not propagate to references
                 if context:
                     context = context.copy()
@@ -81,7 +82,8 @@ class ReferenceColumnEngine(ColumnEngine):
                     sub_expand = expand.pop(column.name(), {})
                     context.expand = context.raw_values['expand'] = sub_expand
 
-                db_value = cls(loadEvent=load_event, context=context)
+                db_value = cls(db_value, context=context)
+                db_value.mark_loaded()
 
         return super(ReferenceColumnEngine, self).get_api_value(column, plugin_name, db_value, context=context)
 
@@ -103,8 +105,8 @@ class ReferenceColumn(Column):
 
     """
     __default_engine__ = ReferenceColumnEngine(type_map={
-        'Postgres': u'{id_type} REFERENCES "{table}"."{field}"',
-        'MySQL': u'{id_type} REFERENCES `{table}`.`{field}`',
+        'Postgres': u'{id_type} REFERENCES "{namespace}"."{table}"("{field}")',
+        'MySQL': u'{id_type} REFERENCES `{namespace}`.`{table}`(`{field}`)',
         'default': u'{id_type}'
     })
 
@@ -131,17 +133,29 @@ class ReferenceColumn(Column):
         self.__removeAction = removeAction
 
     def _restore(self, value, context=None):
-        if not context.inflated and isinstance(value, orb.Model):
-            return value.id()
+        """
+        Restores the value for this column.  If the return type for the context is `values`
+        then the ID of the model will be returned.  If the return type for the context is `data`
+        then the dict data will be returned for the value.  Otherwise, the value will be
+        returned as the reference model type for this column.
 
-        elif context.inflated and value is not None:
+        :param value: <variant> or <orb.Model>
+        :param value: <orb.Context> or None
+
+        :return: <variant>
+        """
+        context = context or orb.Context()
+        is_model = isinstance(value, orb.Model)
+
+        if value is None:
+            return value
+        elif context.returning == 'values':
+            return value.id() if is_model else value
+        elif context.returning == 'data':
+            return dict(value) if is_model else value
+        elif not is_model:
             model = self.reference_model()
-
-            if not isinstance(value, orb.Model):
-                return model.fetch(value, context=context)
-            else:
-                return value
-
+            return model(value, context=context)
         else:
             return value
 

@@ -14,8 +14,8 @@ class SELECT(SQLiteStatement):
 
         # generate the where query
         where = context.where
-        if context.useBaseQuery:
-            base_where = model.baseQuery(context=context)
+        if context.use_base_query:
+            base_where = model.get_base_query(context=context)
             if base_where:
                 where = base_where & where
 

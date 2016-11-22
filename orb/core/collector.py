@@ -118,6 +118,20 @@ class Collector(object):
         """
         raise NotImplementedError
 
+    def collection(self, source_record):
+        """
+        Returns a bound collection instance associated with this collector.
+
+        :param source_record: <orb.Model>
+
+        :return: <orb.Collection>
+        """
+        collection = orb.Collection()
+        collection.bind_model(self.model())
+        collection.bind_collector(self)
+        collection.bind_source_record(source_record)
+        return collection
+
     def collect(self, source_record, use_method=True, **context):
         """
         Collects the records that are related to the given source method through
@@ -151,7 +165,7 @@ class Collector(object):
                 if isinstance(collection, orb.Collection):
                     record_cache = source_record.preloaded_data(self.name())
                     if record_cache:
-                        collection._add_preloaded_data({'records': record_cache}, **context)
+                        collection.preload_data({'records': record_cache}, **context)
 
                     if self.test_flag(self.Flags.Unique):
                         return collection.first()
@@ -410,15 +424,14 @@ class Collector(object):
         """
         return (self.__flags & flag) > 0
 
-    def update_records(self, source_record, collection, collection_ids, **context):
+    def update_records(self, source_record, records, **context):
         """
         Updates the source record with the new collection of related records based
         on this collector's required relationships.  This is an abstract method
         and needs to be implemented per sub-class.
 
         :param source_record: <orb.Model>
-        :param collection: <orb.Collection> new related records
-        :param collection_ids: [<variant> id, ..] list of new related ids
+        :param records: <orb.Collection> new related records
         :param context: <orb.Context> descriptor
         """
         raise NotImplementedError

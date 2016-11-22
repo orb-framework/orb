@@ -231,6 +231,27 @@ class Schema(object):
         """
         return self.collectors(recurse=recurse, flags=flags).get(name)
 
+    def context(self, **context):
+        """
+        Returns the context for this schema.  This will include database, namespace,
+        and system specific information.
+
+        :param context: <orb.Context> or None
+        """
+        context.setdefault('system', self.system())
+        orb_context = orb.Context(**context)
+
+        # setup the database this schema is in
+        if self.dbname():
+            orb_context.database = self.database()
+
+        # setup the namespace
+        default_namespace = self.namespace()
+        if default_namespace and not orb_context.force_namespace:
+            orb_context.namespace = default_namespace
+
+        return orb_context
+
     def collectors(self, recurse=True, flags=0):
         """
         Returns a collection of collectors that are associated with this schema.
@@ -321,7 +342,6 @@ class Schema(object):
         # return the column based on the standard lookup
         else:
             cols = self.columns(recurse=recurse, flags=flags)
-            print self.__model, key, cols.keys()
             try:
                 output = cols[key]
             except KeyError:

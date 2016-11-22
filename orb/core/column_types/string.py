@@ -28,7 +28,7 @@ class StringColumnEngine(ColumnEngine):
         String columns have a couple additional attributes that can be used
         during type definition.
 
-        :param column: <orb.AbstractStringColumn>
+        :param column: <orb.StringColumn>
         :param plugin_name: <str>
 
         :return: <str>
@@ -64,12 +64,20 @@ class StringColumnEngine(ColumnEngine):
             return py_value
 
 
-class AbstractStringColumn(Column):
-    def __init__(self, cleaned=False, escaped=False, **kwds):
-        super(AbstractStringColumn, self).__init__(**kwds)
+class StringColumn(Column):
+    __default_engine__ = StringColumnEngine(type_map={
+        'Postgres': 'CHARACTER VARYING({length})',
+        'MySQL': 'varchar({length})',
+        'SQLite': 'TEXT'
+    })
 
+    def __init__(self, maxLength=255, cleaned=False, escaped=False, **kwds):
+        super(StringColumn, self).__init__(**kwds)
+
+        # define custom properties
         self.__cleaned = cleaned
         self.__escaped = escaped
+        self.__maxLength = maxLength
 
     def clean(self, py_value):
         """
@@ -112,6 +120,9 @@ class AbstractStringColumn(Column):
         """
         return self.__escaped
 
+    def maxLength(self):
+        return self.__maxLength
+
     def random_value(self):
         """
         Returns a random value that fits this column's parameters.
@@ -131,7 +142,10 @@ class AbstractStringColumn(Column):
         if isinstance(value, (str, unicode)):
             value = projex.text.decoded(value)
 
-        return super(AbstractStringColumn, self).restore(value, context)
+        return super(StringColumn, self).restore(value, context)
+
+    def setMaxLength(self, maxLength):
+        return self.__maxLength
 
     def store(self, value, context=None):
         """
@@ -145,60 +159,18 @@ class AbstractStringColumn(Column):
         if isinstance(value, (str, unicode)) and self.test_flag(self.Flags.Encrypted):
             value = security.encrypt(value)
 
-        return super(AbstractStringColumn, self).store(value, context=context)
+        return super(StringColumn, self).store(value, context=context)
 
-
-# define base string based class types
-class StringColumn(AbstractStringColumn):
-    __default_engine__ = StringColumnEngine(type_map={
-        'Postgres': 'CHARACTER VARYING({length})',
-        'MySQL': 'varchar({length})',
-        'SQLite': 'TEXT'
-    })
-
-    def __init__(self,
-                 maxLength=255,
-                 **kwds):
-        super(StringColumn, self).__init__(**kwds)
-
-        # define custom properties
-        self.__maxLength = maxLength
-
-    def loadJSON(self, jdata):
-        """
-        Loads JSON data for this column type.
-
-        :param jdata: <dict>
-        """
-        super(StringColumn, self).loadJSON(jdata)
-
-        # load additional info
-        self.__maxLength = jdata.get('maxLength') or self.__maxLength
-
-    def maxLength(self):
-        """
-        Returns the max length for this column.  This property
-        is used for the varchar data type.
-
-        :return     <int>
-        """
-        return self.__maxLength
-
-    def setMaxLength(self, length):
-        """
-        Sets the maximum length for this string column to the given length.
-
-        :param length: <int>
-        """
-        self.__maxLength = length
-
-
-class TextColumn(AbstractStringColumn):
+class TextColumn(StringColumn):
     __default_engine__ = StringColumnEngine(type_map={
         'Postgres': 'TEXT',
         'SQLite': 'TEXT',
         'MySQL': 'TEXT'
     })
+
+    def __init__(self, **kw):
+        kw.setdefault('maxLength', None)
+        super(TextColumn, self).__init__(**kw)
 
 
 # define custom string class types

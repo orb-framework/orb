@@ -198,7 +198,7 @@ def test_pg_columns_restore_url(orb, pg_db, pg_last_column_record):
 def test_pg_columns_restore_xml(orb, pg_db, pg_last_column_record):
     assert pg_last_column_record.get('xml') == TEST_XML
 
-def test_pg_extract_values(orb, TestAllColumns, GroupUser, Group):
+def test_pg_extract_values(orb, pg_db, TestAllColumns, GroupUser, Group):
     import datetime
     users = GroupUser.all()
     all_records = TestAllColumns.all()

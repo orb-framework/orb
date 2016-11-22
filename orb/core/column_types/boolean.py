@@ -1,6 +1,7 @@
 import projex.text
 import random
 
+from ..column_engine import ColumnEngine
 from ..column import Column
 
 
@@ -9,11 +10,11 @@ class BooleanColumn(Column):
     Defines a boolean field.  This column will return True or False, or None if no value
     has been set.  The default value for this column is None.
     """
-    TypeMap = {
+    __default_engine__ = ColumnEngine(type_map={
         'Postgres': 'BOOLEAN',
         'SQLite': 'INTEGER',
         'MySQL': 'BOOLEAN'
-    }
+    })
 
     def random_value(self):
         """

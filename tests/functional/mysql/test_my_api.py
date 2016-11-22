@@ -13,7 +13,7 @@ def test_my_api_save_bill(orb, my_db, User):
     user.save()
 
     assert user.id() is not None
-    assert user.isRecord() == True
+    assert user.is_record() == True
     assert user.get('user_type_id') == 1
     assert user.get('user_type.code') == 'basic'
 
@@ -28,10 +28,10 @@ def test_my_api_fetch_bill(orb, my_db, User):
 
 def test_my_api_delete_bill(orb, my_db, User):
     user = User.byUsername('bill')
-    assert user and user.isRecord()
+    assert user and user.is_record()
 
     user.delete()
-    assert not user.isRecord()
+    assert not user.is_record()
 
     user_again = User.byUsername('bill')
     assert user_again is None
@@ -67,11 +67,11 @@ def test_my_api_create_admins(orb, User, GroupUser, Group):
     user = User.byUsername('bob')
     assert user is not None and user.get('username') == 'bob'
 
-    group = Group.ensureExists({'name': 'admins'})
+    group = Group.ensure_exists({'name': 'admins'})
     assert group is not None
 
-    group_user = GroupUser.ensureExists({'group': group, 'user': user})
-    assert group_user.isRecord() == True
+    group_user = GroupUser.ensure_exists({'group': group, 'user': user})
+    assert group_user.is_record() == True
 
 def test_my_api_get_user_groups(orb, User):
     user = User.byUsername('bob')
@@ -200,7 +200,7 @@ def test_my_api_collection_has_record(orb, User):
 def test_my_api_collection_iter(orb, User):
     records = User.select()
     for record in records:
-        assert record.isRecord()
+        assert record.is_record()
 
 def test_my_api_collection_invalid_index(orb, User):
     records = User.select()
@@ -242,7 +242,7 @@ def test_my_api_collection_empty(orb, User):
     assert users.isEmpty()
 
 def test_my_api_collection_itertool(orb, User):
-    for user in User.select(inflated=False):
+    for user in User.select(returning='data'):
         assert user['id'] is not None
 
 def test_my_api_select_columns(orb, User):
@@ -308,7 +308,7 @@ def test_my_api_invalid_reference(orb, Employee, User):
 def test_my_api_save_employee(orb, Employee, Role):
     # TODO: support inserting inherited records
     pass
-    # role = Role.ensureExists({'name': 'Programmer'})
+    # role = Role.ensure_exists({'name': 'Programmer'})
     # sam = Employee.byUsername('samantha')
     # if not sam:
     #     sam = Employee({
