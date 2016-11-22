@@ -250,13 +250,13 @@ class SELECT_EXPAND_PIPE(SELECT_EXPAND):
         WHERE = self.byName('WHERE')
 
         data = {}
-        source = pipe.fromModel()
+        source = pipe.from_model()
 
-        source_col = pipe.fromColumn()
-        through = pipe.throughModel()
-        target_col = pipe.toColumn()
+        source_col = pipe.from_column()
+        through = pipe.through_model()
+        target_col = pipe.to_column()
 
-        target = pipe.toModel()
+        target = pipe.model()
         target_records_alias = projex.text.underscore(pipe.name()) + '_records'
 
         target_fields = []
