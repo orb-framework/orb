@@ -661,21 +661,22 @@ class Query(object):
         newq.setCaseSensitive(caseSensitive)
         return newq
 
-    def copy(self):
+    def copy(self, **kw):
         """
         Returns a duplicate of this instance.
 
         :return     <Query>
         """
-        options = {
-            'op': self.__op,
-            'caseSensitive': self.__caseSensitive,
-            'value': copy.copy(self.__value),
-            'inverted': self.__inverted,
-            'functions': copy.copy(self.__functions),
-            'math': copy.copy(self.__math)
-        }
-        return orb.Query(self.__model, self.__column, **options)
+        kw.setdefault('op', self.__op)
+        kw.setdefault('caseSensitive', self.__caseSensitive)
+        kw.setdefault('value', copy.copy(self.__value))
+        kw.setdefault('inverted', self.__inverted)
+        kw.setdefault('functions', copy.copy(self.__functions))
+        kw.setdefault('math', copy.copy(self.__math))
+        kw.setdefault('model', self.__model)
+        kw.setdefault('column', self.__column)
+
+        return type(self)(kw.pop('model'), kw.pop('column'), **kw)
 
     def doesNotContain(self, value):
         """
@@ -755,7 +756,7 @@ class Query(object):
             raise orb.errors.QueryInvalid('Could not traverse: {0}'.format(self.__column))
 
         schema = model.schema()
-        parts = self.__column.split('.')
+        parts = [self.__column.name()] if isinstance(self.__column, orb.Column) else self.__column.split('.')
 
         # expand the current column
         lookup = schema.column(parts[0], raise_=False) or schema.collector(parts[0])

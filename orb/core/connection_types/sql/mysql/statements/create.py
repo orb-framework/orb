@@ -76,7 +76,7 @@ class CREATE(MySQLStatement):
                     raise orb.errors.QueryInvalid('Cannot join in a collection for a view')
 
                 if isinstance(collector, orb.Pipe):
-                    join_schema = collector.toModel().schema()
+                    join_schema = collector.model().schema()
                     join_id = join_schema.id_column()
 
                     pipe_schema = collector.throughModel().schema()

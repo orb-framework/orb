@@ -443,6 +443,30 @@ class Collection(object):
         self.__bound_source_record = record
         return self
 
+    def bound_collector(self):
+        """
+        Returns the collector that is bound to this collection.
+
+        :return: <orb.Collector> or None
+        """
+        return self.__bound_collector
+
+    def bound_model(self):
+        """
+        Returns the model that is bound to this collection.
+
+        :return: subclass of <orb.Model> or None
+        """
+        return self.__bound_model
+
+    def bound_source_record(self):
+        """
+        Returns the source record that is bound to this collection.
+
+        :return: <orb.Model> or None
+        """
+        return self.__bound_source_record
+
     def clear_cache(self):
         """
         Clears the cache for this collection.
@@ -606,9 +630,12 @@ class Collection(object):
         # delete records from a collector that defines it
         if self.__bound_collector:
             try:
-                processed, count = self.__bound_collector.delete_records(self, context=orb_context)
+                return self.__bound_collector.delete_records(self.__bound_source_record,
+                                                             self,
+                                                             context=orb_context)
             except NotImplementedError:
-                processed, count = None, 0
+                processed = None
+                count = 0
         else:
             processed = None
             count = 0

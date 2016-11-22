@@ -25,9 +25,10 @@ def test_collector_ordering():
     assert a == a
     assert a != b
     assert d == [a, b, c]
-    assert a.__cmp__(a) == 0
-    assert cmp(a, Collector(name='alpha')) == 0
-    assert cmp(a, 10) == -1
+    assert (a < a) is False
+    assert (a < Collector(name='alpha')) is False
+    assert (a > Collector(name='alpha')) is False
+    assert (a < 10) is False
 
 
 def test_abstract_collector_methods():
@@ -43,7 +44,7 @@ def test_abstract_collector_methods():
     with pytest.raises(NotImplementedError):
         collector.create_record(None, {})
     with pytest.raises(NotImplementedError):
-        collector.delete_records([])
+        collector.delete_records(None, [])
     with pytest.raises(NotImplementedError):
         collector.remove_record(None, None)
     with pytest.raises(NotImplementedError):

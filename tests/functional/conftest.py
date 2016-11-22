@@ -121,8 +121,8 @@ def testing_schema(orb):
         name = orb.StringColumn(flags={'Unique'})
         owner = orb.ReferenceColumn(reference='User')
 
-        users = orb.Pipe(through_path='GroupUser.group.user')
-        groupUsers = orb.ReverseLookup(from_column='GroupUser.group')
+        users = orb.Pipe('GroupUser.group.user')
+        groupUsers = orb.ReverseLookup('GroupUser.group')
 
         byName = orb.Index(columns=['name'], flags={'Unique'})
 
@@ -146,8 +146,8 @@ def testing_schema(orb):
         token = orb.TokenColumn()
         user_type = orb.ReferenceColumn('UserType', default='basic')
 
-        groups = orb.Pipe(through='GroupUser', from_='user', to='group')
-        userGroups = orb.ReverseLookup(from_column='GroupUser.user')
+        groups = orb.Pipe('GroupUser.user.group')
+        userGroups = orb.ReverseLookup('GroupUser.user')
 
         @orb.virtual(orb.BooleanColumn)
         def hasGroups(self, **context):
