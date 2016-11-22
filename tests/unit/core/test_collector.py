@@ -25,9 +25,10 @@ def test_collector_ordering():
     assert a == a
     assert a != b
     assert d == [a, b, c]
-    assert a.__cmp__(a) == 0
-    assert cmp(a, Collector(name='alpha')) == 0
-    assert cmp(a, 10) == -1
+    assert (a < a) is False
+    assert (a < Collector(name='alpha')) is False
+    assert (a > Collector(name='alpha')) is False
+    assert (a < 10) is False
 
 
 def test_abstract_collector_methods():

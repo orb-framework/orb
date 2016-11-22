@@ -59,13 +59,13 @@ class Collector(object):
     def __ne__(self, other):
         return self is not other
 
-    def __cmp__(self, other):
+    def __lt__(self, other):
         if self is other:
-            return 0
+            return False
         elif isinstance(other, Collector):
-            return cmp(self.name(), other.name())
+            return self.name() < other.name()
         else:
-            return -1
+            return False
 
     def __json__(self):
         """
@@ -117,6 +117,23 @@ class Collector(object):
         :return: <orb.Model> generated relationship
         """
         raise NotImplementedError
+
+    def copy(self, **kw):
+        """
+        Creates a copy of this collector.
+
+        :param kw: <dict> keywords
+
+        :return: <orb.Collector>
+        """
+        kw.setdefault('model', self.__model)
+        kw.setdefault('name', self.__name)
+        kw.setdefault('flags', self.__flags)
+        kw.setdefault('getter', self.__gettermethod)
+        kw.setdefault('setter', self.__settermethod)
+        kw.setdefault('filter', self.__filtermethod)
+        kw.setdefault('schema', self.__schema)
+        return type(self)(**kw)
 
     def collection(self, source_record):
         """
