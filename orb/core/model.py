@@ -752,7 +752,7 @@ class Model(object):
                     self.__base_attributes.pop(column_name, None)
                     try:
                         self.__loaded.remove(column_name)
-                    except KeyError:
+                    except KeyError:  # pragma: no cover
                         pass
 
     def on_change(self, event):
