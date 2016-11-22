@@ -1057,12 +1057,9 @@ def test_update_collection_with_record_creation_from_collector(mock_db, MockUser
 
         def update_records(self,
                            source_record,
-                           collection,
-                           collection_ids,
+                           records,
                            **context):
             assert source_record == self.source
-            assert collection == self.collection
-            assert collection_ids == (100,)
             self.updated = True
 
     a = MockUser()

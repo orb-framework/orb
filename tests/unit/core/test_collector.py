@@ -47,7 +47,7 @@ def test_abstract_collector_methods():
     with pytest.raises(NotImplementedError):
         collector.remove_record(None, None)
     with pytest.raises(NotImplementedError):
-        collector.update_records([], None, [])
+        collector.update_records(None, [])
 
 
 def test_collector_serialization(MockUser):

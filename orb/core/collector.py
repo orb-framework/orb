@@ -424,15 +424,14 @@ class Collector(object):
         """
         return (self.__flags & flag) > 0
 
-    def update_records(self, source_record, collection, collection_ids, **context):
+    def update_records(self, source_record, records, **context):
         """
         Updates the source record with the new collection of related records based
         on this collector's required relationships.  This is an abstract method
         and needs to be implemented per sub-class.
 
         :param source_record: <orb.Model>
-        :param collection: <orb.Collection> new related records
-        :param collection_ids: [<variant> id, ..] list of new related ids
+        :param records: <orb.Collection> new related records
         :param context: <orb.Context> descriptor
         """
         raise NotImplementedError
