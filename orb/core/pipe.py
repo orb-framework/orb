@@ -156,22 +156,24 @@ class Pipe(Collector):
 
         return super(Pipe, self).copy(**kw)
 
-    def delete_records(self, collection, **context):
+    def delete_records(self, source_record, collection, **context):
         """
         Deletes any records from the `through_model` for this pipe given a list
         of target models.
 
+        :param source_record: <orb.Model>
         :param collection: <orb.Collection> or [<orb.Model> model, ..]
         :param context: <orb.Context> descriptor
 
-        :return: <bool> deleted, <int> number of records removed
+        :return: <int> number of records removed
         """
         through = self.through_model()
 
         # remove them from the system
         orb_context = orb.Context(**context)
 
-        q = orb.Query(self.to_column()).in_(collection)
+        q = orb.Query(self.from_column()) == source_record
+        q &= orb.Query(self.to_column()).in_(collection)
         context['where'] = q & context.get('where')
 
         # lookup the records that are about to be removed
@@ -186,7 +188,8 @@ class Pipe(Collector):
             count = conn.delete(delete_records, orb_context)[1]
         else:
             count = 0
-        return True, count
+
+        return count
 
     def from_column(self, **context):
         """
@@ -242,7 +245,7 @@ class Pipe(Collector):
 
         orb_context = orb.Context(**context)
         records = through.select(context=orb_context)
-        delete_records = orb.events.DeleteEvent.process(records)
+        delete_records = list(orb.events.DeleteEvent.process(records))
 
         if delete_records:
             conn = orb_context.db.connection()

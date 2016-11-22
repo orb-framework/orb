@@ -44,7 +44,7 @@ def test_abstract_collector_methods():
     with pytest.raises(NotImplementedError):
         collector.create_record(None, {})
     with pytest.raises(NotImplementedError):
-        collector.delete_records([])
+        collector.delete_records(None, [])
     with pytest.raises(NotImplementedError):
         collector.remove_record(None, None)
     with pytest.raises(NotImplementedError):

@@ -221,11 +221,12 @@ class Collector(object):
         """
         raise NotImplementedError
 
-    def delete_records(self, collection, **context):
+    def delete_records(self, source_record, collection, **context):
         """
         Deletes the collection of records from the database.  This method
         is abstract and needs to be re-implemented in a sub-class.
 
+        :param source_record: <orb.Model>
         :param collection: <orb.Collection>
         :param context: <orb.Context> descriptor
 

@@ -450,9 +450,9 @@ def test_collection_delete_records_from_collector(mock_user_collection):
         def __init__(self):
             self.deleted = False
 
-        def delete_records(self, collection, **context):
+        def delete_records(self, source_record, collection, **context):
             self.deleted = True
-            return list(collection), len(collection)
+            return len(collection)
 
     collection = mock_user_collection(3)
     collector = MockCollector()
