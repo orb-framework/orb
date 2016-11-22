@@ -1,4 +1,4 @@
-tox
+tox>=2.5.0
 coverage
-pytest
+pytest>=2.8.1
 pytest-logging
