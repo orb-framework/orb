@@ -39,7 +39,8 @@ with demandimport.enabled():
     from .core.database import Database
     from .core.index import Index
     from .core.model import (Model, ModelMixin, Table, View)
-    from .core.query import (Query, QueryCompound)
+    from .core.query import Query
+    from .core.query_compound import QueryCompound
     from .core.collector import Collector
     from .core.pipe import Pipe
     from .core.reverselookup import ReverseLookup

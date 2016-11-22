@@ -135,20 +135,6 @@ class Collector(object):
         kw.setdefault('schema', self.__schema)
         return type(self)(**kw)
 
-    def collection(self, source_record):
-        """
-        Returns a bound collection instance associated with this collector.
-
-        :param source_record: <orb.Model>
-
-        :return: <orb.Collection>
-        """
-        collection = orb.Collection()
-        collection.bind_model(self.model())
-        collection.bind_collector(self)
-        collection.bind_source_record(source_record)
-        return collection
-
     def collect(self, source_record, use_method=True, **context):
         """
         Collects the records that are related to the given source method through
@@ -205,6 +191,20 @@ class Collector(object):
         :return: <orb.Query>
         """
         raise NotImplementedError
+
+    def collection(self, source_record):
+        """
+        Returns a bound collection instance associated with this collector.
+
+        :param source_record: <orb.Model>
+
+        :return: <orb.Collection>
+        """
+        collection = orb.Collection()
+        collection.bind_model(self.model())
+        collection.bind_collector(self)
+        collection.bind_source_record(source_record)
+        return collection
 
     def create_record(self, source_record, values, **context):
         """
