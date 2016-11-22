@@ -3,8 +3,8 @@ import demandimport
 import logging
 import time
 
-from ..column import Column
-from ..column_engine import ColumnEngine
+from orb.core.column import Column
+from orb.core.column_engine import ColumnEngine
 
 with demandimport.enabled():
     import orb

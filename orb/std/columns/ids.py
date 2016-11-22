@@ -1,8 +1,8 @@
 import os
 
 from projex.lazymodule import lazy_import
-from ..column import Column
-from ..column_engine import ColumnEngine
+from orb.core.column import Column
+from orb.core.column_engine import ColumnEngine
 
 orb = lazy_import('orb')
 

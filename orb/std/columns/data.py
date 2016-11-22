@@ -8,8 +8,8 @@ import json
 
 from projex import rest
 
-from ..column import Column
-from ..column_engine import ColumnEngine
+from orb.core.column import Column
+from orb.core.column_engine import ColumnEngine
 
 with demandimport.enabled():
     import orb

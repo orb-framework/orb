@@ -2,9 +2,9 @@ import demandimport
 import logging
 import projex.text
 
-from ..column import Column
-from ..column_engine import ColumnEngine
-from ...utils.enum import enum
+from orb.core.column import Column
+from orb.core.column_engine import ColumnEngine
+from orb.utils.enum import enum
 
 with demandimport.enabled():
     import orb
