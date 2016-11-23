@@ -4,5 +4,6 @@ omit = orb/_version.py
 
 [report]
 exclude_lines =
+    @abstractmethod
     pragma: no cover
     pass

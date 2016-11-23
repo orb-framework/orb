@@ -47,11 +47,12 @@ with demandimport.enabled():
     from .core.pipe import Pipe
     from .core.reverselookup import ReverseLookup
     from .core.schema import Schema
-    from .core.search import (AbstractSearchEngine, BasicSearchEngine)
+    from .core.search import SearchEngine
 
     # include the standard plugins
     from .std.columns import *
     from .std.connections import *
+    from .std.search_engines import *
 
 
 # define the global system

@@ -1725,7 +1725,7 @@ def test_model_select_with_base_query():
 
     result = {
         'value': True,
-        'caseSensitive': False,
+        'case_sensitive': False,
         'functions': [],
         'inverted': False,
         'model': '',
@@ -2006,7 +2006,7 @@ def test_model_search():
     records = A.search('testing')
     assert isinstance(records, orb.Collection)
     assert records.context().where.__json__() == {
-        'caseSensitive': False,
+        'case_sensitive': False,
         'column': 'name',
         'functions': ['AsString'],
         'inverted': False,
@@ -2033,7 +2033,7 @@ def test_model_search_with_querying():
     validation_query = {
         'op': 'And',
         'queries': [{
-            'caseSensitive': False,
+            'case_sensitive': False,
             'column': 'id',
             'functions': [],
             'inverted': False,
@@ -2043,7 +2043,7 @@ def test_model_search_with_querying():
             'type': 'query',
             'value': 1
         }, {
-            'caseSensitive': False,
+            'case_sensitive': False,
             'column': 'name',
             'functions': ['AsString'],
             'inverted': False,
@@ -2068,7 +2068,7 @@ def test_model_search_engine():
 
         id = orb.IdColumn()
 
-    assert isinstance(A.get_search_engine(), orb.AbstractSearchEngine)
+    assert isinstance(A.get_search_engine(), orb.SearchEngine)
 
 
 def test_view_not_editable():

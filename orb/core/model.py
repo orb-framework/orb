@@ -15,7 +15,7 @@ from ..utils.locks import ReadLocker, ReadWriteLock, WriteLocker
 
 from .collection import Collection
 from .metamodel import MetaModel
-from .search import BasicSearchEngine
+from .search import SearchEngine
 
 with demandimport.enabled():
     import orb
@@ -38,7 +38,7 @@ class Model(object):
     __base_query__ = None
     __collection_type__ = Collection
     __model__ = False
-    __search_engine__ = BasicSearchEngine()
+    __search_engine__ = None
     __schema__ = None
 
     # signals
@@ -1316,6 +1316,9 @@ class Model(object):
 
         :return: <orb.SearchEngine>
         """
+        if cls.__search_engine__ is None:
+            cls.__search_engine__ = SearchEngine.factory('simple')
+
         return cls.__search_engine__
 
     @classmethod

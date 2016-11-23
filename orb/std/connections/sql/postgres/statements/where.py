@@ -71,7 +71,7 @@ class WHERE(PSQLStatement):
             # get the additional information
             value = query.value()
             op = query.op()
-            case_sensitive = query.caseSensitive()
+            case_sensitive = query.case_sensitive()
             invert = query.isInverted()
 
             try:
@@ -188,7 +188,7 @@ class WHERE(PSQLStatement):
         return sql_field
 
     @staticmethod
-    def opSql(op, caseSensitive=False):
+    def opSql(op, case_sensitive=False):
         general_mapping = {
             orb.Query.Op.Is: u'=',
             orb.Query.Op.IsNot: u'!=',
@@ -220,7 +220,7 @@ class WHERE(PSQLStatement):
             orb.Query.Op.Endswith: u'ILIKE'
         }
 
-        return general_mapping.get(op) or (sensitive_mapping[op] if caseSensitive else non_sensitive_mapping[op])
+        return general_mapping.get(op) or (sensitive_mapping[op] if case_sensitive else non_sensitive_mapping[op])
 
     @staticmethod
     def funcSql(func):

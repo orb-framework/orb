@@ -131,7 +131,7 @@ def test_lookup_collection(mock_lookup_schema,):
     pprint.pprint(jdata)
 
     query_json = {
-        'caseSensitive': False,
+        'case_sensitive': False,
         'column': 'source',
         'functions': [],
         'inverted': False,
@@ -165,7 +165,7 @@ def test_lookup_collect_expand(mock_lookup_schema, mock_db):
         jdata = expanded.context().where.__json__()
 
     results = {
-        'caseSensitive': False,
+        'case_sensitive': False,
         'column': 'name',
         'functions': [],
         'inverted': False,

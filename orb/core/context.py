@@ -247,7 +247,7 @@ class Context(object):
 
         return tree
 
-    def isNull(self):
+    def is_null(self):
         """
         Returns whether or not this context set has been modified.
 

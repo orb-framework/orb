@@ -51,7 +51,7 @@ class QueryCompound(object):
         return False
 
     def __nonzero__(self):
-        return not self.isNull()
+        return not self.is_null()
 
     def __init__(self, *queries, **options):
         self.__queries = queries
@@ -128,9 +128,9 @@ class QueryCompound(object):
                     |>>> print query
                     |(test isNot 1 and name is Eric)
         """
-        if not isinstance(other, (orb.Query, QueryCompound)) or other.isNull():
+        if not isinstance(other, (orb.Query, QueryCompound)) or other.is_null():
             return self.copy()
-        elif self.isNull():
+        elif self.is_null():
             return other.copy()
         else:
             # grow this if the operators are the same
@@ -234,14 +234,14 @@ class QueryCompound(object):
         else:
             return False
 
-    def isNull(self):
+    def is_null(self):
         """
         Returns whether or not this join is empty or not.
 
         :return     <bool>
         """
         for query in self.__queries:
-            if not query.isNull():
+            if not query.is_null():
                 return False
         else:
             return True
@@ -279,9 +279,9 @@ class QueryCompound(object):
                     |>>> print query
                     |(test isNot 1 or name is Eric)
         """
-        if not isinstance(other, (orb.Query, QueryCompound)) or other.isNull():
+        if not isinstance(other, (orb.Query, QueryCompound)) or other.is_null():
             return self.copy()
-        elif self.isNull():
+        elif self.is_null():
             return other.copy()
         else:
             # grow this if the operators are the same

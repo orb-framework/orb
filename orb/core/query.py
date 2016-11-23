@@ -14,42 +14,52 @@ with demandimport.enabled():
     import orb
 
 
+class State(object):
+    """ Simple class for maintaining unique query states throughout the system """
+    def __init__(self, text):
+        self.text = text
+
+    def __eq__(self, other):
+        return isinstance(other, State) and other.text == self.text
+
+    def __str__(self):
+        return 'Query.State({0})'.format(self.text)
+
+    def __unicode__(self):
+        return u'Query.State({0})'.format(self.text)
+
+    def __hash__(self):
+        return hash((State, self.text))
+
+
 class Query(object):
     """ 
     Defines the central class for the abstract query markup language.
     """
 
     Op = enum(
-        # equality operators
-        'Is',
-        'IsNot',
+        Is=1,
+        IsNot=2,
 
-        # comparison operators
-        'LessThan',
-        'LessThanOrEqual',
-        'Before',
-        'GreaterThan',
-        'GreaterThanOrEqual',
-        'After',
-        'Between',
+        LessThan=3,
+        LessThanOrEqual=4,
+        Before=5,
+        GreaterThan=6,
+        GreaterThanOrEqual=7,
+        After=8,
+        Between=9,
 
-        # string operators
-        'Contains',
-        'DoesNotContain',
-        'Startswith',
-        'Endswith',
-        'Matches',
-        'DoesNotMatch',
+        Contains=10,
+        DoesNotContain=11,
+        Startswith=12,
+        DoesNotStartwith=13,
+        Endswith=14,
+        DoesNotEndwith=15,
+        Matches=17,
+        DoesNotMatch=18,
 
-        # list operators
-        'IsIn',
-        'IsNotIn',
-
-        #----------------------------------------------------------------------
-        # added in 4.0
-        #----------------------------------------------------------------------
-        'DoesNotStartwith',
-        'DoesNotEndwith'
+        IsIn=19,
+        IsNotIn=20
     )
 
     NegatedOp = {
@@ -74,41 +84,141 @@ class Query(object):
     }
 
     Math = enum(
-        'Add',
-        'Subtract',
-        'Multiply',
-        'Divide',
-        'And',
-        'Or'
+        Add=1,
+        Subtract=2,
+        Multiply=3,
+        Divide=4,
+        And=5,
+        Or=6
     )
 
     Function = enum(
-        'Lower',
-        'Upper',
-        'Abs',
-        'AsString',
+        Lower=1,
+        Uppser=2,
+        Abs=3,
+        AsString=4
     )
 
-    # additional option values to control query flow
-    UNDEFINED = '__QUERY__UNDEFINED__'
-    NOT_EMPTY = '__QUERY__NOT_EMPTY__'
-    EMPTY = '__QUERY__EMPTY__'
-    ALL = '__QUERY__ALL__'
+    # define query states
+    UNDEFINED = State('UNDEFINED')
+    NOT_EMPTY = State('NOT_EMPTY')
+    EMPTY = State('EMPTY')
+    ALL = State('ALL')
+
+    def __init__(self, *args, **kw):
+        """
+        Constructor.
+
+        :param args: variable args options -
+
+            * blank (no initialization)
+            * <str> column name
+            * <orb.Column>
+            * subclass of <orb.Model>
+            * subclass of <orb.Model> source model, <str> column name
+            * (subclass of <orb.Model> source model, <str> column name)
+
+        :param kw: keyword options -
+
+            * op: <Query.Op> or <str> (default: Query.Op.Is)
+            * value: <variant> (default: None)
+            * case_sensitive: <bool> (default: False)
+            * inverted: <bool> (default: False)
+            * functions: [<Query.Function>, ..] (default: [])
+            * math: [<Query.Math>, ..] (default: [])
+
+        """
+        # ensure we have the proper arguments
+        if len(args) > 2:
+            raise RuntimeError('Invalid Query arguments')
+
+        # check for Query() initialization
+        elif len(args) == 0:
+            model = column = None
+
+        # check for Query(model, column) initialization
+        elif len(args) == 2:
+            model, column = args
+            column = model.schema().column(column) if model else column
+
+        # check for Query(varg) initialization
+        else:
+            arg = args[0]
+
+            # check for Query((model, column)) initialization
+            if isinstance(arg, tuple):
+                model, column = arg
+                column = model.schema().column(column) if model else column
+
+            # check for Query(orb.Column()) initialization
+            elif isinstance(arg, orb.Column):
+                model = arg.schema().model()
+                column = arg
+
+            # check for Query('column') initialization
+            elif isinstance(arg, (str, unicode)):
+                model = None
+                column = arg
+
+            # check for Query(orb.Model) initialization
+            else:
+                try:
+                    if issubclass(arg, orb.Model):
+                        model = arg
+                        column = arg.schema().id_column()
+                    else:
+                        raise RuntimeError('Invalid Query arguments')
+                except StandardError:
+                    raise RuntimeError('Invalid Query arguments')
+
+        # initialize the operation
+        op = kw.pop('op', Query.Op.Is)
+        if isinstance(op, (str, unicode)):
+            op = Query.Op(op)
+
+        # set custom properties
+        self.__model = model
+        self.__column = column
+        self.__op = op
+        self.__case_sensitive = kw.pop('case_sensitive', False)
+        self.__value = kw.pop('value', Query.UNDEFINED)
+        self.__inverted = kw.pop('inverted', False)
+        self.__functions = kw.pop('functions', [])
+        self.__math = kw.pop('math', [])
+
+        # ensure that we have not provided additional keywords
+        if kw:
+            raise RuntimeError('Unknown query keywords: {0}'.format(','.join(kw.keys())))
 
     def __hash__(self):
+        """
+        Hashes the query to be able to compare against others.  You can't
+        use the `==` operator because it is overloaded to build query values.
+
+        :usage:
+
+            a = orb.Query('name') == 'testing'
+            b = orb.Query('name') == 'testing'
+
+            equal = hash(a) == hash(b)
+
+        :return: <int>
+        """
         if isinstance(self.__value, (list, set)):
-            val_hash = tuple(self.__value)
+            val_hash = hash(tuple(self.__value))
         else:
             try:
                 val_hash = hash(self.__value)
             except TypeError:
                 val_hash = hash(unicode(self.__value))
 
+        column_name = self.column_name()
+
         return hash((
             self.__model,
-            self.__column,
+            column_name,
             self.__op,
-            self.__caseSensitive,
+            self.__case_sensitive,
             val_hash,
             self.__inverted,
             tuple(self.__functions),
@@ -117,24 +227,23 @@ class Query(object):
 
     # python 2.x
     def __nonzero__(self):
-        return not self.isNull()
+        return not self.is_null()
 
     # python 3.x
     def __bool__(self):
-        return not self.isNull()
+        return not self.is_null()
 
     def __json__(self):
-        if hasattr(self.__value, '__json__'):
-            value = self.__value.__json__()
-        else:
-            value = self.__value
+        value = self.value()
+        if hasattr(value, '__json__'):
+            value = value.__json__()
 
         jdata = {
             'type': 'query',
             'model': self.__model.schema().name() if self.__model else '',
-            'column': self.__column,
+            'column': self.column_name(),
             'op': self.Op(self.__op),
-            'caseSensitive': self.__caseSensitive,
+            'case_sensitive': self.__case_sensitive,
             'functions': [self.Function(func) for func in self.__functions],
             'math': [{'op': self.Math(op), 'value': value} for (op, value) in self.__math],
             'inverted': self.__inverted,
@@ -142,120 +251,74 @@ class Query(object):
         }
         return jdata
 
-    def __init__(self, *column, **options):
-        """
-        Initializes the Query instance.  The only required variable
-        is the column name, the rest can be manipulated after
-        creation.  This class takes a variable set of information
-        to initialize.  You can initialize a blank query object
-        by supplying no arguments, which is useful when generating
-        queries in a loop, or you can supply only a string column
-        value for lookup (the table will auto-populate from the
-        selection, or you can supply a model and column name (
-        used in the join operation).
-        
-        :param      *args           <tuple>
-                    
-                    #. None
-                    #. <str> column name
-                    #. <orb.Column>
-                    #. <subclass of Table>
-                    #. (<subclass of Table> table,<str> column name)
-                    
-        :param      **options       <dict> options for the query.
-        
-                    *. op               <Query.Op>
-                    *. value            <variant>
-                    *. caseSensitive    <bool>
-        
-        """
-        # initialized with (model, column)
-        if len(column) == 2:
-            self.__model, self.__column = column
-        elif len(column) == 1:
-            column = column[0]
-
-            try:
-                if issubclass(column, orb.Model):
-                    self.__model = column
-                    self.__column = column.schema().id_column().name()
-            except StandardError:
-                if isinstance(column, orb.Column):
-                    self.__model = column.schema().model()
-                    self.__column = column.name()
-                else:
-                    self.__model = None
-                    self.__column = column
-        else:
-            self.__model = None
-            self.__column = None
-
-        self.__op = options.get('op', Query.Op.Is)
-        self.__caseSensitive = options.get('caseSensitive', False)
-        self.__value = options.get('value', None)
-        self.__inverted = options.get('inverted', False)
-        self.__functions = options.get('functions', [])
-        self.__math = options.get('math', [])
-
     def __contains__(self, column):
         """
-        Returns whether or not the query defines the inputted column name.
+        Returns whether or not the column is used within this query.
 
-        :param      value | <variant>
+        :param column: <str> or <orb.Column>
 
-        :return     <bool>
-
-        :usage      |>>> from orb import Query as Q
-                    |>>> q = Q('testing') == True
-                    |>>> 'testing' in q
-                    |True
-                    |>>> 'name' in q
-                    |False
+        :return: <bool>
         """
         if isinstance(column, orb.Column):
-            return self.__model == column.schema().model() and self.__column == column.name()
+            my_column = self.column()
+            if my_column is None:
+                return column.name() == self.column_name()
+            else:
+                return my_column == column
         else:
-            return column == self.__column
+            return column == self.column_name()
 
-    # operator methods
+    # operators
+
     def __add__(self, value):
         """
-        Adds the inputted value to this query with arithmetic joiner.
+        Addition operator for query object.  This will create a new query with the
+        Math.Add operator applied to the given value for the new query.
         
-        :param      value | <variant>
+        :usage:
         
-        :return     <Query> self
+            a = (orb.Query('offset') + 10)
+
+        :param value: <variant>
+        
+        :return: <orb.Query>
         """
         out = self.copy()
-        out.addMath(Query.Math.Add, value)
+        out.append_math_op(Query.Math.Add, value)
         return out
 
     def __abs__(self):
         """
-        Creates an absolute version of this query using the standard python
-        absolute method.
-        
-        :return     <Query>
+        Absolute operator for query object.  This will create a new query with
+        the Function.Abs operator applied to the the new query.
+
+        :usage:
+
+            a = abs(orb.Query('difference'))
+
+        :return: <orb.Query>
         """
         out = self.copy()
-        out.addFunction(Query.Function.Abs)
+        out.append_function_op(Query.Function.Abs)
         return out
 
     def __and__(self, other):
         """
-        Creates a new compound query using the 
-        <orb.QueryCompound.Op.And> type.
-        
-        :param      other   <Query> || <orb.QueryCompound>
-        
-        :return     <orb.QueryCompound>
-        
-        :sa         and_
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = (Q('test') != 1) & (Q('name') == 'Eric')
-                    |>>> print query
-                    |(test is not 1 and name is Eric)
+        And operator for query object.  Depending on the value type provided,
+        one of two things will happen.  If `other` is a `Query` or `QueryCompound`
+        object, then this query will be combined with the other to generate
+        a new `QueryCoumpound` instance.  If `other` is any other value type,
+        then a new `Query` object will be created with the `Query.Math.And` operator
+        for the given value added to it.
+
+        :usage:
+
+            a = orb.Query('offset') & 3
+            a = (orb.Query('offset') > 1) & (orb.Query('offset') < 3)
+
+        :param other: <orb.Query> or <orb.QueryCompound> or variant
+
+        :return: <orb.QueryCompound> or <orb.Query>
         """
         if other is None:
             return self.copy()
@@ -263,112 +326,85 @@ class Query(object):
             return self.and_(other)
         else:
             out = self.copy()
-            out.addMath(Query.Math.And, other)
+            out.append_math_op(Query.Math.And, other)
             return out
-
-    def __cmp__(self, other):
-        """
-        Use the compare method to be able to see if two query items are
-        the same vs. ==, since == is used to set the query's is value.
-        
-        :param      other       <variant>
-        
-        :return     <int> 1 | 0 | -1
-        """
-        if not isinstance(other, Query):
-            return -1
-        elif id(self) == id(other):
-            return 0
-        else:
-            return 1
 
     def __div__(self, value):
         """
-        Divides the inputted value for this query to the inputted query.
-        
-        :param      value | <variant>
-        
-        :return     <Query> self
+        Divide operator for query object.  This will create a new query with the
+        Math.Divide operator applied to the given value for the new query.
+
+        :usage:
+
+            a = (orb.Query('offset') / 10)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
         out = self.copy()
-        out.addMath(Query.Math.Divide, value)
+        out.append_math_op(Query.Math.Divide, value)
         return out
 
     def __eq__(self, other):
         """
-        Allows joining of values to the query by the == operator.
-        If another Query instance is passed in, then it will do 
-        a standard comparison.
-        
-        :param      other       <variant>
-        
-        :return     <Query>
-        
-        :sa         is
-        
-        :usage      |>>> from orb import *
-                    |>>> query = Query('test') == 1 
-                    |>>> print query
-                    |test is 1
+        Equals operator for query object.  Calls the `is_` method of the Query object.
+
+        :warning:   DO NOT use this method as a comparison between two queries.
+                    You should compare their hash values instead.
+
+        :usage:
+
+            a = orb.Query('first_name') == 'jdoe'
+
+        :param other: <variant>
+
+        :return: <orb.Query>
         """
         return self.is_(other)
 
     def __gt__(self, other):
         """
-        Allows the joining of values to the query by the > 
-        operator. If another Query instance is passed in, then it 
-        will do a standard comparison.
+        Greater than operator.  Calls the `greater_than` method of the Query object.
+
+        :usage:
+
+            a = orb.Query('value') > 10
+
+        :param other: <variant>
         
-        :param      other       <variant>
-        
-        :return     <Query>
-        
-        :sa         lessThan
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test') > 1
-                    |>>> print query
-                    |test greater_than 1
+        :return: <orb.Query>
         """
-        return self.greaterThan(other)
+        return self.greater_than(other)
 
     def __ge__(self, other):
         """
-        Allows the joining of values to the query by the >= 
-        operator.  If another Query instance is passed in, then it 
-        will do a standard comparison.
+        Greater than or equal to operator.  Calls the `greater_than_or_equal` method
+        of the Query object.
+
+        :usage:
+
+            a = orb.Query('value') >= 10
+
+        :param other: <variant>
         
-        :param      other       <variant>
-        
-        :return     <Query>
-        
-        :sa         greaterThanOrEqual
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test') >= 1
-                    |>>> print query
-                    |test <= 1
+        :return: <orb.Query>
         """
-        return self.greaterThanOrEqual(other)
+        return self.greater_than_or_equal(other)
 
     def __lt__(self, other):
         """
-        Allows the joining of values to the query by the < 
-        operator.  If another Query instance is passed in, then it 
-        will do a standard comparison.
-        
-        :param      other       <variant>
-        
-        :return     <Query>
-        
-        :sa         lessThan
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test') < 1
-                    |>>> print query
-                    |test less_than 1
+        Less than operator.  Calls the `less_than` method of the Query object.
+
+        :usage:
+
+            a = orb.Query('value') < 10
+
+        :param other: <variant>
+
+        :return: <orb.Query>
         """
-        return self.lessThan(other)
+        return self.less_than(other)
 
     def __le__(self, other):
         """
@@ -380,14 +416,14 @@ class Query(object):
         
         :return     <Query>
         
-        :sa         lessThanOrEqual
+        :sa         less_than_or_equal
         
         :usage      |>>> from orb import Query as Q
                     |>>> query = Q('test') <= 1
                     |>>> print query
                     |test <= 1
         """
-        return self.lessThanOrEqual(other)
+        return self.less_than_or_equal(other)
 
     def __mul__(self, value):
         """
@@ -398,7 +434,7 @@ class Query(object):
         :return     <Query> self
         """
         out = self.copy()
-        out.addMath(Query.Math.Multiply, value)
+        out.append_math_op(Query.Math.Multiply, value)
         return out
 
     def __ne__(self, other):
@@ -457,7 +493,7 @@ class Query(object):
             return self.or_(other)
         else:
             out = self.copy()
-            out.addMath(Query.Math.Or, other)
+            out.append_math_op(Query.Math.Or, other)
             return out
 
     def __sub__(self, value):
@@ -469,11 +505,11 @@ class Query(object):
         :return     <Query> self
         """
         out = self.copy()
-        out.addMath(Query.Math.Subtract, value)
+        out.append_math_op(Query.Math.Subtract, value)
         return out
 
     # public methods
-    def addFunction(self, func):
+    def append_function_op(self, func):
         """
         Adds a new function for this query.
         
@@ -481,14 +517,20 @@ class Query(object):
         """
         self.__functions.append(func)
 
-    def addMath(self, math, value):
-        self.__math.append((math, value))
+    def append_math_op(self, math_op, value):
+        """
+        Appends a new math operator to the math associated with this query.
+
+        :param math_op: <Query.Math>
+        :param value: <variant>
+        """
+        self.__math.append((math_op, value))
 
     def after(self, value):
         """
         Sets the operator type to Query.Op.After and sets the value to 
         the amount that this query should be lower than.  This is functionally
-        the same as doing the lessThan operation, but is useful for visual
+        the same as doing the less_than operation, but is useful for visual
         queries for things like dates.
         
         :param      value   | <variant>
@@ -501,8 +543,8 @@ class Query(object):
                     |dateStart after 2011-10-10
         """
         newq = self.copy()
-        newq.setOp(Query.Op.After)
-        newq.setValue(value)
+        newq.set_op(Query.Op.After)
+        newq.set_value(value)
         return newq
 
     def and_(self, other):
@@ -521,7 +563,7 @@ class Query(object):
                     |>>> print query
                     |(test is not 1 and name is Eric)
         """
-        if not isinstance(other, (Query, orb.QueryCompound)) or other.isNull():
+        if not isinstance(other, (Query, orb.QueryCompound)) or other.is_null():
             return self.copy()
         elif not self:
             return other.copy()
@@ -535,14 +577,14 @@ class Query(object):
         :return     <Query>
         """
         q = self.copy()
-        q.addFunction(Query.Function.AsString)
+        q.append_function_op(Query.Function.AsString)
         return q
 
     def before(self, value):
         """
         Sets the operator type to Query.Op.Before and sets the value to 
         the amount that this query should be lower than.  This is functionally
-        the same as doing the lessThan operation, but is useful for visual
+        the same as doing the less_than operation, but is useful for visual
         queries for things like dates.
         
         :param      value   | <variant>
@@ -555,8 +597,8 @@ class Query(object):
                     |dateStart before 2011-10-10
         """
         newq = self.copy()
-        newq.setOp(Query.Op.Before)
-        newq.setValue(value)
+        newq.set_op(Query.Op.Before)
+        newq.set_value(value)
         return newq
 
     def between(self, low, high):
@@ -575,18 +617,18 @@ class Query(object):
                     |test between [1,2]
         """
         newq = self.copy()
-        newq.setOp(Query.Op.Between)
-        newq.setValue((low, high))
+        newq.set_op(Query.Op.Between)
+        newq.set_value((low, high))
         return newq
 
-    def caseSensitive(self):
+    def case_sensitive(self):
         """
         Returns whether or not this query item will be case
         sensitive.  This will be used with string lookup items.
         
         :return     <bool>
         """
-        return self.__caseSensitive
+        return self.__case_sensitive
 
     def column(self, model=None):
         """
@@ -635,16 +677,16 @@ class Query(object):
         
         :return     <str>
         """
-        return self.__column
+        return self.__column if not isinstance(self.__column, orb.Column) else self.__column.name()
 
-    def contains(self, value, caseSensitive=False):
+    def contains(self, value, case_sensitive=False):
         """
         Sets the operator type to Query.Op.Contains and sets the    
         value to the inputted value.  Use an astrix for wildcard
         characters.
         
         :param      value           <variant>
-        :param      caseSensitive   <bool>
+        :param      case_sensitive   <bool>
         
         :return     self    (useful for chaining)
         
@@ -654,9 +696,9 @@ class Query(object):
                     |comments contains test
         """
         newq = self.copy()
-        newq.setOp(Query.Op.Contains)
-        newq.setValue(value)
-        newq.setCaseSensitive(caseSensitive)
+        newq.set_op(Query.Op.Contains)
+        newq.set_value(value)
+        newq.setCaseSensitive(case_sensitive)
         return newq
 
     def copy(self, **kw):
@@ -666,7 +708,7 @@ class Query(object):
         :return     <Query>
         """
         kw.setdefault('op', self.__op)
-        kw.setdefault('caseSensitive', self.__caseSensitive)
+        kw.setdefault('case_sensitive', self.__case_sensitive)
         kw.setdefault('value', copy.copy(self.__value))
         kw.setdefault('inverted', self.__inverted)
         kw.setdefault('functions', copy.copy(self.__functions))
@@ -674,7 +716,7 @@ class Query(object):
         kw.setdefault('model', self.__model)
         kw.setdefault('column', self.__column)
 
-        return type(self)(kw.pop('model'), kw.pop('column'), **kw)
+        return type(self)((kw.pop('model'), kw.pop('column')), **kw)
 
     def doesNotContain(self, value):
         """
@@ -691,11 +733,11 @@ class Query(object):
                     |comments does_not_contain test
         """
         newq = self.copy()
-        newq.setOp(Query.Op.DoesNotContain)
-        newq.setValue(value)
+        newq.set_op(Query.Op.DoesNotContain)
+        newq.set_value(value)
         return newq
 
-    def doesNotMatch(self, value, caseSensitive=True):
+    def doesNotMatch(self, value, case_sensitive=True):
         """
         Sets the operator type to Query.Op.DoesNotMatch and sets the \
         value to the inputted value.
@@ -710,9 +752,9 @@ class Query(object):
                     |comments does_not_contain test
         """
         newq = self.copy()
-        newq.setOp(Query.Op.DoesNotMatch)
-        newq.setValue(value)
-        newq.setCaseSensitive(caseSensitive)
+        newq.set_op(Query.Op.DoesNotMatch)
+        newq.set_value(value)
+        newq.setCaseSensitive(case_sensitive)
         return newq
 
     def endswith(self, value):
@@ -731,8 +773,8 @@ class Query(object):
                     |test startswith blah
         """
         newq = self.copy()
-        newq.setOp(Query.Op.Endswith)
-        newq.setValue(value)
+        newq.set_op(Query.Op.Endswith)
+        newq.set_value(value)
         return newq
 
     def expand(self, model=None, ignoreFilter=False):
@@ -804,26 +846,20 @@ class Query(object):
 
     def is_(self, value):
         """
-        Sets the operator type to Query.Op.Is and sets the
-        value to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     <Query>
-        
-        :sa         __eq__
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').is_(1)
-                    |>>> print query
-                    |test is 1
-        """
-        newq = self.copy()
-        newq.setOp(Query.Op.Is)
-        newq.setValue(value)
-        return newq
+        Creates a copy of this query object with the `Is` operator set and
+        the `value` set to the given input.
 
-    def isInverted(self):
+        :usage:
+
+            a = orb.Query('test').is_(1)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
+        """
+        return self.copy(op=Query.Op.Is, value=value)
+
+    def is_inverted(self):
         """
         Returns whether or not the value and column data should be inverted during query.
 
@@ -831,28 +867,22 @@ class Query(object):
         """
         return self.__inverted
 
-    def greaterThan(self, value):
+    def greater_than(self, value):
         """
-        Sets the operator type to Query.Op.GreaterThan and sets the
-        value to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     <Query>
-        
-        :sa         __gt__
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').greaterThan(1)
-                    |>>> print query
-                    |test greater_than 1
-        """
-        newq = self.copy()
-        newq.setOp(Query.Op.GreaterThan)
-        newq.setValue(value)
-        return newq
+        Creates a copy of this query with the operator set to `Query.Op.GreaterThan` and
+        the value set to the given input.
 
-    def greaterThanOrEqual(self, value):
+        :usage:
+
+            a = orb.Query('value').greater_than(10)
+
+        :param value: <variant>
+        
+        :return: <orb.Query>
+        """
+        return self.copy(op=Query.Op.GreaterThan, value=value)
+
+    def greater_than_or_equal(self, value):
         """
         Sets the operator type to Query.Op.GreaterThanOrEqual and 
         sets the value to the inputted value.
@@ -864,14 +894,11 @@ class Query(object):
         :sa         __ge__
         
         :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').greaterThanOrEqual(1)
+                    |>>> query = Q('test').greater_than_or_equal(1)
                     |>>> print query
                     |test greater_than_or_equal 1
         """
-        newq = self.copy()
-        newq.setOp(Query.Op.GreaterThanOrEqual)
-        newq.setValue(value)
-        return newq
+        return self.copy(op=Query.Op.GreaterThanOrEqual, value=value)
 
     def has(self, column):
         if isinstance(column, orb.Column):
@@ -917,17 +944,19 @@ class Query(object):
                     |test is not 1
         """
         newq = self.copy()
-        newq.setOp(Query.Op.IsNot)
-        newq.setValue(value)
+        newq.set_op(Query.Op.IsNot)
+        newq.set_value(value)
         return newq
 
-    def isNull(self):
+    def is_null(self):
         """
         Return whether or not this query contains any information.
         
         :return     <bool>
         """
-        return self.__column is None
+        return (self.__column is None or
+                self.__op is None or
+                self.__value is Query.UNDEFINED)
 
     def in_(self, value):
         """
@@ -944,14 +973,14 @@ class Query(object):
                     |test is_in [1,2]
         """
         newq = self.copy()
-        newq.setOp(Query.Op.IsIn)
+        newq.set_op(Query.Op.IsIn)
 
         if isinstance(value, orb.Collection):
-            newq.setValue(value)
+            newq.set_value(value)
         elif not isinstance(value, (set, list, tuple)):
-            newq.setValue((value,))
+            newq.set_value((value,))
         else:
-            newq.setValue(tuple(value))
+            newq.set_value(tuple(value))
 
         return newq
 
@@ -979,18 +1008,18 @@ class Query(object):
                     |test is_not_in [1,2]
         """
         newq = self.copy()
-        newq.setOp(Query.Op.IsNotIn)
+        newq.set_op(Query.Op.IsNotIn)
 
         if isinstance(value, orb.Collection):
-            newq.setValue(value)
+            newq.set_value(value)
         elif not isinstance(value, (set, list, tuple)):
-            newq.setValue((value,))
+            newq.set_value((value,))
         else:
-            newq.setValue(tuple(value))
+            newq.set_value(tuple(value))
 
         return newq
 
-    def lessThan(self, value):
+    def less_than(self, value):
         """
         Sets the operator type to Query.Op.LessThan and sets the
         value to the inputted value.
@@ -999,19 +1028,16 @@ class Query(object):
         
         :return     <Query>
         
-        :sa         lessThan
+        :sa         less_than
         
         :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').lessThan(1)
+                    |>>> query = Q('test').less_than(1)
                     |>>> print query
                     |test less_than 1
         """
-        newq = self.copy()
-        newq.setOp(Query.Op.LessThan)
-        newq.setValue(value)
-        return newq
+        return self.copy(op=Query.Op.LessThan, value=value)
 
-    def lessThanOrEqual(self, value):
+    def less_than_or_equal(self, value):
         """
         Sets the operator type to Query.Op.LessThanOrEqual and sets 
         the value to the inputted value.
@@ -1020,16 +1046,16 @@ class Query(object):
         
         :return     <Query>
         
-        :sa         lessThanOrEqual
+        :sa         less_than_or_equal
         
         :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').lessThanOrEqual(1)
+                    |>>> query = Q('test').less_than_or_equal(1)
                     |>>> print query
                     |test less_than_or_equal 1
         """
         newq = self.copy()
-        newq.setOp(Query.Op.LessThanOrEqual)
-        newq.setValue(value)
+        newq.set_op(Query.Op.LessThanOrEqual)
+        newq.set_value(value)
         return newq
 
     def lower(self):
@@ -1040,10 +1066,10 @@ class Query(object):
         :return     <Query>
         """
         q = self.copy()
-        q.addFunction(Query.Function.Lower)
+        q.append_function_op(Query.Function.Lower)
         return q
 
-    def matches(self, value, caseSensitive=True):
+    def matches(self, value, case_sensitive=True):
         """
         Sets the operator type to Query.Op.Matches and sets \
         the value to the inputted regex expression.  This method will only work \
@@ -1059,9 +1085,9 @@ class Query(object):
                     |test matches ^\d+-\w+$
         """
         newq = self.copy()
-        newq.setOp(Query.Op.Matches)
-        newq.setValue(value)
-        newq.setCaseSensitive(caseSensitive)
+        newq.set_op(Query.Op.Matches)
+        newq.set_value(value)
+        newq.setCaseSensitive(case_sensitive)
         return newq
 
     def model(self, model=None):
@@ -1075,8 +1101,8 @@ class Query(object):
         """
         query = self.copy()
         op = self.op()
-        query.setOp(self.NegatedOp.get(op, op))
-        query.setValue(self.value())
+        query.set_op(self.NegatedOp.get(op, op))
+        query.set_value(self.value())
         return query
 
     def op(self):
@@ -1104,7 +1130,7 @@ class Query(object):
                     |>>> print query
                     |(test does_not_equal 1 or name is Eric)
         """
-        if not isinstance(other, (Query, orb.QueryCompound)) or other.isNull():
+        if not isinstance(other, (Query, orb.QueryCompound)) or other.is_null():
             return self.copy()
         elif not self:
             return other.copy()
@@ -1117,7 +1143,7 @@ class Query(object):
         
         :param      state   <bool>
         """
-        self.__caseSensitive = state
+        self.__case_sensitive = state
 
     def setColumn(self, column):
         self.__column = column
@@ -1133,7 +1159,7 @@ class Query(object):
     def setModel(self, model):
         self.__model = model
 
-    def setOp(self, op):
+    def set_op(self, op):
         """
         Sets the operator type used for this query instance.
         
@@ -1141,7 +1167,7 @@ class Query(object):
         """
         self.__op = op
 
-    def setValue(self, value):
+    def set_value(self, value):
         """
         Sets the value that will be used for this query instance.
         
@@ -1165,8 +1191,8 @@ class Query(object):
                     |test startswith blah
         """
         newq = self.copy()
-        newq.setOp(Query.Op.Startswith)
-        newq.setValue(value)
+        newq.set_op(Query.Op.Startswith)
+        newq.set_value(value)
         return newq
 
     def upper(self):
@@ -1176,7 +1202,7 @@ class Query(object):
         :return     <Query>
         """
         q = self.copy()
-        q.addFunction(Query.Function.Upper)
+        q.append_function_op(Query.Function.Upper)
         return q
 
     def value(self):
@@ -1185,7 +1211,10 @@ class Query(object):
         
         :return     <variant>
         """
-        return self.__value
+        if isinstance(self.__value, State):
+            return None
+        else:
+            return self.__value
 
     @staticmethod
     def build(data=None, **kwds):
@@ -1212,7 +1241,7 @@ class Query(object):
         if jdata['type'] == 'compound':
             queries = [orb.Query.fromJSON(jquery) for jquery in jdata['queries']]
             out = orb.QueryCompound(*queries)
-            out.setOp(orb.QueryCompound.Op(jdata['op']))
+            out.set_op(orb.QueryCompound.Op(jdata['op']))
             return out
         else:
             if jdata.get('model'):
@@ -1225,17 +1254,17 @@ class Query(object):
                 column = (jdata['column'],)
 
             query = orb.Query(*column)
-            query.setOp(orb.Query.Op(jdata.get('op', 'Is')))
+            query.set_op(orb.Query.Op(jdata.get('op', 'Is')))
             query.setInverted(jdata.get('inverted', False))
-            query.setCaseSensitive(jdata.get('caseSensitive', False))
-            query.setValue(jdata.get('value'))
+            query.setCaseSensitive(jdata.get('case_sensitive', False))
+            query.set_value(jdata.get('value'))
 
             # restore the function information
             for func in jdata.get('functions', []):
-                query.addFunction(orb.Query.Function(func))
+                query.append_function_op(orb.Query.Function(func))
 
             # restore the math information
             for entry in jdata.get('math', []):
-                query.addMath(orb.Query.Math(entry.get('op')), entry.get('value'))
+                query.append_math_op(orb.Query.Math(entry.get('op')), entry.get('value'))
             return query
 
