@@ -62,7 +62,7 @@ class Query(object):
         IsNotIn=20
     )
 
-    NegatedOp = {
+    OpNegation = {
         Op.Is: Op.IsNot,
         Op.IsNot: Op.Is,
         Op.LessThan: Op.GreaterThanOrEqual,
@@ -197,7 +197,7 @@ class Query(object):
 
         :usage:
 
-            a = orb.Query('name') == 'testing'
+            q = orb.Query('name') == 'testing'
             b = orb.Query('name') == 'testing'
 
             equal = hash(a) == hash(b)
@@ -313,7 +313,7 @@ class Query(object):
 
         :usage:
 
-            a = orb.Query('offset') & 3
+            q = orb.Query('offset') & 3
             a = (orb.Query('offset') > 1) & (orb.Query('offset') < 3)
 
         :param other: <orb.Query> or <orb.QueryCompound> or variant
@@ -355,7 +355,7 @@ class Query(object):
 
         :usage:
 
-            a = orb.Query('first_name') == 'jdoe'
+            q = orb.Query('first_name') == 'jdoe'
 
         :param other: <variant>
 
@@ -369,7 +369,7 @@ class Query(object):
 
         :usage:
 
-            a = orb.Query('value') > 10
+            q = orb.Query('value') > 10
 
         :param other: <variant>
         
@@ -384,7 +384,7 @@ class Query(object):
 
         :usage:
 
-            a = orb.Query('value') >= 10
+            q = orb.Query('value') >= 10
 
         :param other: <variant>
         
@@ -398,7 +398,7 @@ class Query(object):
 
         :usage:
 
-            a = orb.Query('value') < 10
+            q = orb.Query('value') < 10
 
         :param other: <variant>
 
@@ -408,30 +408,31 @@ class Query(object):
 
     def __le__(self, other):
         """
-        Allows the joining of values to the query by the <= 
-        operator.  If another Query instance is passed in, then it 
-        will do a standard comparison.
-        
-        :param      other       <variant>
-        
-        :return     <Query>
-        
-        :sa         less_than_or_equal
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test') <= 1
-                    |>>> print query
-                    |test <= 1
+        Less than or equal to operator.  Calls the `less_than_or_equal` method of
+        the Query object.
+
+        :usage:
+
+            q = orb.Query('value') <= 10
+
+        :param other: <variant>
+
+        :return: <orb.Query>
         """
         return self.less_than_or_equal(other)
 
     def __mul__(self, value):
         """
-        Multiplies the value with this query to the inputted query.
-        
-        :param      value | <variant>
-        
-        :return     <Query> self
+        Multiply operator for query object.  This will create a new query with the
+        Math.Multiply operator applied to the given value for the new query.
+
+        :usage:
+
+            a = (orb.Query('offset') * 10)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
         out = self.copy()
         out.append_math_op(Query.Math.Multiply, value)
@@ -439,53 +440,38 @@ class Query(object):
 
     def __ne__(self, other):
         """
-        Allows joining of values to the query by the != operator.
-        If another Query instance is passed in, then it will do a
-        standard comparison.
-        
-        :param      other       <variant>
-        
-        :return     <Query>
-        
-        :sa         isNot
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test') != 1
-                    |>>> print query
-                    |test is not 1
-        """
-        return self.isNot(other)
+        Not equals operator for query object.  Calls the `is_not` method of the Query object.
 
-    def __invert__(self):
+        :warning:   DO NOT use this method as a comparison between two queries.
+                    You should compare their hash values instead.
+
+        :usage:
+
+            q = orb.Query('first_name') != 'jdoe'
+
+        :param other: <variant>
+
+        :return: <orb.Query>
         """
-        Negates the values within this query by using the - operator.
-        
-        :return     self
-        
-        :sa         negated
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test') == 1
-                    |>>> print -query
-                    |test != 1
-        """
-        return self.negated()
+        return self.is_not(other)
 
     def __or__(self, other):
         """
-        Creates a new compound query using the
-        <orb.QueryCompound.Op.Or> type.
-        
-        :param      other   <orb.Query> || <orb.QueryCompound>
-        
-        :return     <orb.QueryCompound>
-        
-        :sa         or_
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = (Q('test') != 1) | (Q('name') == 'Eric')
-                    |>>> print query
-                    |(test is not 1 or name is Eric)
+        Or operator for query object.  Depending on the value type provided,
+        one of two things will happen.  If `other` is a `Query` or `QueryCompound`
+        object, then this query will be combined with the other to generate
+        a new `QueryCoumpound` instance.  If `other` is any other value type,
+        then a new `Query` object will be created with the `Query.Math.And` operator
+        for the given value added to it.
+
+        :usage:
+
+            q = orb.Query('offset') | 3
+            a = (orb.Query('offset') > 1) | (orb.Query('offset') < 3)
+
+        :param other: <orb.Query> or <orb.QueryCompound> or variant
+
+        :return: <orb.QueryCompound> or <orb.Query>
         """
         if other is None:
             return self.copy()
@@ -498,24 +484,29 @@ class Query(object):
 
     def __sub__(self, value):
         """
-        Subtracts the value from this query.
-        
-        :param      value | <variant>
-        
-        :return     <Query> self
+        Subtraction operator for query object.  This will create a new query with the
+        Math.Subtract operator applied to the given value for the new query.
+
+        :usage:
+
+            a = (orb.Query('offset') - 10)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
         out = self.copy()
         out.append_math_op(Query.Math.Subtract, value)
         return out
 
     # public methods
-    def append_function_op(self, func):
+    def append_function_op(self, func_op):
         """
-        Adds a new function for this query.
-        
-        :param      func | <Query.Function>
+        Adds the given function to the stack for this query.
+
+        :param: <orb.Query.Function>
         """
-        self.__functions.append(func)
+        self.__functions.append(func_op)
 
     def append_math_op(self, math_op, value):
         """
@@ -528,53 +519,56 @@ class Query(object):
 
     def after(self, value):
         """
-        Sets the operator type to Query.Op.After and sets the value to 
-        the amount that this query should be lower than.  This is functionally
-        the same as doing the less_than operation, but is useful for visual
-        queries for things like dates.
-        
-        :param      value   | <variant>
-        
-        :return     <Query>
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('dateStart').after(date.today())
-                    |>>> print query
-                    |dateStart after 2011-10-10
+        Creates a copy of this query with the operator set to `Query.Op.After` and
+        the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('created_at').after(datetime.date(2000, 1, 1)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.After)
-        newq.set_value(value)
-        return newq
+        return self.copy(op=Query.Op.After, value=value)
 
     def and_(self, other):
         """
-        Creates a new compound query using the 
-        <orb.QueryCompound.Op.And> type.
-        
-        :param      other   <Query> || <orb.QueryCompound>
-        
-        :return     <orb.QueryCompound>
-        
-        :sa         __and__
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = (Q('test') != 1).and_((Q('name') == 'Eric')
-                    |>>> print query
-                    |(test is not 1 and name is Eric)
+        Joins this query together with the given other query.  If this
+        query is null, then the other a copy of the other query is returned.  If
+        the other query is null, then a copy of this query is returned.  If
+        neither query is null, then a <orb.QueryCompound> is returned with the
+        operator set to And.
+
+        :usage:
+
+            q = orb.Query('first_name') == 'john'
+            b = orb.Query('last_name') == 'doe'
+            c = a.and_(b)
+
+        :param other: <orb.Query> or <orb.QueryCompound>
+
+        :return: <orb.Query> or <orb.QueryCompound>
         """
-        if not isinstance(other, (Query, orb.QueryCompound)) or other.is_null():
+        if not isinstance(other, (orb.Query, orb.QueryCompound)):
             return self.copy()
-        elif not self:
+        elif other.is_null():
+            return self.copy()
+        elif self.is_null():
             return other.copy()
         else:
             return orb.QueryCompound(self, other, op=orb.QueryCompound.Op.And)
 
-    def asString(self):
+    def as_string(self):
         """
-        Returns this query with an AsString function added to it.
-        
-        :return     <Query>
+        Creates a new query with the Function.AsString operator applied to the
+        the new query.
+
+        :usage:
+
+            q = orb.Query('offset').as_string()
+
+        :return: <orb.Query>
         """
         q = self.copy()
         q.append_function_op(Query.Function.AsString)
@@ -582,51 +576,41 @@ class Query(object):
 
     def before(self, value):
         """
-        Sets the operator type to Query.Op.Before and sets the value to 
-        the amount that this query should be lower than.  This is functionally
-        the same as doing the less_than operation, but is useful for visual
-        queries for things like dates.
-        
-        :param      value   | <variant>
-        
-        :return     <Query>
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('dateStart').before(date.today())
-                    |>>> print query
-                    |dateStart before 2011-10-10
-        """
-        newq = self.copy()
-        newq.set_op(Query.Op.Before)
-        newq.set_value(value)
-        return newq
+        Creates a copy of this query with the operator set to `Query.Op.Before` and
+        the value set to the given input.
 
-    def between(self, low, high):
+        :usage:
+
+            q = orb.Query('created_at').before(datetime.date.today())
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
-        Sets the operator type to Query.Op.Between and sets the
-        value to a tuple of the two inputted values.
-        
-        :param      low | <variant>
-        :param      high | <variant>
-        
-        :return     <Query>
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').between(1,2)
-                    |>>> print query
-                    |test between [1,2]
+        return self.copy(op=Query.Op.Before, value=value)
+
+    def between(self, minimum, maximum):
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.Between)
-        newq.set_value((low, high))
-        return newq
+        Creates a copy of this query with the operator set to `Query.Op.Between` and
+        the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('threshold').between(1, 5)
+
+        :param minimum: <variant>
+        :param maximum: <variant>
+
+        :return: <orb.Query>
+        """
+        return self.copy(op=Query.Op.Between, value=(minimum, maximum))
 
     def case_sensitive(self):
         """
         Returns whether or not this query item will be case
         sensitive.  This will be used with string lookup items.
         
-        :return     <bool>
+        :return: <bool>
         """
         return self.__case_sensitive
 
@@ -681,31 +665,27 @@ class Query(object):
 
     def contains(self, value, case_sensitive=False):
         """
-        Sets the operator type to Query.Op.Contains and sets the    
-        value to the inputted value.  Use an astrix for wildcard
-        characters.
-        
-        :param      value           <variant>
-        :param      case_sensitive   <bool>
-        
-        :return     self    (useful for chaining)
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('comments').contains('test')
-                    |>>> print query
-                    |comments contains test
+        Creates a copy of this query with the operator set to `Query.Op.Contains` and
+        the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('name').contains('in')
+
+        :param value: <variant>
+        :param case_sensitive: <bool>
+
+        :return: <orb.Query>
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.Contains)
-        newq.set_value(value)
-        newq.setCaseSensitive(case_sensitive)
-        return newq
+        return self.copy(op=orb.Query.Op.Contains,
+                         value=value,
+                         case_sensitive=case_sensitive)
 
     def copy(self, **kw):
         """
         Returns a duplicate of this instance.
 
-        :return     <Query>
+        :return: <orb.Query>
         """
         kw.setdefault('op', self.__op)
         kw.setdefault('case_sensitive', self.__case_sensitive)
@@ -718,64 +698,57 @@ class Query(object):
 
         return type(self)((kw.pop('model'), kw.pop('column')), **kw)
 
-    def doesNotContain(self, value):
+    def does_not_contain(self, value, case_sensitive=False):
         """
-        Sets the operator type to Query.Op.DoesNotContain and sets the
-        value to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     self    (useful for chaining)
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('comments').doesNotContain('test')
-                    |>>> print query
-                    |comments does_not_contain test
-        """
-        newq = self.copy()
-        newq.set_op(Query.Op.DoesNotContain)
-        newq.set_value(value)
-        return newq
+        Creates a copy of this query with the operator set to `Query.Op.DoesNotContain` and
+        the value set to the given input.
 
-    def doesNotMatch(self, value, case_sensitive=True):
+        :usage:
+
+            q = orb.Query('name').does_not_contain('in')
+
+        :param value: <variant>
+        :param case_sensitive: <bool>
+
+        :return: <orb.Query>
         """
-        Sets the operator type to Query.Op.DoesNotMatch and sets the \
-        value to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     self    (useful for chaining)
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('comments').doesNotMatch('test')
-                    |>>> print query
-                    |comments does_not_contain test
+        return self.copy(op=orb.Query.Op.DoesNotContain,
+                         value=value,
+                         case_sensitive=case_sensitive)
+
+    def does_not_match(self, value, case_sensitive=True):
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.DoesNotMatch)
-        newq.set_value(value)
-        newq.setCaseSensitive(case_sensitive)
-        return newq
+        Creates a copy of this query with the operator set to `Query.Op.DoesNotMatch` and
+        the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('name').does_not_match('in')
+
+        :param value: <variant>
+        :param case_sensitive: <bool>
+
+        :return: <orb.Query>
+        """
+        return self.copy(op=orb.Query.Op.DoesNotMatch,
+                         value=value,
+                         case_sensitive=case_sensitive)
 
     def endswith(self, value):
         """
-        Sets the operator type to Query.Op.Endswith and sets \
-        the value to the inputted value.  This method will only work on text \
-        based fields.
-        
-        :param      value       <str>
-        
-        :return     <Query>
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').endswith('blah')
-                    |>>> print query
-                    |test startswith blah
+        Creates a copy of this query with the operator set to `Query.Op.DoesNotMatch` and
+        the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('name').endswith('me')
+
+        :param value: <variant>
+        :param case_sensitive: <bool>
+
+        :return: <orb.Query>
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.Endswith)
-        newq.set_value(value)
-        return newq
+        return self.copy(op=orb.Query.Op.Endswith, value=value)
 
     def expand(self, model=None, ignoreFilter=False):
         """
@@ -844,29 +817,6 @@ class Query(object):
         """
         return self.__functions
 
-    def is_(self, value):
-        """
-        Creates a copy of this query object with the `Is` operator set and
-        the `value` set to the given input.
-
-        :usage:
-
-            a = orb.Query('test').is_(1)
-
-        :param value: <variant>
-
-        :return: <orb.Query>
-        """
-        return self.copy(op=Query.Op.Is, value=value)
-
-    def is_inverted(self):
-        """
-        Returns whether or not the value and column data should be inverted during query.
-
-        :return     <bool>
-        """
-        return self.__inverted
-
     def greater_than(self, value):
         """
         Creates a copy of this query with the operator set to `Query.Op.GreaterThan` and
@@ -874,7 +824,7 @@ class Query(object):
 
         :usage:
 
-            a = orb.Query('value').greater_than(10)
+            q = orb.Query('value').greater_than(10)
 
         :param value: <variant>
         
@@ -884,19 +834,16 @@ class Query(object):
 
     def greater_than_or_equal(self, value):
         """
-        Sets the operator type to Query.Op.GreaterThanOrEqual and 
-        sets the value to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     <Query>
-        
-        :sa         __ge__
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').greater_than_or_equal(1)
-                    |>>> print query
-                    |test greater_than_or_equal 1
+        Creates a copy of this query with the operator set to `Query.Op.GreaterThanOrEqual`
+        and the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('value').greater_than_or_equal(10)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
         return self.copy(op=Query.Op.GreaterThanOrEqual, value=value)
 
@@ -927,26 +874,43 @@ class Query(object):
         out.setInverted(not self.isInverted())
         return out
 
-    def isNot(self, value):
+    def is_(self, value):
         """
-        Sets the operator type to Query.Op.IsNot and sets the
-        value to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     <Query>
-        
-        :sa         __ne__
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').isNot(1)
-                    |>>> print query
-                    |test is not 1
+        Creates a copy of this query object with the `Is` operator set and
+        the `value` set to the given input.
+
+        :usage:
+
+            q = orb.Query('test').is_(1)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.IsNot)
-        newq.set_value(value)
-        return newq
+        return self.copy(op=Query.Op.Is, value=value)
+
+    def is_inverted(self):
+        """
+        Returns whether or not the value and column data should be inverted during query.
+
+        :return     <bool>
+        """
+        return self.__inverted
+
+    def is_not(self, value):
+        """
+        Creates a copy of this query object with the `IsNot` operator set and
+        the `value` set to the given input.
+
+        :usage:
+
+            q = orb.Query('test').is_not(1)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
+        """
+        return self.copy(op=Query.Op.IsNot, value=value)
 
     def is_null(self):
         """
@@ -1021,37 +985,31 @@ class Query(object):
 
     def less_than(self, value):
         """
-        Sets the operator type to Query.Op.LessThan and sets the
-        value to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     <Query>
-        
-        :sa         less_than
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').less_than(1)
-                    |>>> print query
-                    |test less_than 1
+        Creates a copy of this query with the operator set to `Query.Op.LessThan` and
+        the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('value').less_than(10)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
         return self.copy(op=Query.Op.LessThan, value=value)
 
     def less_than_or_equal(self, value):
         """
-        Sets the operator type to Query.Op.LessThanOrEqual and sets 
-        the value to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     <Query>
-        
-        :sa         less_than_or_equal
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').less_than_or_equal(1)
-                    |>>> print query
-                    |test less_than_or_equal 1
+        Creates a copy of this query with the operator set to `Query.Op.LessThanOrEqual`
+        and the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('value').less_than_or_equal(10)
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
         newq = self.copy()
         newq.set_op(Query.Op.LessThanOrEqual)
@@ -1095,15 +1053,14 @@ class Query(object):
 
     def negated(self):
         """
-        Negates the current state for this query.
-        
-        :return     <self>
+        Inverts the query.  This will create a copy of this Query
+        by flipping the operator for the query to it's corresponding inversion
+        op.
+
+        :return: <orb.Query>
         """
-        query = self.copy()
-        op = self.op()
-        query.set_op(self.NegatedOp.get(op, op))
-        query.set_value(self.value())
-        return query
+        new_op = self.get_negated_op(self.__op)
+        return self.copy(op=new_op)
 
     def op(self):
         """
@@ -1215,6 +1172,18 @@ class Query(object):
             return None
         else:
             return self.__value
+
+    @classmethod
+    def get_negated_op(cls, op):
+        """
+        Returns the inverted operation for the given op.  By default,
+        this will look at the classes OpNegation dictionary.
+
+        :param op: <orb.Query.Op>
+
+        :return: <orb.Query.Op>
+        """
+        return cls.OpNegation.get(op, op)
 
     @staticmethod
     def build(data=None, **kwds):

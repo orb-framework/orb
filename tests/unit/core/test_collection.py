@@ -1163,7 +1163,7 @@ def test_search():
     search_records = records.search('testing')
 
     q = search_records.context().where.__json__()
-    validate_q = orb.Query((TestModel, 'name')).asString().matches('(^|.*\s)testing', case_sensitive=False)
+    validate_q = orb.Query((TestModel, 'name')).as_string().matches('(^|.*\s)testing', case_sensitive=False)
 
     assert q == validate_q.__json__()
 

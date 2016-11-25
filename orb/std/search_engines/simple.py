@@ -124,7 +124,7 @@ class SimpleSearchEngine(SearchEngine):
                 return orb.Collection()
 
             for column in searchable_columns:
-                general_q |= orb.Query(column).asString().matches(pattern, case_sensitive=False)
+                general_q |= orb.Query(column).as_string().matches(pattern, case_sensitive=False)
             q &= general_q
 
         # build comparison nodes
