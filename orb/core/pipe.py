@@ -135,7 +135,7 @@ class Pipe(Collector):
         target_model = self.model()
 
         sub_q = query.copy(
-            column='.'.join(tree[1:]),
+            schema_object='.'.join(tree[1:]),
             model=target_model
         )
         to_records = target_model.select(columns=[target_model.schema().id_column()], where=sub_q)
@@ -298,7 +298,7 @@ class Pipe(Collector):
         # remove existing records
         if source_record.is_record():
             remove_ids = orb.Query(through, from_column) == source_record
-            remove_ids &= orb.Query(through, to_column).notIn(new_ids)
+            remove_ids &= orb.Query(through, to_column).not_in(new_ids)
             orb_context.where = remove_ids
             through.select(context=orb_context).delete()
 

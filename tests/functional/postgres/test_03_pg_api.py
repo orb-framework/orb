@@ -435,4 +435,4 @@ def test_read_write_servers(orb, pg_db, Comment):
 
 def test_null_query(orb, pg_db, Comment):
     assert len(Comment.select(where=orb.Query('id').in_([]))) == 0
-    assert len(Comment.select(where=orb.Query('id').notIn([]))) == len(Comment.select())
+    assert len(Comment.select(where=orb.Query('id').not_in([]))) == len(Comment.select())

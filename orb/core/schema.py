@@ -229,7 +229,10 @@ class Schema(object):
 
         :return: <orb.Collector> or None
         """
-        return self.collectors(recurse=recurse, flags=flags).get(name)
+        if isinstance(name, orb.Collector):
+            return name
+        else:
+            return self.collectors(recurse=recurse, flags=flags).get(name)
 
     def context(self, **context):
         """

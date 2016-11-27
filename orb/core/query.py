@@ -5,13 +5,16 @@ agnostic queries quickly and easily.
 
 import copy
 import demandimport
-import projex.regex
-import projex.text
+import logging
 
+from ..decorators import deprecated
 from ..utils.enum import enum
 
 with demandimport.enabled():
     import orb
+
+
+log = logging.getLogger(__name__)
 
 
 class State(object):
@@ -94,7 +97,7 @@ class Query(object):
 
     Function = enum(
         Lower=1,
-        Uppser=2,
+        Upper=2,
         Abs=3,
         AsString=4
     )
@@ -112,11 +115,11 @@ class Query(object):
         :param args: variable args options -
 
             * blank (no initialization)
-            * <str> column name
+            * <str> schema object name
             * <orb.Column>
             * subclass of <orb.Model>
-            * subclass of <orb.Model> source model, <str> column name
-            * (subclass of <orb.Model> source model, <str> column name)
+            * subclass of <orb.Model> source model, <str> schema object name
+            * (subclass of <orb.Model> source model, <str> schema object name)
 
         :param kw: keyword options -
 
@@ -128,44 +131,44 @@ class Query(object):
             * math: [<Query.Math>, ..] (default: [])
 
         """
+        super(Query, self).__init__()
+
         # ensure we have the proper arguments
         if len(args) > 2:
             raise RuntimeError('Invalid Query arguments')
 
         # check for Query() initialization
         elif len(args) == 0:
-            model = column = None
+            model = schema_object = None
 
-        # check for Query(model, column) initialization
+        # check for Query(model, schema_object) initialization
         elif len(args) == 2:
-            model, column = args
-            column = model.schema().column(column) if model else column
+            model, schema_object = args
 
         # check for Query(varg) initialization
         else:
             arg = args[0]
 
-            # check for Query((model, column)) initialization
+            # check for Query((model, schema_object)) initialization
             if isinstance(arg, tuple):
-                model, column = arg
-                column = model.schema().column(column) if model else column
+                model, schema_object = arg
 
             # check for Query(orb.Column()) initialization
-            elif isinstance(arg, orb.Column):
+            elif isinstance(arg, (orb.Column, orb.Collector)):
                 model = arg.schema().model()
-                column = arg
+                schema_object = arg
 
-            # check for Query('column') initialization
+            # check for Query('schema_object') initialization
             elif isinstance(arg, (str, unicode)):
                 model = None
-                column = arg
+                schema_object = arg
 
             # check for Query(orb.Model) initialization
             else:
                 try:
                     if issubclass(arg, orb.Model):
                         model = arg
-                        column = arg.schema().id_column()
+                        schema_object = arg.schema().id_column()
                     else:
                         raise RuntimeError('Invalid Query arguments')
                 except StandardError:
@@ -178,10 +181,10 @@ class Query(object):
 
         # set custom properties
         self.__model = model
-        self.__column = column
+        self.__schema_object = schema_object
         self.__op = op
-        self.__case_sensitive = kw.pop('case_sensitive', False)
         self.__value = kw.pop('value', Query.UNDEFINED)
+        self.__case_sensitive = kw.pop('case_sensitive', False)
         self.__inverted = kw.pop('inverted', False)
         self.__functions = kw.pop('functions', [])
         self.__math = kw.pop('math', [])
@@ -212,11 +215,11 @@ class Query(object):
             except TypeError:
                 val_hash = hash(unicode(self.__value))
 
-        column_name = self.column_name()
+        object_name = self.object_name()
 
         return hash((
             self.__model,
-            column_name,
+            object_name,
             self.__op,
             self.__case_sensitive,
             val_hash,
@@ -234,6 +237,11 @@ class Query(object):
         return not self.is_null()
 
     def __json__(self):
+        """
+        Converts this query to a JSON serializable dictionary.
+
+        :return: <dict>
+        """
         value = self.value()
         if hasattr(value, '__json__'):
             value = value.__json__()
@@ -241,32 +249,25 @@ class Query(object):
         jdata = {
             'type': 'query',
             'model': self.__model.schema().name() if self.__model else '',
-            'column': self.column_name(),
+            'column': self.object_name(),   # TODO : deprecate
             'op': self.Op(self.__op),
             'case_sensitive': self.__case_sensitive,
             'functions': [self.Function(func) for func in self.__functions],
-            'math': [{'op': self.Math(op), 'value': value} for (op, value) in self.__math],
+            'math': [{'op': self.Math(math_op), 'value': math_value} for (math_op, math_value) in self.__math],
             'inverted': self.__inverted,
             'value': value
         }
         return jdata
 
-    def __contains__(self, column):
+    def __contains__(self, schema_object):
         """
-        Returns whether or not the column is used within this query.
+        Returns whether or not the schema_object is used within this query.
 
-        :param column: <str> or <orb.Column>
+        :param schema_object: <str> or <orb.Column> or <orb.Collector>
 
         :return: <bool>
         """
-        if isinstance(column, orb.Column):
-            my_column = self.column()
-            if my_column is None:
-                return column.name() == self.column_name()
-            else:
-                return my_column == column
-        else:
-            return column == self.column_name()
+        return self.has(schema_object)
 
     # operators
 
@@ -614,54 +615,59 @@ class Query(object):
         """
         return self.__case_sensitive
 
+    def collector(self, model=None):
+        """
+        Returns the collector that this query is referencing, if any.  If this
+        query is directly associated to a model, then supplying one will not
+        have an affect, otherwise, the schema of the given model will be used
+        to look up the collector by name.
+
+        :param model: subclass of <orb.Model> or None
+
+        :return: <orb.Collector> or None
+        """
+        model = self.model(default=model)
+        if not model:
+            return None
+        elif isinstance(self.__schema_object, orb.Column):
+            return None
+        else:
+            return model.schema().collector(self.__schema_object)
+
     def column(self, model=None):
         """
-        Returns the column instance for this query.
-        
-        :return     <orb.Column>
+        Returns the column that this query is referencing, if any.  If this
+        query is directly associated to a model, then supplying one will not make
+        a difference.  If the query column is a string, then the given model
+        will provide the schema for the returned column.
+
+        :param model: subclass of <orb.Model> or None
+
+        :return: <orb.Column> or None
         """
-        try:
-            schema = (self.__model or model).schema()
-        except AttributeError:
+        model = self.model(default=model)
+        if not model:
+            return None
+        elif isinstance(self.__schema_object, orb.Collector):
             return None
         else:
-            return schema.column(self.__column)
+            return model.schema().column(self.__schema_object, raise_=False)
 
-    def collector(self, model=None):
-        try:
-            schema = (self.__model or model).schema()
-        except AttributeError:
-            return None
-        else:
-            return schema.collector(self.__column)
-
+    @deprecated
     def columns(self, model=None):
         """
-        Returns a generator that loops through the columns that are associated with this query.
-        
-        :return     <generator>(orb.Column)
+        Deprecated.  Please use <orb.Query.schema_objects> instead.
+
+        :return     <generator>(<orb.Column> or <orb.Collector>)
         """
-        column = self.column(model=model)
-        if column:
-            yield column
+        return self.schema_objects(model=model)
 
-        check = self.__value
-        if not isinstance(check, (list, set, tuple)):
-            check = (check,)
-
-        for val in check:
-            if isinstance(val, (Query, orb.QueryCompound)):
-                for col in val.columns(model):
-                    yield col
-
+    @deprecated
     def column_name(self):
         """
-        Returns the column name that this query instance is
-        looking up.
-        
-        :return     <str>
+        Deprecated.  Please use `orb.Query.object_name()` instead.
         """
-        return self.__column if not isinstance(self.__column, orb.Column) else self.__column.name()
+        return self.object_name()
 
     def contains(self, value, case_sensitive=False):
         """
@@ -694,9 +700,9 @@ class Query(object):
         kw.setdefault('functions', copy.copy(self.__functions))
         kw.setdefault('math', copy.copy(self.__math))
         kw.setdefault('model', self.__model)
-        kw.setdefault('column', self.__column)
+        kw.setdefault('schema_object', self.__schema_object)
 
-        return type(self)((kw.pop('model'), kw.pop('column')), **kw)
+        return type(self)((kw.pop('model'), kw.pop('schema_object')), **kw)
 
     def does_not_contain(self, value, case_sensitive=False):
         """
@@ -734,9 +740,9 @@ class Query(object):
                          value=value,
                          case_sensitive=case_sensitive)
 
-    def endswith(self, value):
+    def endswith(self, value, case_sensitive=True):
         """
-        Creates a copy of this query with the operator set to `Query.Op.DoesNotMatch` and
+        Creates a copy of this query with the operator set to `Query.Op.Endswith` and
         the value set to the given input.
 
         :usage:
@@ -748,65 +754,66 @@ class Query(object):
 
         :return: <orb.Query>
         """
-        return self.copy(op=orb.Query.Op.Endswith, value=value)
+        return self.copy(op=orb.Query.Op.Endswith, case_sensitive=case_sensitive, value=value)
 
-    def expand(self, model=None, ignoreFilter=False):
+    def expand(self, model=None, use_filter=True):
         """
-        Expands any shortcuts that were created for this query.  Shortcuts
-        provide the user access to joined methods using the '.' accessor to
-        access individual columns for referenced tables.
-        
-        :param      model | <orb.Model> || None
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> # lookup the 'username' of foreign key 'user'
-                    |>>> Q('user.username') == 'bob.smith'
-        
-        :return     <orb.Query> || <orb.QueryCompound>
+        Expands the shortcuts associated with this query.  This will generate a new
+        query or query compound that represents the shortcut defined in this query.
+
+        :usage:
+
+            q = orb.Query('user.username') == 'jdoe'
+            new_q = q.expand()
+
+        :param model: subclass of <orb.Model> or None
+        :param use_filter: <bool> (default: True)
+
+        :return: <orb.Query> or <orb.QueryCompound>
         """
-        model = self.__model or model
-        if not model:
-            raise orb.errors.QueryInvalid('Could not traverse: {0}'.format(self.__column))
+        model = self.model(default=model)
+        if model is None:
+            raise orb.errors.QueryInvalid('Could not traverse query expand')
 
         schema = model.schema()
-        parts = [self.__column.name()] if isinstance(self.__column, orb.Column) else self.__column.split('.')
+        parts = self.object_name().split('.')
+        schema_object = schema.column(parts[0], raise_=False) or schema.collector(parts[0])
+        filter = schema_object.filtermethod() if schema_object else None
 
-        # expand the current column
-        lookup = schema.column(parts[0], raise_=False) or schema.collector(parts[0])
-
-        if lookup:
-            # utilize query filters to generate
-            # a new filter based on this object
-            query_filter = lookup.filtermethod()
-            if callable(query_filter) and not ignoreFilter:
-                new_q = query_filter(model, self)
-                if new_q:
-                    return new_q.expand(model, ignoreFilter=True)
-                else:
-                    return None
-
-            # otherwise, check to see if the lookup
-            # has a shortcut to look through
-            elif isinstance(lookup, orb.Column) and lookup.shortcut():
-                parts = lookup.shortcut().split('.')
-                lookup = schema.column(parts[0], raise_=False)
-
-        if len(parts) == 1:
-            return self
-        else:
-            if isinstance(lookup, orb.Collector):
-                return orb.Query(model).in_(lookup.collect_expand(self, parts))
-
-            elif isinstance(lookup, orb.ReferenceColumn):
-                rmodel = lookup.reference_model()
-                sub_q = self.copy()
-                sub_q._Query__column = '.'.join(parts[1:])
-                sub_q._Query__model = rmodel
-                records = rmodel.select(columns=[rmodel.schema().id_column()], where=sub_q)
-                return orb.Query(model, parts[0]).in_(records)
-
+        # if there is a filter that should be used, then use it
+        if use_filter and callable(filter):
+            new_q = filter(model, self)
+            if new_q:
+                return new_q.expand(model, use_filter=False)
             else:
-                raise orb.errors.QueryInvalid('Could not traverse: {0}'.format(self.__column))
+                return orb.Query()
+
+        else:
+            # if there is a shortcut that should be used, then use it
+            if isinstance(schema_object, orb.Column) and schema_object.shortcut():
+                parts = schema_object.shortcut().split('.')
+                schema_object = schema.column(parts[0], raise_=False)
+
+            # if there is nothing to expand, exit out
+            if len(parts) == 1:
+                return self
+
+            # expand a collector
+            elif isinstance(schema_object, orb.Collector):
+                return orb.Query(model).in_(schema_object.collect_expand(self, parts))
+
+            # expand a reference
+            elif isinstance(schema_object, orb.ReferenceColumn):
+                reference_model = schema_object.reference_model()
+                reference_q = self.copy(model=reference_model,
+                                        schema_object='.'.join(parts[1:]))
+                references = reference_model.select(columns=[reference_model.schema().id_column()],
+                                                    where=reference_q)
+                return orb.Query(model, parts[0]).in_(references)
+
+            # unable to expand otherwise
+            else:
+                raise orb.errors.QueryInvalid('Could not traverse query expand')
 
     def functions(self):
         """
@@ -847,32 +854,34 @@ class Query(object):
         """
         return self.copy(op=Query.Op.GreaterThanOrEqual, value=value)
 
-    def has(self, column):
-        if isinstance(column, orb.Column):
-            if self.__column in (column.field(), column.name()):
-                return True
-            else:
-                return False
-        else:
-            return self.__column == column
+    def has(self, schema_object):
+        """
+        Tests to see if the given schema object is represented by this query.
 
-    def hasShortcuts(self):
+        :param schema_object: <str> or <orb.Column> or <orb.Collector>
+
+        :return: <bool>
         """
-        Returns whether or not this widget has shortcuts.
-        
-        :return     <bool>
-        """
-        return '.' in self.column_name()
+        if isinstance(schema_object, (orb.Column, orb.Collector)):
+            try:
+                my_object = self.schema_object()
+            except StandardError:
+                my_object = None
+
+            if my_object is None:
+                return schema_object.name() == self.object_name()
+            else:
+                return my_object == schema_object
+        else:
+            return schema_object == self.object_name()
 
     def inverted(self):
         """
         Returns an inverted copy of this query.
 
-        :return     <orb.Query>
+        :return: <orb.Query>
         """
-        out = self.copy()
-        out.setInverted(not self.isInverted())
-        return out
+        return self.copy(inverted=not self.is_inverted())
 
     def is_(self, value):
         """
@@ -893,7 +902,7 @@ class Query(object):
         """
         Returns whether or not the value and column data should be inverted during query.
 
-        :return     <bool>
+        :return: <bool>
         """
         return self.__inverted
 
@@ -916,72 +925,64 @@ class Query(object):
         """
         Return whether or not this query contains any information.
         
-        :return     <bool>
+        :return: <bool>
         """
-        return (self.__column is None or
+        return (self.__schema_object is None or
                 self.__op is None or
                 self.__value is Query.UNDEFINED)
 
     def in_(self, value):
         """
-        Sets the operator type to Query.Op.IsIn and sets the value
-        to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     <Query>
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').isIn([1,2])
-                    |>>> print query
-                    |test is_in [1,2]
+        Creates a copy of this query object with the `IsIn` operator set and
+        the `value` set to the given input.
+
+        :usage:
+
+            q = orb.Query('test').in_([1, 2])
+
+        :param value: <variant>
+
+        :return: <orb.Query>
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.IsIn)
-
         if isinstance(value, orb.Collection):
-            newq.set_value(value)
+           pass
         elif not isinstance(value, (set, list, tuple)):
-            newq.set_value((value,))
+            value = (value,)
         else:
-            newq.set_value(tuple(value))
+            value = tuple(value)
 
-        return newq
+        return self.copy(op=Query.Op.IsIn, value=value)
 
     def math(self):
         """
         Returns the mathematical operations that are being performed for
         this query object.
         
-        :return     [(<Query.Math>, <variant>), ..]
+        :return: [(<Query.Math>, <variant>), ..]
         """
         return self.__math
 
-    def notIn(self, value):
+    def not_in(self, value):
         """
-        Sets the operator type to Query.Op.IsNotIn and sets the value
-        to the inputted value.
-        
-        :param      value       <variant>
-        
-        :return     <Query>
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').not_in([1,2])
-                    |>>> print query
-                    |test is_not_in [1,2]
-        """
-        newq = self.copy()
-        newq.set_op(Query.Op.IsNotIn)
+        Creates a copy of this query object with the `IsNotIn` operator set and
+        the `value` set to the given input.
 
+        :usage:
+
+            q = orb.Query('test').not_in([1, 2])
+
+        :param value: <variant>
+
+        :return: <orb.Query>
+        """
         if isinstance(value, orb.Collection):
-            newq.set_value(value)
+            pass
         elif not isinstance(value, (set, list, tuple)):
-            newq.set_value((value,))
+            value = (value,)
         else:
-            newq.set_value(tuple(value))
+            value = tuple(value)
 
-        return newq
+        return self.copy(op=Query.Op.IsNotIn, value=value)
 
     def less_than(self, value):
         """
@@ -1011,10 +1012,7 @@ class Query(object):
 
         :return: <orb.Query>
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.LessThanOrEqual)
-        newq.set_value(value)
-        return newq
+        return self.copy(op=Query.Op.LessThanOrEqual, value=value)
 
     def lower(self):
         """
@@ -1042,14 +1040,18 @@ class Query(object):
                     |>>> print query
                     |test matches ^\d+-\w+$
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.Matches)
-        newq.set_value(value)
-        newq.setCaseSensitive(case_sensitive)
-        return newq
+        return self.copy(op=Query.Op.Matches, value=value, case_sensitive=case_sensitive)
 
-    def model(self, model=None):
-        return self.__model or model
+    def model(self, default=None):
+        """
+        Returns the model associated with this query instance.  If no model is explicitly
+        linked as a member, then the given model will be returned.
+
+        :param default: subclass of <orb.Model>
+
+        :return: subclass of <orb.Model> or None
+        """
+        return self.__model or default
 
     def negated(self):
         """
@@ -1073,90 +1075,110 @@ class Query(object):
 
     def or_(self, other):
         """
-        Creates a new compound query using the 
-        <orb.QueryCompound.Op.Or> type.
-        
-        :param      other   <Query> || <orb.QueryCompound>
-        
-        :return     <orb.QueryCompound>
-        
-        :sa         or_
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = (Q('test') != 1).or_(Q('name') == 'Eric')
-                    |>>> print query
-                    |(test does_not_equal 1 or name is Eric)
+        Or operator for query object.  Depending on the value type provided,
+        one of two things will happen.  If `other` is a `Query` or `QueryCompound`
+        object, then this query will be combined with the other to generate
+        a new `QueryCoumpound` instance.  If `other` is any other value type,
+        then a new `Query` object will be created with the `Query.Math.And` operator
+        for the given value added to it.
+
+        :usage:
+
+            q = orb.Query('offset') | 3
+            a = (orb.Query('offset') > 1) | (orb.Query('offset') < 3)
+
+        :param other: <orb.Query> or <orb.QueryCompound> or variant
+
+        :return: <orb.QueryCompound> or <orb.Query>
         """
-        if not isinstance(other, (Query, orb.QueryCompound)) or other.is_null():
+        if not isinstance(other, (orb.Query, orb.QueryCompound)):
             return self.copy()
-        elif not self:
+        elif other.is_null():
+            return self.copy()
+        elif self.is_null():
             return other.copy()
         else:
             return orb.QueryCompound(self, other, op=orb.QueryCompound.Op.Or)
 
-    def setCaseSensitive(self, state):
+    def object_name(self):
         """
-        Sets whether or not this query will be case sensitive.
-        
-        :param      state   <bool>
-        """
-        self.__case_sensitive = state
+        Returns the schema object's name that this query instance is
+        looking up.
 
-    def setColumn(self, column):
-        self.__column = column
+        :return: <str>
+        """
+        if isinstance(self.__schema_object, (orb.Column, orb.Collector)):
+            return self.__schema_object.name()
+        else:
+            return self.__schema_object
 
-    def setInverted(self, state=True):
+    def schema_object(self, model=None):
         """
-        Sets whether or not this query is inverted.
+        Returns the schema object this query is referencing.  This will
+        return either an `orb.Column`, `orb.Collector` or raise a `ColumnNotFound` error.
+        If there is a model provided, it will only be used if no model is explicitly defined
+        for this query instance.
 
-        :param      state | <bool>
-        """
-        self.__inverted = state
+        :param model: subclass of <orb.Model>
 
-    def setModel(self, model):
-        self.__model = model
+        :return: <orb.Column> or <orb.Collector>
+        """
+        model = self.model(default=model)
+        if not model:
+            raise orb.errors.ModelNotFound(msg='No model provided to the query')
+        else:
+            schema = model.schema()
+            return schema.collector(self.__schema_object) or schema.column(self.__schema_object)
 
-    def set_op(self, op):
+    def schema_objects(self, model=None):
         """
-        Sets the operator type used for this query instance.
-        
-        :param      op          <Query.Op>
-        """
-        self.__op = op
+        Returns a generator that looks up all the schema objects associated with this query.
 
-    def set_value(self, value):
-        """
-        Sets the value that will be used for this query instance.
-        
-        :param      value       <variant>
-        """
-        self.__value = projex.text.decoded(value) if isinstance(value, (str, unicode)) else value
+        :param model: suclass of <orb.Model> or None
 
-    def startswith(self, value):
+        :return: <generator>
         """
-        Sets the operator type to Query.Op.Startswith and sets \
-        the value to the inputted value.  This method will only work on text \
-        based fields.
-        
-        :param      value       <str>
-        
-        :return     <Query>
-        
-        :usage      |>>> from orb import Query as Q
-                    |>>> query = Q('test').startswith('blah')
-                    |>>> print query
-                    |test startswith blah
+        try:
+            obj = self.schema_object(model=model)
+        except StandardError:
+            pass
+        else:
+            yield obj
+
+        if isinstance(self.__value, (orb.Query, orb.QueryCompound)):
+            check = [self.__value]
+        elif isinstance(self.__value, (list, set, tuple)):
+            check = self.__value
+        else:
+            return
+
+        # check for sub-objects
+        for val in check:
+            if isinstance(val, (orb.Query, orb.QueryCompound)):
+                for sub_obj in val.schema_objects(model=model):
+                    yield sub_obj
+
+    def startswith(self, value, case_sensitive=True):
         """
-        newq = self.copy()
-        newq.set_op(Query.Op.Startswith)
-        newq.set_value(value)
-        return newq
+        Creates a copy of this query with the operator set to `Query.Op.Startswith` and
+        the value set to the given input.
+
+        :usage:
+
+            q = orb.Query('name').startswith('me')
+
+        :param value: <variant>
+        :param case_sensitive: <bool>
+
+        :return: <orb.Query>
+        """
+        return self.copy(op=Query.Op.Startswith, case_sensitive=case_sensitive, value=value)
 
     def upper(self):
         """
         Returns this query with the Upper function added to its list.
         
-        :return     <Query>
+        :return: <orb.Query>
         """
         q = self.copy()
         q.append_function_op(Query.Function.Upper)
@@ -1166,7 +1188,7 @@ class Query(object):
         """
         Returns the value for this query instance
         
-        :return     <variant>
+        :return: <variant>
         """
         if isinstance(self.__value, State):
             return None
@@ -1186,54 +1208,55 @@ class Query(object):
         return cls.OpNegation.get(op, op)
 
     @staticmethod
-    def build(data=None, **kwds):
-        data = data or {}
-        data.update(kwds)
+    def build(data):
+        """
+        Creates a new query from a dictionary.
 
-        if not data:
-            return None
-        else:
-            q = Query()
-            for k, v in data.items():
-                q &= Query(k) == v
-            return q
+        :param data: <dict>
+
+        :return: <orb.Query> or <orb.QueryCompound>
+        """
+        out = orb.Query()
+        for obj, value in data.items():
+            out &= orb.Query(obj) == value
+        return out
 
     @staticmethod
-    def fromJSON(jdata):
+    def load(jdata, **context):
         """
-        Creates a new Query object from the given JSON data.
+        Loads a new query object from a dictionary.
 
-        :param      jdata | <dict>
+        :param jdata: <dict>
 
-        :return     <orb.Query> || <orb.QueryCompound>
+        :return: <orb.Query> or <orb.QueryCompound>
         """
+        orb_context = orb.Context(**context)
+
+        # load a compound
         if jdata['type'] == 'compound':
-            queries = [orb.Query.fromJSON(jquery) for jquery in jdata['queries']]
-            out = orb.QueryCompound(*queries)
-            out.set_op(orb.QueryCompound.Op(jdata['op']))
-            return out
+            queries = [orb.Query.load(sub_q) for sub_q in jdata['queries']]
+            return orb.QueryCompound(*queries, op=jdata['op'])
+
+        # load a query
         else:
-            if jdata.get('model'):
-                model = orb.schema.model(jdata.get('model'))
-                if not model:
-                    raise orb.errors.ModelNotFound(schema=jdata.get('model'))
-                else:
-                    column = (model, jdata['column'])
+            system = orb_context.system
+            try:
+                model_name = jdata['model']
+            except KeyError:
+                model = None
             else:
-                column = (jdata['column'],)
+                model = system.model(model_name) if model_name else None
 
-            query = orb.Query(*column)
-            query.set_op(orb.Query.Op(jdata.get('op', 'Is')))
-            query.setInverted(jdata.get('inverted', False))
-            query.setCaseSensitive(jdata.get('case_sensitive', False))
-            query.set_value(jdata.get('value'))
-
-            # restore the function information
-            for func in jdata.get('functions', []):
-                query.append_function_op(orb.Query.Function(func))
-
-            # restore the math information
-            for entry in jdata.get('math', []):
-                query.append_math_op(orb.Query.Math(entry.get('op')), entry.get('value'))
-            return query
+            funcs = [orb.Query.Function(f) for f in jdata.get('functions') or []]
+            math = [orb.Query.Math(v['op'], v['value']) for v in jdata.get('math') or []]
+            args = (model, jdata.get('column') or jdata.get('schema_object'))
+            kw = {
+                'op': jdata.get('op', 'Is'),
+                'value': jdata.get('value'),
+                'inverted': jdata.get('inverted', False),
+                'case_sensitive': jdata.get('case_sensitive', False),
+                'functions': funcs,
+                'math': math
+            }
+            return orb.Query(args, **kw)
 

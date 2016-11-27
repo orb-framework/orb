@@ -116,12 +116,6 @@ class ReferenceColumn(Column):
         'Block'         # 4
     )
 
-    def __json__(self):
-        output = super(ReferenceColumn, self).__json__()
-        output['reference'] = self.__reference
-        output['removeAction'] = self.RemoveAction(self.__removeAction)
-        return output
-
     def __init__(self,
                  reference='',
                  removeAction=RemoveAction.Block,
@@ -131,6 +125,12 @@ class ReferenceColumn(Column):
         # store reference options
         self.__reference = reference
         self.__removeAction = removeAction
+
+    def __json__(self):
+        output = super(ReferenceColumn, self).__json__()
+        output['reference'] = self.__reference
+        output['removeAction'] = self.RemoveAction(self.__removeAction)
+        return output
 
     def _restore(self, value, context=None):
         """

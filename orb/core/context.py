@@ -430,7 +430,7 @@ class Context(object):
         if 'where' in other_context:
             other_where = other_context['where']
             if isinstance(other_where, dict):
-                other_where = orb.Query.fromJSON(other_where)
+                other_where = orb.Query.load(other_where)
 
             if 'where' in self.raw_values:
                 self.raw_values['where'] &= other_where

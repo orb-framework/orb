@@ -10,12 +10,14 @@ def mock_query_models():
 
         id = orb.IdColumn()
         name = orb.StringColumn()
+        records = orb.ReverseLookup('B.a')
 
     class B(orb.Table):
         __register__ = False
 
         id = orb.IdColumn()
         name = orb.StringColumn()
+        a = orb.ReferenceColumn('A')
 
     return A, B
 
@@ -47,7 +49,7 @@ def test_query_construction(mock_query_models):
     assert q.model() is None
     assert q.model(A) is A
     assert q.model(B) is B
-    assert q.column_name() == 'name'
+    assert q.object_name() == 'name'
     assert q.column() is None
     assert q.column(A) == A.schema().column('name')
     assert q.column(B) == B.schema().column('name')
@@ -55,14 +57,15 @@ def test_query_construction(mock_query_models):
     # initialize a query with a column instance
     q = orb.Query(A.schema().column('name'))
     assert q.model() is A
-    assert q.column_name() == 'name'
+    assert q.object_name() == 'name'
     assert q.column() is A.schema().column('name')
+    assert q.collector() is None
 
     # initialize a query with a model and column as arguments
     q = orb.Query(A, 'name')
     assert q.model() is A
     assert q.model(B) is A
-    assert q.column_name() == 'name'
+    assert q.object_name() == 'name'
     assert q.column() is A.schema().column('name')
     assert q.column(B) is A.schema().column('name')
 
@@ -70,7 +73,7 @@ def test_query_construction(mock_query_models):
     q = orb.Query(None, 'name')
     assert q.model() is None
     assert q.model(B) is B
-    assert q.column_name() == 'name'
+    assert q.object_name() == 'name'
     assert q.column() is None
     assert q.column(B) is B.schema().column('name')
 
@@ -78,7 +81,7 @@ def test_query_construction(mock_query_models):
     q = orb.Query((A, 'name'))
     assert q.model() is A
     assert q.model(B) is A
-    assert q.column_name() == 'name'
+    assert q.object_name() == 'name'
     assert q.column() is A.schema().column('name')
     assert q.column(B) is A.schema().column('name')
 
@@ -86,15 +89,30 @@ def test_query_construction(mock_query_models):
     q = orb.Query((None, 'name'))
     assert q.model() is None
     assert q.model(B) is B
-    assert q.column_name() == 'name'
+    assert q.object_name() == 'name'
     assert q.column() is None
     assert q.column(B) is B.schema().column('name')
 
     # initialize a query with a model
     q = orb.Query(A)
     assert q.model() is A
-    assert q.column_name() == 'id'
+    assert q.object_name() == 'id'
     assert q.column() == A.schema().id_column()
+    
+    # initialize a query with a collector string
+    q = orb.Query('records')
+    assert q.model() is None
+    assert q.column(A) is None
+    assert q.column(B) is None
+    assert q.collector() is None
+    assert q.collector(A) is A.schema().collector('records')
+    assert q.collector(B) is None
+
+    # initialize a query with a collector instance
+    q = orb.Query(A.schema().collector('records'))
+    assert q.object_name() == 'records'
+    assert q.column() is None
+    assert q.schema_object() is q.collector() is A.schema().collector('records')
 
     # initialize with bad data
     with pytest.raises(RuntimeError):
@@ -129,6 +147,74 @@ def test_query_construction_with_keywords():
 
     with pytest.raises(RuntimeError):
         assert orb.Query('name', bad_param=None) is None
+
+
+def test_query_serialization():
+    import orb
+
+    q = orb.Query(
+        'name',
+        op='Is',
+        value='testing',
+        inverted=True,
+        case_sensitive=True,
+        functions=[orb.Query.Function.AsString, orb.Query.Function.Lower],
+        math=[(orb.Query.Math.Add, 10)]
+    )
+
+    import pprint
+    pprint.pprint(q.__json__())
+
+    q_json = q.__json__()
+    validate_json = {
+        'type': 'query',
+        'model': '',
+        'column': 'name',
+        'op': 'Is',
+        'value': 'testing',
+        'inverted': True,
+        'case_sensitive': True,
+        'functions': ['AsString', 'Lower'],
+        'math': [
+            {'op': 'Add', 'value': 10}
+        ]
+    }
+
+    assert q_json == validate_json
+
+
+def test_query_nested_serialization():
+    import orb
+    a = orb.Query('a')
+    b = orb.Query('b')
+    c = a == b
+
+    validate_json = {
+        'type': 'query',
+        'model': '',
+        'column': 'a',
+        'op': 'Is',
+        'value': {
+            'type': 'query',
+            'model': '',
+            'column': 'b',
+            'op': 'Is',
+            'value': None,
+            'inverted': False,
+            'case_sensitive': False,
+            'functions': [],
+            'math': []
+        },
+        'inverted': False,
+        'case_sensitive': False,
+        'functions': [],
+        'math': []
+    }
+
+    import pprint
+    pprint.pprint(c.__json__())
+
+    assert c.__json__() == validate_json
 
 
 def test_query_hash_comparison():
@@ -213,7 +299,7 @@ def test_query_addition_operator():
 
     assert a is not b
     assert a.math() == []
-    assert b.column_name() == 'name'
+    assert b.object_name() == 'name'
     assert b.math() == [(orb.Query.Math.Add, 'ing')]
     assert c.math() == [(orb.Query.Math.Add, 'ing')]
     assert hash(b) == hash(c) != hash(a)
@@ -229,7 +315,7 @@ def test_query_absolute_operator():
 
     assert a is not b
     assert a.functions() == []
-    assert b.column_name() == 'offset'
+    assert b.object_name() == 'offset'
     assert b.functions() == [orb.Query.Function.Abs]
     assert c.functions() == [orb.Query.Function.Abs]
     assert hash(b) == hash(c)!= hash(a)
@@ -245,6 +331,10 @@ def test_query_and_operator():
     d = a & 10
     e = a & b
 
+    f = a.and_(None)
+    g = a.and_(orb.Query())
+    h = orb.Query().and_(a)
+
     assert a is not c
     assert hash(a) == hash(c)
 
@@ -258,6 +348,11 @@ def test_query_and_operator():
     assert e.op() == orb.QueryCompound.Op.And
     assert list(e) == [a, b]
 
+    # assert no changes when anding none values
+    assert hash(f) == hash(a)
+    assert hash(g) == hash(a)
+    assert hash(h) == hash(a)
+
 
 def test_query_division_operator():
     import orb
@@ -269,7 +364,7 @@ def test_query_division_operator():
 
     assert a is not b
     assert a.math() == []
-    assert b.column_name() == 'offset'
+    assert b.object_name() == 'offset'
     assert b.math() == [(orb.Query.Math.Divide, 10)]
     assert c.math() == [(orb.Query.Math.Divide, 10)]
     assert hash(b) == hash(c) != hash(a)
@@ -359,7 +454,7 @@ def test_query_multiplication():
 
     assert a is not b
     assert a.math() == []
-    assert b.column_name() == 'offset'
+    assert b.object_name() == 'offset'
     assert b.math() == [(orb.Query.Math.Multiply, 10)]
     assert c.math() == [(orb.Query.Math.Multiply, 10)]
     assert hash(b) == hash(c) != hash(a)
@@ -402,6 +497,10 @@ def test_query_or_operator():
     d = a | 10
     e = a | b
 
+    f = a.or_(None)
+    g = a.or_(orb.Query())
+    h = orb.Query().or_(a)
+
     assert a is not c
     assert hash(a) == hash(c)
 
@@ -415,6 +514,10 @@ def test_query_or_operator():
     assert e.op() == orb.QueryCompound.Op.Or
     assert list(e) == [a, b]
 
+    assert hash(f) == hash(a)
+    assert hash(g) == hash(a)
+    assert hash(h) == hash(a)
+
 
 def test_query_subtraction():
     import orb
@@ -426,7 +529,7 @@ def test_query_subtraction():
 
     assert a is not b
     assert a.math() == []
-    assert b.column_name() == 'offset'
+    assert b.object_name() == 'offset'
     assert b.math() == [(orb.Query.Math.Subtract, 10)]
     assert c.math() == [(orb.Query.Math.Subtract, 10)]
     assert hash(b) == hash(c) != hash(a)
@@ -515,7 +618,7 @@ def test_query_does_not_match_operator():
     assert b.value() == '^\w+$'
 
 
-def test_query_endswith_operator():
+def test_query_endswith_operator(mock_db):
     import orb
 
     a = orb.Query('name')
@@ -525,3 +628,487 @@ def test_query_endswith_operator():
     assert hash(a) != hash(b)
     assert b.op() == orb.Query.Op.Endswith
     assert b.value() == 'me'
+
+
+def test_query_expansion(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+    valid_json = {
+        'case_sensitive': False,
+        'column': 'parent',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': 'A',
+        'op': 'IsIn',
+        'type': 'query',
+        'value': []
+    }
+    valid_value_json = {
+        'case_sensitive': False,
+        'column': 'name',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': 'A',
+        'op': 'Is',
+        'type': 'query',
+        'value': 'testing'
+    }
+
+    with orb.Context(db=mock_db()):
+        a = orb.Query('parent.name') == 'testing'
+        b = a.expand(model=A)
+        test_json = b.__json__()
+        test_value_json = b.value().context().where.__json__()
+
+    import pprint
+    pprint.pprint(test_json)
+    pprint.pprint(test_value_json)
+
+    assert hash(a) != hash(b)
+    assert test_json == valid_json
+    assert test_value_json == valid_value_json
+
+
+def test_query_expansion_failure(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+    q = orb.Query('parent.name') == 'testing'
+    with pytest.raises(orb.errors.QueryInvalid):
+        assert q.expand() is None
+
+
+def test_query_expansion_with_shortcut(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent_name = orb.StringColumn(shortcut='parent.name')
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+    valid_json = {
+        'case_sensitive': False,
+        'column': 'parent',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': 'A',
+        'op': 'IsIn',
+        'type': 'query',
+        'value': []
+    }
+    valid_value_json = {
+        'case_sensitive': False,
+        'column': 'name',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': 'A',
+        'op': 'Is',
+        'type': 'query',
+        'value': 'testing'
+    }
+
+    with orb.Context(db=mock_db()):
+        a = orb.Query('parent_name') == 'testing'
+        b = a.expand(model=A)
+        test_json = b.__json__()
+        test_value_json = b.value().context().where.__json__()
+
+    import pprint
+    pprint.pprint(test_json)
+    pprint.pprint(test_value_json)
+
+    assert hash(a) != hash(b)
+    assert test_json == valid_json
+    assert test_value_json == valid_value_json
+
+
+def test_query_expansion_with_simple_column(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent_name = orb.StringColumn(shortcut='parent.name')
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+    valid_json = {
+        'case_sensitive': False,
+        'column': 'parent',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': '',
+        'op': 'Is',
+        'type': 'query',
+        'value': None
+    }
+
+    with orb.Context(db=mock_db()):
+        a = orb.Query('parent') == None
+        b = a.expand(model=A)
+        test_json = b.__json__()
+
+    import pprint
+    pprint.pprint(test_json)
+
+    assert hash(a) == hash(b)
+    assert test_json == valid_json
+
+
+def test_query_expansion_with_collector(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent_name = orb.StringColumn(shortcut='parent.name')
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+    valid_json = {
+        'case_sensitive': False,
+        'column': 'id',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': 'A',
+        'op': 'IsIn',
+        'type': 'query',
+        'value': []
+    }
+
+    with orb.Context(db=mock_db()):
+        a = orb.Query('children.name') == 'testing'
+        b = a.expand(model=A)
+        test_json = b.__json__()
+
+    import pprint
+    pprint.pprint(test_json)
+
+    assert hash(a) != hash(b)
+    assert test_json == valid_json
+
+
+def test_query_expansion_from_invalid_column(mock_db):
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent_name = orb.StringColumn(shortcut='parent.name')
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+    with orb.Context(db=mock_db()):
+        a = orb.Query('name.name') == 'testing'
+        with pytest.raises(orb.errors.QueryInvalid):
+            assert a.expand(model=A) is None
+
+
+def test_query_expansion_with_custom_filter(mock_db):
+    import orb
+
+    checks = {}
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent_name = orb.StringColumn(shortcut='parent.name')
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+        @parent.filter()
+        def filter_parent(self, q, **context):
+            if not 'filtered' in checks:
+                checks['filtered'] = True
+                return orb.Query('name') == 'testing'
+            else:
+                return orb.Query()
+
+    valid_json = {
+        'case_sensitive': False,
+        'column': 'name',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': '',
+        'op': 'Is',
+        'type': 'query',
+        'value': 'testing'
+    }
+
+    with orb.Context(db=mock_db()):
+        a = orb.Query('parent.name') == 'testing'
+        b = a.expand(model=A)
+        c = a.expand(model=A)
+        test_json = b.__json__()
+
+    import pprint
+    pprint.pprint(test_json)
+
+    assert hash(a) != hash(b) != hash(c)
+    assert test_json == valid_json
+    assert c.is_null()
+    assert checks['filtered'] is True
+
+
+def test_query_inversion():
+    import orb
+
+    a = orb.Query('name') == 'testing'
+    b = a.inverted()
+
+    assert hash(a) != hash(b)
+    assert a.is_inverted() is False
+    assert b.is_inverted() is True
+
+
+def test_query_in_operator():
+    import orb
+
+    coll = orb.Collection()
+
+    a = orb.Query('name').in_(['a', 'b'])
+    b = orb.Query('name').in_(coll)
+    c = orb.Query('name').in_('a')
+
+    d = orb.Query('name').not_in(['a', 'b'])
+    e = orb.Query('name').not_in(coll)
+    f = orb.Query('name').not_in('a')
+
+    assert a.value() == ('a', 'b')
+    assert b.value() is coll
+    assert c.value() == ('a',)
+
+    assert d.value() == ('a', 'b')
+    assert e.value() is coll
+    assert f.value() == ('a',)
+
+
+def test_query_lower_function():
+    import orb
+
+    a = orb.Query('name').lower()
+    assert a.functions() == [orb.Query.Function.Lower]
+
+
+def test_query_matches():
+    import orb
+
+    a = orb.Query('name').matches('^test$')
+    assert a.op() == orb.Query.Op.Matches
+    assert a.value() == '^test$'
+
+
+def test_query_schema_objects():
+    import orb
+
+    class A(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+        parent_name = orb.StringColumn(shortcut='parent.name')
+        parent = orb.ReferenceColumn('A')
+        children = orb.ReverseLookup('A.parent')
+
+    name = A.schema().column('name')
+    parent_name = A.schema().column('parent_name')
+
+    a = orb.Query(name) == 'testing'
+    b = orb.Query('name') == 'testing'
+    c = orb.Query(name).in_([1, 2, 3])
+    d = orb.Query(name) == orb.Query(parent_name)
+
+    assert list(a.schema_objects()) == [name]
+    assert list(b.schema_objects()) == []
+    assert list(c.schema_objects()) == [name]
+    assert list(d.schema_objects()) == [name, parent_name]
+
+
+def test_query_startswith():
+    import orb
+
+    q = orb.Query('name').startswith('me')
+    assert q.op() == orb.Query.Op.Startswith
+    assert q.value() == 'me'
+
+
+def test_query_upper_function():
+    import orb
+
+    q = orb.Query('name').upper()
+    assert q.functions() == [orb.Query.Function.Upper]
+
+
+def test_query_negated_ops():
+    import orb
+
+    Op = orb.Query.Op
+
+    assert orb.Query.get_negated_op(Op.Is) == Op.IsNot
+    assert orb.Query.get_negated_op(Op.IsNot) == Op.Is
+    assert orb.Query.get_negated_op(Op.LessThan) == Op.GreaterThanOrEqual
+    assert orb.Query.get_negated_op(Op.LessThanOrEqual) == Op.GreaterThan
+    assert orb.Query.get_negated_op(Op.Before) == Op.After
+    assert orb.Query.get_negated_op(Op.GreaterThan) == Op.LessThanOrEqual
+    assert orb.Query.get_negated_op(Op.GreaterThanOrEqual) == Op.LessThan
+    assert orb.Query.get_negated_op(Op.After) == Op.Before
+    assert orb.Query.get_negated_op(Op.Contains) == Op.DoesNotContain
+    assert orb.Query.get_negated_op(Op.DoesNotContain) == Op.Contains
+    assert orb.Query.get_negated_op(Op.Startswith) == Op.DoesNotStartwith
+    assert orb.Query.get_negated_op(Op.Endswith) == Op.DoesNotEndwith
+    assert orb.Query.get_negated_op(Op.Matches) == Op.DoesNotMatch
+    assert orb.Query.get_negated_op(Op.DoesNotMatch) == Op.Matches
+    assert orb.Query.get_negated_op(Op.IsIn) == Op.IsNotIn
+    assert orb.Query.get_negated_op(Op.IsNotIn) == Op.IsIn
+    assert orb.Query.get_negated_op(Op.DoesNotStartwith) == Op.Startswith
+    assert orb.Query.get_negated_op(Op.DoesNotEndwith) == Op.Endswith
+
+
+def test_query_building():
+    import orb
+
+    q = orb.Query.build({'name': 'testing'})
+    valid_json = {
+        'case_sensitive': False,
+        'column': 'name',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': '',
+        'op': 'Is',
+        'type': 'query',
+        'value': 'testing'
+    }
+    test_json = q.__json__()
+
+    import pprint
+    pprint.pprint(test_json)
+
+    assert test_json == valid_json
+
+
+def test_query_load_from_json():
+    import orb
+
+    test_json = {
+        'case_sensitive': False,
+        'column': 'name',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': '',
+        'op': 'Is',
+        'type': 'query',
+        'value': 'testing'
+    }
+
+    query = orb.Query.load(test_json)
+
+    assert query.object_name() == 'name'
+    assert query.op() == orb.Query.Op.Is
+    assert query.value() == 'testing'
+
+
+def test_query_load_from_json_as_compound():
+    import orb
+
+    test_json = {
+        'type': 'compound',
+        'op': 'Or',
+        'queries': [{
+            'case_sensitive': False,
+            'column': 'name',
+            'functions': [],
+            'inverted': False,
+            'math': [],
+            'op': 'Is',
+            'type': 'query',
+            'value': 'testing'
+        }, {
+            'case_sensitive': False,
+            'column': 'name',
+            'functions': [],
+            'inverted': False,
+            'math': [],
+            'model': '',
+            'op': 'Is',
+            'type': 'query',
+            'value': 'test'
+        }]
+    }
+
+    query = orb.Query.load(test_json)
+
+    assert isinstance(query, orb.QueryCompound)
+    assert query.op() == orb.QueryCompound.Op.Or
+    assert query.at(0).object_name() == 'name'
+    assert query.at(0).value() == 'testing'
+    assert query.at(1).object_name() == 'name'
+    assert query.at(1).value() == 'test'
+
+
+def test_query_load_from_json_raises_model_not_found():
+    import orb
+
+    test_json = {
+        'case_sensitive': False,
+        'column': 'name',
+        'functions': [],
+        'inverted': False,
+        'math': [],
+        'model': 'A',
+        'op': 'Is',
+        'type': 'query',
+        'value': 'testing'
+    }
+
+    system = orb.System()
+
+    class A(orb.Table):
+        __system__ = system
+
+        id = orb.IdColumn()
+        name = orb.StringColumn()
+
+    with pytest.raises(orb.errors.ModelNotFound):
+        assert orb.Query.load(test_json) is None
+
+    with orb.Context(system=system):
+        q = orb.Query.load(test_json)
+
+    assert q.model() == A
+    assert q.schema_object() == A.schema().column('name')

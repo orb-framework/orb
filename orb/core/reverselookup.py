@@ -121,7 +121,7 @@ class ReverseLookup(Collector):
         model = self.model()
         sub_q = query.copy(
             model=self.model(),
-            column='.'.join(tree[1:])
+            schema_object='.'.join(tree[1:])
         )
         return model.select(columns=[self.column()], where=sub_q)
 
@@ -253,7 +253,7 @@ class ReverseLookup(Collector):
         # delete old links if necessary
         if source_record.is_record() and collection_ids:
             q = orb.Query(target_column) == source_record
-            q &= orb.Query(target_model).notIn(collection_ids)
+            q &= orb.Query(target_model).not_in(collection_ids)
 
             # determine the records to remove from this collection
             remove_records = target_model.select(where=q, context=orb_context)
