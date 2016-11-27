@@ -69,7 +69,7 @@ def TestAllColumns(orb):
         enum = orb.EnumColumn()
 
         # reference
-        reference = orb.ReferenceColumn(reference='TestReference')
+        reference = orb.ReferenceColumn('TestReference')
 
         # string
         string = orb.StringColumn()
@@ -119,7 +119,7 @@ def testing_schema(orb):
 
         id = orb.IdColumn()
         name = orb.StringColumn(flags={'Unique'})
-        owner = orb.ReferenceColumn(reference='User')
+        owner = orb.ReferenceColumn('User')
 
         users = orb.Pipe('GroupUser.group.user')
         groupUsers = orb.ReverseLookup('GroupUser.group')
@@ -163,8 +163,8 @@ def testing_schema(orb):
 
     class GroupUser(orb.Table):
         id = orb.IdColumn()
-        user = orb.ReferenceColumn(reference='User')
-        group = orb.ReferenceColumn(reference='Group')
+        user = orb.ReferenceColumn('User')
+        group = orb.ReferenceColumn('Group')
 
         byUserAndGroup = orb.Index(('user', 'group'), flags={'Unique'})
         byUser = orb.Index(('user',))
@@ -179,17 +179,17 @@ def testing_schema(orb):
         name = orb.StringColumn()
 
     class Employee(User):
-        role = orb.ReferenceColumn(reference='Role', flags={'AutoExpand'})
+        role = orb.ReferenceColumn('Role', flags={'AutoExpand'})
 
     class Comment(orb.Table):
         id = orb.IdColumn(type='hash')
         text = orb.TextColumn()
-        attachments = orb.ReverseLookup(from_column='Attachment.comment', flags={'AutoExpand'})
+        attachments = orb.ReverseLookup('Attachment.comment', flags={'AutoExpand'})
 
     class Attachment(orb.Table):
         id = orb.IdColumn(type='hash')
         filename = orb.StringColumn()
-        comment = orb.ReferenceColumn(reference='Comment', flags={'Required'})
+        comment = orb.ReferenceColumn('Comment', flags={'Required'})
 
     return locals()
 

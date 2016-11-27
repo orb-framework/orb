@@ -117,13 +117,13 @@ class ReferenceColumn(Column):
     )
 
     def __init__(self,
-                 reference='',
+                 model='',
                  removeAction=RemoveAction.Block,
                  **kwds):
         super(ReferenceColumn, self).__init__(**kwds)
 
         # store reference options
-        self.__reference = reference
+        self.__reference = model
         self.__removeAction = removeAction
 
     def __json__(self):

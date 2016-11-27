@@ -45,7 +45,7 @@ class WHERE(MySQLStatement):
             value = query.value()
             op = query.op()
             case_sensitive = query.case_sensitive()
-            invert = query.isInverted()
+            invert = query.is_inverted()
 
             try:
                 sql_op = self.opSql(op, case_sensitive)
