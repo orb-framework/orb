@@ -1074,7 +1074,7 @@ def test_model_iteration():
         parent = orb.ReferenceColumn('A')
         name = orb.StringColumn()
 
-        @orb.virtual(orb.ReferenceColumn, reference='A', flags={'RequiresExpand'})
+        @orb.virtual(orb.ReferenceColumn, model='A', flags={'RequiresExpand'})
         def myself(self, **context):
             return self
 

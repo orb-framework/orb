@@ -120,6 +120,10 @@ class ReferenceColumn(Column):
                  model='',
                  removeAction=RemoveAction.Block,
                  **kwds):
+
+        # support legacy keyword
+        model = kwds.pop('reference', model)
+
         super(ReferenceColumn, self).__init__(**kwds)
 
         # store reference options
