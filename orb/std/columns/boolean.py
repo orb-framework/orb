@@ -1,8 +1,8 @@
 import projex.text
 import random
 
-from ..column_engine import ColumnEngine
-from ..column import Column
+from orb.core.column_engine import ColumnEngine
+from orb.core.column import Column
 
 
 class BooleanColumn(Column):

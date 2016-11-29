@@ -15,7 +15,7 @@ from ..utils.locks import ReadLocker, ReadWriteLock, WriteLocker
 
 from .collection import Collection
 from .metamodel import MetaModel
-from .search import BasicSearchEngine
+from .search import SearchEngine
 
 with demandimport.enabled():
     import orb
@@ -38,7 +38,7 @@ class Model(object):
     __base_query__ = None
     __collection_type__ = Collection
     __model__ = False
-    __search_engine__ = BasicSearchEngine()
+    __search_engine__ = None
     __schema__ = None
 
     # signals
@@ -313,9 +313,7 @@ class Model(object):
 
         # clear out the old values
         if count:
-            with WriteLocker(self.__lock):
-                self.__base_attributes.clear()
-                self.__loaded.clear()
+            self.mark_unloaded()
 
         return count > 0
 
@@ -734,6 +732,28 @@ class Model(object):
         with WriteLocker(self.__lock):
             self.__base_attributes.update({k: v for k, v in self.__attributes.items() if k in column_names})
             self.__loaded.update(column_names)
+
+    def mark_unloaded(self, columns=None):
+        """
+        Marks the columns as unloaded by clearing the stored base attributes.
+        If no columns are provided, then all loaded data will be cleared.
+
+        :param columns: [<str>, ..] or [<orb.Column>, ..] or None
+        """
+        if not columns:
+            with WriteLocker(self.__lock):
+                self.__base_attributes.clear()
+                self.__loaded.clear()
+        else:
+            schema = self.schema()
+            column_names = [schema.column(c).name() for c in columns]
+            with WriteLocker(self.__lock):
+                for column_name in column_names:
+                    self.__base_attributes.pop(column_name, None)
+                    try:
+                        self.__loaded.remove(column_name)
+                    except KeyError:  # pragma: no cover
+                        pass
 
     def on_change(self, event):
         """
@@ -1296,6 +1316,9 @@ class Model(object):
 
         :return: <orb.SearchEngine>
         """
+        if cls.__search_engine__ is None:
+            cls.__search_engine__ = SearchEngine.factory('simple')
+
         return cls.__search_engine__
 
     @classmethod

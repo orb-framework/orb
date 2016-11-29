@@ -648,6 +648,8 @@ class Collection(object):
             if delete_records:
                 conn = orb_context.db.connection()
                 count = conn.delete(delete_records, orb_context)[1]
+                for record in delete_records:
+                    record.mark_unloaded()
 
         return count
 

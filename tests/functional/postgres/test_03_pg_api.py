@@ -238,17 +238,17 @@ def test_pg_api_collection_index(orb, pg_db, User):
 def test_pg_api_collection_loaded(orb, pg_db, User):
     users = orb.Collection(model=User)
     assert not users.isLoaded()
-    assert not users.isNull()
+    assert not users.is_null()
 
     null_users = orb.Collection()
-    assert null_users.isNull()
+    assert null_users.is_null()
 
 def test_pg_api_collection_empty(orb, pg_db, User):
     users = orb.Collection()
-    assert users.isEmpty()
+    assert users.is_empty()
 
     users = User.select(where=orb.Query('username') == 'billy')
-    assert users.isEmpty()
+    assert users.is_empty()
 
 def test_pg_api_collection_itertool(orb, pg_db, User):
     for user in User.select(returning='data'):
@@ -435,4 +435,4 @@ def test_read_write_servers(orb, pg_db, Comment):
 
 def test_null_query(orb, pg_db, Comment):
     assert len(Comment.select(where=orb.Query('id').in_([]))) == 0
-    assert len(Comment.select(where=orb.Query('id').notIn([]))) == len(Comment.select())
+    assert len(Comment.select(where=orb.Query('id').not_in([]))) == len(Comment.select())

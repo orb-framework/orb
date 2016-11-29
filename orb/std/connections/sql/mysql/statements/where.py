@@ -44,8 +44,8 @@ class WHERE(MySQLStatement):
             # get the additional information
             value = query.value()
             op = query.op()
-            case_sensitive = query.caseSensitive()
-            invert = query.isInverted()
+            case_sensitive = query.case_sensitive()
+            invert = query.is_inverted()
 
             try:
                 sql_op = self.opSql(op, case_sensitive)
@@ -145,7 +145,7 @@ class WHERE(MySQLStatement):
         return sql_field
 
     @staticmethod
-    def opSql(op, caseSensitive=False):
+    def opSql(op, case_sensitive=False):
         general_mapping = {
             orb.Query.Op.Is: u'=',
             orb.Query.Op.IsNot: u'!=',
@@ -173,7 +173,7 @@ class WHERE(MySQLStatement):
             orb.Query.Op.DoesNotContain: u'NOT LIKE'
         }
 
-        return general_mapping.get(op) or (sensitive_mapping[op] if caseSensitive else non_sensitive_mapping[op])
+        return general_mapping.get(op) or (sensitive_mapping[op] if case_sensitive else non_sensitive_mapping[op])
 
     @staticmethod
     def funcSql(func):

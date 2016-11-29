@@ -1163,7 +1163,7 @@ def test_search():
     search_records = records.search('testing')
 
     q = search_records.context().where.__json__()
-    validate_q = orb.Query(TestModel, 'name').asString().matches('(^|.*\s)testing', caseSensitive=False)
+    validate_q = orb.Query((TestModel, 'name')).as_string().matches('(^|.*\s)testing', case_sensitive=False)
 
     assert q == validate_q.__json__()
 
@@ -1175,8 +1175,8 @@ def test_deprecated_methods(mock_db, mock_user_collection):
     collection = mock_user_collection(db=db)
     collection.clear()
 
-    assert collection.isEmpty()
+    assert collection.is_empty()
     assert not collection.isLoaded()
-    assert not collection.isNull()
+    assert not collection.is_null()
     assert collection.pageCount() == 1
 

@@ -1,4 +1,4 @@
-from ..column import Column
+from orb.core.column import Column
 
 
 class JoinColumn(Column):

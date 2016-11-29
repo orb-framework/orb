@@ -158,7 +158,7 @@ class SELECT_EXPAND_COLUMN(SELECT_EXPAND):
 class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
     def __call__(self, reversed, tree, alias='', context=None):
         data = {}
-        target = reversed.reference_model()
+        target = reversed.model()
         source = reversed.schema().model()
 
         target_name = projex.text.underscore(reversed.name())
@@ -221,7 +221,7 @@ class SELECT_EXPAND_REVERSE(SELECT_EXPAND):
             'target_expand': target_expand,
             'target_records_alias': target_records_alias,
             'source_table': alias or source.schema().dbname(),
-            'source_field': reversed.targetColumn().field(),
+            'source_field': reversed.column().field(),
             'source_id_field': source.schema().id_column().field(),
             'limit_if_unique': 'LIMIT 1' if reversed.test_flag(reversed.Flags.Unique) else ''
         }

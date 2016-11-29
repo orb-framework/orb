@@ -52,7 +52,7 @@ def test_model_constructor_with_i18n_defaults():
     assert record.get('name', locale='en_US') is None
 
 
-def test_model_constructor_with_loader():
+def test_model_constructor_with_load_and_unload():
     import orb
 
     class BasicModel(orb.Table):
@@ -62,12 +62,30 @@ def test_model_constructor_with_loader():
         name = orb.StringColumn()
 
     record = BasicModel({'id': 1, 'name': 'Testing'})
-    record.mark_loaded()
 
+    # mark the record as loaded (synced from backend)
+    record.mark_loaded()
     assert record.is_loaded()
     assert record.is_record()
     assert record.get('id') == 1
-    assert record.get('name') == "Testing"
+    assert record.get('name') == 'Testing'
+
+    # mark the record as unloaded (not sycned from backend)
+    record.mark_unloaded()
+    assert not record.is_loaded()
+    assert not record.is_record()
+    assert record.get('id') == 1
+    assert record.get('name') == 'Testing'
+
+    # mark particular columns as loaded
+    record.mark_loaded(columns=['name'])
+    assert not record.is_record()
+    assert not record.is_loaded(columns=['id'])
+    assert record.is_loaded(columns=['name'])
+
+    # mark a particular column as not loaded
+    record.mark_unloaded(columns=['name'])
+    assert not record.is_loaded(columns=['name'])
 
 
 def test_model_constructor_with_multiple_column_id():
@@ -1707,7 +1725,7 @@ def test_model_select_with_base_query():
 
     result = {
         'value': True,
-        'caseSensitive': False,
+        'case_sensitive': False,
         'functions': [],
         'inverted': False,
         'model': '',
@@ -1988,7 +2006,7 @@ def test_model_search():
     records = A.search('testing')
     assert isinstance(records, orb.Collection)
     assert records.context().where.__json__() == {
-        'caseSensitive': False,
+        'case_sensitive': False,
         'column': 'name',
         'functions': ['AsString'],
         'inverted': False,
@@ -2015,7 +2033,7 @@ def test_model_search_with_querying():
     validation_query = {
         'op': 'And',
         'queries': [{
-            'caseSensitive': False,
+            'case_sensitive': False,
             'column': 'id',
             'functions': [],
             'inverted': False,
@@ -2025,7 +2043,7 @@ def test_model_search_with_querying():
             'type': 'query',
             'value': 1
         }, {
-            'caseSensitive': False,
+            'case_sensitive': False,
             'column': 'name',
             'functions': ['AsString'],
             'inverted': False,
@@ -2050,7 +2068,7 @@ def test_model_search_engine():
 
         id = orb.IdColumn()
 
-    assert isinstance(A.get_search_engine(), orb.AbstractSearchEngine)
+    assert isinstance(A.get_search_engine(), orb.SearchEngine)
 
 
 def test_view_not_editable():

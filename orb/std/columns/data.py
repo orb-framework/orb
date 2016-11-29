@@ -8,8 +8,8 @@ import json
 
 from projex import rest
 
-from ..column import Column
-from ..column_engine import ColumnEngine
+from orb.core.column import Column
+from orb.core.column_engine import ColumnEngine
 
 with demandimport.enabled():
     import orb
@@ -120,7 +120,7 @@ class QueryColumnEngine(JSONDataColumnEngine):
         """
         jdata = super(QueryColumnEngine, self).get_api_value(column, plugin_name, db_value, context=context)
         if jdata is not None:
-            return orb.Query.fromJSON(jdata)
+            return orb.Query.load(jdata)
         else:
             return None
 

@@ -158,7 +158,7 @@ def test_pipe_collection(mock_pipe_schema,):
     query_json = {
         'op': 'And',
         'queries': [{
-            'caseSensitive': False,
+            'case_sensitive': False,
             'column': 'id',
             'functions': [],
             'inverted': False,
@@ -167,8 +167,8 @@ def test_pipe_collection(mock_pipe_schema,):
             'op': 'Is',
             'type': 'query',
             'value': {
-                'caseSensitive': False,
-                'column': targets.to_column(),
+                'case_sensitive': False,
+                'column': 'target',
                 'functions': [],
                 'inverted': False,
                 'math': [],
@@ -178,8 +178,8 @@ def test_pipe_collection(mock_pipe_schema,):
                 'value': None
             }
         }, {
-            'caseSensitive': False,
-            'column': targets.from_column(),
+            'case_sensitive': False,
+            'column': 'source',
             'functions': [],
             'inverted': False,
             'math': [],
@@ -214,8 +214,8 @@ def test_pipe_collect_expand(mock_pipe_schema, mock_db):
         jdata = expanded.context().where.__json__()
 
     results = {
-        'caseSensitive': False,
-        'column': targets.to_column(),
+        'case_sensitive': False,
+        'column': 'target',
         'functions': [],
         'inverted': False,
         'math': [],

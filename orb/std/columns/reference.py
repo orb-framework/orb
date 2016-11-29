@@ -2,9 +2,9 @@ import demandimport
 import logging
 import projex.text
 
-from ..column import Column
-from ..column_engine import ColumnEngine
-from ...utils.enum import enum
+from orb.core.column import Column
+from orb.core.column_engine import ColumnEngine
+from orb.utils.enum import enum
 
 with demandimport.enabled():
     import orb
@@ -116,21 +116,21 @@ class ReferenceColumn(Column):
         'Block'         # 4
     )
 
-    def __json__(self):
-        output = super(ReferenceColumn, self).__json__()
-        output['reference'] = self.__reference
-        output['removeAction'] = self.RemoveAction(self.__removeAction)
-        return output
-
     def __init__(self,
-                 reference='',
+                 model='',
                  removeAction=RemoveAction.Block,
                  **kwds):
         super(ReferenceColumn, self).__init__(**kwds)
 
         # store reference options
-        self.__reference = reference
+        self.__reference = model
         self.__removeAction = removeAction
+
+    def __json__(self):
+        output = super(ReferenceColumn, self).__json__()
+        output['reference'] = self.__reference
+        output['removeAction'] = self.RemoveAction(self.__removeAction)
+        return output
 
     def _restore(self, value, context=None):
         """

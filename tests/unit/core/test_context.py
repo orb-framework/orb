@@ -318,16 +318,16 @@ def test_context_is_null():
     from orb.core.context import Context
 
     context = Context()
-    assert context.isNull()
+    assert context.is_null()
 
     context = Context(scope={})
-    assert context.isNull()
+    assert context.is_null()
 
     context = Context(columns='username')
-    assert not context.isNull()
+    assert not context.is_null()
 
     context = Context(scope={'user': 'me'})
-    assert not context.isNull()
+    assert not context.is_null()
 
 
 def test_context_returns_items():
@@ -519,7 +519,7 @@ def test_context_update_with_null_value():
 
     a = Context()
     a.update(None)
-    assert a.isNull()
+    assert a.is_null()
 
 
 def test_context_difference_checker():

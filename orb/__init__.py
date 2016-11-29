@@ -31,24 +31,28 @@ with demandimport.enabled():
     from .decorators import *
     from . import errors
 
+    # include the core libraries
     from .core import events
     from .core.column import Column
     from .core.collection import Collection
     from .core.connection import Connection
     from .core.context import Context
     from .core.database import Database
+    from .core.events import *
     from .core.index import Index
     from .core.model import (Model, ModelMixin, Table, View)
-    from .core.query import (Query, QueryCompound)
+    from .core.query import Query
+    from .core.query_compound import QueryCompound
     from .core.collector import Collector
     from .core.pipe import Pipe
     from .core.reverselookup import ReverseLookup
     from .core.schema import Schema
-    from .core.search import (AbstractSearchEngine, BasicSearchEngine)
+    from .core.search import SearchEngine
 
-    from .core.events import *
-    from .core.column_types import *
-    from .core.connection_types import *
+    # include the standard plugins
+    from .std.columns import *
+    from .std.connections import *
+    from .std.search_engines import *
 
 
 # define the global system
