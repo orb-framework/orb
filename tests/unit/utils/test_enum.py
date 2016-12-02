@@ -81,3 +81,7 @@ def test_enum_flag_checker(mock_binary_enum):
     assert mock_binary_enum.test_flag({'Required', 'Expanded'}, 1) is True
     assert mock_binary_enum.test_flag(3, 'Required') is True
     assert mock_binary_enum.test_flag(3, {'Required', 'Expanded'}) is True
+
+
+def test_enum_iter_values(mock_binary_enum):
+    assert list(mock_binary_enum.iter_values(mock_binary_enum.all())) == [1, 2, 4]

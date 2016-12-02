@@ -1,25 +1,10 @@
 import demandimport
 import projex.text
-import random
 
 from orb.core.column import Column
-from orb.core.column_engine import ColumnEngine
 
 with demandimport.enabled():
     import orb
-
-
-class DecimalColumnEngine(ColumnEngine):
-    def get_column_type(self, column, plugin_name):
-        """
-        Re-implements the get_column_type method from `orb.ColumnEngine`.
-
-        This method will return the database type based on the given decimal column.
-
-        :param column: <orb.DecimalColumn>
-        """
-        db_type = super(DecimalColumnEngine, self).get_column_type(column, plugin_name)
-        return db_type.format(precision=column.precision(), scale=column.scale())
 
 
 class AbstractNumericColumn(Column):
@@ -41,16 +26,6 @@ class AbstractNumericColumn(Column):
 
     def minimum(self):
         return self.__minimum
-
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        minimum = self.minimum() or 0
-        maximum = self.maximum() or 100
-        return random.randint(minimum, maximum)
 
     def setMaximum(self, maximum):
         self.__maximum = maximum
@@ -81,12 +56,6 @@ class AbstractNumericColumn(Column):
 
 
 class DecimalColumn(AbstractNumericColumn):
-    __default_engine__ = DecimalColumnEngine(type_map={
-        'Postgres': u'DECIMAL({precision}, {scale})',
-        'SQLite': u'REAL',
-        'MySQL': u'DECIMAL({precision}, {scale})'
-    })
-
     def __init__(self, precision=65, scale=30, **kwds):
         super(DecimalColumn, self).__init__(**kwds)
 
@@ -130,20 +99,10 @@ class DecimalColumn(AbstractNumericColumn):
 
 
 class FloatColumn(AbstractNumericColumn):
-    __default_engine__ = ColumnEngine(type_map={
-        'Postgres': 'DOUBLE PRECISION',
-        'SQLite': 'REAL',
-        'MySQL': 'DOUBLE'
-    })
+    pass
 
 
 class IntegerColumn(AbstractNumericColumn):
-    __default_engine__ = ColumnEngine(type_map={
-        'Postgres': 'INTEGER',
-        'SQLite': 'INTEGER',
-        'MySQL': 'INTEGER'
-    })
-
     def __init__(self, minimum=None, maximum=None, **kwds):
         if minimum is None:
             minimum = -(2**31)
@@ -156,12 +115,6 @@ class IntegerColumn(AbstractNumericColumn):
 
 
 class LongColumn(AbstractNumericColumn):
-    __default_engine__ = ColumnEngine(type_map={
-        'Postgres': 'BIGINT',
-        'SQLite': 'INTEGER',
-        'MySQL': 'BIGINT'
-    })
-
     def __init__(self, minimum=None, maximum=None, **kwds):
         if minimum is None:
             minimum = -(2**63)
@@ -203,4 +156,14 @@ class EnumColumn(LongColumn):
         :param cls: <orb.utils.enum.enum> or None
         """
         self.__enum = cls
+
+
+class IdColumn(LongColumn):
+    def __init__(self, **kwds):
+        super(IdColumn, self).__init__(**kwds)
+
+        # setup flags
+        self.set_flag(self.Flags.Required)
+        self.set_flag(self.Flags.Unique)
+        self.set_flag(self.Flags.AutoIncrement)
 

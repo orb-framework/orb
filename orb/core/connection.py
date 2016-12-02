@@ -90,18 +90,6 @@ class Connection(object):
         return False  # pragma: no cover
 
     @abstractmethod
-    def create_namespace(self, namespace, context):
-        """
-        Creates a new namespace into this connection.
-
-        :param namespace: <str>
-        :param context: <orb.Context>
-
-        :return: <bool> modified
-        """
-        return False  # pragma: no cover
-
-    @abstractmethod
     def close(self):
         """
         Closes the connection to the database for this connection.
@@ -133,6 +121,18 @@ class Connection(object):
         return 0  # pragma: no cover
 
     @abstractmethod
+    def create_namespace(self, namespace, context):
+        """
+        Creates a new namespace into this connection.
+
+        :param namespace: <str>
+        :param context: <orb.Context>
+
+        :return: <bool> modified
+        """
+        return False  # pragma: no cover
+
+    @abstractmethod
     def create_model(self, model, context, owner='', include_references=True):
         """
         Creates a new table in the database based cff the inputted
@@ -146,6 +146,15 @@ class Connection(object):
         :return: <bool> success
         """
         return False  # pragma: no cover
+
+    @abstractmethod
+    def current_schema(self, context):
+        """
+        Returns the schema information from the database.
+
+        :return: <dict>
+        """
+        return {}  # pragma: no cover
 
     def database(self):
         """
@@ -218,6 +227,22 @@ class Connection(object):
         """
         return False  # pragma: no cover
 
+    def on_post_sync(self, event):
+        """
+        Emits the synced signal to anyone listening.
+
+        :param event: <orb.events.SyncEvent>
+        """
+        self.synced.send(self, event=event)
+
+    def on_pre_sync(self, event):
+        """
+        Emits the about_to_sync signal to anyone listening.
+
+        :param event: <orb.events.SyncEvent>
+        """
+        self.about_to_sync.send(self, event=event)
+
     @abstractmethod
     def open(self, force=False):
         """
@@ -267,15 +292,6 @@ class Connection(object):
         :param db: <orb.Database>
         """
         self.__database = db
-
-    @abstractmethod
-    def schema_info(self, context):
-        """
-        Returns the schema information from the database.
-
-        :return: <dict>
-        """
-        return {}  # pragma: no cover
 
     @abstractmethod
     def update(self, records, context):

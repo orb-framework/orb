@@ -1,7 +1,3 @@
-import projex.text
-import random
-
-from orb.core.column_engine import ColumnEngine
 from orb.core.column import Column
 
 
@@ -10,27 +6,24 @@ class BooleanColumn(Column):
     Defines a boolean field.  This column will return True or False, or None if no value
     has been set.  The default value for this column is None.
     """
-    __default_engine__ = ColumnEngine(type_map={
-        'Postgres': 'BOOLEAN',
-        'SQLite': 'INTEGER',
-        'MySQL': 'BOOLEAN'
-    })
-
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return bool(random.randint(0, 1))
-
     def value_from_string(self, value, extra=None, db=None):
         """
-        Converts the inputted string text to a value that matches the type from
-        this column type.
+        Converts the given string to a boolean.  This will look for
+        a bool as a string (True, true, TRUE, etc.) and fall back on
+        a boolean for the emptyness of a string ('not empty' vs. '').
 
-        :param      value | <str>
-                    extra | <variant>
+        :param value: <str> or <unicode>
+        :param extra: <variant>
+        :param db: <orb.Database> or None
+
+        :return: <bool>
         """
-        return projex.text.nativestring(value).lower() == 'true'
+        if not isinstance(value, (str, unicode)):
+            return bool(value)
+        else:
+            normalized = value.lower()
+            if normalized in ('true', 'false'):
+                return normalized == 'true'
+            else:
+                return bool(normalized)
 

@@ -6,7 +6,6 @@ import inflection
 
 from ..utils.enum import enum
 from ..utils.text import safe_eval, nativestring
-from .column_engine import ColumnEngine
 
 with demandimport.enabled():
     import orb
@@ -16,13 +15,11 @@ log = logging.getLogger(__name__)
 
 class Column(object):
     """ Used to define database schema columns when defining Table classes. """
-    __default_engine__ = ColumnEngine()
-    __engines__ = {}
-
     Flags = enum(
         'ReadOnly',
         'Polymorphic',
         'AutoAssign',
+        'AutoIncrement',
         'Required',
         'Unique',
         'Encrypted',
@@ -167,6 +164,49 @@ class Column(object):
         """
         return type(self)(**dict(self))
 
+    def database_restore(self, db_value, context=None):
+        """
+        Restores data from a backend connection and converts it back
+        to a Python value that is expected by the system.
+
+        :param db_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant> python value
+        """
+        # restore translatable column
+        if (self.test_flag(orb.Column.Flags.I18n) and
+                isinstance(db_value, (str, unicode))):
+            context = context or orb.Context()
+            if db_value.startswith('{') and db_value.endswith('}'):
+                result = safe_eval(db_value)
+                if not isinstance(result, dict):
+                    return {context.locale: db_value}
+                else:
+                    return result
+            else:
+                return {context.locale: db_value}
+        else:
+            return db_value
+
+    def database_store(self, py_value, context=None):
+        """
+        Prepares to store this column for the a particular backend database.
+
+        :param py_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        # convert base types to work in the database
+        if isinstance(py_value, (list, tuple, set)):
+            py_value = tuple(self.database_store(x, context=context) for x in py_value)
+        elif isinstance(py_value, orb.Collection):
+            py_value = tuple(py_value.ids())
+        elif isinstance(py_value, orb.Model):
+            py_value = py_value.id()
+        return py_value
+
     def default(self):
         """
         Returns the default value for this column to return
@@ -273,6 +313,15 @@ class Column(object):
         :return: <bool>
         """
         return value is None
+
+    def iter_flags(self):
+        """
+        Iterates over the flag set for this column, yielding
+        each individual flag value.
+
+        :return: <generator>
+        """
+        return orb.Column.Flags.iter_values(self.flags())
 
     def name(self):
         """
@@ -586,7 +635,7 @@ class Column(object):
         :return: <bool>
         """
         # check for the required flag
-        if self.test_flag(self.Flags.Required) and not self.test_flag(self.Flags.AutoAssign):
+        if self.test_flag(self.Flags.Required) and not self.test_flag(self.Flags.AutoAssign | self.Flags.AutoIncrement):
             if self.is_null(value):
                 msg = '{0} is a required column.'.format(self.name())
                 raise orb.errors.ColumnValidationError(self, msg)
@@ -622,15 +671,20 @@ class Column(object):
         return self.__write_permit
 
     @classmethod
-    def get_engine(cls, plugin_name=None):
+    def get_base_types(cls):
         """
-        Returns the engine for this column for the given database type.
+        Returns all the <orb.Column> classes that this column inherits from.
 
-        :param plugin_name: <str> or None
-
-        :return: <orb.ColumnEngine>
+        :return: <generator>
         """
-        return cls.__engines__.get(plugin_name, cls.__default_engine__)
+        curr_level = cls.__bases__
+        while curr_level:
+            next_level = []
+            for base in curr_level:
+                if issubclass(base, orb.Column):
+                    yield base
+                    next_level.extend(base.__bases__)
+            curr_level = next_level
 
     @classmethod
     def get_plugin_name(cls):

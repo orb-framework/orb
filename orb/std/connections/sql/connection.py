@@ -1,0 +1,917 @@
+import demandimport
+import os
+import logging
+import sys
+
+from abc import abstractmethod
+from jinja2 import Environment, DictLoader
+from orb.core.connection import Connection
+
+from .connection_pool import SQLConnectionPool
+
+with demandimport.enabled():
+    import orb
+
+
+log = logging.getLogger(__name__)
+
+
+class SQLConnection(Connection):
+    __templates__ = None
+
+    def __init__(self, database):
+        super(SQLConnection, self).__init__(database)
+
+        # create custom properties
+        self.__use_gevent = orb.system.settings.worker_class == 'gevent'
+        self.__connection_pool = SQLConnectionPool(
+            self,
+            max_size=int(orb.system.settings.max_connections),
+            use_gevent=self.__use_gevent
+        )
+
+    def alter_model(self, model, context, add=None, remove=None, owner=''):
+        """
+        Re-implements orb.Connection.alter_model to update the backend model
+        definition with the new information.
+
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
+        :param add: {'fields': [<orb.Column>, ..], 'indexes': [<orb.Index>, ..]} or None
+        :param remove: {'fields': [<orb.Column>, ..], 'indexes': [<orb.Index>, ..]} or None
+        :param owner: <str>
+        """
+        if issubclass(model, orb.View):
+            raise NotImplementedError('Cannot alter a view')
+        else:
+            cmd, data = self.render_alter_table(model,
+                                                context=context,
+                                                add=add,
+                                                remove=remove,
+                                                owner=owner)
+
+            # execute the commands
+            self.execute(cmd, data=data, write_access=True)
+            return True
+
+    def close(self):
+        """
+        Closes all open connections to the SQL database.
+        """
+        self.__connection_pool.close_connections()
+
+    @abstractmethod
+    def close_native_connection(self, native_connection):
+        """
+        Closes the native connection.
+
+        :param native_connection: <variant>
+        """
+        pass
+
+    @abstractmethod
+    def commit_native_connection(self, native_connection):
+        """
+        Commits the changes to the native connection.
+
+        :param native_connection: <variant>
+        """
+        return True
+
+    def connection_pool(self):
+        """
+        Returns the `SQLConnectionPool` instance associated with this
+        backend.
+
+        :return: <orb.std.connections.sql.sql_connection_pool.SQLConnectionPool>
+        """
+        return self.__connection_pool
+
+    def commit(self):
+        """
+        Commits the changes to the current database connection.
+
+        :return: <bool> success
+        """
+        with self.__connection_pool.current_connection(write_access=True) as conn:
+            if not self.is_native_connection_closed(conn):
+                return self.commit_native_connection(conn)
+            else:
+                return False
+
+    def count(self, model, context):
+        """
+        Returns the count of records that will be loaded for the inputted
+        information.
+
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
+
+        :return: <int>
+        """
+        cmd, data = self.render('select_count.sql.jinja', model=model, context=context)
+        records, _ = self.execute(cmd, data)
+        return sum(records['count'] for record in records)
+
+    def create_model(self, model, context, owner='', include_references=True):
+        """
+        Implements the `orb.Connection.create_model` abstract method.
+
+        Creates a new model in the database based on the given context.
+
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
+
+        :return: <bool> success
+        """
+        if issubclass(model, orb.View):
+            cmd, data = self.render_create_view(model,
+                                                context=context,
+                                                owner=owner,
+                                                include_references=include_references)
+        else:
+            cmd, data = self.render_create_table(model,
+                                                 context=context,
+                                                 owner=owner,
+                                                 include_references=include_references)
+
+        self.execute(cmd, data)
+        return True
+
+    def create_namespace(self, namespace, context):
+        """
+        Creates a new SQL namespace.
+
+        :param namespace: <str>
+        :param context: <orb.Context>
+        """
+        cmd = self.render('create_namespace.sql.jinja', {'namespace': namespace})
+        self.execute(cmd, write_access=True)
+        return True
+
+    def current_schema(self, context):
+        """
+        Implements the `Connection.current_schema` abstract method.  This
+        will return a dictionary that represents the current backend
+        schema information.
+
+        :param context: <orb.Context>
+
+        :return: <dict>
+        """
+        return {}
+
+    def delete(self, records, context):
+        """
+        Deletes records from the database.
+
+        :param records: <orb.Collection>
+        :param context: <orb.Context>
+
+        :return: <int> number of rows removed
+        """
+        if isinstance(records, orb.Collection) and not records.is_loaded():
+            cmd, data = self.render_delete_collection(records, context=context)
+        else:
+            cmd, data = self.render_delete_records(records, context=context)
+
+        return self.execute(cmd, data, write_access=True)
+
+    def execute(self,
+                cmd,
+                data=None,
+                returning=True,
+                mapper=dict,
+                write_access=False,
+                context=None):
+        """
+        Executes the given command(s) on the backend.
+
+        :param cmd: <unicode> or [<unicode>, ..]
+        :param data: <dict> or None
+        :param returning: <bool>
+        :param mapper: <callable>
+        :param write_access: <bool>
+        :param context: <orb.Context> or None
+        """
+        if isinstance(cmd, (str, unicode)):
+            cmds = [cmd.strip()]
+        elif isinstance(cmd, (list, tuple, set)):
+            cmds = [x.strip() for x in cmd if x.strip()]
+        else:
+            raise RuntimeError('Invalid command')
+
+        if not cmds:
+            raise orb.errors.EmptyCommand()
+        else:
+            data = data or {}
+            data.setdefault('locale', (context or orb.Context()).locale)
+            start = datetime.datetime.now()
+
+            with self.current_connection(write_access=write_access) as conn:
+                for cmd in cmds:
+                    try:
+                        results, row_count = self.execute_native_command(conn,
+                                                                         cmd,
+                                                                         data=data,
+                                                                         returning=returning,
+                                                                         mapper=mapper)
+
+                    # always raise interruption errors as these need to be handled
+                    # from a thread properly.  interruptions occur when the
+                    # user cancels out a request
+                    except orb.errors.Interruption:
+                        raise
+
+                    # log any additional errors
+                    except Exception:
+                        delta = datetime.datetime.now() - start
+                        log.exception()
+                        log.error(u'{0}\n\n{1}'.format(cmd, err))
+                        log.error(u'query took: {0}'.format(delta))
+                        raise
+
+            delta = (datetime.datetime.now() - start).total_seconds()
+            if delta * 1000 < 3000:
+                lvl = logging.DEBUG
+            elif delta * 1000 < 6000:
+                lvl = logging.WARNING
+            else:
+                lvl = logging.CRITICAL
+
+            log.log(lvl, u'query took: {0}'.format(delta))
+            return results, row_cound
+
+
+    @abstractmethod
+    def execute_native_command(self,
+                               native_connection,
+                               command,
+                               payload=None,
+                               returning=True,
+                               mapper=dict):
+        """
+        Executes a native string command on the given native connection.
+
+        :param native_connection: <variant>
+        :param command: <str> or <unicode>
+        :param payload: None or <dict>
+        :param returning: <bool>
+        :param mapper: None or <callable>
+        """
+        return None, 0
+
+    def insert(self, records, context):
+        """
+        Inserts new records into the datbaase.
+
+        :param records: <orb.Collection>
+        :param context: <orb.Context>
+
+        :return: <dict> changes
+        """
+        cmd, data = self.render('insert.sql.jinja', records=records, context=context)
+        return self.execute(cmd, data=data, write_access=True)
+
+    @abstractmethod
+    def interrupt_native_connection(self, native_connection):
+        """
+        Interrupts the native connection.
+
+        :param native_connection: <variant>
+        """
+        pass
+
+    def open(self, write_access=False):
+        """
+        Opens a new connection to the database.
+
+        :param write_access: <bool>
+
+        :return: <variant>
+        """
+        return self.__connection_pool.open_connection(write_access=write_access)
+
+    @abstractmethod
+    def open_native_connection(self, write_access=False):
+        """
+        Opens a new native connection for this SQL database.
+
+        :param write_access: <bool>
+
+        :return: <variant>
+        """
+        pass
+
+    def is_connected(self):
+        """
+        Returns whether or not this connection is currently
+        active.
+
+        :return: <bool>
+        """
+        return self.__connection_pool.has_connections()
+
+    @abstractmethod
+    def is_native_connection_closed(self, native_connection):
+        """
+        Returns whether or not the native SQL connection is closed.
+
+        :param native_connection: <variant>
+
+        :return: <bool>
+        """
+        return False
+
+    def process_column(self, column, context):
+        """
+        Processes the SQL data for the given column.
+
+        :param column: <orb.Column>
+        :param context: <orb.Context>
+
+        :return: <dict>
+        """
+        column_data = {
+            'field': column.field(),
+            'alias': column.field(),
+            'is_string': isinstance(column, orb.StringColumn),
+            'type': self.get_column_type(column, context),
+            'sequence': '{0}_{1}_seq'.format(column.schema().dbname(), column.field()),
+            'flags': {orb.Column.Flags(flag): True for flag in column.iter_flags()}
+        }
+        return column_data
+
+    def process_index(self, index, context):
+        """
+        Processes the SQL data for the given index.
+
+        :param index: <orb.Index>
+        :param context: <orb.Context>
+
+        :return: <dict>
+        """
+        index_data = {
+            'name': index.dbname(),
+            'columns': [self.process_column(c, context) for c in index.schema_columns()],
+            'flags': {orb.Index.Flags(flag): True for flag in index.iter_flags()}
+        }
+        return index_data
+
+    def process_model(self, model, context, aliases=None):
+        """
+        Processes the SQL data for the given model.
+
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
+        :param aliases: <dict> or None
+
+        :return: <dict>
+        """
+        aliases = aliases or {}
+        inherits_model = model.schema().inherits_model()
+        inherits_data = self.process_model(inherits_model, context) if inherits_model else {}
+        model_data = {
+            'namespace': model.schema().namespace(context=context),
+            'name': model.schema().dbname(),
+            'alias': aliases.get(model) or model.schema().alias(),
+            'force_alias': model in aliases,
+            'inherits': inherits_data
+        }
+        return model_data
+
+    def process_query(self, model, query, context, aliases=None, fields=None):
+        """
+        Converts the query object to SQL template properties.
+
+        :param model: subclass of <orb.Model>
+        :param query: <orb.Query>
+        :param context: <orb.Context>
+        :param aliases: <dict> or None
+        :param fields: <dict> or None
+
+        :return: <dict> template options, <dict> data
+        """
+        column = query.column(model=model)
+        value = query.value()
+        value_id = u'{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
+        value_key = u'%({0})s'.format(value_id)
+
+        # convert the value to something the database can use
+        db_value, db_value_data = self.process_value(column,
+                                                     value,
+                                                     context,
+                                                     aliases=aliases,
+                                                     fields=fields)
+
+        data = {value_id: db_value}
+        data.update(db_value_data)
+
+        column_data = self.process_column(column, context)
+        column_data['query_field'] = self.render_query_field(model,
+                                                             column,
+                                                             query,
+                                                             context=context,
+                                                             aliases=aliases)
+
+        kw = {
+            'column': column_data,
+            'op': orb.Query.Op(query.op()),
+            'case_sensitive': query.case_sensitive(),
+            'inverted': query.is_inverted(),
+            'value': {
+                'id': value_id,
+                'key': value_key,
+                'variable': db_value
+            }
+        }
+        return kw, data
+
+    def process_value(self, column, value, context=None, aliases=None, fields=None):
+        """
+        Processes the column's database value to prepare it for use in the database
+        context.
+
+        :param column: <orb.Column>
+        :param value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant> db value, <dict> data
+        """
+        db_value = column.database_store(value, context=context)
+
+        if isinstance(db_value, (orb.Query, orb.QueryCompound)):
+            val_model = db_value.model()
+            val_column = db_value.column()
+            return self.render_query_field(val_model,
+                                           val_column,
+                                           db_value,
+                                           context=context, aliases=aliases)
+
+        return db_value, {}
+
+    def render_alter_table(self, table, context=None, add=None, remove=None, owner=''):
+        """
+        Re-implements orb.Connection.alter_model to update the backend model
+        definition with the new information.
+
+        :param model: subclass of <orb.Model>
+        :param context: <orb.Context>
+        :param add: {'fields': [<orb.Column>, ..], 'indexes': [<orb.Index>, ..]} or None
+        :param remove: {'fields': [<orb.Column>, ..], 'indexes': [<orb.Index>, ..]} or None
+        :param owner: <str>
+
+        :return: <unicode> command, <dict> data
+        """
+        add = add or {'fields': [], 'indexes': []}
+        remove = remove or {'fields': [], 'indexes': []}
+
+        add_cols = []
+        add_indexes = []
+        add_i18n = []
+
+        # add columns
+        for column in add['fields']:
+            if column.test_flag(column.Flags.I18n):
+                add_i18n.append(self.process_column(column, context))
+            else:
+                add_cols.append(self.process_column(column, context))
+
+        # add indexes
+        for index in add['indexes']:
+            add_indexes.append(self.process_index(index, context))
+
+        kw = {
+            'model': self.process_model(table, context),
+            'add_columns': add_cols,
+            'add_indexes': add_indexes,
+            'add_i18n_columns': add_i18n
+        }
+
+        cmd = self.render('alter_table.sql.jinja', kw)
+        return cmd, {}
+
+    def render_create_table(self, table, context=None, owner='', include_references=True):
+        """
+        Renders the CREATE TABLE SQL from the `create_table.sql.jinja` template for
+        this SQL connection type.
+
+        :param table: <orb.Model>
+        :param context: <orb.Context>
+        :param owner: <str>
+        :param include_references: <bool>
+
+        :return: <str> sql command, <dict> sql data
+        """
+        context = context or orb.Context()
+
+        columns = table.schema().columns(recurse=False).values()
+        columns.sort(key=lambda x: x.field())
+
+        id_column = table.schema().id_column()
+        id_column_data = self.process_column(id_column, context)
+
+        add_cols = []
+        add_i18n = []
+
+        # process the columns
+        for col in columns:
+            if col == id_column:
+                continue
+            elif not include_references and isinstance(col, orb.ReferenceColumn):
+                continue
+            elif col.test_flag(col.Flags.Virtual):
+                continue
+            elif col.test_flag(col.Flags.I18n):
+                add_i18n.append(self.process_column(col, context))
+            else:
+                add_cols.append(self.process_column(col, context))
+
+        kw = {
+            'model': self.process_model(table, context),
+            'id_column': id_column_data,
+            'add_columns': add_cols,
+            'add_i18n_columns': add_i18n
+        }
+
+        cmd = self.render('create_table.sql.jinja', kw)
+        return cmd, {}
+
+    def render_delete_collection(self, collection, context=None):
+        """
+        Renders the DELETE SQL for this connection type.
+
+        :param collection: <orb.Collection>
+        :param context: <orb.Context>
+
+        :return: <unicode> command, <dict> data
+        """
+        model = collection.model()
+        collection_context = collection.context(context=context)
+
+        if collection_context.where is not None:
+            where, data = self.render_query(model, collection_context.where, collection_context)
+        else:
+            where = ''
+            data = {}
+
+        kw = {
+            'model': self.process_model(model, context),
+            'where': where
+        }
+        cmd = self.render('delete.sql.jinja', kw)
+        return cmd, data
+
+    def render_query_field(self, model, column, query, context=None, aliases=None):
+        """
+        Renders a new field for the given model / column.
+
+        :param model: subclass of <orb.Model>
+        :param column: <orb.Column>
+        :param query: <orb.Query>
+        :param context: <orb.Context> or None
+        :param aliases: <dict> or None
+        """
+        aliases = aliases or {}
+
+        # generate the parts
+        if model in aliases:
+            parts = [self.wraps(aliases[model]), self.wraps(column.field())]
+        else:
+            parts = [self.wraps(model.schema().namespace(context=context)),
+                     self.wraps(model.schema().dbname()),
+                     self.wraps(column.field())]
+
+        # render the query field
+        query_field = '.'.join(parts)
+
+        # wrap the field in functions
+        for func_op in query.functions():
+            query_field = self.wrap_query_function(column, query_field, func_op)
+
+        # wrap the field in math
+        data = {}
+        for math_op, value in query.math():
+            # perform math on a query object
+            if isinstance(value, orb.Query):
+                qvalue = self.render_query_field(value.model(default=model),
+                                                 value.column(model=model),
+                                                 value,
+                                                 context=context,
+                                                 aliases=aliases)
+            else:
+                value_id = os.urandom(8).encode('hex')
+                qvalue = u'%({0})s'.format(value_id)
+                data[value_id] = value
+
+            query_field = self.wrap_query_math(column, query_field, math_op, qvalue)
+
+        return query_field, data
+
+    def render_query(self, model, query, context=None, use_filter=True, aliases=None, fields=None):
+        """
+        Process the SQL data for the given query object.
+
+        :param model: subclass of <orb.Model>
+        :param query: <orb.Query> or <orb.QueryCompound>
+        :param context: <orb.Context>
+
+        :return: <unicode> command, <dict> data
+        """
+        query = query.expand(model=model, use_filter=use_filter)
+
+        # validate that the query exists
+        if query is None:
+            return u'', {}
+
+        # for QueryCompound instances, use the `render_query_compound` method
+        elif isinstance(query, orb.QueryCompound):
+            return self.render_query_compound(model,
+                                              query,
+                                              context=context,
+                                              aliases=aliases,
+                                              fields=fields)
+
+        else:
+            return self.render_query_column(model,
+                                            query,
+                                            context=context,
+                                            aliases=aliases,
+                                            fields=fields)
+
+    def render_query_compound(self,
+                              model,
+                              query_compound,
+                              context=None,
+                              aliases=None,
+                              fields=None):
+        """
+        Processes the SQL data for the given query compound object.
+
+        :param model: subclass of <orb.Model>
+        :param query_compound: <orb.QueryCompound>
+        :param context: <orb.Context>
+
+        :return: <unicode> command, <dict> data
+        """
+        context = context or orb.Context()
+        data = {}
+        sub_queries = []
+        for sub_q in query_compound:
+            sub_cmd, sub_data = self.render_query(model,
+                                                  sub_q,
+                                                  context=context,
+                                                  aliases=aliases,
+                                                  fields=fields)
+            sub_queries.append(sub_cmd)
+            data.update(sub_data)
+
+        kw = {
+            'queries': sub_queries,
+            'op': orb.QueryCompound.Op(query_compound.op())
+        }
+        cmd = self.render('query_compound.sql.jinja', kw)
+        return cmd, data
+
+    def render_query_column(self,
+                            model,
+                            query,
+                            context=None,
+                            aliases=None,
+                            fields=None):
+        """
+        Renders the SQL command for the given query instance.
+
+        :param model: subclass of <orb.Model>
+        :param query: <orb.Query>
+        :param context: <orb.Context>
+        :param aliases: <dict> or None
+        :param fields: <dict> or None
+
+        :return: <unicode> command, <dict> data
+        """
+        db_query, data = self.process_query(model,
+                                            query,
+                                            context=context,
+                                            aliases=aliases,
+                                            fields=fields)
+        kw = {
+            'query': db_query
+        }
+        cmd = self.render('query.sql.jinja', kw)
+        return cmd, data
+
+    def rollback(self):
+        """
+        Rolls back changes to this database.
+
+        :return: <bool> success
+        """
+        with self.__connection_pool.current_connection(write_access=True) as conn:
+            try:
+                self.rollback_native_connection(conn)
+            except Exception:
+                if self.__use_gevent:
+                    import gevent
+                    gevent.get_hub().handle_error(conn, *sys.exc_info)
+                return False
+            else:
+                return True
+
+    @abstractmethod
+    def rollback_native_connection(self, native_connection):
+        """
+        Rolls back the the native connection's changes.
+
+        :param native_connection: <variant>
+        """
+        pass
+
+    def select(self, model, context):
+        pass
+
+    def update(self, records, context):
+        pass
+
+    @classmethod
+    def get_column_type(cls, column, context=None):
+        """
+        Returns the sql string for the column's type.
+
+        :param column: <orb.Column>
+        :param context: <orb.Column> or None
+
+        :return: <str>
+        """
+        key = '_{0}__type_mapping'.format(cls.__name__)
+        mapping = getattr(cls, key, {})
+        context = context or orb.Context()
+        column_type = type(column)
+        bases = [column_type] + list(column_type.get_base_types())
+
+        # go through all types for this column to
+        # find the best match, allowing for subclassed
+        # columns to share the same type mapping
+        for typ in bases:
+            try:
+                map = mapping[typ]
+            except KeyError:
+                continue
+            else:
+                if callable(map):
+                    return map(column, context)
+                else:
+                    return map
+        else:
+            raise orb.errors.ColumnTypeNotFound(column_type)
+
+    @classmethod
+    def get_templates(cls):
+        """
+        Returns the templates environment for this sql connection.
+
+        :return: <jinja2.Environment>
+        """
+        key = '_{0}__templates'.format(cls.__name__)
+        try:
+            return getattr(cls, key)
+        except AttributeError:
+            env = Environment(loader=cls.__templates__)
+            env.filters['wraps'] = cls.wraps
+            setattr(cls, key, env)
+            return env
+
+    @classmethod
+    def render(cls, statement_name, keywords):
+        """
+        Renders the SQL statement for the given template name and given keywords.
+
+        :param statement_name: <str>
+        :param keywords: <dict>
+
+        :return: <unicode> command, <dict> data
+        """
+        template = cls.get_templates().get_template(statement_name)
+        if template:
+            cmd = template.render(keywords).strip()
+            log.debug(cmd)
+            return cmd
+        else:
+            return ''
+
+    @classmethod
+    def register_function_mapping(cls, query_function_op, map):
+        """
+        Sets the query function mapping type for this connection to the given
+        map.  This can be a string or a callable function.  If a string is
+        provided, then it should be a format accepting a single argument.  If
+        it is a callable function, then it should accept the source text and
+        return a new text.
+
+        :param query_function_op: <orb.Query.Function>
+        :param map: <str> or <callable>
+        """
+        key = '_{0}__function_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)
+        except AttributeError:
+            setattr(cls, key, {query_function_op: map})
+        else:
+            mapping[query_function_op] = map
+
+    @classmethod
+    def register_math_mapping(cls, query_math_op, map):
+        """
+        Sets the query function mapping type for this connection to the given
+        map.  This can be a string or a callable function.  If a string is
+        provided, then it should be a format accepting a single argument.  If
+        it is a callable function, then it should accept the source text and
+        return a new text.
+
+        :param query_math_op: <orb.Query.Math>
+        :param map: <str> or <callable>
+        """
+        key = '_{0}__function_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)
+        except AttributeError:
+            setattr(cls, key, {query_math_op: map})
+        else:
+            mapping[query_math_op] = map
+
+    @classmethod
+    def register_type_mapping(cls, column_type, map):
+        """
+        Sets the column mapping type for this connection to the given
+        map.  This can be a string or a callable function.  If a callable
+        function is provided, then it should accept a single argument (column
+        instance) and return a string value.
+
+        :param column_type: <orb.Column>
+        :param map: <str> or <callable>
+        """
+        key = '_{0}__type_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)
+        except AttributeError:
+            setattr(cls, key, {column_type: map})
+        else:
+            mapping[column_type] = map
+
+    @classmethod
+    def wraps(cls, text):
+        """
+        Wraps a string based with characters for this backend.
+
+        :param text: <str> or <unicode>
+
+        :return: <unicode>
+        """
+        return u'"{0}"'.format(text)
+
+    @classmethod
+    def wrap_query_function(cls, column, field, query_function_op):
+        """
+        Wraps the field with the given query function.
+
+        :param field: <str> or <unicode>
+        :param query_function_op: <orb.Query.Function>
+        :param context: <orb.Context>
+
+        :return: <unicode>
+        """
+        key = '_{0}__function_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)[query_function_op]
+        except (AttributeError, KeyError):
+            log.warning('No {0} map for {1}'.format(orb.Query.Function(query_function_op), cls.__name__))
+            return field
+        else:
+            if callable(mapping):
+                return mapping(column, query_function_op, field)
+            else:
+                return mapping.format(field)
+
+    @classmethod
+    def wrap_query_math(cls, column, field, query_math_op, value):
+        """
+        Wraps the field with the given query function.
+
+        :param column: <orb.Column>
+        :param field: <str> or <unicode>
+        :param query_math_op: <orb.Query.Math>
+        :param context: <orb.Context>
+
+        :return: <unicode>
+        """
+        key = '_{0}__math_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)[query_math_op]
+        except (AttributeError, KeyError):
+            log.warning('No {0} map for {1}'.format(orb.Query.Function(query_math_op), cls.__name__))
+            return field
+        else:
+            if callable(mapping):
+                return mapping(column, field, query_math_op, value)
+            else:
+                return mapping.format(field, value)

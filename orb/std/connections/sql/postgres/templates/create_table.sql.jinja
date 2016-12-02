@@ -1,0 +1,45 @@
+{% set namespace = model.namespace or 'public' %}
+{% set i18n_name = model.name + '_i18n' %}
+{% set id_type = id_column.type or 'BIGINT' %}
+{% set id_field = id_column.field or 'id' %}
+
+{% macro add_column(column) -%}
+    {{ column.field | wraps }} {{ column.type }} {% if column.flags.AutoIncrement -%} DEFAULT nextval('{{ column.sequence }}') {% endif -%}{% if column.flags.Required -%} NOT NULL {% endif -%}{% if column.flags.Unique -%} UNIQUE {% endif -%}
+{% endmacro -%}
+
+{% if not model.inherits and id_column.flags.AutoIncrement -%}
+CREATE SEQUENCE {{ id_column.sequence | wraps }};
+{% endif -%}
+{% for column in add_columns -%}
+{% if column.flags.AutoIncrement -%}
+CREATE SEQUENCE {{ column.sequence | wraps }};
+{% endif -%}
+{% endfor -%}
+CREATE TABLE IF NOT EXISTS {{ namespace | wraps }}.{{ model.name | wraps }} (
+    {% if not model.inherits -%}
+    {{ add_column(id_column) }} PRIMARY KEY{% if add_columns %},{% endif %}
+    {% endif -%}
+    {% for column in add_columns -%}
+    {{ add_column(column) }}{% if not loop.last %},{% endif %}
+    {% endfor -%}
+)
+{% if model.inherits -%}
+INHERITS ({{ model.inherits.name | wraps }})
+{% endif -%}
+WITH (OIDS=FALSE);
+{% if owner -%}
+ALTER TABLE {{ namespace | wraps }}.{{ model.name | wraps }} OWNER TO {{ owner | wraps }}
+{% endif -%}
+{% if add_i18n_columns -%}
+CREATE TABLE IF NOT EXISTS {{ namespace | wraps }}.{{ i18n_name | wraps }} (
+    {{ 'locale' | wraps }} character varying(5),
+    {{ (model.name + '_id') | wraps }} {{ id_type }} REFERENCES {{ namespace | wraps }}.{{ model.name | wraps }} ({{ id_field | wraps }}) ON DELETE CASCADE,
+    {% for column in add_i18n_columns -%}
+    {{ add_column(column) }},
+    {% endfor -%}
+    CONSTRAINT {{ (i18n_name + '_pkey') | wraps }} PRIMARY KEY ({{ (model.name + '_id') | wraps }}, {{ 'locale' | wraps }})
+) WITH (OIDS=FALSE);
+{% if owner -%}
+ALTER TABLE {{ namespace | wraps }}.{{ i18n_name | wraps }} OWNER TO {{ owner | wraps }};
+{% endif %}
+{% endif -%}

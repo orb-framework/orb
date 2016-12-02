@@ -7,77 +7,20 @@ import re
 import warnings
 
 from orb.core.column import Column
-from orb.core.column_engine import ColumnEngine
 from orb.utils import security
 
 with demandimport.enabled():
     import orb
 
 
-class StringColumnEngine(ColumnEngine):
-    def __init__(self, type_map=None):
-        super(StringColumnEngine, self).__init__(type_map)
-
-        # override the default operator mapping
-        self.assign_operator(orb.Query.Math.Add, '||')
-
-    def get_column_type(self, column, plugin_name):
-        """
-        Re-implements the get_column_type method from `orb.ColumnEngine`.
-
-        String columns have a couple additional attributes that can be used
-        during type definition.
-
-        :param column: <orb.StringColumn>
-        :param plugin_name: <str>
-
-        :return: <str>
-        """
-        base_type = super(StringColumnEngine, self).get_column_type(column, plugin_name)
-        max_len = column.maxLength() or ''
-        return base_type.format(length=max_len).replace('()', '')
-
-    def get_database_value(self, column, plugin_name, py_value, context=None):
-        """
-        Re-implements the get_database_value method from ColumnEngine.
-
-        This method will take a Python value and prepre it for saving to
-        the database.
-
-        :param column: <orb.Column>
-        :param plugin_name: <str>
-        :param py_value: <variant>
-
-        :return: <variant> database value
-        """
-        if py_value is None:
-            return None
-        else:
-            py_value = projex.text.decoded(py_value)
-
-            if column.cleaned():
-                py_value = column.clean(py_value)
-
-            if column.escaped():
-                py_value = column.escape(py_value)
-
-            return py_value
-
-
 class StringColumn(Column):
-    __default_engine__ = StringColumnEngine(type_map={
-        'Postgres': 'CHARACTER VARYING({length})',
-        'MySQL': 'varchar({length})',
-        'SQLite': 'TEXT'
-    })
-
-    def __init__(self, maxLength=255, cleaned=False, escaped=False, **kwds):
+    def __init__(self, max_length=255, cleaned=False, escaped=False, **kwds):
         super(StringColumn, self).__init__(**kwds)
 
         # define custom properties
         self.__cleaned = cleaned
         self.__escaped = escaped
-        self.__maxLength = maxLength
+        self.__max_length = max_length
 
     def clean(self, py_value):
         """
@@ -120,16 +63,8 @@ class StringColumn(Column):
         """
         return self.__escaped
 
-    def maxLength(self):
-        return self.__maxLength
-
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return ''
+    def max_length(self):
+        return self.__max_length
 
     def restore(self, value, context=None):
         """
@@ -144,8 +79,8 @@ class StringColumn(Column):
 
         return super(StringColumn, self).restore(value, context)
 
-    def setMaxLength(self, maxLength):
-        return self.__maxLength
+    def setMaxLength(self, max_length):
+        return self.__max_length
 
     def store(self, value, context=None):
         """
@@ -161,39 +96,20 @@ class StringColumn(Column):
 
         return super(StringColumn, self).store(value, context=context)
 
-class TextColumn(StringColumn):
-    __default_engine__ = StringColumnEngine(type_map={
-        'Postgres': 'TEXT',
-        'SQLite': 'TEXT',
-        'MySQL': 'TEXT'
-    })
 
+class TextColumn(StringColumn):
     def __init__(self, **kw):
-        kw.setdefault('maxLength', None)
+        kw.setdefault('max_length', None)
         super(TextColumn, self).__init__(**kw)
 
 
 # define custom string class types
 class ColorColumn(StringColumn):
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return '#' + random.randrange(256).encode('hex') + \
-               random.randrange(256).encode('hex') + random.randrange(256).encode('hex')
-
+    pass
 
 
 class DirectoryColumn(StringColumn):
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return '/usr/tmp/'
+    pass
 
 
 class EmailColumn(StringColumn):
@@ -202,14 +118,6 @@ class EmailColumn(StringColumn):
 
         # define custom properties
         self.__pattern = pattern
-
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return '/usr/tmp/'
 
     def validate(self, value):
         """
@@ -290,14 +198,6 @@ class PasswordColumn(StringColumn):
         self.__invalidCharacters = invalidCharacters
         self.__invalidCharacterRule = invalidCharacterRule
 
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return '******'
-
     def rules(self):
         """
         Returns the rules for this password based on the configured
@@ -352,7 +252,7 @@ class PasswordColumn(StringColumn):
 
 class TokenColumn(StringColumn):
     def __init__(self, bits=32, **kwds):
-        kwds['maxLength'] = bits * 2
+        kwds['max_length'] = bits * 2
 
         super(TokenColumn, self).__init__(**kwds)
 
@@ -397,14 +297,6 @@ class TokenColumn(StringColumn):
                 token = os.urandom(self.__bits).encode('hex')
                 if model.select(where=orb.Query(self) == token).count() == 0:
                     return token
-
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return os.urandom(self.__bits).encode('hex')
 
     def setBits(self, bits):
         """

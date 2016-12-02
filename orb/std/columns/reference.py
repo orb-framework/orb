@@ -1,92 +1,14 @@
 import demandimport
 import logging
-import projex.text
 
 from orb.core.column import Column
-from orb.core.column_engine import ColumnEngine
 from orb.utils.enum import enum
+from orb.utils.text import safe_eval
 
 with demandimport.enabled():
     import orb
 
 log = logging.getLogger(__name__)
-
-
-class ReferenceColumnEngine(ColumnEngine):
-    def get_column_type(self, column, plugin_name):
-        """
-        Re-implements the get_column_type method from `orb.ColumnEngine`.
-
-        This method will apply additional logic for defining the database type for a
-        reference based on the id column of the model type that is being referenced
-        by the column.
-
-        :param column: <orb.ReferenceColumn>
-        :param plugin_name: <str>
-
-        :return: <str>
-        """
-        # extract the reference model information
-        model = column.reference_model()
-        schema = model.schema()
-
-        # extract the id column and type
-        id_column = schema.id_column()
-        id_engine = id_column.get_engine(plugin_name)
-        id_type = id_engine.get_column_type(id_column, plugin_name)
-
-        # apply cusotm logic
-        if plugin_name == 'Postgres':
-            id_type = id_type if id_type != 'SERIAL' else 'BIGINT'
-            namespace = id_column.schema().namespace() or 'public'
-        elif plugin_name == 'MySQL':
-            id_type = id_type.replace('AUTO_INCREMENT', '').strip()
-            namespace = id_column.schema().namespace() or 'public'
-
-        # generate the formatting options
-        opts = {
-            'table': schema.dbname(),
-            'field': id_column.field(),
-            'id_type': id_type,
-            'namespace': namespace
-        }
-
-        base_type = super(ReferenceColumnEngine, self).get_column_type(column, plugin_name)
-        return base_type.format(**opts)
-
-    def get_api_value(self, column, plugin_name, db_value, context=None):
-        """
-        Extracts the db_value provided back from the database.
-
-        :param db_value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-        if isinstance(db_value, (str, unicode)) and db_value.startswith('{'):
-            try:
-                db_value = projex.text.safe_eval(db_value)
-            except StandardError:
-                log.exception('Invalid reference found')
-                raise orb.errors.OrbError('Invalid reference found.')
-
-        if isinstance(db_value, dict):
-            cls = column.reference_model()
-            if not cls:
-                raise orb.errors.ModelNotFound(schema=column.reference())
-            else:
-                # update the expansion information to not propagate to references
-                if context:
-                    context = context.copy()
-                    expand = context.expandtree(cls)
-                    sub_expand = expand.pop(column.name(), {})
-                    context.expand = context.raw_values['expand'] = sub_expand
-
-                db_value = cls(db_value, context=context)
-                db_value.mark_loaded()
-
-        return super(ReferenceColumnEngine, self).get_api_value(column, plugin_name, db_value, context=context)
-
 
 
 class ReferenceColumn(Column):
@@ -104,12 +26,6 @@ class ReferenceColumn(Column):
                                             reverse=orb.ReferenceColumn.Reversed(name='commments'))
 
     """
-    __default_engine__ = ReferenceColumnEngine(type_map={
-        'Postgres': u'{id_type} REFERENCES "{namespace}"."{table}"("{field}")',
-        'MySQL': u'{id_type} REFERENCES `{namespace}`.`{table}`(`{field}`)',
-        'default': u'{id_type}'
-    })
-
     RemoveAction = enum(
         'DoNothing',    # 1
         'Cascade',      # 2
@@ -118,6 +34,7 @@ class ReferenceColumn(Column):
 
     def __init__(self,
                  model='',
+                 column='',
                  removeAction=RemoveAction.Block,
                  **kwds):
 
@@ -128,6 +45,7 @@ class ReferenceColumn(Column):
 
         # store reference options
         self.__reference = model
+        self.__reference_column = column
         self.__removeAction = removeAction
 
     def __json__(self):
@@ -169,6 +87,43 @@ class ReferenceColumn(Column):
         out.__removeAction = self.__removeAction
         return out
 
+    def database_restore(self, db_value, context=None):
+        """
+        Re-implements the `orb.Column.database_restore` method.
+
+        Converts the data restored from the backend to a reference instance.
+
+        :param db_value: <variant>
+        :param context: <orb.Context>
+
+        :return: <variant>
+        """
+        # restore a dict record
+        if isinstance(db_value, (str, unicode)) and db_value.startswith('{') and db_value.endswith('}'):
+            try:
+                db_value = safe_eval(db_value)
+            except StandardError:
+                log.exception('Invalid reference found')
+                raise orb.errors.OrbError('Invalid reference found.')
+
+        if isinstance(db_value, dict):
+            model = self.reference_model()
+
+            # update the expansion information to not propagate to references
+            if context:
+                context = context.copy()
+                expand = context.expandtree(model)
+                sub_expand = expand.pop(self.name(), {})
+                context.expand = context.raw_values['expand'] = sub_expand
+
+            # create a new instance of the model
+            record = model(db_value, context=context)
+            record.mark_loaded()
+
+            return super(ReferenceColumn, self).database_restore(record, context=context)
+        else:
+            return super(ReferenceColumn, self).database_restore(db_value, context=context)
+
     def default_field(self):
         """
         Re-implements the `orb.Column.default_field` method to
@@ -192,14 +147,6 @@ class ReferenceColumn(Column):
         self.__reference = jdata.get('reference') or self.__reference
         self.__removeAction = jdata.get('removeAction') or self.__removeAction
 
-    def random_value(self):
-        """
-        Returns a random value that fits this column's parameters.
-
-        :return: <variant>
-        """
-        return self.reference_model().schema().id_column().random_value()
-
     def reference(self):
         return self.__reference
 
@@ -209,10 +156,20 @@ class ReferenceColumn(Column):
 
         :return     <Table> || None
         """
-        model = self.schema().system().model(self.__reference)
-        if not model:
-            raise orb.errors.ModelNotFound(schema=self.__reference)
-        return model
+        return self.schema().system().model(self.__reference)
+
+    def reference_column(self):
+        """
+        Returns the column that this reference column refers to.  By default,
+        it will be the ID column for the reference model.
+
+        :return: <orb.Column>
+        """
+        model = self.reference_model()
+        if self.__reference_column:
+            return model.schema().column(self.__reference_column)
+        else:
+            return model.schema().id_column()
 
     def restore(self, value, context=None):
         """

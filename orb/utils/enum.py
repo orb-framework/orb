@@ -71,6 +71,19 @@ class enum(object):
             out |= value
         return out
 
+    def iter_values(self, values):
+        """
+        Iterates over the values yielding each value that matches
+        this enum's value set.
+
+        :param values: <int>
+
+        :return: <generator>
+        """
+        for v in sorted(self.__enum.values()):
+            if v & values:
+                yield v
+
     def from_set(self, values):
         """
         Generates a flag value based on the given set of values.

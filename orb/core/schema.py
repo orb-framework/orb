@@ -491,6 +491,17 @@ class Schema(object):
         """
         return self.__inherits
 
+    def inherits_model(self):
+        """
+        Returns the model that this schema inherits, if any.
+
+        :return: <orb.Model> or None
+        """
+        if self.__inherits:
+            return self.system().model(self.__inherits)
+        else:
+            return None
+
     def model(self, auto_generate=False):
         """
         Returns the `orb.Model` class object that is the representation of

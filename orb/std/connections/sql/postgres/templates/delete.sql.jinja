@@ -1,0 +1,5 @@
+DELETE FROM {{ model.namespace | wraps }}.{{ model.name }}
+{% if where -%}
+WHERE {{ where }}
+{% endif -%}
+RETURNING *;

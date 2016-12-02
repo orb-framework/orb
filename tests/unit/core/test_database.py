@@ -204,14 +204,14 @@ def test_connection_basics():
 
 def test_basic_database_syncing(sync_setup):
     db = sync_setup({
-        'schema_info': {}
+        'current_schema': {}
     })
     assert db.sync() is True
 
 
 def test_database_syncing_signals(sync_setup):
     db = sync_setup({
-        'schema_info': {}
+        'current_schema': {}
     })
 
     checks = {}
@@ -232,7 +232,7 @@ def test_database_syncing_signals(sync_setup):
 
 def test_database_syncing_blocked_signal(sync_setup):
     db = sync_setup({
-        'schema_info': {}
+        'current_schema': {}
     })
 
     checks = {}
@@ -255,7 +255,7 @@ def test_database_syncing_blocked_signal(sync_setup):
 
 def test_database_syncing_with_updates(sync_setup):
     db = sync_setup({
-        'schema_info': {
+        'current_schema': {
             'users': {
                 'fields': ['id'],
                 'indexes': []

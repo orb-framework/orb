@@ -833,8 +833,7 @@ class Model(object):
 
             # extract the value from the database
             else:
-                engine = column.get_engine()
-                value = engine.get_api_value(column, 'default', raw_value, context=orb_context)
+                value = column.database_restore(raw_value, context=orb_context)
                 attributes[column.name()] = value
 
         # update the local values
@@ -1479,6 +1478,16 @@ class Model(object):
                 yield column.name(), cls.__name__
             else:
                 yield column.name(), column.default()
+
+    @classmethod
+    def on_pre_sync(cls, event):
+        """
+        Called after a model has been synced to a backend store.    The default
+        behavior is to send the `synced` signal to any receivers.
+
+        :param event: <orb.SyncEvent>
+        """
+        Model.about_to_sync.send(cls, event=event)
 
     @classmethod
     def on_sync(cls, event):

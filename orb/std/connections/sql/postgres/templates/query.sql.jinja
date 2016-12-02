@@ -1,0 +1,7 @@
+{% if value == None -%}
+{{ column.field | wraps }} {% if op in ('Is', 'Matches') %} IS {% else -%} IS NOT {% endif -%} NULL
+{% elif inverted -%}
+{{ value_key }} {{ op }} {{ column.field | wraps }}
+{% else -%}
+{{ column.field | wraps }} {{ op }} {{ value_key }}
+{% endif %}

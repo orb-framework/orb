@@ -67,7 +67,7 @@ class Database(object):
         :param context: <orb.Context>
         """
         namespaces = set()
-        info = connection.schema_info(context) or {}
+        info = connection.current_schema(context) or {}
 
         # create new models
         for table in tables:
@@ -114,7 +114,7 @@ class Database(object):
         :param context: <orb.Context>
         """
         # update after any newly created tables get generated
-        info = connection.schema_info(context) or {}
+        info = connection.current_schema(context) or {}
 
         virtual_flag = orb.Column.Flags.Virtual
 
@@ -457,7 +457,7 @@ class Database(object):
 
         # notify that the connection is about to sync
         event = orb.events.SyncEvent(context=context)
-        conn.about_to_sync.send(conn, event=event)
+        conn.on_pre_sync(event)
         if event.prevent_default:
             return False
 
@@ -472,7 +472,7 @@ class Database(object):
         accepted_models = []
         for model in models:
             event = orb.events.SyncEvent(model=model)
-            model.about_to_sync.send(model, event=event)
+            model.on_pre_sync(event)
             if not event.prevent_default:
                 accepted_models.append(model)
 
@@ -485,7 +485,8 @@ class Database(object):
             model.on_sync(event)
 
         # notify that the connection has finished syncing
-        conn.synced.send(conn, event=event)
+        event = orb.events.SyncEvent(context=context)
+        conn.on_post_sync(event)
         return True
 
     def username(self):

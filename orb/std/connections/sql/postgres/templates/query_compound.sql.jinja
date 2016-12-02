@@ -1,0 +1,5 @@
+(
+    {% for query in queries -%}
+    {{ query }} {% if not loop.last -%} {{ op | upper }} {% endif -%}
+    {% endfor %}
+)

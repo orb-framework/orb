@@ -155,6 +155,14 @@ class Index(object):
         """
         return self.__flags
 
+    def iter_flags(self):
+        """
+        Iterates through the set flags for this index.
+
+        :return: <generator>
+        """
+        return orb.Index.Flags.iter_values(self.flags())
+
     def name(self):
         """
         Returns the name of this index.

@@ -36,6 +36,16 @@ class MockConnection(orb.Connection):
         # return the desired response
         return self.next_response('alter_model', model, context, add, remove, owner)
 
+    def current_schema(self, context):
+        """
+        Returns the schema information from the database.
+
+        :return     <dict>
+        """
+        assert isinstance(context, orb.Context)
+
+        return self.next_response('schema_info', context)
+
     def create_namespace(self, namespace, context):
         """
         Mocks a response for creating a namespace for a connection.
@@ -220,16 +230,6 @@ class MockConnection(orb.Connection):
         Rolls back the latest code run on the database.
         """
         return self.next_response('rollback')
-
-    def schema_info(self, context):
-        """
-        Returns the schema information from the database.
-
-        :return     <dict>
-        """
-        assert isinstance(context, orb.Context)
-
-        return self.next_response('schema_info', context)
 
     def select(self, model, context):
         """

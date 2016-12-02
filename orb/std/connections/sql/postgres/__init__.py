@@ -1,4 +1,2 @@
-""" Defines the backend connection class for PostgreSQL databases. """
-
-from . import statements
-from .psqlconnection import PSQLConnection
+from .connection import PostgresConnection
+from . import mapping
