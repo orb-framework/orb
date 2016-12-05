@@ -1,4 +1,3 @@
-{% set namespace = model.namespace or 'public' %}
 {% set i18n_name = model.name + '_i18n' %}
 {% set id_type = id_column.type or 'BIGINT' %}
 {% set id_field = id_column.field or 'id' %}
@@ -15,7 +14,7 @@ CREATE SEQUENCE {{ id_column.sequence | wraps }};
 CREATE SEQUENCE {{ column.sequence | wraps }};
 {% endif -%}
 {% endfor -%}
-CREATE TABLE IF NOT EXISTS {{ namespace | wraps }}.{{ model.name | wraps }} (
+CREATE TABLE IF NOT EXISTS {{ model.namespace | wraps }}.{{ model.name | wraps }} (
     {% if not model.inherits -%}
     {{ add_column(id_column) }} PRIMARY KEY{% if add_columns %},{% endif %}
     {% endif -%}
@@ -28,18 +27,18 @@ INHERITS ({{ model.inherits.name | wraps }})
 {% endif -%}
 WITH (OIDS=FALSE);
 {% if owner -%}
-ALTER TABLE {{ namespace | wraps }}.{{ model.name | wraps }} OWNER TO {{ owner | wraps }}
+ALTER TABLE {{ model.namespace | wraps }}.{{ model.name | wraps }} OWNER TO {{ owner | wraps }}
 {% endif -%}
 {% if add_i18n_columns -%}
-CREATE TABLE IF NOT EXISTS {{ namespace | wraps }}.{{ i18n_name | wraps }} (
+CREATE TABLE IF NOT EXISTS {{ model.namespace | wraps }}.{{ i18n_name | wraps }} (
     {{ 'locale' | wraps }} character varying(5),
-    {{ (model.name + '_id') | wraps }} {{ id_type }} REFERENCES {{ namespace | wraps }}.{{ model.name | wraps }} ({{ id_field | wraps }}) ON DELETE CASCADE,
+    {{ (model.name + '_id') | wraps }} {{ id_type }} REFERENCES {{ model.namespace | wraps }}.{{ model.name | wraps }} ({{ id_field | wraps }}) ON DELETE CASCADE,
     {% for column in add_i18n_columns -%}
     {{ add_column(column) }},
     {% endfor -%}
     CONSTRAINT {{ (i18n_name + '_pkey') | wraps }} PRIMARY KEY ({{ (model.name + '_id') | wraps }}, {{ 'locale' | wraps }})
 ) WITH (OIDS=FALSE);
 {% if owner -%}
-ALTER TABLE {{ namespace | wraps }}.{{ i18n_name | wraps }} OWNER TO {{ owner | wraps }};
+ALTER TABLE {{ model.namespace | wraps }}.{{ i18n_name | wraps }} OWNER TO {{ owner | wraps }};
 {% endif %}
 {% endif -%}

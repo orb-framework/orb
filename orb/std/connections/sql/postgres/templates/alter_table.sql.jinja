@@ -1,4 +1,3 @@
-{% set namespace = model.namespace or 'public' %}
 {% set i18n_name = model.name + '_i18n' %}
 
 {% macro add_column(column) -%}
@@ -11,26 +10,26 @@
 CREATE SEQUENCE {{ column.sequence | wraps }};
 {% endif -%}
 {% endfor -%}
-ALTER TABLE {{ namespace | wraps }}.{{ model.name | wraps }}
+ALTER TABLE {{ model.namespace | wraps }}.{{ model.name | wraps }}
     {% for column in add_columns -%}
     ADD COLUMN {{ add_column(column) }}{% if not loop.last %},{% else %};{% endif %}
     {% endfor %}
 {% endif -%}
 
 {% if add_i18n_columns -%}
-CREATE TABLE IF NOT EXISTS {{ namespace | wraps }}.{{ i18n_name | wraps }} (
+CREATE TABLE IF NOT EXISTS {{ model.namespace | wraps }}.{{ i18n_name | wraps }} (
     {{ 'locale' | wraps }} character varying(5),
     {{ model.name + '_id' | wraps }} character varying(5),
     CONSTRAINT {{ i18n_name + '_pkey' | wraps }} PRIMARY KEY ({{ model.name + '_id' | wraps }}, {{ 'locale' | wraps }})
 );
-ALTER TABLE {{ namespace | wraps }}.{{ i18n_name | wraps }} (
+ALTER TABLE {{ model.namespace | wraps }}.{{ i18n_name | wraps }} (
     {% for column in add_i18n_columns -%}
     ADD COLUMN {{ add_column }}{% if not loop.last %},{% endif %}
     {% endfor %};
 {% endif -%}
 
 {% for index in add_indexes -%}
-CREATE {% if index.flags.Unique -%} UNIQUE {% endif -%} INDEX {{ index.name | wraps }} ON {{ namespace | wraps }}.{{ model.name | wraps }} (
+CREATE {% if index.flags.Unique -%} UNIQUE {% endif -%} INDEX {{ index.name | wraps }} ON {{ model.namespace | wraps }}.{{ model.name | wraps }} (
     {% for column in index.columns -%}
     {% if column.is_string and not column.flags.CaseSensitive -%}
     lower({{ column.field | wraps }}::varchar){% if not loop.last -%}, {% endif -%}
@@ -43,14 +42,14 @@ CREATE {% if index.flags.Unique -%} UNIQUE {% endif -%} INDEX {{ index.name | wr
 
 
 {% if remove_columns -%}
-ALTER TABLE {{ namespace | wraps }}.{{ model.name | wraps }}
+ALTER TABLE {{ model.namespace | wraps }}.{{ model.name | wraps }}
     {% for column in remove_columns -%}
     DROP COLUMN {{ column.field | wraps }}{% if not loops.last %},{% else %};{% endif %}
     {% endfor -%}
 {% endif -%}
 
 {% if remove_i18n_columns %}
-ALTER TABLE {{ namespace | wraps }}.{{ i18n_name | wraps }} (
+ALTER TABLE {{ model.namespace | wraps }}.{{ i18n_name | wraps }} (
     {% for column in remove_i18n_columns -%}
     DROP COLUMN {{ column.field | wraps }}{% if not loop.last %},{% endif %}
     {% endfor -%};

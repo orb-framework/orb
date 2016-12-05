@@ -182,12 +182,12 @@ def testing_schema(orb):
         role = orb.ReferenceColumn('Role', flags={'AutoExpand'})
 
     class Comment(orb.Table):
-        id = orb.IdColumn(type='hash')
+        id = orb.IdColumn()
         text = orb.TextColumn()
         attachments = orb.ReverseLookup('Attachment.comment', flags={'AutoExpand'})
 
     class Attachment(orb.Table):
-        id = orb.IdColumn(type='hash')
+        id = orb.IdColumn()
         filename = orb.StringColumn()
         comment = orb.ReferenceColumn('Comment', flags={'Required'})
 

@@ -14,6 +14,7 @@ log = logging.getLogger(__name__)
 
 class PostgresConnection(SQLConnection):
     __plugin_name__ = 'Postgres'
+    __default_namespace__ = 'public'
     __templates__ = PackageLoader('orb.std.connections.sql.postgres', 'templates')
 
     def commit_native_connection(self, native_connection):

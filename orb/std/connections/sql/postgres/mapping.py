@@ -60,6 +60,9 @@ PostgresConnection.register_type_mapping(orb.TimestampColumn, u'BIGINT')
 PostgresConnection.register_type_mapping(orb.UTC_DatetimeColumn, u'TIMESTAMP')
 PostgresConnection.register_type_mapping(orb.UTC_TimestampColumn, u'BIGINT')
 
+# register query operators
+PostgresConnection.register_query_op_mapping(orb.Query.Op.Is, u'=')
+
 # register function information
 PostgresConnection.register_function_mapping(orb.Query.Function.Lower, u'lower({0})')
 PostgresConnection.register_function_mapping(orb.Query.Function.Upper, u'upper({0})')

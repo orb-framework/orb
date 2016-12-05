@@ -1,5 +1,6 @@
 import demandimport
 import os
+import inflection
 import logging
 import sys
 
@@ -17,6 +18,7 @@ log = logging.getLogger(__name__)
 
 
 class SQLConnection(Connection):
+    __default_namespace__ = ''
     __templates__ = None
 
     def __init__(self, database):
@@ -372,7 +374,7 @@ class SQLConnection(Connection):
         inherits_model = model.schema().inherits_model()
         inherits_data = self.process_model(inherits_model, context) if inherits_model else {}
         model_data = {
-            'namespace': model.schema().namespace(context=context),
+            'namespace': model.schema().namespace(context=context) or self.get_default_namespace(),
             'name': model.schema().dbname(),
             'alias': aliases.get(model) or model.schema().alias(),
             'force_alias': model in aliases,
@@ -408,15 +410,17 @@ class SQLConnection(Connection):
         data.update(db_value_data)
 
         column_data = self.process_column(column, context)
-        column_data['query_field'] = self.render_query_field(model,
-                                                             column,
-                                                             query,
-                                                             context=context,
-                                                             aliases=aliases)
+        query_field, query_data = self.render_query_field(model,
+                                                          column,
+                                                          query,
+                                                          context=context,
+                                                          aliases=aliases)
 
+        data.update(query_data)
         kw = {
+            'field': query_field,
             'column': column_data,
-            'op': orb.Query.Op(query.op()),
+            'op': self.get_query_op(column, query.op()),
             'case_sensitive': query.case_sensitive(),
             'inverted': query.is_inverted(),
             'value': {
@@ -578,7 +582,7 @@ class SQLConnection(Connection):
         if model in aliases:
             parts = [self.wraps(aliases[model]), self.wraps(column.field())]
         else:
-            parts = [self.wraps(model.schema().namespace(context=context)),
+            parts = [self.wraps(model.schema().namespace(context=context) or self.get_default_namespace()),
                      self.wraps(model.schema().dbname()),
                      self.wraps(column.field())]
 
@@ -594,11 +598,12 @@ class SQLConnection(Connection):
         for math_op, value in query.math():
             # perform math on a query object
             if isinstance(value, orb.Query):
-                qvalue = self.render_query_field(value.model(default=model),
-                                                 value.column(model=model),
-                                                 value,
-                                                 context=context,
-                                                 aliases=aliases)
+                qvalue, qvalue_data = self.render_query_field(value.model(default=model),
+                                                              value.column(model=model),
+                                                              value,
+                                                              context=context,
+                                                              aliases=aliases)
+                data.update(qvalue_data)
             else:
                 value_id = os.urandom(8).encode('hex')
                 qvalue = u'%({0})s'.format(value_id)
@@ -668,7 +673,7 @@ class SQLConnection(Connection):
 
         kw = {
             'queries': sub_queries,
-            'op': orb.QueryCompound.Op(query_compound.op())
+            'op': self.get_query_compound_op(query_compound.op())
         }
         cmd = self.render('query_compound.sql.jinja', kw)
         return cmd, data
@@ -766,6 +771,56 @@ class SQLConnection(Connection):
             raise orb.errors.ColumnTypeNotFound(column_type)
 
     @classmethod
+    def get_default_namespace(cls):
+        """
+        Returns the default namespace for this connection class instance.
+
+        :return: <str>
+        """
+        return cls.__default_namespace__
+
+    @classmethod
+    def get_query_op(cls, column, op):
+        """
+        Returns the SQL specific rendering for the operator.
+
+        :param column: <orb.Column>
+        :param op: <orb.Query.Op>
+
+        :return: <unicode>
+        """
+        key = '_{0}__query_op_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)[op]
+        except (AttributeError, KeyError):
+            return inflection.titelize(orb.QueryCompound.Op(op)).upper()
+        else:
+            if callable(mapping):
+                return mapping(column, op)
+            else:
+                return mapping
+
+    @classmethod
+    def get_query_compound_op(cls, op):
+        """
+        Returns the SQL specific rendering for the compound operator.
+
+        :param op: <orb.QueryCompound.Op>
+
+        :return: <unicode>
+        """
+        key = '_{0}__qcompound_op_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)[op]
+        except (AttributeError, KeyError):
+            return orb.QueryCompound.Op(op).upper()
+        else:
+            if callable(mapping):
+                return mapping(op)
+            else:
+                return mapping
+
+    @classmethod
     def get_templates(cls):
         """
         Returns the templates environment for this sql connection.
@@ -831,13 +886,53 @@ class SQLConnection(Connection):
         :param query_math_op: <orb.Query.Math>
         :param map: <str> or <callable>
         """
-        key = '_{0}__function_mapping'.format(cls.__name__)
+        key = '_{0}__math_mapping'.format(cls.__name__)
         try:
             mapping = getattr(cls, key)
         except AttributeError:
             setattr(cls, key, {query_math_op: map})
         else:
             mapping[query_math_op] = map
+
+    @classmethod
+    def register_query_op_mapping(cls, op, map):
+        """
+            Sets the query op mapping type for this connection to the given
+            map.  This can be a string or a callable function.  If a string is
+            provided, then it should be a format accepting a single argument.  If
+            it is a callable function, then it should accept the source text and
+            return a new text.
+
+            :param op: <orb.Query.Op>
+            :param map: <str> or <callable>
+            """
+        key = '_{0}__query_op_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)
+        except AttributeError:
+            setattr(cls, key, {op: map})
+        else:
+            mapping[op] = map
+
+    @classmethod
+    def register_query_compound_op_mapping(cls, op, map):
+        """
+            Sets the query compound op mapping type for this connection to the given
+            map.  This can be a string or a callable function.  If a string is
+            provided, then it should be a format accepting a single argument.  If
+            it is a callable function, then it should accept the source text and
+            return a new text.
+
+            :param op: <orb.Query.Op>
+            :param map: <str> or <callable>
+            """
+        key = '_{0}__qcompound_mapping'.format(cls.__name__)
+        try:
+            mapping = getattr(cls, key)
+        except AttributeError:
+            setattr(cls, key, {op: map})
+        else:
+            mapping[op] = map
 
     @classmethod
     def register_type_mapping(cls, column_type, map):

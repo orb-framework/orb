@@ -1,7 +1,7 @@
 {% if value == None -%}
-{{ column.field | wraps }} {% if op in ('Is', 'Matches') %} IS {% else -%} IS NOT {% endif -%} NULL
+{{ query.field }} {% if query.op in ('Is', 'Matches') %} IS {% else -%} IS NOT {% endif -%} NULL
 {% elif inverted -%}
-{{ value_key }} {{ op }} {{ column.field | wraps }}
+{{ query.value.key }} {{ query.op }} {{ query.field }}
 {% else -%}
-{{ column.field | wraps }} {{ op }} {{ value_key }}
+{{ query.field }} {{ query.op }} {{ query.value.key }}
 {% endif %}

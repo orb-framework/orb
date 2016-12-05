@@ -1,3 +1,6 @@
+from __future__ import print_function
+
+
 # alter table sql
 def test_render_alter_table(pg_conn, sql_equals, User):
     add = {
@@ -166,9 +169,50 @@ def test_render_create_namespace(pg_conn, sql_equals):
 
 # render query
 
-def test_render_query_with_math_and_functions(pg_conn, Employee):
+def test_render_query_with_and_compound(pg_conn, sql_equals, Employee):
+    import orb
+    a = orb.Query('first_name') == 'John'
+    b = orb.Query('last_name') == 'Doe'
+    sql, data = pg_conn.render_query(Employee, a & b)
+
+    valid_sql = """\
+    (
+        "public"."employees"."first_name" = John AND "public"."employees"."last_name" = Doe
+    )
+    """
+
+    assert sql_equals(sql, valid_sql, data)
+
+
+def test_render_query_with_or_compound(pg_conn, sql_equals, Employee):
+    import orb
+    a = orb.Query('first_name') == 'John'
+    b = orb.Query('last_name') == 'Doe'
+
+    sql, data = pg_conn.render_query(Employee, a | b)
+
+    valid_sql = """\
+        (
+            "public"."employees"."first_name" = John OR "public"."employees"."last_name" = Doe
+        )
+        """
+
+    assert sql_equals(sql, valid_sql, data)
+
+
+def test_render_query_with_math(pg_conn, sql_equals, Employee):
+    import orb
+
+    query = (orb.Query('first_name') + ' ' + orb.Query('last_name')) == 'John Doe'
+    sql, data = pg_conn.render_query(Employee, query)
+
+    valid_sql = ''
+
+def test_render_query_with_math_and_functions(pg_conn, sql_equals, Employee):
     import orb
     query = (orb.Query('first_name').lower() + ' ' + orb.Query('last_name').lower()) == 'john doe'
     sql, data = pg_conn.render_query(Employee, query)
-    print sql
-    assert sql == ''
+
+    valid_sql = '((lower("public"."employees"."first_name") ||  ) || lower("public"."employees"."last_name")) = john doe'
+
+    assert sql_equals(sql, valid_sql, data)
