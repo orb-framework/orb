@@ -6,8 +6,9 @@ import pytest
 def sql_equals():
     def _sql_equals(a, b, data=None):
         data = data or {}
+        a = a % data
 
-        print(a % data)
+        print(a)
 
         normal_a = a.replace('\n', '').replace(' ', '')
         normal_b = b.replace('\n', '').replace(' ', '')

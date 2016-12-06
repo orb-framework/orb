@@ -167,7 +167,90 @@ def test_render_create_namespace(pg_conn, sql_equals):
     assert sql == 'CREATE SCHEMA IF NOT EXISTS "testing";'
 
 
-# render query
+# delete sql
+
+
+def test_render_delete_null_collection(pg_conn):
+    import orb
+
+    sql, data = pg_conn.render_delete_collection(orb.Collection())
+
+    assert sql == ''
+
+
+def test_render_delete_all_records(pg_conn, sql_equals, Employee):
+    import orb
+
+    collection = orb.Collection(model=Employee)
+
+    sql, data = pg_conn.render_delete_collection(collection)
+
+    valid_sql = """\
+        DELETE FROM "public".employees
+        RETURNING *;
+        """
+
+    assert sql_equals(sql, valid_sql, data)
+
+
+def test_render_delete_empty_collection(pg_conn, sql_equals, Employee):
+    import orb
+
+    collection = Employee.select(where=orb.Query('first_name').in_([]))
+
+    sql, data = pg_conn.render_delete_collection(collection)
+
+    assert sql == ''
+
+
+def test_render_delete_from_loaded_collection(pg_conn, sql_equals, Employee):
+    import orb
+
+    collection = orb.Collection([Employee({'id': 1})])
+
+    sql, data = pg_conn.render_delete_collection(collection)
+
+    valid_sql = """\
+        DELETE FROM "public".employees
+        WHERE "public"."employees"."id" IN (1,)
+        RETURNING *;
+        """
+
+    assert sql_equals(sql, valid_sql, data)
+
+
+def test_render_delete_from_unloaded_collection(pg_conn, sql_equals, Employee):
+    import orb
+
+    collection = Employee.select(where=orb.Query('id') == 1)
+
+    sql, data = pg_conn.render_delete_collection(collection)
+
+    valid_sql = """\
+        DELETE FROM "public".employees
+        WHERE "public"."employees"."id" = 1
+        RETURNING *;
+        """
+
+    assert sql_equals(sql, valid_sql, data)
+
+
+def test_render_delete_from_unloaded_collection_for_all_records(pg_conn, sql_equals, Employee):
+    import orb
+
+    collection = Employee.select(where=orb.Query('id').not_in([]))
+
+    sql, data = pg_conn.render_delete_collection(collection)
+
+    valid_sql = """\
+        DELETE FROM "public".employees
+        RETURNING *;
+        """
+
+    assert sql_equals(sql, valid_sql, data)
+
+
+# query sql
 
 def test_render_query_with_and_compound(pg_conn, sql_equals, Employee):
     import orb
@@ -192,10 +275,10 @@ def test_render_query_with_or_compound(pg_conn, sql_equals, Employee):
     sql, data = pg_conn.render_query(Employee, a | b)
 
     valid_sql = """\
-        (
-            "public"."employees"."first_name" = John OR "public"."employees"."last_name" = Doe
-        )
-        """
+    (
+        "public"."employees"."first_name" = John OR "public"."employees"."last_name" = Doe
+    )
+    """
 
     assert sql_equals(sql, valid_sql, data)
 
@@ -206,7 +289,21 @@ def test_render_query_with_math(pg_conn, sql_equals, Employee):
     query = (orb.Query('first_name') + ' ' + orb.Query('last_name')) == 'John Doe'
     sql, data = pg_conn.render_query(Employee, query)
 
-    valid_sql = ''
+    valid_sql = '(("public"."employees"."first_name" ||  ) || "public"."employees"."last_name") = John Doe'
+
+    assert sql_equals(sql, valid_sql, data)
+
+
+def test_render_query_with_functions(pg_conn, sql_equals, Employee):
+    import orb
+
+    query = orb.Query('first_name').lower().upper() == 'JOHN'
+    sql, data = pg_conn.render_query(Employee, query)
+
+    valid_sql = 'upper(lower("public"."employees"."first_name")) = JOHN'
+
+    assert sql_equals(sql, valid_sql, data)
+
 
 def test_render_query_with_math_and_functions(pg_conn, sql_equals, Employee):
     import orb
@@ -216,3 +313,4 @@ def test_render_query_with_math_and_functions(pg_conn, sql_equals, Employee):
     valid_sql = '((lower("public"."employees"."first_name") ||  ) || lower("public"."employees"."last_name")) = john doe'
 
     assert sql_equals(sql, valid_sql, data)
+

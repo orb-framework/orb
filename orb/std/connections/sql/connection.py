@@ -1,11 +1,13 @@
+import datetime
 import demandimport
+import orb.errors
 import os
 import inflection
 import logging
 import sys
 
 from abc import abstractmethod
-from jinja2 import Environment, DictLoader
+from jinja2 import Environment
 from orb.core.connection import Connection
 
 from .connection_pool import SQLConnectionPool
@@ -15,6 +17,17 @@ with demandimport.enabled():
 
 
 log = logging.getLogger(__name__)
+
+
+def raise_error(error_cls, msg=''):
+    """
+    Raises a given error, used within the jinja templates.
+
+    :param error_cls: <Exception>
+    :param msg: <str>
+    """
+    cls = getattr(orb.errors, error_cls, RuntimeError)
+    raise cls(msg)
 
 
 class SQLConnection(Connection):
@@ -172,7 +185,7 @@ class SQLConnection(Connection):
 
         :return: <int> number of rows removed
         """
-        if isinstance(records, orb.Collection) and not records.is_loaded():
+        if isinstance(records, orb.Collection):
             cmd, data = self.render_delete_collection(records, context=context)
         else:
             cmd, data = self.render_delete_records(records, context=context)
@@ -401,6 +414,7 @@ class SQLConnection(Connection):
 
         # convert the value to something the database can use
         db_value, db_value_data = self.process_value(column,
+                                                     query.op(),
                                                      value,
                                                      context,
                                                      aliases=aliases,
@@ -420,7 +434,8 @@ class SQLConnection(Connection):
         kw = {
             'field': query_field,
             'column': column_data,
-            'op': self.get_query_op(column, query.op()),
+            'op': self.get_query_op(column, query.op(), query.case_sensitive()),
+            'op_name': orb.Query.Op(query.op()),
             'case_sensitive': query.case_sensitive(),
             'inverted': query.is_inverted(),
             'value': {
@@ -431,19 +446,23 @@ class SQLConnection(Connection):
         }
         return kw, data
 
-    def process_value(self, column, value, context=None, aliases=None, fields=None):
+    def process_value(self, column, op, value, context=None, aliases=None, fields=None):
         """
         Processes the column's database value to prepare it for use in the database
         context.
 
         :param column: <orb.Column>
+        :param op: <orb.Query.Op>
         :param value: <variant>
         :param context: <orb.Context>
+        :param aliases: {<orb.Model>: <str>, ..} or None
+        :param fields: {<orb.Column>: <str>, ..} or None
 
         :return: <variant> db value, <dict> data
         """
         db_value = column.database_store(value, context=context)
 
+        # process a query value
         if isinstance(db_value, (orb.Query, orb.QueryCompound)):
             val_model = db_value.model()
             val_column = db_value.column()
@@ -452,7 +471,28 @@ class SQLConnection(Connection):
                                            db_value,
                                            context=context, aliases=aliases)
 
-        return db_value, {}
+        # process a collection value
+        elif isinstance(db_value, orb.Collection):
+            val_model = db_value.model().id_column()
+            context = db_value.context()
+            if not context.columns:
+                context.columns = [val_model.schema().id_column()]
+                context.distinct = True
+
+            return self.render_select(val_model, context)
+
+        # adjust the value as needed
+        elif op in (orb.Query.Op.Contains, orb.Query.Op.DoesNotContain):
+            return u'%{0}%'.format(db_value), {}
+
+        elif op in (orb.Query.Op.Startswith, orb.Query.Op.DoesNotStartwith):
+            return u'{0}%'.format(db_value), {}
+
+        elif op in (orb.Query.Op.Endswith, orb.Query.Op.DoesNotEndwith):
+            return u'%{0}'.format(db_value), {}
+
+        else:
+            return db_value, {}
 
     def render_alter_table(self, table, context=None, add=None, remove=None, owner=''):
         """
@@ -550,21 +590,72 @@ class SQLConnection(Connection):
 
         :return: <unicode> command, <dict> data
         """
-        model = collection.model()
-        collection_context = collection.context(context=context)
-
-        if collection_context.where is not None:
-            where, data = self.render_query(model, collection_context.where, collection_context)
+        if collection.is_null():
+            return '', {}
+        elif collection.is_loaded():
+            return self.render_delete_records(list(collection), context=context)
         else:
-            where = ''
-            data = {}
+            model = collection.model()
+            collection_context = collection.context(context=context)
 
-        kw = {
-            'model': self.process_model(model, context),
-            'where': where
-        }
-        cmd = self.render('delete.sql.jinja', kw)
-        return cmd, data
+            if collection_context.where is not None:
+                try:
+                    where, data = self.render_query(model, collection_context.where, collection_context)
+
+                # if the query ends up generating a null selection, then
+                # there will be no results to delete, so no text is necessary
+                except orb.errors.QueryIsNull:
+                    return '', {}
+            else:
+                where = ''
+                data = {}
+
+            kw = {
+                'model': self.process_model(model, context),
+                'where': where
+            }
+            cmd = self.render('delete.sql.jinja', kw)
+            return cmd, data
+
+    def render_delete_records(self, records, context=None):
+        """
+        Renders the DELETE SQL for this connection type.
+
+        :param records: [<orb.Model>, ..]
+        :param context: <orb.Context>
+
+        :return: <unicode> command, <dict> data
+        """
+        if not records:
+            return '', {}
+        else:
+            models = {}
+
+            # pre-compute the records into each model
+            for record in records:
+                record_id = record.id()
+                if not record_id:
+                    continue
+                else:
+                    models.setdefault(type(record), []).append(record.id())
+
+            cmds = []
+            data = {}
+            for model, ids in models.items():
+                q = orb.Query(model).in_(ids)
+
+                where, where_data = self.render_query(model, q, context)
+                kw = {
+                    'model': self.process_model(model, context),
+                    'where': where
+                }
+                cmd = self.render('delete.sql.jinja', kw)
+
+                cmds.append(cmd)
+                data.update(where_data)
+
+            return u'\n'.join(cmds), data
+
 
     def render_query_field(self, model, column, query, context=None, aliases=None):
         """
@@ -780,7 +871,7 @@ class SQLConnection(Connection):
         return cls.__default_namespace__
 
     @classmethod
-    def get_query_op(cls, column, op):
+    def get_query_op(cls, column, op, case_sensitive=False):
         """
         Returns the SQL specific rendering for the operator.
 
@@ -793,10 +884,10 @@ class SQLConnection(Connection):
         try:
             mapping = getattr(cls, key)[op]
         except (AttributeError, KeyError):
-            return inflection.titelize(orb.QueryCompound.Op(op)).upper()
+            return inflection.titleize(orb.Query.Op(op)).upper()
         else:
             if callable(mapping):
-                return mapping(column, op)
+                return mapping(column, op, case_sensitive)
             else:
                 return mapping
 
@@ -832,6 +923,7 @@ class SQLConnection(Connection):
             return getattr(cls, key)
         except AttributeError:
             env = Environment(loader=cls.__templates__)
+            env.globals['raise'] = raise_error
             env.filters['wraps'] = cls.wraps
             setattr(cls, key, env)
             return env

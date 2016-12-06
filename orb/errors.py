@@ -252,8 +252,8 @@ class QueryInvalid(QueryError):
 
 class QueryIsNull(QueryError):
     """ Raised when a query will result in no values to be retrieved from a backend """
-    def __init__(self):
-        msg = u'This query will result in no items'
+    def __init__(self, msg=''):
+        msg = msg or u'This query will result in no items'
         super(QueryIsNull, self).__init__(msg)
 
 

@@ -1,5 +1,21 @@
-{% if value == None -%}
-{{ query.field }} {% if query.op in ('Is', 'Matches') %} IS {% else -%} IS NOT {% endif -%} NULL
+{# NULL queries are handled specially #}
+{% if query.value.variable == None -%}
+{% if query.op_name in ('Is', 'Matches') %}
+{{ query.field }} IS NULL
+{% elif query.op_name in ('IsNot', 'DoesNotMatch') %}
+{{ query.field }} IS NOT NULL
+{% else %}
+{{ raise('QueryInvalid', 'Invalid operation for NULL') }}
+{% endif %}
+
+{# if the op is "NOT IN" an empty list, then by definition it is "all results", so don't filter #}
+{% elif query.op_name == 'IsNotIn' and not query.value.variable %}
+
+{# if the op is "IS IN" an empty list, then by definition it is "no results", so don't bother #}
+{% elif query.op_name == 'IsIn' and not query.value.variable %}
+{{ raise('QueryIsNull') }}
+
+{# inverted queries will put the value before the field #}
 {% elif inverted -%}
 {{ query.value.key }} {{ query.op }} {{ query.field }}
 {% else -%}
