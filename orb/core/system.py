@@ -152,7 +152,7 @@ class System(object):
         else:
             try:
                 is_model = issubclass(obj, orb.Model)
-            except StandardError:
+            except Exception:
                 raise orb.errors.OrbError('Unknown object being registered')
             else:
                 return self.register_schema(obj.schema(), force=force)
@@ -234,7 +234,7 @@ class System(object):
         else:
             try:
                 schema = obj.schema()
-            except StandardError:
+            except Exception:
                 raise orb.errors.OrbError('Unknown object to unregister')
             else:
                 self.unregister_schema(schema)

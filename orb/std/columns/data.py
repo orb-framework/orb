@@ -4,9 +4,13 @@ import logging
 from orb.utils import json2
 from orb.core.column import Column
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 with demandimport.enabled():
     import orb
-    import cPickle
     import yaml
 
 log = logging.getLogger(__name__)
@@ -59,8 +63,8 @@ class DataColumn(Column):
 
 class BinaryColumn(DataColumn):
     def __init__(self, **kw):
-        kw.setdefault('loader', cPickle.loads)
-        kw.setdefault('dumper', cPickle.dumps)
+        kw.setdefault('loader', pickle.loads)
+        kw.setdefault('dumper', pickle.dumps)
 
         super(BinaryColumn, self).__init__(**kw)
 

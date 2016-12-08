@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import re
 import subprocess
@@ -41,7 +43,7 @@ class tag(Command):
         desc = subprocess.check_output(cmd).strip()
         result = re.match('v([0-9]+)\.([0-9]+)\.0-([0-9]+)-(.*)', desc)
 
-        print 'generating version information from:', desc
+        print('generating version information from:', desc)
         with open('./orb/_version.py', 'w') as f:
             f.write('__major__ = {0}\n'.format(result.group(1)))
             f.write('__minor__ = {0}\n'.format(result.group(2)))
@@ -52,12 +54,12 @@ class tag(Command):
         if not self.no_tag:
             version = '.'.join([result.group(1), result.group(2), result.group(3)])
 
-            print 'creating git tag:', 'v' + version
+            print('creating git tag:', 'v' + version)
 
             os.system('git tag -a v{0} -m "releasing {0}"'.format(version))
             os.system('git push --tags')
         else:
-            print 'warning: tagging ignored...'
+            print('warning: tagging ignored...')
 
 
 def read_requirements_file(path):

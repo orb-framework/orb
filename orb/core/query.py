@@ -171,7 +171,7 @@ class Query(object):
                         schema_object = arg.schema().id_column()
                     else:
                         raise RuntimeError('Invalid Query arguments')
-                except StandardError:
+                except Exception:
                     raise RuntimeError('Invalid Query arguments')
 
         # initialize the operation
@@ -865,7 +865,7 @@ class Query(object):
         if isinstance(schema_object, (orb.Column, orb.Collector)):
             try:
                 my_object = self.schema_object()
-            except StandardError:
+            except Exception:
                 my_object = None
 
             if my_object is None:
@@ -1140,7 +1140,7 @@ class Query(object):
         """
         try:
             obj = self.schema_object(model=model)
-        except StandardError:
+        except Exception:
             pass
         else:
             yield obj

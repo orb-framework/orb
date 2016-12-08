@@ -82,7 +82,7 @@ class PostgresConnection(SQLConnection):
         except pg_ext.QueryCanceledError as cancelled:
             try:
                 native_connection.rollback()
-            except StandardError as err:
+            except Exception as err:
                 log.error('Rollback error: {0}'.format(err))
             log.critical(command)
             if data:
@@ -102,7 +102,7 @@ class PostgresConnection(SQLConnection):
         except (pg.IntegrityError, pg.OperationalError) as err:
             try:
                 native_connection.rollback()
-            except StandardError:
+            except Exception:
                 pass
 
             # look for a duplicate error
@@ -133,7 +133,7 @@ class PostgresConnection(SQLConnection):
         except (pg.Error, pg.ProgrammingError) as err:
             try:
                 native_connection.rollback()
-            except StandardError:
+            except Exception:
                 pass
 
             log.error(traceback.print_exc())

@@ -8,7 +8,7 @@ with demandimport.enabled():
 # ------------------------------------------------------------------------------
 
 
-class OrbError(StandardError):
+class OrbError(Exception):
     """ Defines the base error class for the orb package """
     pass
 
