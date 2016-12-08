@@ -80,7 +80,9 @@ class SQLConnection(Connection):
         """
         Closes the native connection.
 
-        :param native_connection: <variant>
+        Args:
+            native_connection: <variant>
+
         """
         pass
 
