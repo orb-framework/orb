@@ -60,6 +60,8 @@ def test_basic_database():
     with pytest.raises(BackendNotFound):
         assert not db.set_connection('testing')
 
+    assert db.set_connection('Postgres') is not None
+
 def test_basic_database_with_keys():
     from orb.core.database import Database
     from orb.testing import MockConnection

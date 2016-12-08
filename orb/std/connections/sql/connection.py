@@ -399,13 +399,16 @@ class SQLConnection(Connection):
         """
         Converts the query object to SQL template properties.
 
-        :param model: subclass of <orb.Model>
-        :param query: <orb.Query>
-        :param context: <orb.Context>
-        :param aliases: <dict> or None
-        :param fields: <dict> or None
+        Args:
+            model: subclass of <orb.Model>
+            query: <orb.Query>
+            context: <orb.Context>
+            aliases: <dict> or None
+            fields: <dict> or None
 
-        :return: <dict> template options, <dict> data
+        Returns:
+            <dict> template options, <dict> data
+
         """
         column = query.column(model=model)
         value = query.value()
@@ -460,7 +463,7 @@ class SQLConnection(Connection):
 
         :return: <variant> db value, <dict> data
         """
-        db_value = column.database_store(value, context=context)
+        db_value = column.store(value, context=context)
 
         # process a query value
         if isinstance(db_value, (orb.Query, orb.QueryCompound)):
@@ -875,10 +878,12 @@ class SQLConnection(Connection):
         """
         Returns the SQL specific rendering for the operator.
 
-        :param column: <orb.Column>
-        :param op: <orb.Query.Op>
+        Args:
+            column: <orb.Column>
+            op: <orb.Query.Op>
 
-        :return: <unicode>
+        Returns:
+            <unicode>
         """
         key = '_{0}__query_op_mapping'.format(cls.__name__)
         try:

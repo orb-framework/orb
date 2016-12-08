@@ -1,9 +1,11 @@
-projex>=2015.0.12
 blinker
+bleach
 demandimport
 inflection
 jinja2
 pycrypto
 pyparsing
+python-dateutil
 pyyaml
 pytz
+webhelpers

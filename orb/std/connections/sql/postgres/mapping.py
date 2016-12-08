@@ -13,10 +13,17 @@ def get_like(column, op, case_sensitive):
 
     :return: <unicode>
     """
-    if case_sensitive:
-        return u'LIKE'
+    if op in (orb.Query.Op.DoesNotContain,
+              orb.Query.Op.DoesNotStartwith,
+              orb.Query.Op.DoesNotEndwith):
+        prefix = u'NOT '
     else:
-        return u'ILIKE'
+        prefix = u''
+
+    if case_sensitive:
+        return prefix + u'LIKE'
+    else:
+        return prefix + u'ILIKE'
 
 
 def get_match(column, op, case_sensitive):
@@ -90,8 +97,6 @@ PostgresConnection.register_type_mapping(orb.StringColumn, lambda x, y: u'CHARAC
 PostgresConnection.register_type_mapping(orb.TextColumn, u'TEXT')
 PostgresConnection.register_type_mapping(orb.TimeColumn, u'TIME')
 PostgresConnection.register_type_mapping(orb.TimestampColumn, u'BIGINT')
-PostgresConnection.register_type_mapping(orb.UTC_DatetimeColumn, u'TIMESTAMP')
-PostgresConnection.register_type_mapping(orb.UTC_TimestampColumn, u'BIGINT')
 
 # register query operators
 PostgresConnection.register_query_op_mapping(orb.Query.Op.Is, u'=')
@@ -101,6 +106,7 @@ PostgresConnection.register_query_op_mapping(orb.Query.Op.LessThanOrEqual, u'<='
 PostgresConnection.register_query_op_mapping(orb.Query.Op.GreaterThan, u'>')
 PostgresConnection.register_query_op_mapping(orb.Query.Op.GreaterThanOrEqual, u'>=')
 PostgresConnection.register_query_op_mapping(orb.Query.Op.After, u'>')
+PostgresConnection.register_query_op_mapping(orb.Query.Op.Before, u'<')
 PostgresConnection.register_query_op_mapping(orb.Query.Op.IsIn, u'IN')
 PostgresConnection.register_query_op_mapping(orb.Query.Op.IsNotIn, u'NOT IN')
 

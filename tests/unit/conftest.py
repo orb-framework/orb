@@ -22,7 +22,7 @@ def MockUser():
 
         id = orb.IdColumn()
         username = orb.StringColumn(flags={'Required'})
-        password = orb.PasswordColumn(flags={'Required'})
+        password = orb.StringColumn(flags={'Required', 'Encrypted'})
         first_name = orb.StringColumn()
         last_name = orb.StringColumn()
         group = orb.ReferenceColumn('MockGroup', flags={'AutoExpand'})

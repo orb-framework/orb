@@ -35,7 +35,7 @@ class DataColumn(Column):
         else:
             try:
                 return self.__loader(db_value)
-            except Exception:
+            except Exception:  # pragma: no cover
                 raise orb.errors.DataStoreError('Fail to load serialized data')
 
     def store_value(self, py_value, context=None):
@@ -53,7 +53,7 @@ class DataColumn(Column):
         else:
             try:
                 return self.__dumper(py_value)
-            except Exception:
+            except Exception:  # pragma: no cover
                 raise orb.errors.DataStoreError('Failed to serialize data for database')
 
 

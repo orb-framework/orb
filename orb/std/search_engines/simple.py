@@ -1,12 +1,15 @@
 import orb
+import logging
 import re
 import pyparsing
 
 from collections import defaultdict
 from orb.core.search import SearchEngine
 
+log = logging.getLogger(__name__)
 
-class Node(list):
+
+class Node(list): # pragma: no cover
     def __eq__(self, other):
         return list.__eq__(self, other) and self.__class__ == other.__class__
 
@@ -99,6 +102,19 @@ class SimpleSearchEngine(SearchEngine):
         self.__thesaurus = thesaurus or SIMPLE_THESAURUS
 
     def search(self, model, terms, **context):
+        """
+        Generates a search collection for the given
+        model and search terms.
+
+        Args:
+            model: subclass of <orb.Model>
+            terms: <str>
+            **context: <orb.Context> descriptor
+
+        Returns:
+            <orb.Collection>
+
+        """
         search_context = context.get('context') or orb.Context(**context)
         locale = search_context.locale
         nodes = self.__parser.parseString(terms)

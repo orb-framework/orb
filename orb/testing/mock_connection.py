@@ -44,7 +44,7 @@ class MockConnection(orb.Connection):
         """
         assert isinstance(context, orb.Context)
 
-        return self.next_response('schema_info', context)
+        return self.next_response('current_schema', context)
 
     def create_namespace(self, namespace, context):
         """

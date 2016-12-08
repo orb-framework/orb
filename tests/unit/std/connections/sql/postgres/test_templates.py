@@ -84,8 +84,6 @@ def test_render_create_table_with_standard_columns(pg_conn, sql_equals, Standard
         "text_test" TEXT ,
         "time_test" TIME ,
         "timestamp_test" BIGINT ,
-        "utc_datetime_test" TIMESTAMP ,
-        "utc_timestamp_test" BIGINT ,
         "yaml_test" TEXT
         )
     WITH (OIDS=FALSE);

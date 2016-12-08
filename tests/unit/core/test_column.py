@@ -30,7 +30,7 @@ def test_basic_column_creation_with_settings():
 
     a = Column(name='userName')
     b = Column(name='userName', field='username')
-    c = Column(name='userName', field='fkey_username', alias='username_id')
+    c = Column(name='userName', field='fkey_username', alias='username')
 
     assert a.name() == 'userName'
     assert a.field() == 'user_name'
@@ -38,11 +38,11 @@ def test_basic_column_creation_with_settings():
 
     assert b.name() == 'userName'
     assert b.field() == 'username'
-    assert b.alias() == 'username'
+    assert b.alias() == 'user_name'
 
     assert c.name() == 'userName'
     assert c.field() == 'fkey_username'
-    assert c.alias() == 'username_id'
+    assert c.alias() == 'username'
 
 
 def test_set_basic_column_properties():
@@ -67,11 +67,11 @@ def test_set_basic_column_properties():
 
     column.set_field('fname')
     assert column.field() == 'fname'
-    assert column.alias() == 'fname'
+    assert column.alias() == 'first_name'
 
-    column.set_alias('field_name')
+    column.set_alias('first_name')
     assert column.field() == 'fname'
-    assert column.alias() == 'field_name'
+    assert column.alias() == 'first_name'
 
     assert column.default() is None
     column.set_default(10)
@@ -143,7 +143,11 @@ def test_column_serialize_to_dict(assert_dict_equals):
         'write_permit': None,
         'getter': None,
         'setter': None,
-        'filter': None
+        'filter': None,
+        'keywords': {},
+        'properties': {},
+        'value_filters': [],
+        'validators': []
     }
 
     assert set(adict.keys()).symmetric_difference(expected.keys()) == set()
@@ -183,7 +187,8 @@ def test_column_serialize_to_json(assert_dict_equals):
         'flags': {
             'Required': True
         },
-        'default': 1
+        'default': 1,
+        'properties': {}
     }
 
     jdata = column.__json__()
@@ -376,3 +381,84 @@ def test_internationalization_column_restore():
     assert a.restore(locale_data['en_US'], context=all_context) == {'en_US': locale_data['en_US']}
     assert a.restore(locale_data, context=en_fr_context) == {'en_US': locale_data['en_US'],
                                                              'fr_FR': locale_data['fr_FR']}
+
+
+def test_column_i18n_data_restore_from_string():
+    import orb
+
+    a = orb.Column(flags={'I18n'})
+    b = orb.Column()
+
+    db_data = '{"en_US": "Hello", "fr_FR": "Bonjour"}'
+    db_data2 = '{test result}'
+
+    a_data = a.restore(db_data, context=orb.Context(locale='all'))
+    b_data = b.restore(db_data, context=orb.Context(locale='all'))
+    c_data = a.restore(db_data2, context=orb.Context(locale='all'))
+
+    assert a_data == {'en_US': 'Hello', 'fr_FR': 'Bonjour'}
+    assert b_data == db_data
+    assert c_data == {'en_US': db_data2}
+
+
+def test_column_keywords():
+    import orb
+
+    a = orb.Column()
+    a.add_keyword('test', '10')
+    a.add_keyword('test2', lambda k, ctxt: '"{0}"'.format(k))
+
+    assert set(a.keywords()) == {'test', 'test2'}
+    assert a.keyword_value('test') == '10'
+    assert a.keyword_value('test2') == '"test2"'
+
+
+def test_column_properties():
+    import orb
+
+    a = orb.Column(properties={'options': ['A', 'B', 'C']})
+    assert a.properties() == {'options': ['A', 'B', 'C']}
+
+
+def test_column_validators():
+    import orb
+    import re
+
+    a = orb.Column(validators=[lambda x: False])
+
+    with pytest.raises(orb.errors.ColumnValidationError):
+        assert a.validate(10)
+
+    def regex_validator(value):
+        return re.match('^[a-z]+$', value) is not None
+
+    b = orb.Column()
+    b.add_validator(regex_validator)
+    assert b.validate('testing')
+    assert b.validate('word')
+    with pytest.raises(orb.errors.ColumnValidationError):
+        assert b.validate('uh-oh')
+
+    assert b.validators() == [regex_validator]
+    b.remove_validator(regex_validator)
+    assert b.validators() == []
+
+    assert b.validate('uh-oh')
+
+
+def test_column_filters():
+    import orb
+
+    def prefixer(value):
+        return 'pre-' + value
+
+    b = orb.Column()
+    b.add_value_filter(prefixer)
+    assert b.store('testing') == 'pre-testing'
+    assert b.store('word') == 'pre-word'
+
+    assert b.value_filters() == [prefixer]
+    b.remove_value_filter(prefixer)
+    assert b.value_filters() == []
+
+    assert b.store('uh-oh') == 'uh-oh'

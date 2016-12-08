@@ -10,7 +10,7 @@ def User():
 
         id = orb.IdColumn()
         username = orb.StringColumn(flags={'Required', 'Unique'})
-        password = orb.PasswordColumn(flags={'Required'})
+        password = orb.StringColumn(flags={'Required', 'Encrypted'})
 
         by_username = orb.Index(['username'], flags={'Unique'})
 
@@ -95,8 +95,6 @@ def StandardColumn():
         interval_test = orb.IntervalColumn()
         time_test = orb.TimeColumn()
         timestamp_test = orb.TimestampColumn()
-        utc_datetime_test = orb.UTC_DatetimeColumn()
-        utc_timestamp_test = orb.UTC_TimestampColumn()
 
         # numeric
         decimal_test = orb.DecimalColumn()

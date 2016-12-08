@@ -57,8 +57,6 @@ def TestAllColumns(orb):
         interval = orb.IntervalColumn()
         time = orb.TimeColumn()
         timestamp = orb.TimestampColumn()
-        utc_datetime = orb.UTC_DatetimeColumn()
-        utc_timestamp = orb.UTC_TimestampColumn()
 
         # numeric
         id = orb.IdColumn()

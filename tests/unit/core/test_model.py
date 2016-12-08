@@ -212,6 +212,8 @@ def test_model_initialization_record_not_found(mock_db):
     db = mock_db()
     with pytest.raises(orb.errors.RecordNotFound):
         assert BasicModel(1, db=db) is None
+    with pytest.raises(orb.errors.RecordNotFound):
+        assert BasicModel('tesing', db=db) is None
 
 
 def test_model_initialization_duplication():
@@ -1412,6 +1414,7 @@ def test_model_parsing():
         id = orb.IdColumn()
         name = orb.StringColumn()
         parent = orb.ReferenceColumn('Test')
+        title = orb.StringColumn(flags={'I18n'})
 
     a = Test()
     a.parse({'id': 1})
@@ -1448,6 +1451,27 @@ def test_model_parsing():
     assert f.get('id') == 1
     assert f.preloaded_data('preload') == 'tested'
 
+    g = Test()
+    g.parse({'id': 1, 'parent': '{"id": 2}'})
+    assert g.get('id') == 1
+    assert g.get('parent.id') == 2
+
+    h = Test()
+    h.parse({'id': 1, 'name': '{some name}'})
+    assert h.get('id') == 1
+    assert h.get('name') == '{some name}'
+
+    i = Test()
+    i.parse({'id': 1, 'title': '{some title}'})
+    assert i.get('id') == 1
+    assert i.get('title') == '{some title}'
+    assert i.get('title', locale='fr_FR') is None
+
+    j = Test()
+    j.parse({'id': 1, 'title': '{"en_US": "hello", "fr_FR": "bonjour"}'})
+    assert j.get('id') == 1
+    assert j.get('title') == 'hello'
+    assert j.get('title', locale='fr_FR') == 'bonjour'
 
 def test_preload_controls():
     import orb

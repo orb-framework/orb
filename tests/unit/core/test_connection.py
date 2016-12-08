@@ -8,6 +8,15 @@ def test_create_abstract_connection_fails():
         assert not Connection()
 
 
+def test_connection_plugin_registration():
+    from orb.core.connection import Connection
+
+    class TestConnection(Connection):
+        __plugin_name__ = 'Test'
+
+    assert Connection.get_plugin('Test') == TestConnection
+
+
 def test_create_mock_connection():
     from orb.core.database import Database
     from orb.testing import MockConnection

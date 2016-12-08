@@ -3,9 +3,10 @@
 import demandimport
 import logging
 import inflection
+import json
 
 from ..utils.enum import enum
-from ..utils.text import safe_eval, nativestring
+from ..utils.text import nativestring
 
 with demandimport.enabled():
     import orb
@@ -46,6 +47,10 @@ class Column(object):
                  default=None,
                  schema=None,
                  order=99999,
+                 keywords=None,
+                 properties=None,
+                 validators=None,
+                 value_filters=None,
 
                  # database properties
                  alias='',
@@ -67,6 +72,10 @@ class Column(object):
         self.__flags = self.Flags.from_set(flags) if isinstance(flags, set) else flags
         self.__default = default
         self.__order = order
+        self.__keywords = keywords.copy() if keywords else {}
+        self.__properties = properties or {}
+        self.__validators = validators or []
+        self.__value_filters = value_filters or []
 
         # database properties
         self.__alias = alias
@@ -114,13 +123,17 @@ class Column(object):
                     'flags',
                     'default',
                     'order',
+                    'keywords',
                     'alias',
                     'field',
                     'gettermethod',
                     'settermethod',
                     'filtermethod',
                     'read_permit',
-                    'write_permit'):
+                    'write_permit',
+                    'properties',
+                    'validators',
+                    'value_filters'):
             value = getattr(self, '_Column__{0}'.format(key))
             if key.endswith('method'):
                 yield key.replace('method', ''), value
@@ -143,9 +156,50 @@ class Column(object):
             'field': self.alias(),
             'display': self.display(),
             'flags': {k: True for k in self.Flags.to_set(self.__flags)},
-            'default': default_value
+            'default': default_value,
+            'properties': self.__properties
         }
         return output
+
+    def add_keyword(self, keyword, value):
+        """
+        Registers a keyword for this column to be able to process
+        custom value information.
+
+        Args:
+            keyword: <str>
+            value: <variant>
+
+        Returns:
+            None
+
+        """
+        self.__keywords[keyword] = value
+
+    def add_validator(self, validator):
+        """
+        Adds a validator to the list for this column.
+
+        Args:
+            validator: <callable>
+
+        """
+        self.__validators.append(validator)
+
+    def add_value_filter(self, filter):
+        """
+        Adds a filter that will be used to process a value that is to be stored
+        information for this column on a model.  The filter should accept
+        a single argument, the value to be filtered, and return the filtered result.
+
+        Args:
+            filter: <callable>
+
+        Returns:
+            <variant>
+
+        """
+        self.__value_filters.append(filter)
 
     def alias(self):
         """
@@ -154,58 +208,17 @@ class Column(object):
 
         :return: <str>
         """
-        return self.__alias or self.field()
+        return self.__alias or self.default_alias()
 
-    def copy(self):
+    def copy(self, **kw):
         """
         Returns a new instance copy of this column.
 
         :return: <orb.Column>
         """
-        return type(self)(**dict(self))
-
-    def database_restore(self, db_value, context=None):
-        """
-        Restores data from a backend connection and converts it back
-        to a Python value that is expected by the system.
-
-        :param db_value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant> python value
-        """
-        # restore translatable column
-        if (self.test_flag(orb.Column.Flags.I18n) and
-                isinstance(db_value, (str, unicode))):
-            context = context or orb.Context()
-            if db_value.startswith('{') and db_value.endswith('}'):
-                result = safe_eval(db_value)
-                if not isinstance(result, dict):
-                    return {context.locale: db_value}
-                else:
-                    return result
-            else:
-                return {context.locale: db_value}
-        else:
-            return db_value
-
-    def database_store(self, py_value, context=None):
-        """
-        Prepares to store this column for the a particular backend database.
-
-        :param py_value: <variant>
-        :param context: <orb.Context>
-
-        :return: <variant>
-        """
-        # convert base types to work in the database
-        if isinstance(py_value, (list, tuple, set)):
-            py_value = tuple(self.database_store(x, context=context) for x in py_value)
-        elif isinstance(py_value, orb.Collection):
-            py_value = tuple(py_value.ids())
-        elif isinstance(py_value, orb.Model):
-            py_value = py_value.id()
-        return py_value
+        data = dict(self)
+        data.update(kw)
+        return type(self)(**data)
 
     def default(self):
         """
@@ -221,11 +234,14 @@ class Column(object):
         else:
             return self.__default
 
-    def default_field(self):
+    def default_alias(self):
         """
-        Generates and returns the default field for this column.
+        Returns the default alias name for this column.  By default,
+        this will be an underscored version of the column name.
 
-        :return: <str>
+        Returns:
+            <str>
+
         """
         return inflection.underscore(self.__name)
 
@@ -243,7 +259,7 @@ class Column(object):
 
         :return     <str>
         """
-        return self.__field or self.default_field()
+        return self.__field or self.alias()
 
     def flags(self):
         """
@@ -252,6 +268,63 @@ class Column(object):
         :return     <Column.Flags>
         """
         return self.__flags
+
+    def filter(self, function=None):
+        """
+        Defines a decorator that can be used to filter
+        queries.  It will assume the function being associated
+        with the decorator will take a query as an input and
+        return a modified query to use.
+
+        :param function: <callable> or None
+
+        :usage
+
+            class MyModel(orb.Model):
+                objects = orb.ReverseLookup('Object')
+
+                @classmethod
+                @objects.filter()
+                def objectsFilter(cls, query, **context):
+                    return orb.Query()
+
+        :param function: <callable>
+
+        :return: <wrapper>
+        """
+        if function is not None:
+            self.__filtermethod = function
+            return function
+        else:
+            def wrapper(f):
+                self.__filtermethod = f
+                return f
+
+            return wrapper
+
+    def filter_value(self, value):
+        """
+        Runs the filters for this column on the given value.
+
+        Args:
+            value: <variant>
+
+        Returns:
+            <variant>
+
+        """
+        for filter in self.__value_filters:
+            value = filter(value)
+        return value
+
+    def filtermethod(self):
+        """
+        Returns the actual query filter method, if any,
+        that is associated with this collector.
+
+        :return: <callable> or None
+        """
+        return self.__filtermethod
 
     def getter(self, function=None):
         """
@@ -323,6 +396,36 @@ class Column(object):
         """
         return orb.Column.Flags.iter_values(self.flags())
 
+    def keywords(self):
+        """
+        Returns a list of the acceptable keywords that
+        can be used for values associated with this column.
+
+        Returns:
+            [<str>, ..]
+
+        """
+        return self.__keywords.keys()
+
+    def keyword_value(self, keyword, context=None):
+        """
+        Returns the value associated the given keyword
+        for this column.  This method will raise a KeyError
+        if no matching keyword is found.
+
+        Args:
+            keyword: <str>
+            context: <orb.Context>
+
+        Returns:
+            <variant>
+        """
+        value = self.__keywords[keyword]
+        if callable(value):
+            return value(keyword, context)
+        else:
+            return value
+
     def name(self):
         """
         Returns the accessor name that will be used when
@@ -341,46 +444,19 @@ class Column(object):
         """
         return self.__order
 
-    def filter(self, function=None):
+    def properties(self):
         """
-        Defines a decorator that can be used to filter
-        queries.  It will assume the function being associated
-        with the decorator will take a query as an input and
-        return a modified query to use.
+        Returns a dictionary that can be used to store and propagate custom
+        properties about this column through the system.  The column class itself
+        does not do anything with these properties, this is just a system to be
+        able to transfer meta data about the column around.  This dictionary
+        will serialize for any frontend services as well.
 
-        :param function: <callable> or None
+        Returns:
+            <dict>
 
-        :usage
-
-            class MyModel(orb.Model):
-                objects = orb.ReverseLookup('Object')
-
-                @classmethod
-                @objects.filter()
-                def objectsFilter(cls, query, **context):
-                    return orb.Query()
-
-        :param function: <callable>
-
-        :return: <wrapper>
         """
-        if function is not None:
-            self.__filtermethod = function
-            return function
-        else:
-            def wrapper(f):
-                self.__filtermethod = f
-                return f
-            return wrapper
-
-    def filtermethod(self):
-        """
-        Returns the actual query filter method, if any,
-        that is associated with this collector.
-
-        :return: <callable> or None
-        """
-        return self.__filtermethod
+        return self.__properties
 
     def random_value(self):
         """
@@ -398,6 +474,32 @@ class Column(object):
         """
         return self.__read_permit
 
+    def remove_value_filter(self, filter):
+        """
+        Removes the given validator from the stack for this column.
+
+        Args:
+            filter: <callable>
+
+        """
+        try:
+            self.__value_filters.remove(filter)
+        except ValueError:  # pragma: no cover
+            pass
+
+    def remove_validator(self, validator):
+        """
+        Removes the given validator from the stack for this column.
+
+        Args:
+            validator: <callable>
+
+        """
+        try:
+            self.__validators.remove(validator)
+        except ValueError:  # pragma: no cover
+            pass
+
     def restore(self, value, context=None):
         """
         Restores the value from a table cache for usage.
@@ -409,6 +511,13 @@ class Column(object):
 
         # check to see if this column is translatable before restoring
         if self.test_flag(self.Flags.I18n):
+            # restore json data
+            if isinstance(value, (str, unicode)) and value.startswith('{') and value.endswith('}'):
+                try:
+                    value = json.loads(value)
+                except Exception:
+                    pass
+
             locales = context.locale.split(',')
 
             if not isinstance(value, dict):
@@ -608,11 +717,11 @@ class Column(object):
         if self.test_flag(self.Flags.I18n):
             if not isinstance(value, dict):
                 context = context or orb.Context()
-                return {context.locale: value}
+                return {context.locale: self.filter_value(value)}
             else:
-                return value
+                return {locale: self.filter_value(v) for locale, v in value.items()}
         else:
-            return value
+            return self.filter_value(value)
 
     def test_flag(self, flag):
         """
@@ -640,8 +749,34 @@ class Column(object):
                 msg = '{0} is a required column.'.format(self.name())
                 raise orb.errors.ColumnValidationError(self, msg)
 
+        # go through custom validators, if any
+        for validator in self.__validators:
+            if not validator(value):
+                raise orb.errors.ColumnValidationError(self, 'Failed to validate value')
+
         # otherwise, we're good
         return True
+
+    def value_filters(self):
+        """
+        Returns a list of the value filters that will be run on a
+        value when it is stored for this column.
+
+        Returns:
+            [<callable>, ..]
+
+        """
+        return self.__value_filters
+
+    def validators(self):
+        """
+        Returns a list of the validators associated with this column.
+
+        Returns:
+            [<callable>, ..]
+
+        """
+        return self.__validators
 
     def value_from_string(self, value, context=None):
         """

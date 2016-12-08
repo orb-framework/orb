@@ -105,12 +105,24 @@ class Model(object):
 
             # set the id value for this instance
             id_column = self.schema().id_column()
-            self.set(id_column, record_id)
 
-            # if this record initialization is not delayed, then read from the
-            # backend immediately
-            if not delayed:
-                self.read()
+            # try to support delayed loading
+            try:
+                self.set(id_column, record_id)
+
+            # custom keys need to be loaded immediately though
+            except orb.errors.ColumnValidationError:
+                raw_data = self.__class__.fetch(record_id, returning='data', context=self.__context)
+                if not raw_data:
+                    raise orb.errors.RecordNotFound(schema=self.schema(), column=record_id)
+                else:
+                    self.parse(raw_data)
+
+            else:
+                # if this record initialization is not delayed, then read from the
+                # backend immediately
+                if not delayed:
+                    self.read()
 
         # initialize defaults for the record
         else:
@@ -806,7 +818,10 @@ class Model(object):
         :param raw_data: <dict>
         """
         attributes = {}
-        orb_context = self.context()
+
+        data_context = self.context(locale='all', returning='data')
+        records_context = self.context(locale='all', returning='records')
+
         schema = self.schema()
         base_table_name = schema.dbname()
         for raw_field, raw_value in raw_data.items():
@@ -833,7 +848,20 @@ class Model(object):
 
             # extract the value from the database
             else:
-                value = column.database_restore(raw_value, context=orb_context)
+                if (isinstance(raw_value, (str, unicode)) and
+                        raw_value.startswith('{') and
+                        raw_value.endswith('}') and
+                        (column.test_flag(orb.Column.Flags.I18n) or isinstance(column, orb.ReferenceColumn))):
+                    try:
+                        raw_value = json2.loads(raw_value)
+                    except Exception:
+                        pass
+
+                if type(raw_value) == dict:
+                    value = column.restore(raw_value, context=records_context)
+                else:
+                    value = column.restore(raw_value, context=data_context)
+
                 attributes[column.name()] = value
 
         # update the local values

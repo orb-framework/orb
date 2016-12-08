@@ -338,6 +338,7 @@ class Database(object):
             connection.set_database(self)
 
         self.__connection = connection
+        return connection
 
     def set_credentials(self, credentials):
         """
