@@ -10,7 +10,7 @@ def secure_key():
 def test_encryption_requires_key():
     from orb.utils import security
 
-    with pytest.raises(StandardError):
+    with pytest.raises(Exception):
         assert security.encrypt('testing')
 
 

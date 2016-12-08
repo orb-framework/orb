@@ -7,7 +7,7 @@ def test_generic_orb_error():
 
     # ensure basic orb error creation works
     err = orb.errors.OrbError(u'I can put any error I want here.')
-    assert isinstance(err, StandardError)
+    assert isinstance(err, Exception)
 
 
 def test_database_error():
