@@ -1,15 +1,19 @@
 import contextlib
+import demandimport
 
 from collections import defaultdict
 
+with demandimport.enabled():
+    import orb
 
-class SQLConnectionPool(object):
+
+class ConnectionPool(object):
     def __init__(self, connection, max_size=10, use_gevent=False):
-        super(SQLConnectionPool, self).__init__()
+        super(ConnectionPool, self).__init__()
 
         # depending on whether or not gevent is to be used, determine
         # which queue instance to use
-        if use_gevent:
+        if use_gevent:  # pragma: no cover
             from gevent.queue import Queue
         else:
             from Queue import Queue
@@ -30,13 +34,15 @@ class SQLConnectionPool(object):
         :param isolation_level: <int> or None
         """
         conn = self.open_connection(write_access=write_access)
+
         try:
             if isolation_level is not None:
                 if conn.isolation_level == isolation_level:
                     isolation_level = None
                 else:
                     conn.set_isolation_level(isolation_level)
-                yield conn
+            yield conn
+
         except Exception:
             if self.__connection.is_native_connection_closed(conn):
                 conn = None
@@ -44,11 +50,13 @@ class SQLConnectionPool(object):
             else:
                 conn = self.__connection.rollback_native_connection(conn)
             raise
+
         else:
             if not self.__connection.is_native_connection_closed(conn):
                 self.__connection.commit_native_connection(conn)
+
         finally:
-            if conn is not None and not self.__connection.is_native_connection_closed(conn):
+            if conn and not self.__connection.is_native_connection_closed(conn):
                 if isolation_level is not None:
                     conn.set_isolation_level(isolation_level)
                 self.__pool[write_access].put(conn)
@@ -62,7 +70,7 @@ class SQLConnectionPool(object):
                 native_connection = pool.get_nowait()
                 try:
                     self.__connection.close_native_connection(native_connection)
-                except Exception:
+                except Exception:  # pragma: no cover
                     pass
 
         # reset the pool size after closing all connections

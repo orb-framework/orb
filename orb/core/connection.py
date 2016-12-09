@@ -6,7 +6,7 @@ to the backend databases.
 import blinker
 import logging
 
-from abc import ABCMeta, abstractmethod
+from abc import (ABCMeta, abstractmethod)
 
 
 log = logging.getLogger(__name__)
@@ -336,3 +336,4 @@ class Connection(object):
 
             if output is not None:
                 return output
+

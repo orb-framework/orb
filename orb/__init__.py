@@ -22,37 +22,39 @@ except ImportError:  # pragma: no cover
 __version_info__ = (__major__, __minor__, __revision__)
 __version__ = '{0}.{1}.dev{2}'.format(*__version_info__)
 
-import demandimport
 import logging
-logger = logging.getLogger(__name__)
+
+
+log = logging.getLogger(__name__)
 
 # import global symbols
-with demandimport.enabled():
-    from .decorators import *
-    from . import errors
+from .decorators import *
+from . import errors
 
-    # include the core libraries
-    from .core import events
-    from .core.column import Column
-    from .core.collection import Collection
-    from .core.connection import Connection
-    from .core.context import Context
-    from .core.database import Database
-    from .core.events import *
-    from .core.index import Index
-    from .core.model import (Model, ModelMixin, Table, View)
-    from .core.query import Query
-    from .core.query_compound import QueryCompound
-    from .core.collector import Collector
-    from .core.pipe import Pipe
-    from .core.reverselookup import ReverseLookup
-    from .core.schema import Schema
-    from .core.search import SearchEngine
+# include the core libraries
+from .core import events
+from .core.column import Column
+from .core.collection import Collection
+from .core.connection import Connection
+from .core.connection_pool import ConnectionPool
+from .core.pooled_connection import PooledConnection
+from .core.context import Context
+from .core.database import Database
+from .core.events import *
+from .core.index import Index
+from .core.model import (Model, ModelMixin, Table, View)
+from .core.query import Query
+from .core.query_compound import QueryCompound
+from .core.collector import Collector
+from .core.pipe import Pipe
+from .core.reverselookup import ReverseLookup
+from .core.schema import Schema
+from .core.search import SearchEngine
 
-    # include the standard plugins
-    from .std.columns import *
-    from .std.connections import *
-    from .std.search_engines import *
+# include the standard plugins
+from .std.columns import *
+from .std.connections import *
+from .std.search_engines import *
 
 
 # define the global system

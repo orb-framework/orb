@@ -4,13 +4,10 @@ import orb.errors
 import os
 import inflection
 import logging
-import sys
 
-from abc import abstractmethod
 from jinja2 import Environment
-from orb.core.connection import Connection
 
-from .connection_pool import SQLConnectionPool
+from orb.core.pooled_connection import PooledConnection
 
 with demandimport.enabled():
     import orb
@@ -30,20 +27,9 @@ def raise_error(error_cls, msg=''):
     raise cls(msg)
 
 
-class SQLConnection(Connection):
+class SQLConnection(PooledConnection):
     __default_namespace__ = ''
     __templates__ = None
-
-    def __init__(self, database):
-        super(SQLConnection, self).__init__(database)
-
-        # create custom properties
-        self.__use_gevent = orb.system.settings.worker_class == 'gevent'
-        self.__connection_pool = SQLConnectionPool(
-            self,
-            max_size=int(orb.system.settings.max_connections),
-            use_gevent=self.__use_gevent
-        )
 
     def alter_model(self, model, context, add=None, remove=None, owner=''):
         """
@@ -68,53 +54,6 @@ class SQLConnection(Connection):
             # execute the commands
             self.execute(cmd, data=data, write_access=True)
             return True
-
-    def close(self):
-        """
-        Closes all open connections to the SQL database.
-        """
-        self.__connection_pool.close_connections()
-
-    @abstractmethod
-    def close_native_connection(self, native_connection):
-        """
-        Closes the native connection.
-
-        Args:
-            native_connection: <variant>
-
-        """
-        pass
-
-    @abstractmethod
-    def commit_native_connection(self, native_connection):
-        """
-        Commits the changes to the native connection.
-
-        :param native_connection: <variant>
-        """
-        return True
-
-    def connection_pool(self):
-        """
-        Returns the `SQLConnectionPool` instance associated with this
-        backend.
-
-        :return: <orb.std.connections.sql.sql_connection_pool.SQLConnectionPool>
-        """
-        return self.__connection_pool
-
-    def commit(self):
-        """
-        Commits the changes to the current database connection.
-
-        :return: <bool> success
-        """
-        with self.__connection_pool.current_connection(write_access=True) as conn:
-            if not self.is_native_connection_closed(conn):
-                return self.commit_native_connection(conn)
-            else:
-                return False
 
     def count(self, model, context):
         """
@@ -225,7 +164,7 @@ class SQLConnection(Connection):
             data.setdefault('locale', (context or orb.Context()).locale)
             start = datetime.datetime.now()
 
-            with self.current_connection(write_access=write_access) as conn:
+            with self.pool().current_connection(write_access=write_access) as conn:
                 for cmd in cmds:
                     try:
                         results, row_count = self.execute_native_command(conn,
@@ -257,26 +196,8 @@ class SQLConnection(Connection):
                 lvl = logging.CRITICAL
 
             log.log(lvl, u'query took: {0}'.format(delta))
-            return results, row_cound
+            return results, row_count
 
-
-    @abstractmethod
-    def execute_native_command(self,
-                               native_connection,
-                               command,
-                               payload=None,
-                               returning=True,
-                               mapper=dict):
-        """
-        Executes a native string command on the given native connection.
-
-        :param native_connection: <variant>
-        :param command: <str> or <unicode>
-        :param payload: None or <dict>
-        :param returning: <bool>
-        :param mapper: None or <callable>
-        """
-        return None, 0
 
     def insert(self, records, context):
         """
@@ -289,56 +210,6 @@ class SQLConnection(Connection):
         """
         cmd, data = self.render('insert.sql.jinja', records=records, context=context)
         return self.execute(cmd, data=data, write_access=True)
-
-    @abstractmethod
-    def interrupt_native_connection(self, native_connection):
-        """
-        Interrupts the native connection.
-
-        :param native_connection: <variant>
-        """
-        pass
-
-    def open(self, write_access=False):
-        """
-        Opens a new connection to the database.
-
-        :param write_access: <bool>
-
-        :return: <variant>
-        """
-        return self.__connection_pool.open_connection(write_access=write_access)
-
-    @abstractmethod
-    def open_native_connection(self, write_access=False):
-        """
-        Opens a new native connection for this SQL database.
-
-        :param write_access: <bool>
-
-        :return: <variant>
-        """
-        pass
-
-    def is_connected(self):
-        """
-        Returns whether or not this connection is currently
-        active.
-
-        :return: <bool>
-        """
-        return self.__connection_pool.has_connections()
-
-    @abstractmethod
-    def is_native_connection_closed(self, native_connection):
-        """
-        Returns whether or not the native SQL connection is closed.
-
-        :param native_connection: <variant>
-
-        :return: <bool>
-        """
-        return False
 
     def process_column(self, column, context):
         """
@@ -802,32 +673,6 @@ class SQLConnection(Connection):
         cmd = self.render('query.sql.jinja', kw)
         return cmd, data
 
-    def rollback(self):
-        """
-        Rolls back changes to this database.
-
-        :return: <bool> success
-        """
-        with self.__connection_pool.current_connection(write_access=True) as conn:
-            try:
-                self.rollback_native_connection(conn)
-            except Exception:
-                if self.__use_gevent:
-                    import gevent
-                    gevent.get_hub().handle_error(conn, *sys.exc_info)
-                return False
-            else:
-                return True
-
-    @abstractmethod
-    def rollback_native_connection(self, native_connection):
-        """
-        Rolls back the the native connection's changes.
-
-        :param native_connection: <variant>
-        """
-        pass
-
     def select(self, model, context):
         pass
 
@@ -940,10 +785,15 @@ class SQLConnection(Connection):
         """
         Renders the SQL statement for the given template name and given keywords.
 
-        :param statement_name: <str>
-        :param keywords: <dict>
+        Args:
+            statement_name: <str>
+            keywords: <dict>
 
-        :return: <unicode> command, <dict> data
+        Raises:
+            <RuntimeError> if template is not found
+
+        Return:
+            <str> command
         """
         template = cls.get_templates().get_template(statement_name)
         if template:
@@ -951,7 +801,7 @@ class SQLConnection(Connection):
             log.debug(cmd)
             return cmd
         else:
-            return ''
+            raise RuntimeError('{0} template not found'.format(statement_name))
 
     @classmethod
     def register_function_mapping(cls, query_function_op, map):

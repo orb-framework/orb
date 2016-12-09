@@ -6,7 +6,7 @@ from orb.core.column import Column
 
 try:
     import cPickle as pickle
-except ImportError:
+except ImportError:  # pragma: no cover
     import pickle
 
 with demandimport.enabled():

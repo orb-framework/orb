@@ -8,9 +8,9 @@ import logging
 from collections import defaultdict
 
 
-class MockConnection(orb.Connection):
+class MockConnectionMixin(object):
     def __init__(self, database=None, responses=None, base=None):
-        super(MockConnection, self).__init__(database)
+        super(MockConnectionMixin, self).__init__(database)
 
         self.counter = defaultdict(lambda: 0)
         self.responses = responses or {}
@@ -269,3 +269,7 @@ class MockConnection(orb.Connection):
         assert isinstance(context, orb.Context)
 
         return self.next_response('update', records, context, default=([], 0))
+
+
+class MockConnection(MockConnectionMixin, orb.Connection):
+    pass
