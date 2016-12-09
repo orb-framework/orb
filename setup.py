@@ -21,7 +21,46 @@ class Tox(TestCommand):
         tox.cmdline()
 
 
-class tag(Command):
+class MakeDocs(Command):
+    description = 'Generates documentation'
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        os.system('pip install -r requirements-dev.txt')
+        os.system('sphinx-apidoc -f -o docs/source/api orb')
+        os.system('sphinx-build -b html docs/source docs/build')
+
+
+class Release(Command):
+    description = 'Runs the tests and releases a new version of the script'
+    user_options = [
+        ('no-tests', None, 'Bypass the test validation before releasing')
+    ]
+
+    def initialize_options(self):
+        self.no_tests = True  # for now, default this to true...
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        if self.no_tests:
+            print('[WARNING] No tests have been run for this release!')
+
+        if not self.no_tests and os.system('python setup.py test'):
+            print('[ERROR] Could not release, tests are failing!')
+        else:
+            os.system('python setup.py tag')
+            os.system('python setup.py bdist_wheel bdist_egg upload')
+
+
+class Tag(Command):
     description = 'Command used to release new versions of the website to the internal pypi server.'
     user_options = [
         ('no-tag', None, 'Do not tag the repo before releasing')
@@ -128,7 +167,9 @@ if __name__ == '__main__':
         test_suite='tests',
         long_description=LONG_DESCRIPTION,
         cmdclass={
-            'tag': tag,
+            'tag': Tag,
+            'release': Release,
+            'mkdocs': MakeDocs,
             'test': Tox
         }
     )
