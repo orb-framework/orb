@@ -68,7 +68,7 @@ class PooledConnection(Connection):
     def execute_native_command(self,
                                native_connection,
                                command,
-                               payload=None,
+                               data=None,
                                returning=True,
                                mapper=dict):
         """
@@ -76,7 +76,7 @@ class PooledConnection(Connection):
 
         :param native_connection: <variant>
         :param command: <str> or <unicode>
-        :param payload: None or <dict>
+        :param data: None or <dict>
         :param returning: <bool>
         :param mapper: None or <callable>
         """

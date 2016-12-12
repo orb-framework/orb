@@ -141,7 +141,7 @@ class MockConnectionMixin(object):
         assert type(flags) == int
 
         # return the desired response
-        return self.next_response('execute', command, data, flags)
+        return self.next_response('execute', command, data=data, flags=flags)
 
     def insert(self, records, context):
         """
@@ -246,7 +246,6 @@ class MockConnectionMixin(object):
         assert isinstance(context, orb.Context)
 
         return self.next_response('select', model, context, default=[])
-
 
     def setup(self, context):
         """

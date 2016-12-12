@@ -65,9 +65,9 @@ class SQLConnection(PooledConnection):
 
         :return: <int>
         """
-        cmd, data = self.render('select_count.sql.jinja', model=model, context=context)
-        records, _ = self.execute(cmd, data)
-        return sum(records['count'] for record in records)
+        cmd = self.render('select_count.sql.jinja', {'model': model, 'context': context})
+        records, _ = self.execute(cmd)
+        return sum(record['count'] for record in records)
 
     def create_model(self, model, context, owner='', include_references=True):
         """
@@ -83,8 +83,7 @@ class SQLConnection(PooledConnection):
         if issubclass(model, orb.View):
             cmd, data = self.render_create_view(model,
                                                 context=context,
-                                                owner=owner,
-                                                include_references=include_references)
+                                                owner=owner)
         else:
             cmd, data = self.render_create_table(model,
                                                  context=context,
@@ -180,9 +179,9 @@ class SQLConnection(PooledConnection):
                         raise
 
                     # log any additional errors
-                    except Exception:
+                    except Exception as err:
                         delta = datetime.datetime.now() - start
-                        log.exception()
+                        log.exception('Query Failed')
                         log.error(u'{0}\n\n{1}'.format(cmd, err))
                         log.error(u'query took: {0}'.format(delta))
                         raise
@@ -457,6 +456,9 @@ class SQLConnection(PooledConnection):
         cmd = self.render('create_table.sql.jinja', kw)
         return cmd, {}
 
+    def render_create_view(self, view, context=None, owner=''):
+        return self.render('create_view.sql.jinja', {}), {}
+
     def render_delete_collection(self, collection, context=None):
         """
         Renders the DELETE SQL for this connection type.
@@ -472,6 +474,11 @@ class SQLConnection(PooledConnection):
             return self.render_delete_records(list(collection), context=context)
         else:
             model = collection.model()
+
+            # cannot delete views
+            if issubclass(model, orb.View):
+                raise NotImplementedError('View models are read-only')
+
             collection_context = collection.context(context=context)
 
             if collection_context.where is not None:
@@ -518,6 +525,10 @@ class SQLConnection(PooledConnection):
             cmds = []
             data = {}
             for model, ids in models.items():
+                # cannot delete views
+                if issubclass(model, orb.View):
+                    raise NotImplementedError('View models are read-only')
+
                 q = orb.Query(model).in_(ids)
 
                 where, where_data = self.render_query(model, q, context)
@@ -531,7 +542,6 @@ class SQLConnection(PooledConnection):
                 data.update(where_data)
 
             return u'\n'.join(cmds), data
-
 
     def render_query_field(self, model, column, query, context=None, aliases=None):
         """

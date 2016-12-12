@@ -36,7 +36,7 @@ class MockNativeConnection(object):
 
     def execute(self,
                 command,
-                payload=None,
+                data=None,
                 returning=True,
                 mapper=dict):
         """
@@ -44,12 +44,12 @@ class MockNativeConnection(object):
 
         Args:
             command: <str>
-            payload: <dict> or None
+            data: <dict> or None
             returning: <bool>
             mapper: <callable>
 
         Returns:
-            <variant> payload, <int> row_count
+            <variant> data, <int> row_count
 
         """
         return {}, 0
@@ -129,7 +129,7 @@ class MockPooledConnectionMixin(object):
     def execute_native_command(self,
                                native_connection,
                                command,
-                               payload=None,
+                               data=None,
                                returning=True,
                                mapper=dict):
         """
@@ -138,22 +138,22 @@ class MockPooledConnectionMixin(object):
         Args:
             native_connection: <orb.testing.MockNativeConnection>
             command: <unicode>
-            payload: <dict> or None
+            data: <dict> or None
             returning: <bool>
             mapper: <callable>
 
         Returns:
-            <variant> payload, <int> count
+            <variant> data, <int> count
 
         """
         assert isinstance(native_connection, MockNativeConnection)
         assert type(command) in (str, unicode)
-        assert payload is None or type(payload) == dict
+        assert data is None or type(data) == dict
         assert returning in (True, False)
         assert callable(mapper)
 
         return native_connection.execute(command,
-                                         payload=payload,
+                                         data=data,
                                          returning=returning,
                                          mapper=mapper)
 
