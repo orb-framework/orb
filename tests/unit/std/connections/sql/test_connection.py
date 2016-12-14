@@ -377,3 +377,34 @@ def test_sql_connection_process_query(mock_sql_conn):
     }
 
 
+def test_sql_connection_process_value(mock_sql_conn):
+    import orb
+    import pprint
+
+    conn = mock_sql_conn()
+
+    class User(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        username = orb.StringColumn()
+
+    column = User.schema().column('username')
+    op = orb.Query.Op.Is
+    value = 'jdoe'
+
+    value_a, _ = conn.process_value(column, orb.Query.Op.Is, 'jdoe')
+    value_b, _ = conn.process_value(column, orb.Query.Op.Startswith, 'jd')
+    value_c, _ = conn.process_value(column, orb.Query.Op.DoesNotStartwith, 'jd')
+    value_d, _ = conn.process_value(column, orb.Query.Op.Endswith, 'oe')
+    value_e, _ = conn.process_value(column, orb.Query.Op.DoesNotEndwith, 'oe')
+    value_f, _ = conn.process_value(column, orb.Query.Op.Contains, 'do')
+    value_g, _ = conn.process_value(column, orb.Query.Op.Contains, 'do')
+
+    assert value_a == 'jdoe'
+    assert value_b == 'jd%'
+    assert value_c == 'jd%'
+    assert value_d == '%oe'
+    assert value_e == '%oe'
+    assert value_f == '%do%'
+    assert value_g == '%do%'
