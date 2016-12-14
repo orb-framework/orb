@@ -207,7 +207,8 @@ class SQLConnection(PooledConnection):
 
         :return: <dict> changes
         """
-        cmd, data = self.render('insert.sql.jinja', records=records, context=context)
+        cmd = self.render('insert.sql.jinja', {'records': records, 'context': context})
+        data = {}
         return self.execute(cmd, data=data, write_access=True)
 
     def process_column(self, column, context):
@@ -221,7 +222,7 @@ class SQLConnection(PooledConnection):
         """
         column_data = {
             'field': column.field(),
-            'alias': column.field(),
+            'alias': column.alias(),
             'is_string': isinstance(column, orb.StringColumn),
             'type': self.get_column_type(column, context),
             'sequence': '{0}_{1}_seq'.format(column.schema().dbname(), column.field()),
