@@ -10,8 +10,8 @@ def test_render_alter_table(pg_conn, sql_equals, User):
     sql, _ = pg_conn.render_alter_table(User, add=add)
     valid_sql = """\
     ALTER TABLE "public"."users"
-        ADD COLUMN "username" CHARACTER VARYING(255) NOT NULL UNIQUE ,
-        ADD COLUMN "password" CHARACTER VARYING(255) NOT NULL ;
+        ADD COLUMN "password" CHARACTER VARYING(255) NOT NULL,
+         ADD COLUMN "username" CHARACTER VARYING(255) NOT NULL UNIQUE;
 
     CREATE UNIQUE INDEX "users_by_username_idx" ON "public"."users" (
         lower("username"::varchar)

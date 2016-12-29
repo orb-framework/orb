@@ -197,7 +197,6 @@ class SQLConnection(PooledConnection):
             log.log(lvl, u'query took: {0}'.format(delta))
             return results, row_count
 
-
     def insert(self, records, context):
         """
         Inserts new records into the datbaase.
@@ -349,13 +348,16 @@ class SQLConnection(PooledConnection):
 
         # process a collection value
         elif isinstance(db_value, orb.Collection):
-            val_model = db_value.model().id_column()
-            context = db_value.context()
-            if not context.columns:
-                context.columns = [val_model.schema().id_column()]
-                context.distinct = True
+            if db_value.is_null():
+                return [], {}
+            else:
+                val_model = db_value.model()
+                context = db_value.context()
+                if not context.columns:
+                    context.columns = [val_model.schema().id_column()]
+                    context.distinct = True
 
-            return self.render_select(val_model, context)
+                return self.render_select(val_model, context)
 
         # adjust the value as needed
         elif op in (orb.Query.Op.Contains, orb.Query.Op.DoesNotContain):
@@ -391,14 +393,14 @@ class SQLConnection(PooledConnection):
         add_i18n = []
 
         # add columns
-        for column in add['fields']:
+        for column in sorted(add['fields'], key=lambda x: x.field()):
             if column.test_flag(column.Flags.I18n):
                 add_i18n.append(self.process_column(column, context))
             else:
                 add_cols.append(self.process_column(column, context))
 
         # add indexes
-        for index in add['indexes']:
+        for index in sorted(add['indexes'], key=lambda x: x.dbname()):
             add_indexes.append(self.process_index(index, context))
 
         kw = {
@@ -458,7 +460,43 @@ class SQLConnection(PooledConnection):
         return cmd, {}
 
     def render_create_view(self, view, context=None, owner=''):
-        return self.render('create_view.sql.jinja', {}), {}
+        """
+        Generates the view creation statement for this connection.
+
+        Args:
+            view: subclass of <orb.View>
+            context: <orb.Context>
+            owner: <str>
+
+        Returns:
+            <str> statement, <dict> data
+
+        """
+        id_column = view.schema().id_column()
+        id_column_data = self.process_column(id_column, context)
+
+        add_cols = []
+        add_i18n = []
+
+        # process the columns
+        columns = view.schema().columns(recurse=False).values()
+        columns.sort(key=lambda x: x.field())
+
+        for col in columns:
+            if col is id_column:
+                continue
+            elif col.test_flag(col.Flags.I18n):
+                add_i18n.append(self.process_column(col, context))
+            else:
+                add_cols.append(self.process_column(col, context))
+
+        kw = {
+            'model': self.process_model(view, context),
+            'id_column': id_column_data,
+            'add_columns': add_cols,
+            'add_i18n_columns': add_i18n
+        }
+        return self.render('create_view.sql.jinja', kw), {}
 
     def render_delete_collection(self, collection, context=None):
         """
@@ -684,8 +722,37 @@ class SQLConnection(PooledConnection):
         cmd = self.render('query.sql.jinja', kw)
         return cmd, data
 
+    def render_select(self, model, context):
+        """
+        Renders the SELECT statement for this sql backend.
+
+        Args:
+            model: subclass of <orb.Model>
+            context: <orb.Context>
+
+        Returns:
+            <str> statement, <dict> data
+
+        """
+        data = {}
+        kw = {}
+        cmd = self.render('select.sql.jinja', kw)
+        return cmd, data
+
     def select(self, model, context):
-        pass
+        """
+        Implements the abstract selection strategy for this connection.
+
+        Args:
+            model: subclass of <orb.Model>
+            context: <orb.Context>
+
+        Returns:
+            [<dict> object, ..]
+
+        """
+        cmd, data = self.render_select(model, context)
+        return self.execute(cmd, data=data)
 
     def update(self, records, context):
         pass
@@ -801,18 +868,15 @@ class SQLConnection(PooledConnection):
             keywords: <dict>
 
         Raises:
-            <RuntimeError> if template is not found
+            <TemplateNotFound> if template is not found
 
         Return:
             <str> command
         """
         template = cls.get_templates().get_template(statement_name)
-        if template:
-            cmd = template.render(keywords).strip()
-            log.debug(cmd)
-            return cmd
-        else:
-            raise RuntimeError('{0} template not found'.format(statement_name))
+        cmd = template.render(keywords).strip()
+        log.debug(cmd)
+        return cmd
 
     @classmethod
     def register_function_mapping(cls, query_function_op, map):

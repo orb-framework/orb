@@ -27,6 +27,7 @@ def mock_sql_conn(mock_db):
 
     return _mock_sql_conn
 
+
 @pytest.fixture()
 def mock_table():
     import orb
@@ -379,7 +380,6 @@ def test_sql_connection_process_query(mock_sql_conn):
 
 def test_sql_connection_process_value(mock_sql_conn):
     import orb
-    import pprint
 
     conn = mock_sql_conn()
 
@@ -390,8 +390,6 @@ def test_sql_connection_process_value(mock_sql_conn):
         username = orb.StringColumn()
 
     column = User.schema().column('username')
-    op = orb.Query.Op.Is
-    value = 'jdoe'
 
     value_a, _ = conn.process_value(column, orb.Query.Op.Is, 'jdoe')
     value_b, _ = conn.process_value(column, orb.Query.Op.Startswith, 'jd')
@@ -408,3 +406,352 @@ def test_sql_connection_process_value(mock_sql_conn):
     assert value_e == '%oe'
     assert value_f == '%do%'
     assert value_g == '%do%'
+
+
+def test_sql_connection_process_value_as_query(mock_sql_conn):
+    import orb
+
+    conn = mock_sql_conn()
+
+    class User(orb.Table):
+        __namespace__ = 'auth'
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        username = orb.StringColumn()
+        manager = orb.ReferenceColumn('User')
+
+    column = User.schema().column('manager')
+
+    value_a, _ = conn.process_value(column, orb.Query.Op.Is, orb.Query(User, 'id') == 1)
+
+    assert value_a == '"auth"."users"."id"'
+
+
+def test_sql_connection_process_value_as_collection(mock_sql_conn):
+    import orb
+    import pprint
+
+    class User(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        username = orb.StringColumn()
+        manager = orb.ReferenceColumn('User')
+
+    column = User.schema().column('manager')
+    u = User({'id': 1})
+    u.mark_loaded()
+
+    empty = mock_sql_conn()
+    valid = mock_sql_conn(templates={
+        'select.sql.jinja': ''
+    })
+
+    value_a, _ = valid.process_value(column, orb.Query.Op.IsIn, orb.Collection())
+    value_b, data_b = valid.process_value(column, orb.Query.Op.IsIn, orb.Collection([u]))
+
+    pprint.pprint(value_b)
+    pprint.pprint(data_b)
+
+    assert value_a == []
+    assert value_b == ''
+    assert data_b == {}
+
+    with pytest.raises(Exception):
+        empty.process_value(column, orb.Query.Op.IsIn, orb.Collection([u]))
+
+
+def test_sql_connection_render_alter_table(mock_sql_conn, sql_equals):
+    import orb
+
+    class Test(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        standard = orb.StringColumn()
+        translated = orb.StringColumn(flags={'I18n'})
+
+        by_standard = orb.Index(['standard'])
+
+    templ = """\
+    == MODEL ==
+    {{ model.name }}
+
+    == COLUMNS ==
+    {% for column in add_columns %}
+    {{ column.field }}
+    {% endfor %}
+
+    == I18N COLUMNS ==
+    {% for column in add_i18n_columns %}
+    {{ column.field }}
+    {% endfor %}
+
+    == INDEXES ==
+    {% for index in add_indexes %}
+    {{ index.name }}
+    {% endfor %}
+    """
+
+    valid_empty_content = """
+    == MODEL ==
+    tests
+    == COLUMNS ==
+    == I18N COLUMNS ==
+    == INDEXES =="""
+
+    valid_full_content = """
+    == MODEL ==
+    tests
+    == COLUMNS ==
+    id
+    standard
+    == I18N COLUMNS ==
+    translated
+    == INDEXES ==
+    tests_by_standard_idx
+    """
+
+    valid = mock_sql_conn(templates={
+        'alter_table.sql.jinja': templ
+    })
+
+    empty_content, _ = valid.render_alter_table(Test)
+    full_content, _ = valid.render_alter_table(Test, add={
+        'fields': Test.schema().columns().values(),
+        'indexes': Test.schema().indexes().values()
+    })
+
+    assert sql_equals(empty_content, valid_empty_content)
+    assert sql_equals(full_content, valid_full_content)
+
+
+def test_sql_connection_render_create_table(mock_sql_conn, sql_equals):
+    import orb
+
+    class Test(orb.Table):
+        __system__ = orb.System()
+
+        id = orb.IdColumn()
+        code = orb.StringColumn()
+        display = orb.StringColumn(flags={'I18n'})
+        parent = orb.ReferenceColumn('Test')
+        parent_code = orb.StringColumn(shortcut='parent.code')
+
+        by_code = orb.Index(['code'])
+
+
+    templ = """\
+    == MODEL ==
+    {{ model.name }}
+    id_column: {{ id_column.field }}
+
+    == COLUMNS ==
+    {% for column in add_columns %}
+    {{ column.field }}
+    {% endfor %}
+
+    == I18N COLUMNS ==
+    {% for column in add_i18n_columns %}
+    {{ column.field }}
+    {% endfor %}
+
+    == INDEXES ==
+    {% for index in add_indexes %}
+    {{ index.name }}
+    {% endfor %}
+    """
+
+    valid_full_content = """
+    == MODEL ==
+    tests
+    id_column: id
+    == COLUMNS ==
+    code
+    parent_id
+    == I18N COLUMNS ==
+    display
+    == INDEXES ==
+    """
+
+    valid_reference_content = """
+    == MODEL ==
+    tests
+    id_column: id
+    == COLUMNS ==
+    code
+    == I18N COLUMNS ==
+    display
+    == INDEXES ==
+    """
+
+    valid = mock_sql_conn(templates={
+        'create_table.sql.jinja': templ
+    })
+
+    full_content, _ = valid.render_create_table(Test)
+    reference_content, _ = valid.render_create_table(Test, include_references=False)
+
+    assert sql_equals(full_content, valid_full_content)
+    assert sql_equals(reference_content, valid_reference_content)
+
+
+def test_sql_connection_render_create_view(mock_sql_conn, sql_equals):
+    import orb
+
+    templ = """
+    == MODEL ==
+    {{ model.name }}
+    id_column: {{ id_column.field }}
+    == COLUMNS ==
+    {% for column in add_columns %}
+    {{ column.field }}
+    {% endfor %}
+    == I18N COLUMNS ==
+    {% for column in add_i18n_columns %}
+    {{ column.field }}
+    {% endfor %}
+    """
+
+    system = orb.System()
+
+    class Status(orb.Table):
+        __system__ = system
+
+        id = orb.IdColumn()
+        code = orb.StringColumn()
+        display = orb.StringColumn(flags={'I18n'})
+
+    class StatusView(orb.View):
+        __system__ = system
+        __id__ = 'status'
+
+        status = orb.ReferenceColumn('User')
+        status_code = orb.StringColumn(shortcut='status.code')
+        status_display = orb.StringColumn(shortcut='status.display', flags={'I18n'})
+
+    valid = mock_sql_conn(templates={
+        'create_view.sql.jinja': templ
+    })
+
+    valid_full_content = """
+    == MODEL ==
+    status_views
+    id_column: status_id
+    == COLUMNS ==
+    status_code
+    == I18N COLUMNS ==
+    status_display
+    """
+
+    full_content, _ = valid.render_create_view(StatusView)
+
+    assert sql_equals(full_content, valid_full_content)
+
+
+def test_sql_render_delete_collection(mock_sql_conn, sql_equals):
+    import orb
+
+    qtempl = """
+    {{ query.column.field }} {{ query.op }} {{ query.value.variable }}
+    """
+
+    templ = """
+    == MODEL ==
+    {{ model.name }}
+    == WHERE ==
+    {{ where }}
+    """
+
+    system = orb.System()
+
+    class Status(orb.Table):
+        __system__ = system
+
+        id = orb.IdColumn()
+        code = orb.StringColumn()
+        display = orb.StringColumn(flags={'I18n'})
+
+    valid = mock_sql_conn(templates={
+        'delete.sql.jinja': templ,
+        'query.sql.jinja': qtempl
+    })
+
+    valid_loaded_content = """
+    == MODEL ==
+    statuses
+    == WHERE ==
+    id IS IN (1,)
+    """
+
+    valid_where_content = """
+    == MODEL ==
+    statuses
+    == WHERE ==
+    code IS test
+    """
+
+    valid_all_content = """
+    == MODEL ==
+    statuses
+    == WHERE ==
+    """
+
+    stat = Status({'id': 1})
+    stat.mark_loaded()
+
+    null_content, _ = valid.render_delete_collection(orb.Collection())
+    loaded_content, _ = valid.render_delete_collection(orb.Collection([stat]))
+    all_content, _ = valid.render_delete_collection(Status.all())
+    where_content, _ = valid.render_delete_collection(Status.select(where=orb.Query('code') == 'test'))
+
+    assert sql_equals(null_content, '')
+    assert sql_equals(loaded_content, valid_loaded_content)
+    assert sql_equals(where_content, valid_where_content)
+    assert sql_equals(all_content, valid_all_content)
+
+
+def test_sql_render_delete_records(mock_sql_conn, sql_equals):
+    import orb
+
+    qtempl = """
+    {{ query.column.field }} {{ query.op }} {{ query.value.variable }}
+    """
+
+    templ = """
+    == MODEL ==
+    {{ model.name }}
+    == WHERE ==
+    {{ where }}
+    """
+
+    system = orb.System()
+
+    class Status(orb.Table):
+        __system__ = system
+
+        id = orb.IdColumn()
+        code = orb.StringColumn()
+        display = orb.StringColumn(flags={'I18n'})
+
+    valid = mock_sql_conn(templates={
+        'delete.sql.jinja': templ,
+        'query.sql.jinja': qtempl
+    })
+
+    valid_loaded_content = """
+    == MODEL ==
+    statuses
+    == WHERE ==
+    id IS IN (1,)
+    """
+
+    stat = Status({'id': 1})
+    stat.mark_loaded()
+
+    null_content, _ = valid.render_delete_records([])
+    loaded_content, _ = valid.render_delete_records([stat, Status()])
+
+    assert sql_equals(null_content, '')
+    assert sql_equals(loaded_content, valid_loaded_content)
