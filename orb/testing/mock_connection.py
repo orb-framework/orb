@@ -112,7 +112,7 @@ class MockConnection(orb.Connection):
         :return     <int> | number of rows removed
         """
         # validate inputs
-        assert isinstance(records, orb.Collection)
+        assert isinstance(records, (orb.Collection, list))
         assert isinstance(context, orb.Context)
 
         # return the desired response
