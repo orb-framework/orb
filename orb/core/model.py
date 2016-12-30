@@ -453,7 +453,7 @@ class Model(object):
         if not self.isRecord():
             return 0
 
-        event = orb.events.DeleteEvent(record=self, context=context)
+        event = orb.events.DeleteEvent(record=self, context=self.context(**context))
         if self.processEvent(event):
             self.onDelete(event)
 
