@@ -133,9 +133,8 @@ def test_lookup_collection(mock_lookup_schema,):
     query_json = {
         'case_sensitive': False,
         'column': 'source',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': 'Target',
         'op': 'Is',
         'type': 'query',
@@ -167,9 +166,8 @@ def test_lookup_collect_expand(mock_lookup_schema, mock_db):
     results = {
         'case_sensitive': False,
         'column': 'name',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': 'Target',
         'op': 'Is',
         'type': 'query',

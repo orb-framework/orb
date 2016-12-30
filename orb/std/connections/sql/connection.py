@@ -359,6 +359,14 @@ class SQLConnection(PooledConnection):
 
                 return self.render_select(val_model, context)
 
+        # check for null queries
+        elif op == orb.Query.Op.IsIn and not db_value:
+            raise orb.errors.QueryIsNull()
+
+        # check for all queries
+        elif op == orb.Query.Op.IsNotIn and not db_value:
+            return '', {}
+
         # adjust the value as needed
         elif op in (orb.Query.Op.Contains, orb.Query.Op.DoesNotContain):
             return u'%{0}%'.format(db_value), {}
@@ -604,28 +612,30 @@ class SQLConnection(PooledConnection):
 
         # render the query field
         query_field = '.'.join(parts)
-
-        # wrap the field in functions
-        for func_op in query.functions():
-            query_field = self.wrap_query_function(column, query_field, func_op)
-
-        # wrap the field in math
         data = {}
-        for math_op, value in query.math():
-            # perform math on a query object
-            if isinstance(value, orb.Query):
-                qvalue, qvalue_data = self.render_query_field(value.model(default=model),
-                                                              value.column(model=model),
-                                                              value,
-                                                              context=context,
-                                                              aliases=aliases)
-                data.update(qvalue_data)
-            else:
-                value_id = os.urandom(8).encode('hex')
-                qvalue = u'%({0})s'.format(value_id)
-                data[value_id] = value
 
-            query_field = self.wrap_query_math(column, query_field, math_op, qvalue)
+        # apply the deltas to the query field
+        for delta in query.deltas():
+            # apply a function delta
+            if delta.delta_type == 'function':
+                query_field = self.wrap_query_function(column, query_field, delta.op)
+
+            # apply a math delta
+            elif delta.delta_type == 'math':
+                # perform math on a query object
+                if isinstance(delta.value, orb.Query):
+                    qvalue, qvalue_data = self.render_query_field(delta.value.model(default=model),
+                                                                  delta.value.column(model=model),
+                                                                  delta.value,
+                                                                  context=context,
+                                                                  aliases=aliases)
+                    data.update(qvalue_data)
+                else:
+                    value_id = os.urandom(8).encode('hex')
+                    qvalue = u'%({0})s'.format(value_id)
+                    data[value_id] = delta.value
+
+                query_field = self.wrap_query_math(column, query_field, delta.op, qvalue)
 
         return query_field, data
 
@@ -887,8 +897,9 @@ class SQLConnection(PooledConnection):
         it is a callable function, then it should accept the source text and
         return a new text.
 
-        :param query_function_op: <orb.Query.Function>
-        :param map: <str> or <callable>
+        Args:
+            query_function_op: <orb.Query.Function>
+            map: <str> or <callable>
         """
         key = '_{0}__function_mapping'.format(cls.__name__)
         try:

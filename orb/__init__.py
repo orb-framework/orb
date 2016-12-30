@@ -43,7 +43,7 @@ from .core.database import Database
 from .core.events import *
 from .core.index import Index
 from .core.model import (Model, ModelMixin, Table, View)
-from .core.query import Query
+from .core.query import (Query, QueryDelta)
 from .core.query_compound import QueryCompound
 from .core.collector import Collector
 from .core.pipe import Pipe

@@ -128,22 +128,26 @@ def test_query_construction(mock_query_models):
 def test_query_construction_with_keywords():
     import orb
 
+    delta_a = orb.QueryDelta(delta_type='function', op='AsString')
+    delta_b = orb.QueryDelta(delta_type='math', op='Add', value=10)
+
     q = orb.Query(
         'name',
         op='Is',
         value='testing',
         inverted=True,
         case_sensitive=True,
-        functions=[orb.Query.Function.AsString, orb.Query.Function.Lower],
-        math=[(orb.Query.Math.Add, 10)]
+        deltas=[
+            delta_a,
+            delta_b
+        ]
     )
 
     assert q.op() == orb.Query.Op.Is
     assert q.value() == 'testing'
     assert q.is_inverted() is True
     assert q.case_sensitive() is True
-    assert q.functions() == [orb.Query.Function.AsString, orb.Query.Function.Lower]
-    assert q.math() == [(orb.Query.Math.Add, 10)]
+    assert q.deltas() == [delta_a, delta_b]
 
     with pytest.raises(RuntimeError):
         assert orb.Query('name', bad_param=None) is None
@@ -158,8 +162,10 @@ def test_query_serialization():
         value='testing',
         inverted=True,
         case_sensitive=True,
-        functions=[orb.Query.Function.AsString, orb.Query.Function.Lower],
-        math=[(orb.Query.Math.Add, 10)]
+        deltas=[
+            orb.QueryDelta(delta_type='function', op='AsString'),
+            orb.QueryDelta(delta_type='math', op='Add', value=10)
+        ]
     )
 
     import pprint
@@ -174,9 +180,9 @@ def test_query_serialization():
         'value': 'testing',
         'inverted': True,
         'case_sensitive': True,
-        'functions': ['AsString', 'Lower'],
-        'math': [
-            {'op': 'Add', 'value': 10}
+        'deltas': [
+            {'type': 'function', 'op': 'AsString', 'value': None},
+            {'type': 'math', 'op': 'Add', 'value': 10},
         ]
     }
 
@@ -202,13 +208,11 @@ def test_query_nested_serialization():
             'value': None,
             'inverted': False,
             'case_sensitive': False,
-            'functions': [],
-            'math': []
+            'deltas': []
         },
         'inverted': False,
         'case_sensitive': False,
-        'functions': [],
-        'math': []
+        'deltas': []
     }
 
     import pprint
@@ -298,10 +302,10 @@ def test_query_addition_operator():
     c.append_math_op(orb.Query.Math.Add, 'ing')
 
     assert a is not b
-    assert a.math() == []
+    assert a.deltas() == []
     assert b.object_name() == 'name'
-    assert b.math() == [(orb.Query.Math.Add, 'ing')]
-    assert c.math() == [(orb.Query.Math.Add, 'ing')]
+    assert b.deltas()[0].__json__() == {'type': 'math', 'op': 'Add', 'value': 'ing'}
+    assert c.deltas()[0].__json__() == {'type': 'math', 'op': 'Add', 'value': 'ing'}
     assert hash(b) == hash(c) != hash(a)
 
 
@@ -314,10 +318,10 @@ def test_query_absolute_operator():
     c.append_function_op(orb.Query.Function.Abs)
 
     assert a is not b
-    assert a.functions() == []
+    assert a.deltas() == []
     assert b.object_name() == 'offset'
-    assert b.functions() == [orb.Query.Function.Abs]
-    assert c.functions() == [orb.Query.Function.Abs]
+    assert b.deltas()[0].op == orb.Query.Function.Abs
+    assert c.deltas()[0].op == orb.Query.Function.Abs
     assert hash(b) == hash(c)!= hash(a)
 
 
@@ -340,7 +344,7 @@ def test_query_and_operator():
 
     assert a is not d
     assert hash(a) != hash(d)
-    assert d.math() == [(orb.Query.Math.And, 10)]
+    assert d.deltas()[0].__json__() == {'type': 'math', 'op': 'And', 'value': 10}
 
     assert a is not e
     assert hash(a) != hash(e)
@@ -363,10 +367,10 @@ def test_query_division_operator():
     c.append_math_op(orb.Query.Math.Divide, 10)
 
     assert a is not b
-    assert a.math() == []
+    assert a.deltas() == []
     assert b.object_name() == 'offset'
-    assert b.math() == [(orb.Query.Math.Divide, 10)]
-    assert c.math() == [(orb.Query.Math.Divide, 10)]
+    assert b.deltas()[0].__json__() == {'type': 'math', 'op': 'Divide', 'value': 10}
+    assert c.deltas()[0].__json__() == {'type': 'math', 'op': 'Divide', 'value': 10}
     assert hash(b) == hash(c) != hash(a)
 
 
@@ -453,10 +457,10 @@ def test_query_multiplication():
     c.append_math_op(orb.Query.Math.Multiply, 10)
 
     assert a is not b
-    assert a.math() == []
+    assert a.deltas() == []
     assert b.object_name() == 'offset'
-    assert b.math() == [(orb.Query.Math.Multiply, 10)]
-    assert c.math() == [(orb.Query.Math.Multiply, 10)]
+    assert b.deltas()[0].__json__() == {'type': 'math', 'op': 'Multiply', 'value': 10}
+    assert c.deltas()[0].__json__() == {'type': 'math', 'op': 'Multiply', 'value': 10}
     assert hash(b) == hash(c) != hash(a)
 
 
@@ -506,7 +510,7 @@ def test_query_or_operator():
 
     assert a is not d
     assert hash(a) != hash(d)
-    assert d.math() == [(orb.Query.Math.Or, 10)]
+    assert d.deltas()[0].__json__() == {'type': 'math', 'op': 'Or', 'value': a}
 
     assert a is not e
     assert hash(a) != hash(e)
@@ -528,10 +532,10 @@ def test_query_subtraction():
     c.append_math_op(orb.Query.Math.Subtract, 10)
 
     assert a is not b
-    assert a.math() == []
+    assert a.deltas() == []
     assert b.object_name() == 'offset'
-    assert b.math() == [(orb.Query.Math.Subtract, 10)]
-    assert c.math() == [(orb.Query.Math.Subtract, 10)]
+    assert b.deltas()[0].__json__() == {'type': 'math', 'op': 'Subtract', 'value': 10}
+    assert c.deltas()[0].__json__() == {'type': 'math', 'op': 'Subtract', 'value': 10}
     assert hash(b) == hash(c) != hash(a)
 
 
@@ -543,7 +547,7 @@ def test_query_as_string():
 
     assert a is not b
     assert hash(a) != hash(b)
-    assert b.functions() == [orb.Query.Function.AsString]
+    assert b.deltas()[0].op == orb.Query.Function.AsString
 
 
 def test_query_after_operator():
@@ -644,9 +648,8 @@ def test_query_expansion(mock_db):
     valid_json = {
         'case_sensitive': False,
         'column': 'parent',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': 'A',
         'op': 'IsIn',
         'type': 'query',
@@ -655,9 +658,8 @@ def test_query_expansion(mock_db):
     valid_value_json = {
         'case_sensitive': False,
         'column': 'name',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': 'A',
         'op': 'Is',
         'type': 'query',
@@ -710,9 +712,8 @@ def test_query_expansion_with_shortcut(mock_db):
     valid_json = {
         'case_sensitive': False,
         'column': 'parent',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': 'A',
         'op': 'IsIn',
         'type': 'query',
@@ -721,9 +722,8 @@ def test_query_expansion_with_shortcut(mock_db):
     valid_value_json = {
         'case_sensitive': False,
         'column': 'name',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': 'A',
         'op': 'Is',
         'type': 'query',
@@ -760,9 +760,8 @@ def test_query_expansion_with_simple_column(mock_db):
     valid_json = {
         'case_sensitive': False,
         'column': 'parent',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': '',
         'op': 'Is',
         'type': 'query',
@@ -796,9 +795,8 @@ def test_query_expansion_with_collector(mock_db):
     valid_json = {
         'case_sensitive': False,
         'column': 'id',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': 'A',
         'op': 'IsIn',
         'type': 'query',
@@ -860,9 +858,8 @@ def test_query_expansion_with_custom_filter(mock_db):
     valid_json = {
         'case_sensitive': False,
         'column': 'name',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': '',
         'op': 'Is',
         'type': 'query',
@@ -921,7 +918,7 @@ def test_query_lower_function():
     import orb
 
     a = orb.Query('name').lower()
-    assert a.functions() == [orb.Query.Function.Lower]
+    assert a.deltas()[0].op == orb.Query.Function.Lower
 
 
 def test_query_matches():
@@ -970,7 +967,7 @@ def test_query_upper_function():
     import orb
 
     q = orb.Query('name').upper()
-    assert q.functions() == [orb.Query.Function.Upper]
+    assert q.deltas()[0].op == orb.Query.Function.Upper
 
 
 def test_query_negated_ops():
@@ -1005,9 +1002,8 @@ def test_query_building():
     valid_json = {
         'case_sensitive': False,
         'column': 'name',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': '',
         'op': 'Is',
         'type': 'query',
@@ -1027,9 +1023,8 @@ def test_query_load_from_json():
     test_json = {
         'case_sensitive': False,
         'column': 'name',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': '',
         'op': 'Is',
         'type': 'query',
@@ -1052,18 +1047,16 @@ def test_query_load_from_json_as_compound():
         'queries': [{
             'case_sensitive': False,
             'column': 'name',
-            'functions': [],
+            'deltas': [],
             'inverted': False,
-            'math': [],
             'op': 'Is',
             'type': 'query',
             'value': 'testing'
         }, {
             'case_sensitive': False,
             'column': 'name',
-            'functions': [],
+            'deltas': [],
             'inverted': False,
-            'math': [],
             'model': '',
             'op': 'Is',
             'type': 'query',
@@ -1087,9 +1080,8 @@ def test_query_load_from_json_raises_model_not_found():
     test_json = {
         'case_sensitive': False,
         'column': 'name',
-        'functions': [],
+        'deltas': [],
         'inverted': False,
-        'math': [],
         'model': 'A',
         'op': 'Is',
         'type': 'query',

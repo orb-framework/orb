@@ -1750,10 +1750,9 @@ def test_model_select_with_base_query():
     result = {
         'value': True,
         'case_sensitive': False,
-        'functions': [],
+        'deltas': [],
         'inverted': False,
         'model': '',
-        'math': [],
         'type': 'query',
         'op': 'Is',
         'column': 'active'
@@ -2032,9 +2031,8 @@ def test_model_search():
     assert records.context().where.__json__() == {
         'case_sensitive': False,
         'column': 'name',
-        'functions': ['AsString'],
+        'deltas': [{'type': 'function', 'op': 'AsString', 'value': None}],
         'inverted': False,
-        'math': [],
         'model': 'A',
         'op': 'Matches',
         'type': 'query',
@@ -2059,9 +2057,8 @@ def test_model_search_with_querying():
         'queries': [{
             'case_sensitive': False,
             'column': 'id',
-            'functions': [],
+            'deltas': [],
             'inverted': False,
-            'math': [],
             'model': '',
             'op': 'IsNot',
             'type': 'query',
@@ -2069,9 +2066,8 @@ def test_model_search_with_querying():
         }, {
             'case_sensitive': False,
             'column': 'name',
-            'functions': ['AsString'],
+            'deltas': [{'type': 'function', 'op': 'AsString', 'value': None}],
             'inverted': False,
-            'math': [],
             'model': 'A',
             'op': 'Matches',
             'type': 'query',

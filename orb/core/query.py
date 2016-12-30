@@ -35,6 +35,36 @@ class State(object):
         return hash((State, self.text))
 
 
+class QueryDelta(object):
+    def __init__(self, delta_type='function', op=None, value=None):
+        if isinstance(op, (str, unicode)):
+            if delta_type == 'function':
+                op = Query.Function(op)
+            else:
+                op = Query.Math(op)
+
+        self.delta_type = delta_type
+        self.op = op
+        self.value = value
+
+    def __hash__(self):
+        return hash((self.delta_type, self.op, hash(self.value)))
+
+    def __json__(self):
+        return {
+            'type': self.delta_type,
+            'op': self.op_string,
+            'value': self.value
+        }
+
+    @property
+    def op_string(self):
+        if self.delta_type == 'function':
+            return Query.Function(self.op)
+        else:
+            return Query.Math(self.op)
+
+
 class Query(object):
     """ 
     Defines the central class for the abstract query markup language.
@@ -127,8 +157,7 @@ class Query(object):
             * value: <variant> (default: None)
             * case_sensitive: <bool> (default: False)
             * inverted: <bool> (default: False)
-            * functions: [<Query.Function>, ..] (default: [])
-            * math: [<Query.Math>, ..] (default: [])
+            * deltas: [<QueryDelta>, ..]
 
         """
         super(Query, self).__init__()
@@ -186,8 +215,7 @@ class Query(object):
         self.__value = kw.pop('value', Query.UNDEFINED)
         self.__case_sensitive = kw.pop('case_sensitive', False)
         self.__inverted = kw.pop('inverted', False)
-        self.__functions = kw.pop('functions', [])
-        self.__math = kw.pop('math', [])
+        self.__deltas = kw.pop('deltas', [])
 
         # ensure that we have not provided additional keywords
         if kw:
@@ -215,6 +243,7 @@ class Query(object):
             except TypeError:
                 val_hash = hash(unicode(self.__value))
 
+        delta_hash = tuple(hash(delta) for delta in self.__deltas)
         object_name = self.object_name()
 
         return hash((
@@ -224,8 +253,7 @@ class Query(object):
             self.__case_sensitive,
             val_hash,
             self.__inverted,
-            tuple(self.__functions),
-            tuple(self.__math)
+            delta_hash
         ))
 
     # python 2.x
@@ -252,8 +280,7 @@ class Query(object):
             'column': self.object_name(),   # TODO : deprecate
             'op': self.Op(self.__op),
             'case_sensitive': self.__case_sensitive,
-            'functions': [self.Function(func) for func in self.__functions],
-            'math': [{'op': self.Math(math_op), 'value': math_value} for (math_op, math_value) in self.__math],
+            'deltas': [delta.__json__() for delta in self.__deltas],
             'inverted': self.__inverted,
             'value': value
         }
@@ -501,13 +528,13 @@ class Query(object):
         return out
 
     # public methods
-    def append_function_op(self, func_op):
+    def append_function_op(self, func_op, value=None):
         """
         Adds the given function to the stack for this query.
 
         :param: <orb.Query.Function>
         """
-        self.__functions.append(func_op)
+        self.__deltas.append(QueryDelta(delta_type='function', op=func_op, value=value))
 
     def append_math_op(self, math_op, value):
         """
@@ -516,7 +543,7 @@ class Query(object):
         :param math_op: <Query.Math>
         :param value: <variant>
         """
-        self.__math.append((math_op, value))
+        self.__deltas.append(QueryDelta(delta_type='math', op=math_op, value=value))
 
     def after(self, value):
         """
@@ -697,8 +724,7 @@ class Query(object):
         kw.setdefault('case_sensitive', self.__case_sensitive)
         kw.setdefault('value', copy.copy(self.__value))
         kw.setdefault('inverted', self.__inverted)
-        kw.setdefault('functions', copy.copy(self.__functions))
-        kw.setdefault('math', copy.copy(self.__math))
+        kw.setdefault('deltas', copy.deepcopy(self.__deltas))
         kw.setdefault('model', self.__model)
         kw.setdefault('schema_object', self.__schema_object)
 
@@ -739,6 +765,14 @@ class Query(object):
         return self.copy(op=orb.Query.Op.DoesNotMatch,
                          value=value,
                          case_sensitive=case_sensitive)
+
+    def deltas(self):
+        """
+        Returns a list of the deltas that will be applied to this query object.
+
+        :return     [<QueryDelta>, ..]
+        """
+        return self.__deltas
 
     def endswith(self, value, case_sensitive=True):
         """
@@ -814,15 +848,6 @@ class Query(object):
             # unable to expand otherwise
             else:
                 raise orb.errors.QueryInvalid('Could not traverse query expand')
-
-    def functions(self):
-        """
-        Returns a list of the functions that are associated with this query.
-        This will modify the lookup column for the given function type in order.
-        
-        :return     [<Query.Function>, ..]
-        """
-        return self.__functions
 
     def greater_than(self, value):
         """
@@ -952,15 +977,6 @@ class Query(object):
             value = tuple(value)
 
         return self.copy(op=Query.Op.IsIn, value=value)
-
-    def math(self):
-        """
-        Returns the mathematical operations that are being performed for
-        this query object.
-        
-        :return: [(<Query.Math>, <variant>), ..]
-        """
-        return self.__math
 
     def not_in(self, value):
         """
@@ -1247,16 +1263,14 @@ class Query(object):
             else:
                 model = system.model(model_name) if model_name else None
 
-            funcs = [orb.Query.Function(f) for f in jdata.get('functions') or []]
-            math = [orb.Query.Math(v['op'], v['value']) for v in jdata.get('math') or []]
+            deltas = [QueryDelta(jdelta) for jdelta in jdata.get('deltas') or []]
             args = (model, jdata.get('column') or jdata.get('schema_object'))
             kw = {
                 'op': jdata.get('op', 'Is'),
                 'value': jdata.get('value'),
                 'inverted': jdata.get('inverted', False),
                 'case_sensitive': jdata.get('case_sensitive', False),
-                'functions': funcs,
-                'math': math
+                'deltas': deltas
             }
             return orb.Query(args, **kw)
 

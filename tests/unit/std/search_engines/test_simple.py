@@ -16,9 +16,8 @@ def test_simple_search_engine():
     valid_query = {
         'case_sensitive': False,
         'column': 'username',
-        'functions': ['AsString'],
+        'deltas': [{'type': 'function', 'op': 'AsString', 'value': None}],
         'inverted': False,
-        'math': [],
         'model': 'User',
         'op': 'Matches',
         'type': 'query',
@@ -60,26 +59,29 @@ def test_simple_search_engine_with_specific_columns():
 
     jquery = collection.context().where.__json__()
 
-    valid_query = {'op': 'And',
-        'queries': [{'case_sensitive': False,
-                  'column': 'username',
-                  'functions': ['AsString'],
-                  'inverted': False,
-                  'math': [],
-                  'model': 'User',
-                  'op': 'Matches',
-                  'type': 'query',
-                  'value': u'(^|.*\\s)doe'},
-                 {'case_sensitive': False,
-                  'column': 'username',
-                  'functions': [],
-                  'inverted': False,
-                  'math': [],
-                  'model': 'User',
-                  'op': 'Is',
-                  'type': 'query',
-                  'value': 'john'}],
-        'type': 'compound'}
+    valid_query = {
+        'op': 'And',
+        'queries': [{
+            'case_sensitive': False,
+            'column': 'username',
+            'deltas': [{'type': 'function', 'op': 'AsString', 'value': None}],
+            'inverted': False,
+            'model': 'User',
+            'op': 'Matches',
+            'type': 'query',
+            'value': u'(^|.*\\s)doe'
+        }, {
+            'case_sensitive': False,
+            'column': 'username',
+            'deltas': [],
+            'inverted': False,
+            'model': 'User',
+            'op': 'Is',
+            'type': 'query',
+            'value': 'john'
+        }],
+        'type': 'compound'
+    }
 
     import pprint
     pprint.pprint(jquery)
@@ -104,9 +106,8 @@ def test_simple_search_engine_with_exact_matches():
 
     valid_query = {'case_sensitive': False,
         'column': 'username',
-        'functions': ['AsString'],
+        'deltas': [{'type': 'function', 'op': 'AsString', 'value': None}],
         'inverted': False,
-        'math': [],
         'model': 'User',
         'op': 'Matches',
         'type': 'query',

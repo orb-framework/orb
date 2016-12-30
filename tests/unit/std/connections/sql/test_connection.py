@@ -373,8 +373,8 @@ def test_sql_connection_process_query(mock_sql_conn):
         'op_name': 'Is',
         'value': {
             'id': value_key,
-           'key': u'%({0})s'.format(value_key),
-           'variable': 'jdoe'}
+            'key': u'%({0})s'.format(value_key),
+            'variable': 'jdoe'}
     }
 
 
@@ -398,6 +398,10 @@ def test_sql_connection_process_value(mock_sql_conn):
     value_e, _ = conn.process_value(column, orb.Query.Op.DoesNotEndwith, 'oe')
     value_f, _ = conn.process_value(column, orb.Query.Op.Contains, 'do')
     value_g, _ = conn.process_value(column, orb.Query.Op.Contains, 'do')
+    value_h, _ = conn.process_value(column, orb.Query.Op.IsNotIn, [])
+
+    with pytest.raises(orb.errors.QueryIsNull):
+        conn.process_value(column, orb.Query.Op.IsIn, [])
 
     assert value_a == 'jdoe'
     assert value_b == 'jd%'
@@ -406,6 +410,7 @@ def test_sql_connection_process_value(mock_sql_conn):
     assert value_e == '%oe'
     assert value_f == '%do%'
     assert value_g == '%do%'
+    assert value_h == ''
 
 
 def test_sql_connection_process_value_as_query(mock_sql_conn):
@@ -702,11 +707,13 @@ def test_sql_render_delete_collection(mock_sql_conn, sql_equals):
     stat.mark_loaded()
 
     null_content, _ = valid.render_delete_collection(orb.Collection())
+    null_query_content, _ = valid.render_delete_collection(Status.select(where=orb.Query('code').in_([])))
     loaded_content, _ = valid.render_delete_collection(orb.Collection([stat]))
     all_content, _ = valid.render_delete_collection(Status.all())
     where_content, _ = valid.render_delete_collection(Status.select(where=orb.Query('code') == 'test'))
 
     assert sql_equals(null_content, '')
+    assert sql_equals(null_query_content, '')
     assert sql_equals(loaded_content, valid_loaded_content)
     assert sql_equals(where_content, valid_where_content)
     assert sql_equals(all_content, valid_all_content)
@@ -755,3 +762,119 @@ def test_sql_render_delete_records(mock_sql_conn, sql_equals):
 
     assert sql_equals(null_content, '')
     assert sql_equals(loaded_content, valid_loaded_content)
+
+
+def test_sql_render_query_field(mock_sql_conn):
+    import orb
+
+    class Task(orb.Table):
+        __register__ = False
+        __namespace__ = 'public'
+
+        id = orb.IdColumn()
+        task_name = orb.StringColumn()
+
+    task_name = Task.schema().column('task_name')
+    q = orb.Query('task_name') == 'testing'
+    conn = mock_sql_conn()
+
+    test_field, test_data = conn.render_query_field(Task, task_name, q)
+    assert test_field == '"public"."tasks"."task_name"'
+
+
+def test_sql_render_query_field_with_alias(mock_sql_conn):
+    import orb
+
+    class Task(orb.Table):
+        __register__ = False
+        __namespace__ = 'public'
+
+        id = orb.IdColumn()
+        task_name = orb.StringColumn()
+
+    task_name = Task.schema().column('task_name')
+    q = orb.Query('task_name') == 'testing'
+    conn = mock_sql_conn()
+
+    test_field, test_data = conn.render_query_field(Task, task_name, q, aliases={Task: 't'})
+    assert test_field == '"t"."task_name"'
+
+
+def test_sql_render_query_field_with_functions(mock_sql_conn):
+    import orb
+
+    class Task(orb.Table):
+        __register__ = False
+        __namespace__ = 'public'
+
+        id = orb.IdColumn()
+        task_name = orb.StringColumn()
+
+    task_name = Task.schema().column('task_name')
+    q = orb.Query('task_name').lower() == 'testing'
+    conn = mock_sql_conn()
+    conn.register_function_mapping(orb.Query.Function.Lower, 'lower({0})')
+
+    test_field, test_data = conn.render_query_field(Task, task_name, q)
+    assert test_field == 'lower("public"."tasks"."task_name")'
+
+
+def test_sql_render_query_field_with_basic_math(mock_sql_conn):
+    import orb
+
+    class Task(orb.Table):
+        __register__ = False
+        __namespace__ = 'public'
+
+        id = orb.IdColumn()
+        task_name = orb.StringColumn()
+
+    task_name = Task.schema().column('task_name')
+    q = (orb.Query('task_name') + 10) == 'testing'
+    conn = mock_sql_conn()
+    conn.register_math_mapping(orb.Query.Math.Add, '{0} + {1}')
+
+    test_field, test_data = conn.render_query_field(Task, task_name, q)
+    assert test_field == '"public"."tasks"."task_name" + %({0})s'.format(test_data.keys()[0])
+    assert test_data.values()[0] == 10
+
+
+def test_sql_render_query_field_with_query_math(mock_sql_conn):
+    import orb
+
+    class Task(orb.Table):
+        __register__ = False
+        __namespace__ = 'public'
+
+        id = orb.IdColumn()
+        task_name = orb.StringColumn()
+
+    task_name = Task.schema().column('task_name')
+    q = (orb.Query('task_name') + orb.Query('task_name')) == 'testing'
+    conn = mock_sql_conn()
+    conn.register_math_mapping(orb.Query.Math.Add, '{0} + {1}')
+
+    test_field, test_data = conn.render_query_field(Task, task_name, q)
+    assert test_field == '"public"."tasks"."task_name" + "public"."tasks"."task_name"'
+
+
+def test_sql_render_query_field_with_math_and_functions(mock_sql_conn):
+    import orb
+
+    class Task(orb.Table):
+        __register__ = False
+        __namespace__ = 'public'
+
+        id = orb.IdColumn()
+        task_name = orb.StringColumn()
+
+    task_name = Task.schema().column('task_name')
+    q = ((orb.Query('task_name') + orb.Query('task_name')) + 10).lower() == 'testing'
+    conn = mock_sql_conn()
+    conn.register_math_mapping(orb.Query.Math.Add, '{0} + {1}')
+    conn.register_function_mapping(orb.Query.Function.Lower, 'lower({0})')
+
+    test_field, test_data = conn.render_query_field(Task, task_name, q)
+    sql = 'lower("public"."tasks"."task_name" + "public"."tasks"."task_name" + %({0})s)'
+    assert test_field == sql.format(test_data.keys()[0])
+    assert test_data.values()[0] == 10

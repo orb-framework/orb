@@ -76,9 +76,8 @@ def test_query_column():
     qdata = {
       "case_sensitive": False,
       "column": "test",
-      "functions": [],
+      "deltas": [],
       "inverted": False,
-      "math": [],
       "model": "",
       "op": "Is",
       "type": "query",
