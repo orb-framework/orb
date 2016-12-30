@@ -151,7 +151,10 @@ class System(object):
         elif isinstance(obj, orb.Schema):
             self.__schemas.pop(obj.name(), None)
         elif isinstance(obj, orb.Database):
+            if obj == self.__current_db:
+                self.__current_db = None
             self.__databases.pop(obj.name(), None)
         else:
+            self.__current_db = None
             self.__schemas.pop(obj, None)
             self.__databases.pop(obj, None)
