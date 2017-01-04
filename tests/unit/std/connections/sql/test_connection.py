@@ -878,3 +878,45 @@ def test_sql_render_query_field_with_math_and_functions(mock_sql_conn):
     sql = 'lower("public"."tasks"."task_name" + "public"."tasks"."task_name" + %({0})s)'
     assert test_field == sql.format(test_data.keys()[0])
     assert test_data.values()[0] == 10
+
+
+def test_render_query(mock_sql_conn, sql_equals):
+    import orb
+
+    q_templ = """
+    {{ query.column.field }} {{ query.op }} {{ query.value.variable }}
+    """
+    qcompound_templ = """
+    (
+        {% for query in queries -%}
+        {{ query }} {% if not loop.last -%} {{ op | upper }} {% endif -%}
+        {% endfor %}
+    )"""
+
+    conn = mock_sql_conn(templates={
+        'query.sql.jinja': q_templ,
+        'query_compound.sql.jinja': qcompound_templ
+    })
+
+    class User(orb.Table):
+        __register__ = False
+        id = orb.IdColumn()
+        username = orb.StringColumn()
+
+    a = orb.Query('username') == 'test'
+    b = orb.Query('username') == 'test2'
+
+    valid_single = 'username IS test'
+    valid_compound = '(username IS test OR username IS test2)'
+
+    test_none, _ = conn.render_query(User, None)
+    test_single, _ = conn.render_query(User, a)
+    test_both, _ = conn.render_query(User, a | b)
+    test_column, _ = conn.render_query_column(User, a)
+    test_compound, _ = conn.render_query_compound(User, a | b)
+
+    assert test_none == ''
+    assert sql_equals(test_single, valid_single)
+    assert sql_equals(test_both, valid_compound)
+    assert test_single == test_column
+    assert test_both == test_compound

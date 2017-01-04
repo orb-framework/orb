@@ -649,7 +649,7 @@ class SQLConnection(PooledConnection):
 
         :return: <unicode> command, <dict> data
         """
-        query = query.expand(model=model, use_filter=use_filter)
+        query = query.expand(model=model, use_filter=use_filter) if query is not None else query
 
         # validate that the query exists
         if query is None:
