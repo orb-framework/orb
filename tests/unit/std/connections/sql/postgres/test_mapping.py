@@ -53,20 +53,25 @@ def test_postgres_std_query_op_mapping(pg_conn):
 def test_postgres_std_function_mapping(pg_conn):
     import orb
 
-    assert pg_conn.wrap_query_function(orb.Column(), 'test', orb.Query.Function.Lower) == 'lower(test)'
-    assert pg_conn.wrap_query_function(orb.Column(), 'test', orb.Query.Function.Upper) == 'upper(test)'
-    assert pg_conn.wrap_query_function(orb.Column(), 'test', orb.Query.Function.Abs) == 'abs(test)'
-    assert pg_conn.wrap_query_function(orb.Column(), 'test', orb.Query.Function.AsString) == 'test::varchar'
+    column = orb.Column(name='test')
+
+    assert pg_conn.wrap_query_function(column, orb.Query.Function.Lower) == 'lower(test)'
+    assert pg_conn.wrap_query_function(column, orb.Query.Function.Upper) == 'upper(test)'
+    assert pg_conn.wrap_query_function(column, orb.Query.Function.Abs) == 'abs(test)'
+    assert pg_conn.wrap_query_function(column, orb.Query.Function.AsString) == 'test::varchar'
 
 
 def test_postgres_std_math_mapping(pg_conn):
     import orb
 
-    assert pg_conn.wrap_query_math(orb.Column(), 'test', orb.Query.Math.Add, '1') == '(test + 1)'
-    assert pg_conn.wrap_query_math(orb.StringColumn(), 'test', orb.Query.Math.Add, '1') == '(test || 1)'
-    assert pg_conn.wrap_query_math(orb.Column(), 'test', orb.Query.Math.Subtract, '1') == '(test - 1)'
-    assert pg_conn.wrap_query_math(orb.Column(), 'test', orb.Query.Math.Multiply, '1') == '(test * 1)'
-    assert pg_conn.wrap_query_math(orb.Column(), 'test', orb.Query.Math.Divide, '1') == '(test / 1)'
-    assert pg_conn.wrap_query_math(orb.Column(), 'test', orb.Query.Math.And, '1') == '(test & 1)'
-    assert pg_conn.wrap_query_math(orb.Column(), 'test', orb.Query.Math.Or, '1') == '(test | 1)'
+    column = orb.Column(name='test')
+    str_column = orb.StringColumn(name='test')
+
+    assert pg_conn.wrap_query_math(column, orb.Query.Math.Add, '1') == '(test + 1)'
+    assert pg_conn.wrap_query_math(str_column, orb.Query.Math.Add, '1') == '(test || 1)'
+    assert pg_conn.wrap_query_math(column, orb.Query.Math.Subtract, '1') == '(test - 1)'
+    assert pg_conn.wrap_query_math(column, orb.Query.Math.Multiply, '1') == '(test * 1)'
+    assert pg_conn.wrap_query_math(column, orb.Query.Math.Divide, '1') == '(test / 1)'
+    assert pg_conn.wrap_query_math(column, orb.Query.Math.And, '1') == '(test & 1)'
+    assert pg_conn.wrap_query_math(column, orb.Query.Math.Or, '1') == '(test | 1)'
 

@@ -7,11 +7,25 @@ def mock_sql_conn(mock_db):
     from orb.testing import MockPooledConnectionMixin
     from orb.std.connections.sql.connection import SQLConnection
 
-    def _mock_sql_conn(templates=None, execute_response=None):
+    def _mock_sql_conn(templates=None,
+                       execute_response=None,
+                       execute_native_response=None,
+                       register_columns=True):
         import orb
 
         class MockSQLConnection(MockPooledConnectionMixin, SQLConnection):
             __templates__ = DictLoader(templates or {})
+
+            def execute_native_command(self,
+                                       conn,
+                                       cmd,
+                                       data=None,
+                                       returning=None,
+                                       mapper=None):
+                if execute_native_response:
+                    return execute_native_response(conn, cmd, data, returning, mapper)
+                else:
+                    return super(MockSQLConnection, self).execute_native_command(conn, cmd, data, returning, mapper)
 
             def execute(self, *args, **kw):
                 if execute_response is not None:
@@ -20,8 +34,9 @@ def mock_sql_conn(mock_db):
                     return super(MockSQLConnection, self).execute(*args, **kw)
 
         # register types
-        for column in orb.Column.__subclasses__():
-            MockSQLConnection.register_type_mapping(column, column.__name__)
+        if register_columns:
+            for column in orb.Column.__subclasses__():
+                MockSQLConnection.register_type_mapping(column, column.__name__)
 
         return MockSQLConnection(mock_db())
 
@@ -55,6 +70,26 @@ def mock_view():
 
 
 # -----
+
+def test_raise_error():
+    import orb.errors
+    from orb.std.connections.sql.connection import raise_error
+
+    try:
+        raise_error('OrbError', 'testing')
+    except Exception as err:
+        assert type(err) is orb.errors.OrbError
+        assert str(err) == 'testing'
+    else:
+        assert False
+
+    try:
+        raise_error('UnknownError', 'testing')
+    except Exception as err:
+        assert type(err) is RuntimeError
+        assert str(err) == 'testing'
+    else:
+        assert False
 
 
 def test_sql_connection_is_abstract():
@@ -835,8 +870,10 @@ def test_sql_render_query_field_with_basic_math(mock_sql_conn):
     conn.register_math_mapping(orb.Query.Math.Add, '{0} + {1}')
 
     test_field, test_data = conn.render_query_field(Task, task_name, q)
-    assert test_field == '"public"."tasks"."task_name" + %({0})s'.format(test_data.keys()[0])
-    assert test_data.values()[0] == 10
+
+    assert len(test_data) == 1
+    assert test_data.values() == [10]
+    assert (test_field % test_data) == '"public"."tasks"."task_name" + 10'
 
 
 def test_sql_render_query_field_with_query_math(mock_sql_conn):
@@ -855,7 +892,7 @@ def test_sql_render_query_field_with_query_math(mock_sql_conn):
     conn.register_math_mapping(orb.Query.Math.Add, '{0} + {1}')
 
     test_field, test_data = conn.render_query_field(Task, task_name, q)
-    assert test_field == '"public"."tasks"."task_name" + "public"."tasks"."task_name"'
+    assert (test_field % test_data) == '"public"."tasks"."task_name" + "public"."tasks"."task_name"'
 
 
 def test_sql_render_query_field_with_math_and_functions(mock_sql_conn):
@@ -870,14 +907,17 @@ def test_sql_render_query_field_with_math_and_functions(mock_sql_conn):
 
     task_name = Task.schema().column('task_name')
     q = ((orb.Query('task_name') + orb.Query('task_name')) + 10).lower() == 'testing'
+
     conn = mock_sql_conn()
     conn.register_math_mapping(orb.Query.Math.Add, '{0} + {1}')
     conn.register_function_mapping(orb.Query.Function.Lower, 'lower({0})')
 
     test_field, test_data = conn.render_query_field(Task, task_name, q)
-    sql = 'lower("public"."tasks"."task_name" + "public"."tasks"."task_name" + %({0})s)'
-    assert test_field == sql.format(test_data.keys()[0])
-    assert test_data.values()[0] == 10
+    sql = 'lower("public"."tasks"."task_name" + "public"."tasks"."task_name" + 10)'
+
+    assert len(test_data) == 1
+    assert test_data.values() == [10]
+    assert (test_field % test_data) == sql
 
 
 def test_render_query(mock_sql_conn, sql_equals):
@@ -920,3 +960,271 @@ def test_render_query(mock_sql_conn, sql_equals):
     assert sql_equals(test_both, valid_compound)
     assert test_single == test_column
     assert test_both == test_compound
+
+
+def test_render_select(mock_sql_conn):
+    import orb
+
+    class User(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        username = orb.StringColumn()
+
+    conn = mock_sql_conn(templates={
+        'select.sql.jinja': ''
+    })
+
+    sql, _ = conn.render_select(User, orb.Context())
+    assert sql == ''
+
+    results, count = conn.select(User, orb.Context())
+    assert results == {}
+    assert count == 0
+
+
+def test_update(mock_sql_conn):
+    import orb
+
+    class User(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        username = orb.StringColumn()
+
+    conn = mock_sql_conn()
+
+    u = User({'id': 1, 'username': 'john.doe'})
+    u.mark_loaded()
+    u.set('username', 'jane.doe')
+
+    results = conn.update([u], orb.Context())
+    assert results is None
+
+
+def test_basic_get_column_type(mock_sql_conn):
+    import orb
+
+    conn = mock_sql_conn(register_columns=False)
+    column = orb.StringColumn()
+
+    # ensure we raise errors without a type mapping
+    with pytest.raises(orb.errors.ColumnTypeNotFound):
+        assert conn.get_column_type(column) is None
+
+    # ensure we have a type mapping
+    conn.register_type_mapping(orb.StringColumn, 'string')
+
+    # ensure that the mapping works
+    assert conn.get_column_type(column) == 'string'
+
+
+def test_inherited_get_column_type(mock_sql_conn):
+    import orb
+
+    class CustomStringColumn(orb.StringColumn):
+        pass
+
+    conn = mock_sql_conn(register_columns=False)
+    column = CustomStringColumn()
+
+    # ensure we have a type mapping
+    conn.register_type_mapping(orb.StringColumn, 'string')
+
+    # ensure that the mapping works
+    assert conn.get_column_type(column) == 'string'
+
+
+def test_callable_column_type_mapping(mock_sql_conn):
+    import orb
+
+    conn = mock_sql_conn(register_columns=False)
+
+    a = orb.StringColumn(max_length=5)
+    b = orb.StringColumn(max_length=10)
+
+    def render_string(column, context):
+        return 'string({0})'.format(column.max_length())
+
+    conn.register_type_mapping(orb.StringColumn, render_string)
+
+    assert conn.get_column_type(a) == 'string(5)'
+    assert conn.get_column_type(b) == 'string(10)'
+
+
+def test_callable_column_type_mapping_with_inheritance(mock_sql_conn):
+    import orb
+
+    conn = mock_sql_conn(register_columns=False)
+
+    class HexColumn(orb.StringColumn):
+        pass
+
+    class TextColumn(orb.StringColumn):
+        pass
+
+    a = orb.StringColumn(max_length=5)
+    b = HexColumn(max_length=10)
+    c = TextColumn(max_length=20)
+
+    def render_string(column, context):
+        return 'string({0})'.format(column.max_length())
+
+    conn.register_type_mapping(orb.StringColumn, render_string)
+    conn.register_type_mapping(TextColumn, 'text')
+
+    assert conn.get_column_type(a) == 'string(5)'
+    assert conn.get_column_type(b) == 'string(10)'
+    assert conn.get_column_type(c) == 'text'
+
+    assert conn.get_column_type(a) == 'string(5)'
+    assert conn.get_column_type(b) == 'string(10)'
+
+
+def test_default_namespace(mock_sql_conn):
+    conn = mock_sql_conn()
+    assert conn.get_default_namespace() == ''
+    conn.__default_namespace__ = 'public'
+    assert conn.get_default_namespace() == ''
+
+
+def test_query_op(mock_sql_conn):
+    import orb
+    conn = mock_sql_conn()
+
+    col = orb.StringColumn()
+
+    assert conn.get_query_op(col, orb.Query.Op.IsNot) == 'IS NOT'
+    assert conn.get_query_op(col, orb.Query.Op.Before) == 'BEFORE'
+    assert conn.get_query_op(col, orb.Query.Op.After) == 'AFTER'
+
+    def get_op(column, op, case_sensitive):
+        assert column == col
+        assert op == orb.Query.Op.After
+        assert type(case_sensitive) is bool
+        return '>'
+
+    conn.register_query_op_mapping(orb.Query.Op.Before, '<')
+    conn.register_query_op_mapping(orb.Query.Op.After, get_op)
+
+    assert conn.get_query_op(col, orb.Query.Op.IsNot) == 'IS NOT'
+    assert conn.get_query_op(col, orb.Query.Op.Before) == '<'
+    assert conn.get_query_op(col, orb.Query.Op.After) == '>'
+
+    with pytest.raises(KeyError):
+        assert conn.get_query_op(col, -1)
+
+
+def test_query_compound_op(mock_sql_conn):
+    import orb
+    conn = mock_sql_conn()
+
+    assert conn.get_query_compound_op(orb.QueryCompound.Op.And) == 'AND'
+    assert conn.get_query_compound_op(orb.QueryCompound.Op.Or) == 'OR'
+
+    def get_op(op):
+        assert op == orb.QueryCompound.Op.Or
+        return '__or__'
+
+    conn.register_query_compound_op_mapping(orb.QueryCompound.Op.And, '__and__')
+    conn.register_query_compound_op_mapping(orb.QueryCompound.Op.Or, get_op)
+
+    assert conn.get_query_compound_op(orb.QueryCompound.Op.And) == '__and__'
+    assert conn.get_query_compound_op(orb.QueryCompound.Op.Or) == '__or__'
+
+    with pytest.raises(KeyError):
+        assert conn.get_query_compound_op(-1)
+
+
+def test_wrap_query_function(mock_sql_conn):
+    import orb
+
+    conn = mock_sql_conn()
+    conn.register_function_mapping(orb.Query.Function.AsString, '{0}::varchar')
+    conn.register_function_mapping(orb.Query.Function.Lower, lambda col, field, op: 'lower({})'.format(field))
+
+    column = orb.StringColumn(name='username')
+
+    # without custom name
+    assert conn.wrap_query_function(column, orb.Query.Function.Upper) == 'username'
+    assert conn.wrap_query_function(column, orb.Query.Function.AsString) == 'username::varchar'
+    assert conn.wrap_query_function(column, orb.Query.Function.Lower) == 'lower(username)'
+
+    # with custom name
+    assert conn.wrap_query_function(column, orb.Query.Function.Upper, field='test') == 'test'
+    assert conn.wrap_query_function(column, orb.Query.Function.AsString, field='test') == 'test::varchar'
+    assert conn.wrap_query_function(column, orb.Query.Function.Lower, field='test') == 'lower(test)'
+
+
+def test_wrap_query_math(mock_sql_conn):
+    import orb
+
+    def mapping(col, field, op, value):
+        return '{} - {}'.format(field, value), {}
+
+    conn = mock_sql_conn()
+    conn.register_math_mapping(orb.Query.Math.Add, '{0} + {1}')
+    conn.register_math_mapping(orb.Query.Math.Subtract,
+                               lambda col, field, op, value: '{} - {}'.format(field, value))
+
+    column = orb.StringColumn(name='username')
+
+    # without custom name
+    assert conn.wrap_query_math(column, orb.Query.Math.Divide, 10) == 'username'
+    assert conn.wrap_query_math(column, orb.Query.Math.Add, 10) == 'username + 10'
+    assert conn.wrap_query_math(column, orb.Query.Math.Subtract, 10) == 'username - 10'
+
+    # with custom name
+    assert conn.wrap_query_math(column, orb.Query.Math.Divide, 10, field='test') == 'test'
+    assert conn.wrap_query_math(column, orb.Query.Math.Add, 10, field='test') == 'test + 10'
+    assert conn.wrap_query_math(column, orb.Query.Math.Subtract, 10, field='test') == 'test - 10'
+
+
+def test_connection_execution(mock_sql_conn):
+    import orb
+    import time
+
+    from orb.std.connections.sql.connection import SQLConnection
+
+    class TestException(Exception):
+        pass
+
+    def run_command(conn, command, data, returning, mapper):
+        if command == 'test command':
+            return {'id': 1}, 1
+        elif command == 'interrupt':
+            raise orb.errors.Interruption
+        elif command == 'raise_error':
+            raise TestException
+        elif command == 'sleep2':
+            time.sleep(2)
+            return {'id': 1}, 1
+        elif command == 'sleep4':
+            time.sleep(4)
+            return {'id': 1}, 1
+        elif command == 'sleep7':
+            time.sleep(7)
+            return {'id': 1}, 1
+
+
+    conn = mock_sql_conn(execute_native_response=run_command)
+
+    # assert valid inputs
+    assert SQLConnection.execute(conn, '') == ({}, 0)
+    assert SQLConnection.execute(conn, ['']) == ({}, 0)
+    assert SQLConnection.execute(conn, ('',)) == ({}, 0)
+    assert SQLConnection.execute(conn, {''}) == ({}, 0)
+
+    with pytest.raises(RuntimeError):
+        SQLConnection.execute(conn, 10)
+
+    # test basic execution
+    assert SQLConnection.execute(conn, ['test command']) == ({'id': 1}, 1)
+
+    # test interrupted execution
+    with pytest.raises(orb.errors.Interruption):
+        SQLConnection.execute(conn, 'interrupt')
+
+    # test errored execution
+    with pytest.raises(TestException):
+        SQLConnection.execute(conn, 'raise_error')

@@ -150,15 +150,14 @@ class SQLConnection(PooledConnection):
         :param context: <orb.Context> or None
         """
         if isinstance(cmd, (str, unicode)):
-            cmds = [cmd.strip()]
+            cmd = cmd.strip()
+            cmds = [cmd] if cmd else []
         elif isinstance(cmd, (list, tuple, set)):
             cmds = [x.strip() for x in cmd if x.strip()]
         else:
             raise RuntimeError('Invalid command')
 
-        if not cmds:
-            raise orb.errors.EmptyCommand()
-        else:
+        if cmds:
             data = data or {}
             data.setdefault('locale', (context or orb.Context()).locale)
             start = datetime.datetime.now()
@@ -187,15 +186,19 @@ class SQLConnection(PooledConnection):
                         raise
 
             delta = (datetime.datetime.now() - start).total_seconds()
-            if delta * 1000 < 3000:
+
+            # determine logging levels based on length of query
+            if delta * 1000 < 3000:  # pragma: no cover
                 lvl = logging.DEBUG
-            elif delta * 1000 < 6000:
+            elif delta * 1000 < 6000:  # pragma: no cover
                 lvl = logging.WARNING
-            else:
+            else:  # pragma: no cover
                 lvl = logging.CRITICAL
 
             log.log(lvl, u'query took: {0}'.format(delta))
             return results, row_count
+        else:
+            return {}, 0
 
     def insert(self, records, context):
         """
@@ -618,7 +621,7 @@ class SQLConnection(PooledConnection):
         for delta in query.deltas():
             # apply a function delta
             if delta.delta_type == 'function':
-                query_field = self.wrap_query_function(column, query_field, delta.op)
+                query_field = self.wrap_query_function(column, delta.op, field=query_field)
 
             # apply a math delta
             elif delta.delta_type == 'math':
@@ -635,7 +638,7 @@ class SQLConnection(PooledConnection):
                     qvalue = u'%({0})s'.format(value_id)
                     data[value_id] = delta.value
 
-                query_field = self.wrap_query_math(column, query_field, delta.op, qvalue)
+                query_field = self.wrap_query_math(column, delta.op, qvalue, field=query_field)
 
         return query_field, data
 
@@ -772,15 +775,18 @@ class SQLConnection(PooledConnection):
         """
         Returns the sql string for the column's type.
 
-        :param column: <orb.Column>
-        :param context: <orb.Column> or None
+        Args:
+            column: <orb.Column>
+            context: <orb.Context> or None
 
-        :return: <str>
+        Returns:
+            <str>
+
         """
+        column_type = type(column)
         key = '_{0}__type_mapping'.format(cls.__name__)
         mapping = getattr(cls, key, {})
         context = context or orb.Context()
-        column_type = type(column)
         bases = [column_type] + list(column_type.get_base_types())
 
         # go through all types for this column to
@@ -889,7 +895,7 @@ class SQLConnection(PooledConnection):
         return cmd
 
     @classmethod
-    def register_function_mapping(cls, query_function_op, map):
+    def register_function_mapping(cls, op, map):
         """
         Sets the query function mapping type for this connection to the given
         map.  This can be a string or a callable function.  If a string is
@@ -898,19 +904,19 @@ class SQLConnection(PooledConnection):
         return a new text.
 
         Args:
-            query_function_op: <orb.Query.Function>
+            op: <orb.Query.Function>
             map: <str> or <callable>
         """
         key = '_{0}__function_mapping'.format(cls.__name__)
         try:
             mapping = getattr(cls, key)
         except AttributeError:
-            setattr(cls, key, {query_function_op: map})
+            setattr(cls, key, {op: map})
         else:
-            mapping[query_function_op] = map
+            mapping[op] = map
 
     @classmethod
-    def register_math_mapping(cls, query_math_op, map):
+    def register_math_mapping(cls, op, map):
         """
         Sets the query function mapping type for this connection to the given
         map.  This can be a string or a callable function.  If a string is
@@ -918,16 +924,16 @@ class SQLConnection(PooledConnection):
         it is a callable function, then it should accept the source text and
         return a new text.
 
-        :param query_math_op: <orb.Query.Math>
+        :param op: <orb.Query.Math>
         :param map: <str> or <callable>
         """
         key = '_{0}__math_mapping'.format(cls.__name__)
         try:
             mapping = getattr(cls, key)
         except AttributeError:
-            setattr(cls, key, {query_math_op: map})
+            setattr(cls, key, {op: map})
         else:
-            mapping[query_math_op] = map
+            mapping[op] = map
 
     @classmethod
     def register_query_op_mapping(cls, op, map):
@@ -961,7 +967,7 @@ class SQLConnection(PooledConnection):
             :param op: <orb.Query.Op>
             :param map: <str> or <callable>
             """
-        key = '_{0}__qcompound_mapping'.format(cls.__name__)
+        key = '_{0}__qcompound_op_mapping'.format(cls.__name__)
         try:
             mapping = getattr(cls, key)
         except AttributeError:
@@ -1000,48 +1006,54 @@ class SQLConnection(PooledConnection):
         return u'"{0}"'.format(text)
 
     @classmethod
-    def wrap_query_function(cls, column, field, query_function_op):
+    def wrap_query_function(cls, column, op, field=''):
         """
         Wraps the field with the given query function.
+        
+        Args:
+            column: <orb.Column>
+            op: <orb.Query.Function>
+            field: <str> (optional, defaults to the column's field)
 
-        :param field: <str> or <unicode>
-        :param query_function_op: <orb.Query.Function>
-        :param context: <orb.Context>
-
-        :return: <unicode>
+        Returns:
+            <unicode>
         """
+        field = field or column.field()
         key = '_{0}__function_mapping'.format(cls.__name__)
         try:
-            mapping = getattr(cls, key)[query_function_op]
+            mapping = getattr(cls, key)[op]
         except (AttributeError, KeyError):
-            log.warning('No {0} map for {1}'.format(orb.Query.Function(query_function_op), cls.__name__))
+            log.warning('No {0} map for {1}'.format(orb.Query.Function(op), cls.__name__))
             return field
         else:
             if callable(mapping):
-                return mapping(column, query_function_op, field)
+                return mapping(column, field, op)
             else:
                 return mapping.format(field)
 
     @classmethod
-    def wrap_query_math(cls, column, field, query_math_op, value):
+    def wrap_query_math(cls, column, op, value_key, field=''):
         """
         Wraps the field with the given query function.
 
-        :param column: <orb.Column>
-        :param field: <str> or <unicode>
-        :param query_math_op: <orb.Query.Math>
-        :param context: <orb.Context>
+        Args:
+            column: <orb.Column>
+            op: <orb.Query.Math>
+            value_key: <unicode> (represents the value that will be added)
+            field: <str> (optional, defaults to the column's field)
 
-        :return: <unicode>
+        Returns:
+            <unicode> command
         """
+        field = field or column.field()
         key = '_{0}__math_mapping'.format(cls.__name__)
         try:
-            mapping = getattr(cls, key)[query_math_op]
+            mapping = getattr(cls, key)[op]
         except (AttributeError, KeyError):
-            log.warning('No {0} map for {1}'.format(orb.Query.Function(query_math_op), cls.__name__))
+            log.warning('No {0} map for {1}'.format(orb.Query.Function(op), cls.__name__))
             return field
         else:
             if callable(mapping):
-                return mapping(column, field, query_math_op, value)
+                return mapping(column, field, op, value_key)
             else:
-                return mapping.format(field, value)
+                return mapping.format(field, value_key)

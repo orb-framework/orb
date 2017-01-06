@@ -1,4 +1,5 @@
 import orb
+import os
 
 from .connection import PostgresConnection
 
@@ -42,22 +43,24 @@ def get_match(column, op, case_sensitive):
     return output
 
 
-def add_op(column, field, math_op, value):
+def add_op(column, field, op, value_key):
     """
     Generates a math operator for addition.  If the column
     is a string kind it needs a special operator.
 
-    :param column: <orb.Column>
-    :param field: <str> or <unicode>
-    :param math_op: <orb.Query.Math>
-    :param value: <variant>
+    Args:
+        column: <orb.Column>
+        field: <unicode>
+        op: <orb.Query.Math>
+        value_key: <unicode> (represents the value that will be rendered)
 
-    :return: <unicode>
+    Returns:
+        <unicode> command, <dict> data
     """
     if isinstance(column, orb.StringColumn):
-        return u'({0} || {1})'.format(field, value)
+        return u'({0} || {1})'.format(field, value_key)
     else:
-        return u'({0} + {1})'.format(field, value)
+        return u'({0} + {1})'.format(field, value_key)
 
 
 def get_reference_type(column, context):
