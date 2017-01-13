@@ -1,24 +1,24 @@
 {% set i18n_name = model.name + '_i18n' %}
-{% set id_type = id_column.type or 'BIGINT' %}
-{% set id_field = id_column.field or 'id' %}
+{% set id_type = columns.id.type or 'BIGINT' %}
+{% set id_field = columns.id.field or 'id' %}
 
 {% macro add_column(column) -%}
     {{ column.field | wraps }} {{ column.type }} {% if column.flags.AutoIncrement -%} DEFAULT nextval('{{ column.sequence }}') {% endif -%}{% if column.flags.Required -%} NOT NULL {% endif -%}{% if column.flags.Unique -%} UNIQUE {% endif -%}
 {% endmacro -%}
 
-{% if not model.inherits and id_column.flags.AutoIncrement -%}
-CREATE SEQUENCE {{ id_column.sequence | wraps }};
+{% if not model.inherits and columns.id.flags.AutoIncrement -%}
+CREATE SEQUENCE {{ columns.id.sequence | wraps }};
 {% endif -%}
-{% for column in add_columns -%}
+{% for column in columns.standard -%}
 {% if column.flags.AutoIncrement -%}
 CREATE SEQUENCE {{ column.sequence | wraps }};
 {% endif -%}
 {% endfor -%}
 CREATE TABLE IF NOT EXISTS {{ model.namespace | wraps }}.{{ model.name | wraps }} (
     {% if not model.inherits -%}
-    {{ add_column(id_column) }} PRIMARY KEY{% if add_columns %},{% endif %}
+    {{ add_column(columns.id) }} PRIMARY KEY{% if columns.standard %},{% endif %}
     {% endif -%}
-    {% for column in add_columns -%}
+    {% for column in columns.standard -%}
     {{ add_column(column) }}{% if not loop.last %},{% endif %}
     {% endfor -%}
 )
@@ -29,11 +29,11 @@ WITH (OIDS=FALSE);
 {% if owner -%}
 ALTER TABLE {{ model.namespace | wraps }}.{{ model.name | wraps }} OWNER TO {{ owner | wraps }}
 {% endif -%}
-{% if add_i18n_columns -%}
+{% if columns.i18n -%}
 CREATE TABLE IF NOT EXISTS {{ model.namespace | wraps }}.{{ i18n_name | wraps }} (
     {{ 'locale' | wraps }} character varying(5),
     {{ (model.name + '_id') | wraps }} {{ id_type }} REFERENCES {{ model.namespace | wraps }}.{{ model.name | wraps }} ({{ id_field | wraps }}) ON DELETE CASCADE,
-    {% for column in add_i18n_columns -%}
+    {% for column in columns.i18n -%}
     {{ add_column(column) }},
     {% endfor -%}
     CONSTRAINT {{ (i18n_name + '_pkey') | wraps }} PRIMARY KEY ({{ (model.name + '_id') | wraps }}, {{ 'locale' | wraps }})

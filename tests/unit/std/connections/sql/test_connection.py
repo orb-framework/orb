@@ -195,7 +195,7 @@ def test_sql_connection_delete_records(mock_sql_conn, mock_table, mock_view):
         assert valid.delete(orb.Collection(model=mock_view), context)
 
 
-def test_sql_connection_insert(mock_sql_conn):
+def test_sql_connection_insert(mock_sql_conn, mock_table):
     import orb
 
     empty = mock_sql_conn()
@@ -204,13 +204,25 @@ def test_sql_connection_insert(mock_sql_conn):
     })
     context = orb.Context()
 
+    # validate an empty insertion
     records, count = valid.insert([], context)
 
     assert records == {}
     assert count == 0
 
+    # validate a collection insertion
+    a = mock_table({'username': 'john.smith'})
+    records, count = valid.insert(orb.Collection([a]), context)
+    assert records == {}
+    assert count == 0
+
+    # validate a records insertion
+    records, count = valid.insert([a], context)
+    assert records == {}
+    assert count == 0
+
     with pytest.raises(Exception):
-        assert empty.insert([], context) is False
+        empty.insert([a], context)
 
 
 def test_sql_connection_process_column(mock_sql_conn):
@@ -519,17 +531,17 @@ def test_sql_connection_render_alter_table(mock_sql_conn, sql_equals):
     {{ model.name }}
 
     == COLUMNS ==
-    {% for column in add_columns %}
+    {% for column in columns.add.standard %}
     {{ column.field }}
     {% endfor %}
 
     == I18N COLUMNS ==
-    {% for column in add_i18n_columns %}
+    {% for column in columns.add.i18n %}
     {{ column.field }}
     {% endfor %}
 
     == INDEXES ==
-    {% for index in add_indexes %}
+    {% for index in indexes.add %}
     {{ index.name }}
     {% endfor %}
     """
@@ -585,20 +597,20 @@ def test_sql_connection_render_create_table(mock_sql_conn, sql_equals):
     templ = """\
     == MODEL ==
     {{ model.name }}
-    id_column: {{ id_column.field }}
+    columns.id: {{ columns.id.field }}
 
     == COLUMNS ==
-    {% for column in add_columns %}
+    {% for column in columns.standard %}
     {{ column.field }}
     {% endfor %}
 
     == I18N COLUMNS ==
-    {% for column in add_i18n_columns %}
+    {% for column in columns.i18n %}
     {{ column.field }}
     {% endfor %}
 
     == INDEXES ==
-    {% for index in add_indexes %}
+    {% for index in indexes %}
     {{ index.name }}
     {% endfor %}
     """
@@ -606,7 +618,7 @@ def test_sql_connection_render_create_table(mock_sql_conn, sql_equals):
     valid_full_content = """
     == MODEL ==
     tests
-    id_column: id
+    columns.id: id
     == COLUMNS ==
     code
     parent_id
@@ -618,7 +630,7 @@ def test_sql_connection_render_create_table(mock_sql_conn, sql_equals):
     valid_reference_content = """
     == MODEL ==
     tests
-    id_column: id
+    columns.id: id
     == COLUMNS ==
     code
     == I18N COLUMNS ==
@@ -643,13 +655,13 @@ def test_sql_connection_render_create_view(mock_sql_conn, sql_equals):
     templ = """
     == MODEL ==
     {{ model.name }}
-    id_column: {{ id_column.field }}
+    columns.id: {{ columns.id.field }}
     == COLUMNS ==
-    {% for column in add_columns %}
+    {% for column in columns.standard %}
     {{ column.field }}
     {% endfor %}
     == I18N COLUMNS ==
-    {% for column in add_i18n_columns %}
+    {% for column in columns.i18n %}
     {{ column.field }}
     {% endfor %}
     """
@@ -678,7 +690,7 @@ def test_sql_connection_render_create_view(mock_sql_conn, sql_equals):
     valid_full_content = """
     == MODEL ==
     status_views
-    id_column: status_id
+    columns.id: status_id
     == COLUMNS ==
     status_code
     == I18N COLUMNS ==
@@ -920,6 +932,109 @@ def test_sql_render_query_field_with_math_and_functions(mock_sql_conn):
     assert (test_field % test_data) == sql
 
 
+def test_sql_render_insert_collection(mock_sql_conn, mock_view, mock_table, sql_equals):
+    import orb
+
+    insert_templ = """
+    {% set all_columns = columns.standard + columns.i18n %}
+    == model ==
+    {{ model.alias }}
+    == schema ==
+    {% for column in all_columns %}
+    {{ column.field }}
+    {% endfor %}
+    == records ==
+    {% for record in records %}
+    ({% for column in all_columns %}{{ record[column.field].value }}{%- if not loop.last %}, {%- endif %}{% endfor %})
+    {% endfor %}
+    """
+
+    class TestModel(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        username = orb.StringColumn()
+        first_name = orb.StringColumn()
+        last_name = orb.StringColumn(default='Doe')
+        is_active = orb.BooleanColumn(default=True)
+        title = orb.StringColumn(flags={'I18n'})
+
+        @orb.virtual(orb.StringColumn)
+        def display_name(self, **context):
+            return '{} {}'.format(self.get('first_name'), self.get('last_name'))
+
+        @display_name.setter()
+        def set_display_name(self, value, **context):
+            first_name, _, last_name = value.partition(' ')
+            self.set('first_name', first_name)
+            self.set('last_name', last_name)
+
+
+    conn = mock_sql_conn(templates={
+        'insert.sql.jinja': insert_templ
+    })
+
+    valid_cmd = """
+    == model ==
+    test_models
+
+    == schema ==
+    first_name
+    id
+    is_active
+    last_name
+    username
+    title
+
+    == records ==
+    (None,None,True,Doe,john.doe,None)
+    (None,None,True,Doe,jane.doe,None)
+    """
+
+    valid_second_cmd = """
+    == model ==
+    users
+
+    == schema ==
+    id
+    username
+
+    == records ==
+    (None,john.smith)
+    """
+
+    a = TestModel({'username': 'john.doe'})
+    b = TestModel({'username': 'jane.doe'})
+    c = TestModel({'id': 1})
+    c.mark_loaded()
+    d = mock_table({'username': 'john.smith'})
+
+    models = orb.Collection([a, c, b])
+
+    test_empty, _ = conn.render_insert_collection(orb.Collection([], model=TestModel))
+    test_cmd, _ = conn.render_insert_collection(models)
+    test_records, _ = conn.render_insert_records([a, c, b, d])
+
+    print(test_cmd)
+
+    assert test_empty == ''
+    assert sql_equals(test_cmd, valid_cmd)
+
+    assert len(test_records) == 2
+    assert sql_equals(test_records[0], valid_second_cmd) or sql_equals(test_records[0], valid_cmd)
+    assert sql_equals(test_records[1], valid_second_cmd) or sql_equals(test_records[1], valid_cmd)
+
+    # test invalid collection options
+    with pytest.raises(orb.errors.QueryInvalid):
+        conn.render_insert_collection(orb.Collection())
+
+    with pytest.raises(orb.errors.QueryInvalid):
+        conn.render_insert_collection(orb.Collection(model=mock_view))
+
+    with pytest.raises(orb.errors.QueryInvalid):
+        conn.render_insert_collection(orb.Collection(model=TestModel))
+
+
 def test_render_query(mock_sql_conn, sql_equals):
     import orb
 
@@ -983,7 +1098,7 @@ def test_render_select(mock_sql_conn):
     assert count == 0
 
 
-def test_update(mock_sql_conn):
+def test_render_update(mock_sql_conn, sql_equals):
     import orb
 
     class User(orb.Table):
@@ -991,15 +1106,116 @@ def test_update(mock_sql_conn):
 
         id = orb.IdColumn()
         username = orb.StringColumn()
+        first_name = orb.StringColumn()
+        last_name = orb.StringColumn()
 
-    conn = mock_sql_conn()
+    update_templ = """
+    update {{ model.name }} set
+    {% for entry in changes.standard + changes.i18n %}
+    {{ entry.column.field }} = {{ entry.value }}
+    {% endfor %}
+    where {{ id.field }} = {{ id.value }};
+    """
+
+    conn = mock_sql_conn(templates={
+        'update.sql.jinja': update_templ
+    })
 
     u = User({'id': 1, 'username': 'john.doe'})
+
+    non_record_sql, _ = conn.render_update(u)
+    assert non_record_sql == ''
+
     u.mark_loaded()
+
+    non_changed_sql, _ = conn.render_update(u)
+    assert non_changed_sql == ''
+
     u.set('username', 'jane.doe')
 
-    results = conn.update([u], orb.Context())
-    assert results is None
+    valid_sql = """
+    update users set
+    username = jane.doe
+    where id = 1;
+    """
+
+    test_sql, test_data = conn.render_update(u)
+    assert sql_equals(test_sql, valid_sql)
+
+    u.set('first_name', 'Jane')
+    u.set('last_name', 'Doe')
+
+    valid_sql = """
+    update users set
+    first_name = Jane
+    last_name = Doe
+    username = jane.doe
+    where id = 1;
+    """
+    test_sql, test_data = conn.render_update(u, orb.Context())
+    assert sql_equals(test_sql, valid_sql)
+
+
+def test_render_update_with_i18n(mock_sql_conn, sql_equals):
+    import orb
+
+    class Article(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        code = orb.StringColumn()
+        title = orb.StringColumn(flags={'I18n'})
+
+    update_templ = """
+    {% if changes.standard %}
+    update {{ model.name }} set
+    {% for entry in changes.standard %}
+    {{ entry.column.field }} = {{ entry.value }}
+    {% endfor %}
+    where {{ id.field }} = {{ id.value }};
+    {% endif %}
+
+    {% if changes.i18n %}
+    update {{ model.name }}_i18n set
+    {% for entry in changes.i18n %}
+    {{ entry.column.field }} = {{ entry.value }}
+    {% endfor %}
+    where {{ model.name }}_id = {{ id.value }} and locale = {{ locale }};
+    {% endif %}
+    """
+
+    conn = mock_sql_conn(templates={
+        'update.sql.jinja': update_templ
+    })
+
+    a = Article({'id': 1})
+    a.mark_loaded()
+
+    a.set('code', 'test_code')
+
+    valid_sql = """
+    update articles set
+    code = test_code
+    where id = 1;
+    """
+
+    test_sql, test_data = conn.render_update(a)
+    assert sql_equals(test_sql, valid_sql)
+
+    a.set('title', 'Test Title')
+
+    valid_sql = """
+    update articles set
+    code = test_code
+    where id = 1;
+
+    update articles_i18n set
+    title = Test Title
+    where articles_id = 1 and locale = en_US;
+    """
+    test_sql, test_data = conn.render_update(a)
+    assert sql_equals(test_sql, valid_sql)
+    assert conn.update([a], orb.Context()) == ({}, 0)
 
 
 def test_basic_get_column_type(mock_sql_conn):

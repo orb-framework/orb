@@ -714,20 +714,20 @@ class Model(object):
         :return: <generator>
         """
         schema = self.schema()
-        context = self.context(**context)
-        expand_tree = context.expandtree(type(self))
+        orb_context = self.context(**context)
+        expand_tree = orb_context.expandtree(type(self))
 
         # collect the columns that will be iterated over
-        columns = context.schema_columns(schema)
+        columns = orb_context.schema_columns(schema)
         if not columns:
             columns = schema.columns(flags=~orb.Column.Flags.RequiresExpand).values()
 
         # iterate the columns
-        for attribute, value in self.iter_attributes(columns, tree=expand_tree, context=context):
+        for attribute, value in self.iter_attributes(columns, tree=expand_tree, context=orb_context):
             yield attribute, value
 
         # iterate the expansion preferences
-        for attribute, value in self.iter_expand_tree(expand_tree, context=context):
+        for attribute, value in self.iter_expand_tree(expand_tree, context=orb_context):
             yield attribute, value
 
     def mark_loaded(self, columns=None):
@@ -742,7 +742,8 @@ class Model(object):
         column_names = [schema.column(c).name() for c in columns] if columns else self.__attributes.keys()
 
         with WriteLocker(self.__lock):
-            self.__base_attributes.update({k: v for k, v in self.__attributes.items() if k in column_names})
+            self.__base_attributes.update({k: v.copy() if type(v) == dict else v
+                                           for k, v in self.__attributes.items() if k in column_names})
             self.__loaded.update(column_names)
 
     def mark_unloaded(self, columns=None):
@@ -927,7 +928,8 @@ class Model(object):
         column_names = [schema.column(c).name() for c in columns] if columns else self.__base_attributes.keys()
 
         with WriteLocker(self.__lock):
-            self.__attributes.update({k: v for k, v in self.__base_attributes.items() if k in column_names})
+            self.__attributes.update({k: v.copy() if type(v) is dict else v
+                                      for k, v in self.__base_attributes.items()if k in column_names})
 
     def save(self, values=None, after=None, before=None, **context):
         """

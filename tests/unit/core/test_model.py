@@ -497,13 +497,21 @@ def test_model_change_calculation():
         id = orb.IdColumn()
         name = orb.StringColumn()
         value = orb.StringColumn(flags={'ReadOnly'})
+        title = orb.StringColumn(flags={'I18n'})
 
-    a = A({'id': 1, 'name': 'testing', 'value': 12})
+    a = A({
+        'id': 1,
+        'name': 'testing',
+        'value': 12,
+        'title': 'Testing'
+    })
 
     import pprint
     pprint.pprint(a.changes())
 
-    assert a.changes() == {a.schema().column('id'): (None, 1), a.schema().column('name'): (None, 'testing')}
+    assert a.changes() == {a.schema().column('id'): (None, 1),
+                           a.schema().column('name'): (None, 'testing'),
+                           a.schema().column('title'): (None, 'Testing')}
     assert a.is_modified()
 
     a.mark_loaded()
@@ -518,7 +526,22 @@ def test_model_change_calculation():
 
     a.set('name', u'testing2')
 
-    assert a.changes() == {a.schema().column('name'): ('testing', u'testing2')}
+    assert a.changes() == {
+        a.schema().column('name'): ('testing', u'testing2')
+    }
+    a.mark_loaded()
+
+    a.set('title', u'Testing')
+
+    assert a.changes() == {}
+    assert not a.is_modified()
+
+    a.set('title', u'Testing2')
+
+    assert a.changes() == {
+        a.schema().column('title'): ('Testing', 'Testing2')
+    }
+
 
 
 def test_model_deletion(mock_db):

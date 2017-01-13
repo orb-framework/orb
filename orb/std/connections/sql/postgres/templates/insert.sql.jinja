@@ -1,0 +1,28 @@
+{% macro record_value(record, column) -%}{%- if record[column.field].value is none %}DEFAULT{%- else %}%({{ record[column.field].key }})s{%- endif %}{% endmacro -%}
+
+{% if columns.standard %}
+INSERT INTO {{ model.namespace | wraps }}.{{ model.alias | wraps }}
+    ({%- for column in columns.standard %}{{ column.field | wraps }}{%- if not loop.last %}, {%- endif %}{%- endfor %})
+VALUES
+    {% for record in records %}
+    ({%- for column in columns.standard %}{{ record_value(record, column) }}{%- if not loop.last %}, {%- endif %}{%- endfor %}){%- if not loop.last %},{%- endif %}
+    {% endfor %}
+RETURNING {{ columns.id.field | wraps }};
+{% elif columns.i18n %}
+INSERT INTO {{ model.namespace | wraps }}.{{ model.alias | wraps }}
+    DEFAULT VALUES
+RETURNING {{ columns.id.field | wraps }};
+{% endif %}
+
+{% if columns.i18n %}
+INSERT INTO {{ model.namespace | wraps }}.{{ (model.name + '_i18n') | wraps }}
+    ({{ (model.name + '_id') | wraps }}, {{ 'locale' | wraps }},
+        {%- for column in columns.i18n %}{{ column.field | wraps }}{%- if not loop.last %}, {%- endif %}{%- endfor %})
+VALUES
+    {% for record in records %}
+    {% set id_val = 'LASTVAL()' if record[columns.id.field].value is none else '%(' + record[record.id].key + ')s' %}
+    ({{ id_val }}, %(locale)s,
+        {%- for column in columns.i18n %}{{ record_value(record, column) }}{%- if not loop.last %}, {%- endif %}{%- endfor %}){%- if not loop.last %},{%- endif %}
+    {% endfor %}
+RETURNING {{ (model.name + '_id') | wraps }} AS {{ columns.id.field | wraps }};
+{% endif %}

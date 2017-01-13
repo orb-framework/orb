@@ -209,8 +209,10 @@ class SQLConnection(PooledConnection):
 
         :return: <dict> changes
         """
-        cmd = self.render('insert.sql.jinja', {'records': records, 'context': context})
-        data = {}
+        if isinstance(records, orb.Collection):
+            cmd, data = self.render_insert_collection(records, context=context)
+        else:
+            cmd, data = self.render_insert_records(records, context=context)
         return self.execute(cmd, data=data, write_access=True)
 
     def process_column(self, column, context):
@@ -416,9 +418,15 @@ class SQLConnection(PooledConnection):
 
         kw = {
             'model': self.process_model(table, context),
-            'add_columns': add_cols,
-            'add_indexes': add_indexes,
-            'add_i18n_columns': add_i18n
+            'columns': {
+                'add': {
+                    'standard': add_cols,
+                    'i18n': add_i18n
+                }
+            },
+            'indexes': {
+                'add': add_indexes
+            }
         }
 
         cmd = self.render('alter_table.sql.jinja', kw)
@@ -463,8 +471,11 @@ class SQLConnection(PooledConnection):
         kw = {
             'model': self.process_model(table, context),
             'id_column': id_column_data,
-            'add_columns': add_cols,
-            'add_i18n_columns': add_i18n
+            'columns': {
+                'id': id_column_data,
+                'standard': add_cols,
+                'i18n': add_i18n
+            }
         }
 
         cmd = self.render('create_table.sql.jinja', kw)
@@ -503,9 +514,11 @@ class SQLConnection(PooledConnection):
 
         kw = {
             'model': self.process_model(view, context),
-            'id_column': id_column_data,
-            'add_columns': add_cols,
-            'add_i18n_columns': add_i18n
+            'columns': {
+                'id': id_column_data,
+                'standard': add_cols,
+                'i18n': add_i18n
+            }
         }
         return self.render('create_view.sql.jinja', kw), {}
 
@@ -592,6 +605,119 @@ class SQLConnection(PooledConnection):
                 data.update(where_data)
 
             return u'\n'.join(cmds), data
+
+    def render_insert_collection(self, collection, context=None):
+        """
+        Renders the SQL required to insert the given collection to the
+        database.
+
+        Args:
+            collection: <orb.Collection>
+            context: <orb.Context>
+
+        Returns:
+            <unicode> command, <dict> data
+
+        """
+        context = context or orb.Context()
+        model = collection.model()
+
+        # make sure we have a valid model
+        if not (model and issubclass(model, orb.Table)):
+            raise orb.errors.QueryInvalid('Cannot insert without a model')
+
+        # make sure we have content to insert (unloaded collections imply queries to the db)
+        elif not collection.is_loaded():
+            raise orb.errors.QueryInvalid('Cannot insert unloaded collections')
+
+        # if there are no records, then don't bother running the logic
+        elif collection.is_empty():
+            return '', {}
+
+        # run the insertion logic
+        else:
+            schema = model.schema()
+            i18n_columns = []
+            standard_columns = []
+
+            # process the schema columns for insertion
+            for col in schema.columns().values():
+                # don't insert virtual columns or read only columns
+                if col.test_flag(col.Flags.Virtual):
+                    continue
+
+                # determine the proper location for insertion
+                if col.test_flag(col.Flags.I18n):
+                    i18n_columns.append(col)
+                else:
+                    standard_columns.append(col)
+
+            # generate the insertion data
+            data = {'locale': context.locale}
+            db_records = []
+            standard_columns.sort(key=lambda x: x.field())
+            i18n_columns.sort(key=lambda x: x.field())
+            all_columns = i18n_columns + standard_columns
+            for record in collection:
+                # only insert non-records
+                if record.is_record(context=context):
+                    continue
+
+                record_values = dict(record.iter_record(returning='data',
+                                                        locale=context.locale,
+                                                        context=context))
+                db_record = {}
+
+                for column in all_columns:
+                    db_value = record_values[column.alias()]
+                    db_value_key = '{0}_{1}'.format(column.field(), os.urandom(4).encode('hex'))
+                    data[db_value_key] = db_value
+                    db_record[column.field()] = {'value': db_value, 'key': db_value_key}
+
+                db_records.append(db_record)
+
+            cmd = self.render('insert.sql.jinja', {
+                'model': self.process_model(model, context),
+                'columns': {
+                    'id': self.process_column(schema.id_column(), context),
+                    'standard': [self.process_column(c, context) for c in standard_columns],
+                    'i18n': [self.process_column(c, context) for c in i18n_columns]
+                },
+                'locale': context.locale,
+                'records': db_records
+            })
+            return cmd, data
+
+    def render_insert_records(self, records, context=None):
+        """
+        Renders the command to insert records to the database.  Use this method when providing
+        a raw python list of table instances, which can contain multiple different types of
+        records at once.
+
+        Args:
+            records: [<orb.Table>, ..]
+            context: <orb.Context>
+
+        Returns:
+            [<unicode> cmd, ..], <dict> data
+
+        """
+        context = context or orb.Context()
+
+        # group each object based on it's type
+        grouped_records = {}
+        for record in records:
+            record_type = type(record)
+            grouped_records.setdefault(record_type, []).append(record)
+
+        statements = []
+        data = {}
+        for model, records in grouped_records.items():
+            model_statement, model_data = self.render_insert_collection(orb.Collection(records, model=model),
+                                                                        context=context)
+            statements.append(model_statement)
+            data.update(model_data)
+        return statements, data
 
     def render_query_field(self, model, column, query, context=None, aliases=None):
         """
@@ -735,7 +861,7 @@ class SQLConnection(PooledConnection):
         cmd = self.render('query.sql.jinja', kw)
         return cmd, data
 
-    def render_select(self, model, context):
+    def render_select(self, model, context=None):
         """
         Renders the SELECT statement for this sql backend.
 
@@ -751,6 +877,71 @@ class SQLConnection(PooledConnection):
         kw = {}
         cmd = self.render('select.sql.jinja', kw)
         return cmd, data
+
+    def render_update(self, record, context=None):
+        """
+        Renders the changes for the record to SQL.
+
+        Args:
+            record: <orb.Table>
+            context: <orb.Context>
+
+        Returns:
+            <unicode> sql, <dict> data
+        """
+        if not record.is_record():
+            return '', {}
+        elif not record.is_modified():
+            return '', {}
+        else:
+            context = context or orb.Context()
+            changes = record.changes()
+
+            i18n_changes = []
+            standard_changes = []
+
+            id_field = record.schema().id_column().field()
+            id_key = u'id_{}'.format(os.urandom(4).encode('hex'))
+            id_value = record.id()
+
+            data = {
+                id_key: id_value,
+                'locale': context.locale
+            }
+
+            for column, (_, db_value) in sorted(changes.items(), key=lambda x: x[0].name()):
+                column_data = self.process_column(column, context)
+                value_key = u'{0}_{1}'.format(column.alias(), os.urandom(4).encode('hex'))
+                data[value_key] = db_value
+
+                if column.test_flag(column.Flags.I18n):
+                    i18n_changes.append({
+                        'column': column_data,
+                        'value': db_value,
+                        'key': value_key
+                    })
+                else:
+                    standard_changes.append({
+                        'column': column_data,
+                        'value': db_value,
+                        'key': value_key
+                    })
+
+            kw = {
+                'model': self.process_model(type(record), context),
+                'locale': context.locale,
+                'id': {
+                    'field': id_field,
+                    'value': id_value,
+                    'key': id_key
+                },
+                'changes': {
+                    'i18n': i18n_changes,
+                    'standard': standard_changes
+                }
+            }
+            cmd = self.render('update.sql.jinja', kw)
+            return cmd, data
 
     def select(self, model, context):
         """
@@ -768,7 +959,27 @@ class SQLConnection(PooledConnection):
         return self.execute(cmd, data=data)
 
     def update(self, records, context):
-        pass
+        """
+        Updates the given records in the database.
+
+        Args:
+            records: <orb.Collection> or [<orb.Model>, ..]
+            context: <orb.Context>
+
+        Returns:
+
+        """
+        cmds = []
+        data = {}
+
+        # render each individual record
+        for record in records:
+            record_sql, record_data = self.render_update(record, context)
+            if record_sql:
+                cmds.append(record_sql)
+                data.update(record_data)
+
+        return self.execute(cmds, data)
 
     @classmethod
     def get_column_type(cls, column, context=None):

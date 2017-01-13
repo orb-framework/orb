@@ -57,6 +57,21 @@ def Page():
 
 
 @pytest.fixture()
+def Article():
+    import orb
+
+    class Article(orb.Table):
+        __register__ = False
+
+        id = orb.IdColumn()
+        code = orb.StringColumn()
+        title = orb.StringColumn(flags={'I18n'})
+        body = orb.TextColumn(flags={'I18n'})
+
+    return Article
+
+
+@pytest.fixture()
 def Incrementer():
     import orb
 

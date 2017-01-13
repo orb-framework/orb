@@ -1,0 +1,32 @@
+UPDATE {{ model.namespace | wraps }}.{{ model.name | wraps }} SET
+({% for change in changes.standard %}
+{{ change.column.field | wraps }} = %({{ change.key }})s{% if not loop.last %},{% endif %}
+{% endfor %})
+WHERE {{ model.namespace | wraps }}.{{ id.field | wraps }} = %({{ id.key }})s;
+
+{% if changes.i18n %}
+DO $$
+BEGIN
+IF NOT EXISTS (
+    SELECT 1
+    FROM {{ model.namespace | wraps }}.{{ (model.name + '_i18n') | wraps }}
+    WHERE {{ (model.name + '_id') | wraps }} = %({{ id.key }})s AND {{ 'locale' | wraps }} = %(locale)s
+)
+THEN
+    INSERT INTO {{ model.namespace | wraps }}.{{ (model.name + '_i18n') | wraps }}
+    ({{ (model.name + '_id') | wraps }}, "locale", {% for change in changes.i18n %}{{ change.column.field | wraps }}{% if not loop.last %}, {% endif %}{% endfor %})
+    VALUES (
+        %({{ id.key }})s,
+        %(locale)s,
+        {% for change in changes.i18n %}
+        %({{ change.key }})s{% if not loop.last %},{% endif %}
+        {% endfor %});
+ELSE
+    UPDATE {{ model.namespace | wraps }}.{{ (model.name + '_i18n') | wraps }} SET
+    ({% for change in changes.i18n %}
+    {{ change.column.field | wraps }} = %({{ change.key }})s{% if not loop.last %},{% endif %}
+    {% endfor %})
+    WHERE {{ (model.name + '_id') | wraps }} = %({{ id.key }})s AND "locale" = %(locale)s;
+END IF;
+END $$;
+{% endif %}
