@@ -114,7 +114,8 @@ class SQLConnection(PooledConnection):
 
         :return: <dict>
         """
-        return {}
+        cmd, data = self.render_current_schema(context)
+        return self.execute(cmd, data=data)
 
     def delete(self, records, context):
         """
@@ -522,6 +523,25 @@ class SQLConnection(PooledConnection):
         }
         return self.render('create_view.sql.jinja', kw), {}
 
+    def render_current_schema(self, context=None):
+        """
+        Generates the command to read the current schema information from
+        the backend.
+
+        Args:
+            context: <orb.Context>
+
+        Returns:
+            <unicode> cmd, <dict> data
+
+        """
+        context = context or orb.Context()
+        namespace = context.namespace or self.get_default_namespace()
+        kw = {
+            'namespace': namespace
+        }
+        return self.render('current_schema.sql.jinja', kw), {'namespace': namespace}
+
     def render_delete_collection(self, collection, context=None):
         """
         Renders the DELETE SQL for this connection type.
@@ -873,8 +893,27 @@ class SQLConnection(PooledConnection):
             <str> statement, <dict> data
 
         """
+        context = context or orb.Context()
         data = {}
         kw = {}
+
+        # extend the where query with the model's base query
+        where = context.where
+        if context.use_base_query:
+            base_where = model.get_base_query(context=context)
+            if base_where:
+                where = base_where & where
+
+        # collect schema info
+        schema = model.schema()
+        expand = context.expandtree(model)
+        expanded = bool(expand)
+
+        if context.columns:
+            columns = context.schema_columns(schema)
+        else:
+            columns = schema.columns.values()
+
         cmd = self.render('select.sql.jinja', kw)
         return cmd, data
 
