@@ -73,3 +73,5 @@ class IdColumn(Column):
             return True
         else:
             return super(IdColumn, self).validate(value)
+
+Column.registerAddon('Id', IdColumn)
