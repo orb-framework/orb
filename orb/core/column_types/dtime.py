@@ -267,7 +267,9 @@ class DatetimeWithTimezoneColumn(AbstractDatetimeColumn):
 
         :param      value | <str>
         """
-        if dateutil_parser:
+        if value in ('today', 'now'):
+            return datetime.datetime.now()
+        elif dateutil_parser:
             return dateutil_parser.parse(value)
         else:
             time_struct = time.strptime(value, self.defaultFormat())

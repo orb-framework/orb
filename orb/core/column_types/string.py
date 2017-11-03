@@ -195,7 +195,6 @@ class ColorColumn(StringColumn):
                random.randrange(256).encode('hex') + random.randrange(256).encode('hex')
 
 
-
 class DirectoryColumn(StringColumn):
     def random(self):
         """
@@ -451,6 +450,8 @@ Column.registerAddon('Directory', DirectoryColumn)
 Column.registerAddon('Email', EmailColumn)
 Column.registerAddon('Filepath', FilepathColumn)
 Column.registerAddon('Html', HtmlColumn)
+Column.registerAddon('PlainTextColumn', PlainTextColumn)
 Column.registerAddon('Password', PasswordColumn)
+Column.registerAddon('Token', TokenColumn)
 Column.registerAddon('Url', UrlColumn)
 Column.registerAddon('Xml', XmlColumn)

@@ -1159,6 +1159,12 @@ class Model(object):
         else:
             context.setdefault('where', orb.Query(cls) == key)
 
+        # don't have slicing for lookup by id
+        context['page'] = None
+        context['pageSize'] = None
+        context['start'] = None
+        context['limit'] = None
+
         return cls.select(**context).first()
 
     @classmethod
