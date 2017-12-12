@@ -188,9 +188,10 @@ class ReferenceColumn(Column):
             received_schema = value.schema().name()
 
             if expected_schema != received_schema:
-                raise orb.errors.InvalidReference(self.name(),
-                                                  expects=expected_schema,
-                                                  received=received_schema)
+                if not isinstance(value, ref_model):
+                    raise orb.errors.InvalidReference(self.name(),
+                                                      expects=expected_schema,
+                                                      received=received_schema)
 
         return super(ReferenceColumn, self).validate(value)
 
