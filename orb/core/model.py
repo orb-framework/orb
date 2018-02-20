@@ -104,6 +104,7 @@ class Model(object):
         # extract the data values for this model
         for column in columns:
             if (not column or
+                    column.testFlag(column.Flags.Private) or
                     column.testFlag(column.Flags.RequiresExpand) or
                     not auth(columns=(column,), context=context)):
                 continue
