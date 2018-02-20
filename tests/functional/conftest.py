@@ -187,11 +187,6 @@ def testing_schema(orb):
         filename = orb.StringColumn()
         comment = orb.ReferenceColumn(reference='Comment', flags={'Required'})
 
-    class Attachment(orb.Table):
-        id = orb.IdColumn(type='hash')
-        filename = orb.StringColumn()
-        comment = orb.ReferenceColumn(reference='Comment', flags={'Required'})
-
     return locals()
 
 @pytest.fixture(scope='session')
