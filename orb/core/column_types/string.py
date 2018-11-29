@@ -206,7 +206,7 @@ class DirectoryColumn(StringColumn):
 
 
 class EmailColumn(StringColumn):
-    def __init__(self, pattern='[\w\-\.]+\@\w+\.\w+', **kwds):
+    def __init__(self, pattern='[\w\-\.]+@([\w-]+\.)+\w+', **kwds):
         super(EmailColumn, self).__init__(**kwds)
 
         # define custom properties
